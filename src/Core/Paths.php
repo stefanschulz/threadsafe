@@ -21,10 +21,15 @@ final class Paths
         return self::program() . '/plugins';
     }
 
-    /** The data directory of the user's own files (module rules ...); it need not exist. */
+    /**
+     * The data directory of the user's own files (site profiles, run states, locks, module rules ...); it need not exist. The
+     * environment variable THREADSAFE_DATA moves it elsewhere (tests, or a data directory outside the program directory).
+     */
     public static function data(): string
     {
-        return self::program() . '/data';
+        $custom = getenv('THREADSAFE_DATA');
+
+        return is_string($custom) && $custom !== '' ? rtrim($custom, '/\\') : self::program() . '/data';
     }
 
     private function __construct()

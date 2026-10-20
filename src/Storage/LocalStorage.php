@@ -90,6 +90,12 @@ final class LocalStorage
         return $path;
     }
 
+    /** Deletes the work directory of a backup (dump files and file list). */
+    public function removeWorkDirectory(BackupName $name): void
+    {
+        $this->removeTree($this->directory . '/.work-' . $name->base());
+    }
+
     /**
      * Writes the sidecar file atomically.
      *
@@ -171,7 +177,7 @@ final class LocalStorage
         foreach ($this->files($name) as $file) {
             @unlink($file);
         }
-        $this->removeTree($this->directory . '/.work-' . $name->base());
+        $this->removeWorkDirectory($name);
     }
 
     /**

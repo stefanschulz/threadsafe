@@ -2,7 +2,7 @@
 
 A website backup application. One instance manages backups for many sites through site profiles (dashboard, backup overview per site, manual backups, download). Backups can be restored on a different domain or path, with all application-specific adjustments done automatically. First supported application: **PrestaShop 9.x**.
 
-Status: phase 1 (the restore core) is implemented: `threadsafe migrate prestashop9` turns a restored PrestaShop 9 copy into a working site on a new domain, path or database, or back in place, with a dev mode for live → dev copies; `threadsafe migrate generic` replaces the domain in the database of any site. Website types are plugins (`plugins/`). Phase 2 (site profiles and the backup engine) is **in progress**: the building blocks exist as libraries and are tested - tick engine, streaming ZIP writer and reader, file scanner with filters, database dumper (MariaDB and MySQL), site profiles with a connection test, manifest and local storage - but there is **no `backup` command yet**; the backup run and the command line follow (work packages 8-11 in [docs/PHASE2.md](docs/PHASE2.md)). There is no restore wizard or web interface yet.
+Status: phase 1 (the restore core) is implemented: `threadsafe migrate prestashop9` turns a restored PrestaShop 9 copy into a working site on a new domain, path or database, or back in place, with a dev mode for live → dev copies; `threadsafe migrate generic` replaces the domain in the database of any site. Website types are plugins (`plugins/`). Phase 2 (site profiles and the backup engine) is **in progress**: the building blocks exist as libraries and are tested - tick engine, streaming ZIP writer and reader, file scanner with filters, database dumper (MariaDB and MySQL), site profiles with a connection test, manifest and local storage - and `threadsafe backup <profile>` makes a verifiable standard ZIP archive (files plus one SQL file per table plus a manifest) of a PrestaShop 9 or any other site; `backups` and `verify` and the documentation of the archive follow (work packages 9-11 in [docs/PHASE2.md](docs/PHASE2.md)). There is no restore wizard or web interface yet.
 
 - Working on the project (rules, how to run the checks, map of the code, next steps): [AGENTS.md](AGENTS.md)
 - Concept: [docs/CONCEPT.md](docs/CONCEPT.md)
@@ -12,6 +12,28 @@ Status: phase 1 (the restore core) is implemented: `threadsafe migrate prestasho
 - Reference of the `migrate` command (request, report, journal, exit codes, trying it on a real backup): [docs/MIGRATE.md](docs/MIGRATE.md)
 - Test environment (PrestaShop 9 + MariaDB or MySQL + Mailpit): [.docker/docker-compose.yml](.docker/docker-compose.yml)
 - Phase-0 tool: [tools/domain-inventory.php](tools/domain-inventory.php) – read-only report of where a domain occurs in database and files of a PrestaShop
+
+## Usage: back up a site
+
+A site is described once as a **profile**; the backups of a profile go to its storage directory.
+
+```bash
+# the database settings of a PrestaShop are read from its own parameters.php; the profile is tested before it is stored
+php bin/threadsafe profile add shop --type=prestashop9 --path=/var/www/shop --storage=/var/backups/threadsafe/shop
+
+# any other site: files plus the database named here (the password from a file, never as an option)
+php bin/threadsafe profile add blog --type=generic --path=/var/www/blog --storage=/var/backups/threadsafe/blog     --db-name=blog --db-user=blog --db-password-file=/root/blog.pw
+
+php bin/threadsafe profile test shop    # what a backup would run into: privileges, free space, PHP limits ...
+php bin/threadsafe backup shop          # or: backup --all
+```
+
+A backup is `<profile>_<UTC time>_<random>.zip` (or `-p01.zip`, `-p02.zip` ... with `--part-size=2G`) plus a `.json` sidecar
+in the storage directory: a standard ZIP archive with `files/...`, `db/0001_<table>.sql ...` and `threadsafe.json`, which
+`unzip` and the plain `mysql` / `mariadb` client can take apart. `backup --tick-seconds=N` works in steps that save their
+state (`backup --resume=<run id>` continues a run whose process died). Keep the storage directory outside the web root;
+archives hold credentials and customer data. Exit codes: 0 ok, 1 usage error, 2 refused (profile test failed, too little
+space, another backup running), 3 failed.
 
 ## Usage: migrate a restored PrestaShop 9 copy
 

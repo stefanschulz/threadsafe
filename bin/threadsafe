@@ -4,7 +4,9 @@
 declare(strict_types=1);
 
 use ThreadSafe\Cli\Application;
+use ThreadSafe\Cli\BackupCommand;
 use ThreadSafe\Cli\MigrateCommand;
+use ThreadSafe\Cli\ProfileCommand;
 use ThreadSafe\Cli\StreamOutput;
 
 if (PHP_VERSION_ID < 80400) {
@@ -19,6 +21,6 @@ if (!is_file($autoload)) {
 }
 require $autoload;
 
-$application = new Application([new MigrateCommand()]);
+$application = new Application([new MigrateCommand(), new ProfileCommand(), new BackupCommand()]);
 
 exit($application->run($argv, StreamOutput::standard()));
