@@ -1,0 +1,47 @@
+{
+    "name": "stefanschulz/threadsafe",
+    "description": "Multi-site backup and migration tool for PHP web applications (first target: PrestaShop 9).",
+    "type": "project",
+    "license": "GPL-3.0-or-later",
+    "require": {
+        "php": "^8.4",
+        "ext-json": "*",
+        "ext-mbstring": "*",
+        "ext-pdo": "*"
+    },
+    "require-dev": {
+        "php-parallel-lint/php-parallel-lint": "^1.4",
+        "phpstan/phpstan": "^2.0",
+        "phpunit/phpunit": "^12.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "ThreadSafe\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "ThreadSafe\\Tests\\": "tests/"
+        }
+    },
+    "config": {
+        "sort-packages": true,
+        "optimize-autoloader": true
+    },
+    "scripts": {
+        "lint": "parallel-lint --colors src tests tools",
+        "stan": "phpstan analyse --memory-limit=512M",
+        "test": "phpunit --testsuite unit",
+        "check": [
+            "@lint",
+            "@stan",
+            "@test"
+        ]
+    },
+    "scripts-descriptions": {
+        "lint": "Syntax check of all PHP files",
+        "stan": "Static analysis (PHPStan)",
+        "test": "Unit tests (no database needed)",
+        "check": "Lint, static analysis and unit tests"
+    }
+}

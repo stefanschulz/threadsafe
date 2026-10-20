@@ -26,6 +26,18 @@ docker cp tools/domain-inventory.php threadsafe-dev-prestashop-1:/tmp/
 docker exec threadsafe-dev-prestashop-1 php /tmp/domain-inventory.php --root=/var/www/html --domain=localhost:8190
 ```
 
+## Development
+
+PHP tooling runs in a container (the host PHP has no database driver). PHP 8.4+, MariaDB only.
+
+```bash
+cd .docker
+docker compose --profile tools run --rm tools composer install
+docker compose --profile tools run --rm tools composer check   # lint, PHPStan (level 8), unit tests
+```
+
+Single steps: `composer lint`, `composer stan`, `composer test`. Integration tests (`tests/Integration`) need the Docker stacks and are added with the integration harness (see [docs/PHASE1.md](docs/PHASE1.md)). All code, comments and documentation are written in English.
+
 ## Data protection
 
 Real backups contain customer data. They are used only locally as restore test cases and never enter this repository, logs or documentation (see `.gitignore`).

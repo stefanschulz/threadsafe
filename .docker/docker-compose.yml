@@ -55,6 +55,21 @@ services:
     ports:
       - "${MAILPIT_UI_PORT:-8191}:8025"
 
+  # Development tools (PHP 8.4 CLI + pdo_mysql + Composer). Not started by `up`; use:
+  #   docker compose --profile tools run --rm tools composer install
+  #   docker compose --profile tools run --rm tools composer check
+  tools:
+    profiles: ["tools"]
+    build: ./php
+    working_dir: /app
+    volumes:
+      - ..:/app
+      - composer_cache:/composer
+    depends_on:
+      db:
+        condition: service_healthy
+
 volumes:
   ps_data:
   db_data:
+  composer_cache:

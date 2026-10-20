@@ -20,3 +20,6 @@
 *.sql
 *.sql.gz
 *.tsv
+
+# Tool caches
+/.cache/
