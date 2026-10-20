@@ -263,7 +263,7 @@ Fresh installs plus fixtures are the basis of all automated tests; no customer d
 | 7 | step 9 dev mode (data-driven rules) - **done**: `--mode=dev`, rules in `dev-mode.json`, own rule files, mail catcher, robots/`X-Robots-Tag`; phase 3 of `tests/stack/run.sh` runs it on the migrated clone and proves that a shop mail arrives in Mailpit | 5 | M |
 | 8 | steps 10, 11 (finalize, self-test) - **done** (3.10); the clone migration in `run.sh` ends with a real self-test of the migrated target | 5, 6 | M |
 | 9 | integration harness: target stack, fixture, clone script, assertions, `.htaccess` oracle — **done** (migration assertions follow with WP 5–8) | 1 | L |
-| 10 | documentation: request/report/journal format, usage, private-test procedure | all | S |
+| 10 | documentation: request/report/journal format, usage, private-test procedure - **done**: [MIGRATE.md](MIGRATE.md) | all | S |
 
 WP 3, 4 and 9 can run in parallel after WP 1. Suggested order: 1 → (3, 4, 9) → 2 → (5, 6) → 7 → 8 → 10. Milestone A (after WP 5, 6): domain, parameters, `.htaccess` and caches migrated and verified in Docker; milestone B (after WP 7, 8): dev mode and self-test complete; phase 1 done.
 

@@ -2,10 +2,11 @@
 
 A website backup application. One instance manages backups for many sites through site profiles (dashboard, backup overview per site, manual backups, download). Backups can be restored on a different domain or path, with all application-specific adjustments done automatically. First supported application: **PrestaShop 9.x**.
 
-Status: concept and Phase 0 (test environment, domain inventory). No backup or restore code yet.
+Status: phase 1 (the restore core) is implemented: `threadsafe migrate prestashop9` turns a restored PrestaShop 9 copy into a working site on a new domain, path or database, or back in place, with a dev mode for live → dev copies. There is no backup engine, restore wizard or web interface yet.
 
 - Concept: [docs/CONCEPT.md](docs/CONCEPT.md)
 - Phase 1 plan (restore core): [docs/PHASE1.md](docs/PHASE1.md)
+- Reference of the `migrate` command (request, report, journal, exit codes, trying it on a real backup): [docs/MIGRATE.md](docs/MIGRATE.md)
 - Test environment (PrestaShop 9 + MariaDB + Mailpit): [.docker/docker-compose.yml](.docker/docker-compose.yml)
 - Phase-0 tool: [tools/domain-inventory.php](tools/domain-inventory.php) – read-only report of where a domain occurs in database and files of a PrestaShop
 
@@ -25,7 +26,7 @@ php bin/threadsafe migrate prestashop9 --root=/var/www/html --to=shop.example   
 The old domain is read from the shop's database (or given with `--from`). Without `--to` and without a new domain the
 run is a restore in place on the same domain: caches, directories and database credentials are fixed, nothing is
 replaced. Exit codes: 0 ok, 1 usage error, 2 refused (wrong shop, unsupported version or database), 3 a step failed,
-4 self-test failed, 5 internal error. `threadsafe help migrate` lists all options. The journal (default
+4 self-test failed, 5 internal error. `threadsafe help migrate` lists all options; the full reference is [docs/MIGRATE.md](docs/MIGRATE.md). The journal (default
 `<root>/var/threadsafe-journal`) contains old and new values, including passwords: keep it private.
 
 ### Self-test

@@ -165,8 +165,10 @@ final class Application
         $output->writeln('  ' . self::NAME . ' ' . $command->usage());
         $output->writeln();
         $output->writeln('Options:');
-        foreach (array_merge($command->options(), self::globalOptions()) as $option) {
-            $output->writeln('  ' . str_pad($option->synopsis(), 30) . $option->description);
+        $options = array_merge($command->options(), self::globalOptions());
+        $width = max(30, ...array_map(static fn (OptionSpec $o): int => strlen($o->synopsis()) + 2, $options));
+        foreach ($options as $option) {
+            $output->writeln('  ' . str_pad($option->synopsis(), $width) . $option->description);
         }
     }
 }
