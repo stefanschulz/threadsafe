@@ -22,6 +22,8 @@
 | Database | **MariaDB** (not MySQL): test environment 10.11 LTS, test matrix also 11.4 LTS. On the PHP side the PDO driver `pdo_mysql` (the name is historic; it serves MariaDB; DSN prefix `mysql:`). Manifest and restore check the server type. |
 | Production shop | **PrestaShop 9.0.x** (PHP 8.1–8.4 according to the docs) |
 | Main use case | **back up live, restore to dev**; also domain A → B, production → local/Docker, path change/subdirectory |
+| Same-domain restore | A backup must also be restorable on the **same domain** (disaster recovery, rollback after a failed update). The same restore core handles it as a migration in which nothing has to be rewritten (4.6) |
+| Module knowledge | Support for individual (third-party) modules is an **extension point**: per-module rules as data plus optional code, addable later without changing the core (4.7) |
 | Schedule | **cron-driven backups belong in the core** (Akeeba offers them only in the Pro edition) |
 | Users | initially **one admin**; download warning from **500 MB** |
 | Encryption | wanted, firmly planned (phase 5): **key pair** for cron backups (public key on the server, private key with the owner) **and password** for manual backups |
@@ -185,7 +187,7 @@ Every site profile has exactly one **website type**. The type determines how the
 
 ### 4.1 Inputs
 New DB (host, name, user, password, keep/change prefix) · new domain · SSL domain · SSL no/yes/everywhere · path (`physical_uri`, e.g. `/shop/`) · mode "production" or "dev/staging".
-Pre-filled from the manifest or from `ps_shop_url` of the restored DB.
+Pre-filled from the manifest or from `ps_shop_url` of the restored DB. Domain mappings are **optional**: without a mapping (or with `from == to`) the run is a restore in place (4.6).
 
 ### 4.2 Automatic adjustments (in order)
 1. **`app/config/parameters.php`**: write the new DB values, generate the file as a proper PHP array (no regex). Leave `secret`, `cookie_*`, `api_*_key` unchanged.
@@ -214,6 +216,34 @@ The list of affected configuration keys/modules is data (JSON in the adapter), n
 
 ### 4.5 Versions
 PrestaShop **9.0 and 9.1** are supported (officially PHP 8.1–8.4 and 8.1–8.5 respectively, MySQL ≥ 5.7 / MariaDB ≥ 10.2 – ThreadSafe supports only MariaDB of these; [system requirements PS 9](https://devdocs.prestashop-project.org/9/basics/installation/system-requirements/)). Configuration exclusively through `app/config/parameters.php`; older versions (1.6–8.x) are out of scope.
+
+### 4.6 Restore on the same domain (disaster recovery, rollback)
+
+A backup must be restorable where it came from: after a failure of the original system (new server or repaired server, same domain) or to roll back a failed update. Nothing may be "migrated" then, but several steps are still needed because the **environment** can differ even when the domain does not.
+
+| Step | Same domain, same path | Why it still matters |
+|---|---|---|
+| `parameters.php` | rewritten only if database credentials/host differ | a new server usually has other DB credentials |
+| Caches | **always discarded**, also the DB cache tables | cached configuration (`appParameters.php`, compiled templates) belongs to the old environment |
+| `configuration`, `shop_url` | unchanged (reported as "already correct") | – |
+| Content replacement | no-op | – |
+| `.htaccess` | kept; regenerated only if the file is missing or damaged | – |
+| Host-bound files | `php.ini` `error_log` path and similar are fixed when the server path differs | a new server often has another absolute path |
+| Directory skeleton, permissions | **always** | a fresh server has other owners/modes; `var/` may be missing |
+| Dev mode | **off**; mode is `production` | the live shop must keep mail, payments and cloud links |
+| Self-test | always | proves the restored shop actually serves |
+
+Because cookie keys and `secret` are kept, sessions and password hashes keep working. The same core is therefore used for three situations: moving to a new domain/path, restoring in place, and cloning to dev. Restoring **over an existing installation** (rollback) additionally needs cleanup of leftovers (tables with the prefix that are not in the backup, files that are not in the backup); that belongs to the `restore.php` wizard (phase 3), not to the migration core.
+
+### 4.7 Module rules (per-module knowledge)
+
+Nobody can know all third-party modules, and every shop uses a different set. The core therefore knows **nothing** module-specific; module knowledge lives in **module rules**, which are added over time:
+
+- A rule is a small JSON file named after the module (`resources/prestashop9/modules/<module>.json`) and may point to an optional PHP class for logic that cannot be expressed as data.
+- Rules can declare: tables and columns that hold the domain (and in which form: plain, serialized, JSON), configuration keys to rewrite, keep or neutralise in dev mode, log/cache tables to skip or keep as structure only, files to rewrite or delete, and whether the module is deactivated in dev mode.
+- **Own rules without changing the program:** a rules folder in the data directory (`data/rules/`) is loaded in addition to the shipped rules and may override them.
+- Modules without a rule are still handled by the generic engine (all text columns, URL forms only); the dry-run report lists their domain occurrences as "no rule", which is how new rules are found.
+- A rule is tested like code: it comes with a fixture in the test module or a small test case.
 
 ## 5. Multiple sites: profiles, dashboard, backup management
 
@@ -271,6 +301,7 @@ Downloading in the web interface is a **convenience, not a reliable transport fo
 - **Data-protection rule:** a real live backup (it contains customer data) is used only locally as an additional restore test case – never in the repository, logs, error reports or documentation. Repository tests use only the Docker test instance and synthetic fixtures (including re-created problem cases such as log tables, `www.` variants, a second foreign domain).
 - **Round trip in Docker** with the test instance as the source: backup → restore to a **different domain/port**, **different path**, **different DB**, **different prefix**, with/without SSL → self-test → comparison (table checksums, file count).
 - Test matrix: PS 9.0 / 9.1 × MariaDB 10.11 LTS / 11.4 LTS × PHP 8.4 / 8.5.
+- **Disaster-recovery test:** back up/copy a running shop, destroy its containers and volumes, recreate empty ones **on the same domain and port**, restore files and database, run the core without a domain mapping, smoke-test. Also a rollback test: restore an older state over a modified installation.
 - Test cases: multistore, multilingual, shop in a subdirectory, serialised module values, large tables, artificially low PHP limits (tick abort/resume).
 - Acceptance: a move to a new domain **without a single manual step** from the manual checklist.
 
@@ -281,7 +312,7 @@ Downloading in the web interface is a **convenience, not a reliable transport fo
 | 0 (started 2026-10-20) | **Foundations:** reproducible Docker test environment, "domain inventory" script (DB + files) | documented list of adjustments (2.2), fixture |
 | 1 | **Restore core (PrestaShop migrator)** as a library + CLI/mini UI: section 4 in full (including the dev mode for the normal live → dev case), dry run, self-test. Works on *any* already unpacked copy, also after an Akeeba restore | manual checklist automated; test matrix starts |
 | 2 | **Profile model and backup engine:** site profiles (JSON) with connection test, website types `generic` and `prestashop9`, scanner, dumper, ZIP writer with ticks, splitting, manifest + sidecar file, storage per profile, CLI (`backup <profile>`, `backup --all`, `list`) | back up several sites from the command line, round-trip test |
-| 3 | **`restore.php`:** extractor + wizard, uses the core from phase 1 | backup → move in one go |
+| 3 | **`restore.php`:** extractor + wizard, uses the core from phase 1; also restores **over an existing installation** (drop leftover tables with the prefix, remove files that are not in the backup) | backup → move in one go |
 | 4 | **Web UI:** login, dashboard, profile management, backup overview per profile, manual backup with progress, download (5.4) | multi-site interface, Solo replacement for own needs |
 | 5 | **Schedule via cron** (CLI or protected URL), retention, **archive encryption** | automatic, encrypted backups |
 | later | SFTP/S3 export (fills "transferred"), further types (WordPress, Joomla), anonymisation of customer data | extensibility |
@@ -312,6 +343,7 @@ Phase 1 deliberately comes before the engine: it solves the actual problem (the 
 - Anonymisation: later, as an option; until then only a notice.
 - Encryption: both (key pair for cron, password for manual backups).
 - Database: MariaDB instead of MySQL.
+- Same-domain restore (disaster recovery, rollback) is a core requirement (4.6); module-specific knowledge is an extension point (4.7).
 - Multi-site (section 5): profiles, dashboard, backup overview, manual backup and download are core requirements; all sites live on the same server/account, one instance is enough; one admin user at first, roles can be added later; download warning from 500 MB (configurable).
 
 **Open**

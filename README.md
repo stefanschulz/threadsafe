@@ -5,6 +5,7 @@ A website backup application. One instance manages backups for many sites throug
 Status: concept and Phase 0 (test environment, domain inventory). No backup or restore code yet.
 
 - Concept: [docs/CONCEPT.md](docs/CONCEPT.md)
+- Phase 1 plan (restore core): [docs/PHASE1.md](docs/PHASE1.md)
 - Test environment (PrestaShop 9 + MariaDB + Mailpit): [.docker/docker-compose.yml](.docker/docker-compose.yml)
 - Phase-0 tool: [tools/domain-inventory.php](tools/domain-inventory.php) – read-only report of where a domain occurs in database and files of a PrestaShop
 
