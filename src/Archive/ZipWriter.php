@@ -448,6 +448,8 @@ final class ZipWriter
         if ($handle === false) {
             throw new ZipException("Cannot open \"$file\".");
         }
+        // an archive holds credentials and customer data: nobody but the owner reads it, from the first byte on
+        @chmod($file, 0600);
 
         return $handle;
     }

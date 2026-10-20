@@ -15,7 +15,7 @@ application automatically. First target: **PrestaShop 9.x**; MariaDB and MySQL; 
 | Phase | Content | State |
 |---|---|---|
 | 1, 1b | Restore core: `threadsafe migrate <type>`, dev mode, module rules, self-test; database drivers; website type plugins | done |
-| 2 | Site profiles and backup engine (CLI) | **in progress**: work packages 1-6 done, 7-11 open (table in [docs/PHASE2.md](docs/PHASE2.md) section 5) |
+| 2 | Site profiles and backup engine (CLI) | **in progress**: work packages 1-7 done, 8-11 open (table in [docs/PHASE2.md](docs/PHASE2.md) section 5) |
 | 3 | `restore.php` (extractor and wizard) | not started |
 | 4 | Web interface (dashboard, download) | not started |
 | 5 | One trigger cron, retention, encryption | not started |
@@ -83,6 +83,7 @@ Oracles are real tools where possible: `unzip -t`, the `mariadb` client, `CHECKS
 | `src/Archive` | Phase 2: streaming ZIP writer and reader (ZIP64, resumable, byte-identical regardless of tick cuts) |
 | `src/Backup` | Phase 2: `Scanner`, `Filters`, `FileList`, `Dumper` and its helpers (`SqlWriter`, `SchemaReader`, `DumpState` ...) |
 | `src/Profile` | Phase 2: `SiteProfile`, `ProfileStore`, `ProfileResolver`, `ConnectionTest` |
+| `src/Storage`, `src/Backup/Manifest*` | Phase 2: `LocalStorage` (protection files, sidecar, listing), `SpaceCheck`, `Postproc`; `BackupName`, `Manifest`, `Sidecar` |
 | `tests/Unit`, `tests/Integration`, `tests/Support`, `tests/stack` | Tests, helpers, Docker stack scripts |
 | `tools/spikes` | Throw-away scripts behind the findings in PHASE2.md section 8 (kept for reference) |
 | `docs` | Concept, phase plans, `MIGRATE.md` (reference of the `migrate` command) |
@@ -105,10 +106,11 @@ Oracles are real tools where possible: `unzip -t`, the `mariadb` client, `CHECKS
 
 ## Next steps
 
-Phase 2, work package 7: manifest, sidecar file, local storage with protection files (`.htaccess`, `index.php`,
-`web.config`), naming, `.part` handling, free-space check, the `Postproc` interface. Then 8 (the `BackupRun` and the CLI:
-`profile`, `backup`), 9 (`backups`, `verify`), 10 (integration: shop round trip, low limits, kill and resume), 11
-(`docs/BACKUP.md`). Details and acceptance criteria: `docs/PHASE2.md` sections 3.8-3.10, 4-6.
+Phase 2, work package 8: `BackupRun` (phases init, scan, dump, pack, finale; part rollover; warnings; failure cleanup;
+resume) and the CLI (`profile add|edit|show|list|test|remove`, `backup <id>`, `backup --all`, `--resume`). It joins what the
+earlier packages built: `ProfileResolver` -> `Scanner` + `Dumper` (work directory in the storage) -> `ZipWriter` -> `Manifest`,
+`Sidecar`, `LocalStorage`. Then 9 (`backups`, `verify`), 10 (integration: shop round trip, low limits, kill and resume), 11
+(`docs/BACKUP.md`). Details and acceptance criteria: `docs/PHASE2.md` sections 3.2, 3.10, 4-6.
 
 Open questions for the owner (not blocking): which database server and which PHP functions (`exec`, CLI cron) the production
 host offers - see CONCEPT section 10.
