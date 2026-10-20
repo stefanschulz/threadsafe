@@ -118,8 +118,15 @@ Resumable depth-first walk of the site path, `scandir` per directory (memory = t
 - Filters are patterns relative to the site root (`var/cache`, `*.log`, `**/.git`), matched on directory level so that an excluded tree is never entered. Always excluded: the storage path, `data/` of ThreadSafe, the run state.
 - **Symlinks are not followed** (decision 5): skipped with a warning (restoring links would need care against path traversal); (decision 5).
 - Unreadable files and files that vanish between scan and read are warnings, not failures. A file that changes while it is read is stored as read; its mtime/size at scan time are recorded and a size mismatch is a warning.
-- Names: stored as given in UTF-8 (general purpose flag bit 11); a name that is not valid UTF-8 is stored with the flag cleared and reported; names containing `..`, absolute paths and NUL are refused by the *reader* (Zip Slip), the writer never produces them.
+- Names: stored as given in UTF-8 (general purpose flag bit 11). A name that is not valid UTF-8, or that a ZIP archive must not hold (backslash, `..`, NUL ...), is **skipped with a warning** - decided while building WP 4: such a name cannot be restored faithfully anyway. The reader refuses the same names (Zip Slip); the writer never produces them.
 - Mode and mtime are stored (ZIP "version made by" Unix, external attributes, extended timestamp field), so a restore can set permissions.
+
+**As built (WP 4).** `src/Backup/`:
+
+- `Filters`: patterns relative to the site root - `var/cache` (a path and everything below), `*.log` (a name at any depth), a leading `**` plus slash (`.git` at any depth), `*` within one segment, `**` across segments, `?`, a trailing slash for directories only; no negation. Invalid patterns (absolute, `..`, empty segments, backslash, NUL) are refused when the profile is saved. Literal paths (storage directory, program data) are excluded exactly; `Filters::relativeInside($root, $absolute)` finds them when they lie inside the site.
+- `Scanner::start()` / `next($state, Budget, $maxItems)` return a `ScanBatch` (items, new state, warnings, done). Order: depth first, names sorted bytewise, a directory's entry before its contents, so the same tree always gives the same sequence. The state is a stack of `(directory, last name done)` frames - small plain data; every call reads the directories on the stack again, so files that appear or vanish between ticks cause no error. At least one entry is read per call, whatever the budget.
+- Skipped with a warning: symbolic links (never followed, the target is shown), special files, unreadable directories, invalid names, files that disappear while scanning. Excluded paths cause no warning.
+- `FileList` keeps what the scan found in a JSON-lines file (`append` truncates to the size the state remembers, `read` goes on at a byte offset and ignores a half-written last line), so 70,000 entries are neither in the run state nor in memory; the pack phase reads it sequentially and the total gives progress and the space estimate.
 
 ### 3.6 Database dumper
 
@@ -222,7 +229,7 @@ As in [MIGRATE.md](MIGRATE.md) section 10: the real shop (the examined one, CONC
 | 1 | **Spikes** - **done**, findings in section 8: (a) one ZIP entry over several processes with serialised CRC/SHA state, checked by `unzip -t`, ZIP64 layout; (b) exact values of all column types, both drivers, MariaDB and MySQL, dump-import round trip; (c) tables without primary key; (d) memory with a 40 MB cell. Scripts in `tools/spikes/` | – | S |
 | 2 | `Engine/`: `Budget`, `Task`, `Run`/`RunStore`, `Lock`, `Executor` with save/reload between ticks and resume - **done**, see "As built" in 3.2; the queue is not built (see there) | – | M |
 | 3 | `Archive/`: `ZipWriter` (ZIP64, data descriptors, chunked deflate, stored/deflate choice, parts) and `ZipReader` with the property and hostile-input tests - **done**, see "As built" in 3.7 | 1 | L |
-| 4 | `Backup/Scanner` + `Filters` (resumable walk, patterns, symlinks, warnings) | 2 | M |
+| 4 | `Backup/Scanner` + `Filters` (resumable walk, patterns, symlinks, warnings) - **done**, see "As built" in 3.5 | 2 | M |
 | 5 | `Backup/Dumper` + `SqlWriter` (tables, views, triggers, keyset paging, exact values, snapshot/table consistency, MariaDB/MySQL) with the type round trip test | 1, 2 | L |
 | 6 | `Profile/` (model, store, validation, connection test) and the `Backupable` capability with `prestashop9` and `generic` implementations, `backup-defaults.json` | 2 | M |
 | 7 | Manifest, sidecar, local storage and protection files, naming, `.part` handling, space check, `Postproc` interface | 3, 6 | M |
