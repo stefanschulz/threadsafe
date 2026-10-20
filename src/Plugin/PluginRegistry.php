@@ -91,6 +91,21 @@ final class PluginRegistry
     }
 
     /**
+     * The backup side of a website type.
+     *
+     * @throws PluginError no such plugin, or the type cannot be backed up
+     */
+    public function backupable(string $id): Backupable
+    {
+        $type = $this->get($id);
+        if (!$type instanceof Backupable) {
+            throw new PluginError("The website type \"$id\" does not support backups.");
+        }
+
+        return $type;
+    }
+
+    /**
      * Every website type, in id order.
      *
      * @return list<WebsiteType>

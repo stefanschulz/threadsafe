@@ -13,6 +13,7 @@ use ThreadSafe\Core\StepResult;
 use ThreadSafe\Database\Connection;
 use ThreadSafe\Database\ConnectionFailed;
 use ThreadSafe\PrestaShop9\Exception\InvalidParametersFile;
+use ThreadSafe\PrestaShop9\Installation;
 use ThreadSafe\PrestaShop9\ParametersFile;
 use ThreadSafe\PrestaShop9\ShopUrlRow;
 use ThreadSafe\PrestaShop9\SourceState;
@@ -99,25 +100,13 @@ final class ReadSourceState implements Step
 
     private function detectVersion(string $root): string
     {
-        $file = $root . '/src/Core/Version.php';
-        $content = is_file($file) ? file_get_contents($file) : false;
-        if ($content === false || preg_match("/const\\s+VERSION\\s*=\\s*'([^']+)'/", $content, $m) !== 1) {
-            throw new GuardFailed("\"$root\" does not look like a PrestaShop 9 installation (src/Core/Version.php not found).");
-        }
-
-        return $m[1];
+        return Installation::version($root)
+            ?? throw new GuardFailed("\"$root\" does not look like a PrestaShop 9 installation (src/Core/Version.php not found).");
     }
 
-    /** The back office folder has an arbitrary name; it is the directory that contains themes/new-theme. */
     private function detectAdminDirectory(string $root): ?string
     {
-        foreach (scandir($root) ?: [] as $entry) {
-            if ($entry !== '.' && $entry !== '..' && is_dir($root . '/' . $entry . '/themes/new-theme')) {
-                return $entry;
-            }
-        }
-
-        return null;
+        return Installation::adminDirectory($root);
     }
 
     /**

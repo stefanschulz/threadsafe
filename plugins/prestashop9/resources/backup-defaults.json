@@ -1,0 +1,32 @@
+{
+    "description": "What a PrestaShop 9 backup leaves out unless the profile says otherwise. Paths are relative to the shop root (patterns of ThreadSafe's backup filters); {admin} is the back office folder, which has an arbitrary name. Tables are named without the prefix and keep only their structure.",
+    "excludePaths": [
+        "var/cache",
+        "var/logs",
+        "var/sessions",
+        "cache/smarty/cache",
+        "cache/smarty/compile",
+        "cache/cachefs",
+        "img/tmp",
+        ".git",
+        "{admin}/autoupgrade/backup",
+        "{admin}/autoupgrade/download",
+        "{admin}/autoupgrade/tmp",
+        "{admin}/autoupgrade/logs"
+    ],
+    "structureOnlyTables": [
+        "connections",
+        "connections_source",
+        "connections_page",
+        "guest",
+        "log",
+        "pagenotfound",
+        "page_viewed",
+        "statssearch",
+        "psgdpr_log",
+        "employee_session",
+        "customer_session",
+        "smarty_cache",
+        "smarty_lazy_cache"
+    ]
+}
