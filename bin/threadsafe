@@ -5,9 +5,11 @@ declare(strict_types=1);
 
 use ThreadSafe\Cli\Application;
 use ThreadSafe\Cli\BackupCommand;
+use ThreadSafe\Cli\BackupsCommand;
 use ThreadSafe\Cli\MigrateCommand;
 use ThreadSafe\Cli\ProfileCommand;
 use ThreadSafe\Cli\StreamOutput;
+use ThreadSafe\Cli\VerifyCommand;
 
 if (PHP_VERSION_ID < 80400) {
     fwrite(STDERR, "ThreadSafe needs PHP 8.4 or newer (this is " . PHP_VERSION . ").\n");
@@ -21,6 +23,6 @@ if (!is_file($autoload)) {
 }
 require $autoload;
 
-$application = new Application([new MigrateCommand(), new ProfileCommand(), new BackupCommand()]);
+$application = new Application([new MigrateCommand(), new ProfileCommand(), new BackupCommand(), new BackupsCommand(), new VerifyCommand()]);
 
 exit($application->run($argv, StreamOutput::standard()));

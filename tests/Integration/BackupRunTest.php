@@ -213,6 +213,24 @@ final class BackupRunTest extends IntegrationTestCase
         [$code, $stdout, $stderr] = $run(['backup', 'shop', '--tick-seconds=0', '--part-size=1M']);
         self::assertSame(0, $code, $stdout . $stderr);
         self::assertStringContainsString('table by table', $stdout);
+
+        [$code, $stdout, $stderr] = $run(['backups', 'shop']);
+        self::assertSame(0, $code, $stderr);
+        self::assertSame(2, substr_count($stdout, 'PrestaShop 9.0.2'));
+        [$code, $stdout, $stderr] = $run(['verify', 'shop']);
+        self::assertSame(0, $code, $stdout . $stderr);
+        self::assertStringContainsString('is intact (full check', $stdout);
+
+        $archive = glob($this->storage . '/shop_*.zip')[0] ?? null;
+        self::assertNotNull($archive);
+        $bytes = (string) file_get_contents($archive);
+        file_put_contents($archive, substr_replace($bytes, chr(ord($bytes[1000]) ^ 1), 1000, 1));
+        [$code, , $stderr] = $run(['verify', 'shop', '--quick']);
+        self::assertSame(0, $code, 'Verify looks at the newest backup, which is the split one.');
+        $name = basename($archive, '.zip');
+        [$code, , $stderr] = $run(['verify', 'shop', $name]);
+        self::assertSame(3, $code);
+        self::assertStringContainsString('NOT intact', $stderr);
     }
 
     /**

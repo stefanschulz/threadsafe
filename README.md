@@ -2,7 +2,7 @@
 
 A website backup application. One instance manages backups for many sites through site profiles (dashboard, backup overview per site, manual backups, download). Backups can be restored on a different domain or path, with all application-specific adjustments done automatically. First supported application: **PrestaShop 9.x**.
 
-Status: phase 1 (the restore core) is implemented: `threadsafe migrate prestashop9` turns a restored PrestaShop 9 copy into a working site on a new domain, path or database, or back in place, with a dev mode for live → dev copies; `threadsafe migrate generic` replaces the domain in the database of any site. Website types are plugins (`plugins/`). Phase 2 (site profiles and the backup engine) is **in progress**: the building blocks exist as libraries and are tested - tick engine, streaming ZIP writer and reader, file scanner with filters, database dumper (MariaDB and MySQL), site profiles with a connection test, manifest and local storage - and `threadsafe backup <profile>` makes a verifiable standard ZIP archive (files plus one SQL file per table plus a manifest) of a PrestaShop 9 or any other site; `backups` and `verify` and the documentation of the archive follow (work packages 9-11 in [docs/PHASE2.md](docs/PHASE2.md)). There is no restore wizard or web interface yet.
+Status: phase 1 (the restore core) is implemented: `threadsafe migrate prestashop9` turns a restored PrestaShop 9 copy into a working site on a new domain, path or database, or back in place, with a dev mode for live → dev copies; `threadsafe migrate generic` replaces the domain in the database of any site. Website types are plugins (`plugins/`). Phase 2 (site profiles and the backup engine) is **in progress**: the building blocks exist as libraries and are tested - tick engine, streaming ZIP writer and reader, file scanner with filters, database dumper (MariaDB and MySQL), site profiles with a connection test, manifest and local storage - and `threadsafe backup <profile>` makes a verifiable standard ZIP archive (files plus one SQL file per table plus a manifest) of a PrestaShop 9 or any other site; `backups` lists them and `verify` checks that they are intact; the remaining tests and the documentation of the archive format follow (work packages 10-11 in [docs/PHASE2.md](docs/PHASE2.md)). There is no restore wizard or web interface yet.
 
 - Working on the project (rules, how to run the checks, map of the code, next steps): [AGENTS.md](AGENTS.md)
 - Concept: [docs/CONCEPT.md](docs/CONCEPT.md)
@@ -26,6 +26,8 @@ php bin/threadsafe profile add blog --type=generic --path=/var/www/blog --storag
 
 php bin/threadsafe profile test shop    # what a backup would run into: privileges, free space, PHP limits ...
 php bin/threadsafe backup shop          # or: backup --all
+php bin/threadsafe backups              # what exists, and interrupted runs
+php bin/threadsafe verify shop          # is the newest backup intact? (--quick: sizes and SHA-256 only)
 ```
 
 A backup is `<profile>_<UTC time>_<random>.zip` (or `-p01.zip`, `-p02.zip` ... with `--part-size=2G`) plus a `.json` sidecar
@@ -33,7 +35,7 @@ in the storage directory: a standard ZIP archive with `files/...`, `db/0001_<tab
 `unzip` and the plain `mysql` / `mariadb` client can take apart. `backup --tick-seconds=N` works in steps that save their
 state (`backup --resume=<run id>` continues a run whose process died). Keep the storage directory outside the web root;
 archives hold credentials and customer data. Exit codes: 0 ok, 1 usage error, 2 refused (profile test failed, too little
-space, another backup running), 3 failed.
+space, another backup running), 3 failed (`verify`: the backup is damaged).
 
 ## Usage: migrate a restored PrestaShop 9 copy
 

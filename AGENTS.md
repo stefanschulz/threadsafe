@@ -15,7 +15,7 @@ application automatically. First target: **PrestaShop 9.x**; MariaDB and MySQL; 
 | Phase | Content | State |
 |---|---|---|
 | 1, 1b | Restore core: `threadsafe migrate <type>`, dev mode, module rules, self-test; database drivers; website type plugins | done |
-| 2 | Site profiles and backup engine (CLI) | **in progress**: work packages 1-8 done, 9-11 open (table in [docs/PHASE2.md](docs/PHASE2.md) section 5) |
+| 2 | Site profiles and backup engine (CLI) | **in progress**: work packages 1-9 done, 10-11 open (table in [docs/PHASE2.md](docs/PHASE2.md) section 5) |
 | 3 | `restore.php` (extractor and wizard) | not started |
 | 4 | Web interface (dashboard, download) | not started |
 | 5 | One trigger cron, retention, encryption | not started |
@@ -83,7 +83,7 @@ Oracles are real tools where possible: `unzip -t`, the `mariadb` client, `CHECKS
 | `src/Archive` | Phase 2: streaming ZIP writer and reader (ZIP64, resumable, byte-identical regardless of tick cuts) |
 | `src/Backup` | Phase 2: `Scanner`, `Filters`, `FileList`, `Dumper` and its helpers (`SqlWriter`, `SchemaReader`, `DumpState` ...); `BackupRun` (the task), `ArchivePacker` |
 | `src/Profile` | Phase 2: `SiteProfile`, `ProfileStore`, `ProfileResolver`, `ConnectionTest` |
-| `src/Storage`, `src/Backup/Manifest*` | Phase 2: `LocalStorage` (protection files, sidecar, listing), `SpaceCheck`, `Postproc`; `BackupName`, `Manifest`, `Sidecar` |
+| `src/Storage`, `src/Backup/Manifest*` | Phase 2: `LocalStorage` (protection files, sidecar, listing), `BackupCatalog` (listing, sidecar rebuild), `SpaceCheck`, `Postproc`; `BackupName`, `Manifest`, `Sidecar`, `Verifier` |
 | `tests/Unit`, `tests/Integration`, `tests/Support`, `tests/stack` | Tests, helpers, Docker stack scripts |
 | `tools/spikes` | Throw-away scripts behind the findings in PHASE2.md section 8 (kept for reference) |
 | `docs` | Concept, phase plans, `MIGRATE.md` (reference of the `migrate` command) |
@@ -106,14 +106,13 @@ Oracles are real tools where possible: `unzip -t`, the `mariadb` client, `CHECKS
 
 ## Next steps
 
-`threadsafe backup <profile>` works end to end (`BackupRun`: `ProfileResolver` -> `Scanner` + `Dumper` -> `ArchivePacker` ->
-`Manifest`, `Sidecar`, `LocalStorage`). Phase 2, work package 9 is next: `backups [<profile>] [--json]` (lists from the
-sidecar files, rebuilds a missing sidecar from the last part, shows interrupted runs and unfinished backups) and
-`verify <profile> [<backup>] [--quick]` (quick: parts exist with the recorded size and SHA-256; full: also every ZIP
-structure and CRC32, the manifest's counts, the part chain; the status goes into the sidecar; a failed verification exits
-with 3). Then 10 (the remaining integration tests: low limits, kill -9 in each phase, damage tests, generic with and
-without a database, the matrix on both servers) and 11 (`docs/BACKUP.md`). Details and acceptance criteria:
-`docs/PHASE2.md` sections 3.9, 4-6.
+`threadsafe profile`, `backup`, `backups` and `verify` work end to end. Phase 2, work package 10 is next: the integration
+tests that are still missing - low limits (`--tick-seconds=1`, `memory_limit=64M`, a throttled source), `kill -9` of a real
+backup process in each phase followed by `backup --resume`, a second concurrent run refused by the lock, a profile whose
+site path vanished, unreadable files (`chmod 000`), a file that changes during the run, tables without a primary key and a
+40 MB row in a backup, `generic` with and without a database, the damage tests through the command line, and the whole
+matrix on MariaDB and MySQL (`tests/stack/matrix.sh`); the acceptance criteria are in `docs/PHASE2.md` section 6. Then 11:
+`docs/BACKUP.md` (profile file, archive layout, manifest, commands, extracting a backup with plain tools).
 
 Open questions for the owner (not blocking): which database server and which PHP functions (`exec`, CLI cron) the production
 host offers - see CONCEPT section 10.
