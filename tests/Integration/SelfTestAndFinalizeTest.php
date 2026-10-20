@@ -280,7 +280,7 @@ final class SelfTestAndFinalizeTest extends IntegrationTestCase
         self::assertCount(1, $calls);
         $call = $calls[0] ?? self::fail('PrestaShop was not started.');
         self::assertSame(PHP_BINARY, $call[0][0]);
-        self::assertStringEndsWith('/resources/prestashop9/finalize.php', $call[0][1]);
+        self::assertStringEndsWith('/plugins/prestashop9/resources/finalize.php', $call[0][1]);
         self::assertFileExists($call[0][1]);
         self::assertSame($this->shop->root, $call[1]);
         $options = self::optionsOf($call);

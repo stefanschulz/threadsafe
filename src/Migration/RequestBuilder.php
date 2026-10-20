@@ -2,53 +2,39 @@
 
 declare(strict_types=1);
 
-namespace ThreadSafe\PrestaShop9;
+namespace ThreadSafe\Migration;
 
 use Closure;
 use InvalidArgumentException;
 use ThreadSafe\Core\Exception\GuardFailed;
-use ThreadSafe\Database\Connection;
-use ThreadSafe\Database\ConnectionFailed;
 use ThreadSafe\Database\DatabaseSettings;
-use ThreadSafe\Migration\MailCatcher;
-use ThreadSafe\Migration\MigrationRequest;
-use ThreadSafe\Migration\Mode;
-use ThreadSafe\Migration\SslMode;
-use ThreadSafe\PrestaShop9\DevMode\DevModeRules;
-use ThreadSafe\PrestaShop9\Exception\InvalidParametersFile;
-use ThreadSafe\PrestaShop9\Modules\ModuleRules;
 use ThreadSafe\Replace\DomainMapping;
 
 /**
- * Turns plain settings (from command line flags and/or a JSON request file) into a {@see MigrationRequest}.
+ * Turns plain settings (from command line options and/or a JSON request file) into a {@see MigrationRequest}. The
+ * settings every website type understands are handled here; a website type adds its own through three hooks.
  *
- * Recognised settings (all optional except `root`):
- *   root          string   directory of the PrestaShop installation
- *   from, to      string   old and new domain; `from` defaults to the main domain in the shop's database
+ * Common settings (all optional except `root`):
+ *   root          string   directory of the installation
+ *   from, to      string   old and new domain; `from` defaults to what the website type finds out
  *   domains       list     further mappings, each "old=new" or {"from": …, "to": …}
- *   path          string   new base path, e.g. "/shop/"
- *   ssl           string   none | login | all
- *   mode          string   production (default) or dev: cut live mail, payment and cloud connections
- *   mailCatcher   string   dev mode: HOST or HOST:PORT of the SMTP server that receives all mail (default: no mail at all)
- *   devSkip       list     dev mode: ids of rules to leave out (see resources/prestashop9/dev-mode.json)
- *   devRules      string   dev mode: JSON file with more rules
- *   rulesDir      string   directory with the user's module rules (default: data/rules next to the program)
- *   selfTest      bool     check the migrated shop over HTTP at the end (default true)
- *   selfTestUrl   string   address the web server answers on, if not the shop's domain, e.g. http://web (scheme, host, port)
- *   selfTestInsecure bool  do not verify TLS certificates in the self-test
- *   finalize      bool     let PrestaShop clear its caches itself at the end (default true)
- *   serverPath    string   where the web server sees the shop, if different from root
- *   database      object   host, port, name, user, password, passwordFile, prefix – each defaults to parameters.php –
- *                          and driver: auto (default), pdo or mysqli, the PHP interface to the database
+ *   serverPath    string   where the web server sees the installation, if different from root
+ *   database      object   host, port, name, user, password, passwordFile, prefix – each defaults to what the website type
+ *                          reads from the installation – and driver: auto (default), pdo or mysqli
  *   replaceBare   bool     also replace bare domain names
- *   skipTables    list     extra tables to skip (without prefix)
+ *   skipTables    list     extra tables to skip
  *   chunkSize     int      rows per chunk
+ *   selfTest      bool     check the migrated site over HTTP at the end (default true)
+ *   selfTestUrl   string   address the web server answers on, if not the site's domain, e.g. http://web (scheme, host, port)
+ *   selfTestInsecure bool  do not verify TLS certificates in the self-test
  *
  * The database password is never taken from a plain setting on the command line: use `passwordFile`, the
  * environment variable THREADSAFE_DB_PASSWORD, or put it in the request file.
  */
-final class RequestBuilder
+abstract class RequestBuilder
 {
+    private const array COMMON_KEYS = ['root', 'from', 'to', 'domains', 'serverPath', 'database', 'replaceBare', 'skipTables', 'chunkSize', 'selfTest', 'selfTestUrl', 'selfTestInsecure'];
+
     /** @var list<string> */
     private array $notes = [];
 
@@ -60,6 +46,44 @@ final class RequestBuilder
     }
 
     /**
+     * The settings only this website type knows.
+     *
+     * @return list<string>
+     */
+    abstract protected function extraKeys(): array;
+
+    /**
+     * Reads and checks the settings of the website type and returns them as named arguments of {@see MigrationRequest}.
+     *
+     * @param array<string, mixed> $settings all settings
+     *
+     * @return array<string, mixed>
+     *
+     * @throws InvalidArgumentException
+     */
+    abstract protected function extraArguments(array $settings, string $root): array;
+
+    /**
+     * The connection values the installation itself holds (e.g. in its configuration file), or null if there are none.
+     */
+    abstract protected function configuredDatabase(string $root): ?DatabaseSettings;
+
+    /**
+     * The table prefix when neither the request nor the installation names one; null = it must be given.
+     */
+    protected function defaultPrefix(): ?string
+    {
+        return null;
+    }
+
+    /**
+     * The domain the installation uses now, for `--to` without `--from`.
+     *
+     * @throws GuardFailed it cannot be found out
+     */
+    abstract protected function currentDomain(?DatabaseSettings $database, string $root): string;
+
+    /**
      * Remarks about decisions taken on the user's behalf ("the shop already uses the new domain").
      *
      * @return list<string>
@@ -69,38 +93,33 @@ final class RequestBuilder
         return $this->notes;
     }
 
+    protected function note(string $note): void
+    {
+        $this->notes[] = $note;
+    }
+
     /**
      * @param array<string, mixed> $settings
      *
      * @throws InvalidArgumentException a setting is missing or invalid
-     * @throws GuardFailed              the shop's database cannot be asked for its current domain
+     * @throws GuardFailed              the current domain cannot be found out
      */
     public function build(array $settings): MigrationRequest
     {
-        $known = ['root', 'from', 'to', 'domains', 'path', 'ssl', 'mode', 'mailCatcher', 'devSkip', 'devRules', 'rulesDir', 'selfTest', 'selfTestUrl', 'selfTestInsecure', 'finalize', 'serverPath', 'database', 'replaceBare', 'skipTables', 'chunkSize'];
+        $known = [...self::COMMON_KEYS, ...$this->extraKeys()];
         foreach (array_keys($settings) as $key) {
             if (!in_array($key, $known, true)) {
                 throw new InvalidArgumentException("Unknown setting \"$key\".");
             }
         }
 
-        $root = $this->string($settings, 'root') ?? throw new InvalidArgumentException('The shop root directory (root) is required.');
+        $root = $this->string($settings, 'root') ?? throw new InvalidArgumentException('The root directory (root) is required.');
         $real = realpath($root);
         if ($real === false || !is_dir($real)) {
-            throw new InvalidArgumentException("The shop root \"$root\" is not a directory.");
+            throw new InvalidArgumentException("The root \"$root\" is not a directory.");
         }
 
-        $mode = Mode::tryFrom($this->string($settings, 'mode') ?? 'production') ?? throw new InvalidArgumentException('The mode must be "production" or "dev".');
-        $rulesDir = $this->string($settings, 'rulesDir');
-        if ($rulesDir !== null && !is_dir($rulesDir)) {
-            throw new InvalidArgumentException("The rules directory \"$rulesDir\" does not exist.");
-        }
-        [$mailCatcher, $devSkip, $devRules] = $this->devSettings($settings, $mode, $rulesDir);
-
-        $ssl = null;
-        if (($value = $this->string($settings, 'ssl')) !== null) {
-            $ssl = SslMode::tryFrom($value) ?? throw new InvalidArgumentException('The SSL mode must be "none", "login" or "all".');
-        }
+        $extra = $this->extraArguments($settings, $real);
 
         $database = $this->database($settings['database'] ?? null, $real);
         $domains = $this->domains($settings, $database, $real);
@@ -118,62 +137,26 @@ final class RequestBuilder
             throw new InvalidArgumentException('replaceBare must be true or false.');
         }
 
-        return new MigrationRequest(
-            $real,
-            $domains,
-            $database,
-            $this->string($settings, 'path'),
-            $ssl,
-            $mode,
-            array_values($skipTables),
-            $replaceBare,
-            (int) $chunkSize,
-            $this->string($settings, 'serverPath'),
-            $mailCatcher,
-            $devSkip,
-            $devRules,
-            $rulesDir,
-            $this->boolean($settings, 'selfTest', true),
-            $this->selfTestUrl($settings),
-            $this->boolean($settings, 'selfTestInsecure', false),
-            $this->boolean($settings, 'finalize', true),
-        );
-    }
-
-    /**
-     * The dev mode settings; they make no sense in production mode, where they would be silently ignored.
-     *
-     * @param array<string, mixed> $settings
-     *
-     * @return array{MailCatcher|null, list<string>, string|null}
-     */
-    private function devSettings(array $settings, Mode $mode, ?string $rulesDir): array
-    {
-        $catcher = $this->string($settings, 'mailCatcher');
-        $skip = $settings['devSkip'] ?? [];
-        $file = $this->string($settings, 'devRules');
-        if (!is_array($skip) || array_filter($skip, static fn (mixed $id): bool => !is_string($id) || $id === '') !== []) {
-            throw new InvalidArgumentException('devSkip must be a list of rule ids.');
-        }
-
-        if ($mode !== Mode::Dev) {
-            if ($catcher !== null || $skip !== [] || $file !== null) {
-                throw new InvalidArgumentException('The mail catcher and the dev rule settings need --mode=dev.');
-            }
-
-            return [null, [], null];
-        }
-
-        $skip = array_values($skip);
-        DevModeRules::load($file)->assertKnown($skip, ModuleRules::load($rulesDir)->knownNames());
-
-        return [$catcher === null ? null : MailCatcher::parse($catcher), $skip, $file];
+        // The website type's arguments first; the common ones win if a type should name the same.
+        return new MigrationRequest(...[
+            ...$extra,
+            'root' => $real,
+            'domains' => $domains,
+            'database' => $database,
+            'skipTables' => array_values($skipTables),
+            'replaceBare' => $replaceBare,
+            'chunkSize' => (int) $chunkSize,
+            'serverPath' => $this->string($settings, 'serverPath'),
+            'selfTest' => $this->boolean($settings, 'selfTest', true),
+            'selfTestUrl' => $this->selfTestUrl($settings),
+            'selfTestInsecure' => $this->boolean($settings, 'selfTestInsecure', false),
+        ]);
     }
 
     /**
      * @param array<string, mixed> $settings
      */
-    private function boolean(array $settings, string $key, bool $default): bool
+    protected function boolean(array $settings, string $key, bool $default): bool
     {
         $value = $settings[$key] ?? $default;
         if (!is_bool($value)) {
@@ -195,7 +178,7 @@ final class RequestBuilder
         $parts = parse_url($url);
         if (!is_array($parts) || !in_array($parts['scheme'] ?? '', ['http', 'https'], true) || !isset($parts['host'])
             || isset($parts['query']) || isset($parts['fragment']) || !in_array($parts['path'] ?? '', ['', '/'], true)) {
-            throw new InvalidArgumentException('selfTestUrl must look like http://host[:port] (the shop path is added automatically).');
+            throw new InvalidArgumentException('selfTestUrl must look like http://host[:port] (the path of the site is added automatically).');
         }
 
         return $url;
@@ -204,7 +187,7 @@ final class RequestBuilder
     /**
      * @param array<string, mixed> $settings
      */
-    private function string(array $settings, string $key): ?string
+    protected function string(array $settings, string $key): ?string
     {
         $value = $settings[$key] ?? null;
         if ($value === null) {
@@ -218,7 +201,7 @@ final class RequestBuilder
     }
 
     /**
-     * The database to use, or null if the request names none (the one in parameters.php is then used).
+     * The database to use, or null if the request names none (the one the installation holds is then used, if any).
      */
     private function database(mixed $given, string $root): ?DatabaseSettings
     {
@@ -258,24 +241,20 @@ final class RequestBuilder
             return null;
         }
 
-        $base = null;
-        try {
-            $base = ParametersFile::fromPath($root . '/app/config/parameters.php')->database();
-        } catch (InvalidParametersFile) {
-            // all values must then be given
-        }
+        $base = $this->configuredDatabase($root);
 
         $port = $given['port'] ?? $base?->port;
+        $prefixDefault = $base !== null ? $base->prefix : $this->defaultPrefix();
         $values = [
             'host' => $this->string($given, 'host') ?? $base?->host,
             'name' => $this->string($given, 'name') ?? $base?->name,
             'user' => $this->string($given, 'user') ?? $base?->user,
             'password' => $password ?? $base?->password,
-            'prefix' => $this->string($given, 'prefix') ?? $base?->prefix,
+            'prefix' => $this->string($given, 'prefix') ?? $prefixDefault,
         ];
         foreach ($values as $name => $value) {
             if ($value === null) {
-                throw new InvalidArgumentException("The database $name is not given and parameters.php cannot supply it.");
+                throw new InvalidArgumentException("The database $name is not given and cannot be taken from the installation.");
             }
         }
         if (!is_int($port) && !(is_string($port) && ctype_digit($port))) {
@@ -308,48 +287,22 @@ final class RequestBuilder
             } else {
                 throw new InvalidArgumentException('Each domain mapping must be "old=new" or {"from": "old", "to": "new"}.');
             }
-            $mappings[] = $this->mapping($old, $new);
+            $mappings[] = new DomainMapping($old, $new);
         }
 
         if ($from !== null && $to === null) {
             throw new InvalidArgumentException('--from needs --to.');
         }
         if ($to !== null) {
-            $from ??= $this->mainDomain($database, $root);
+            $from ??= $this->currentDomain($database, $root);
             if (strtolower($from) === strtolower($to)) {
-                $this->notes[] = "The shop already uses \"$to\"; no domain has to be replaced.";
+                $this->note("The site already uses \"$to\"; no domain has to be replaced.");
             } else {
-                $mappings[] = $this->mapping($from, $to);
+                $mappings[] = new DomainMapping($from, $to);
             }
         }
 
         return $mappings;
-    }
-
-    private function mapping(string $from, string $to): DomainMapping
-    {
-        return new DomainMapping($from, $to);
-    }
-
-    /** The main shop URL's domain, read from the shop's database. */
-    private function mainDomain(?DatabaseSettings $database, string $root): string
-    {
-        try {
-            $settings = $database ?? ParametersFile::fromPath($root . '/app/config/parameters.php')->database();
-            $connection = Connection::open($settings);
-            $table = $connection->table('shop_url');
-            $domain = $connection->tableExists($table)
-                ? $connection->scalar('SELECT domain FROM ' . $connection->quote($table) . ' WHERE main = 1 ORDER BY id_shop_url LIMIT 1')
-                : null;
-        } catch (InvalidParametersFile | ConnectionFailed $e) {
-            throw new GuardFailed('Cannot find out the shop\'s current domain (give --from): ' . $e->getMessage(), 0, $e);
-        }
-        if (!is_string($domain) || $domain === '') {
-            throw new GuardFailed('The shop has no main shop URL; give the old domain with --from.');
-        }
-        $this->notes[] = "Old domain taken from the shop's database: $domain";
-
-        return $domain;
     }
 
     private function environment(string $name): string

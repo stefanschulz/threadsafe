@@ -205,7 +205,7 @@ final class MigrateCommandTest extends TestCase
         [$code, $output] = $this->execute($this->application([new FakeStep('a', $this->log, 0)]), ['prestashop9', '--root=' . $this->root, '--from=same.test', '--to=same.test']);
 
         self::assertSame(0, $code);
-        self::assertStringContainsString('Note: The shop already uses "same.test"', $output->stdout());
+        self::assertStringContainsString('Note: The site already uses "same.test"', $output->stdout());
     }
 
     /**
@@ -226,7 +226,9 @@ final class MigrateCommandTest extends TestCase
     public static function usageErrors(): iterable
     {
         yield 'no website type' => [[], 'prestashop9'];
-        yield 'unknown website type' => [['wordpress', '--root=/x'], 'prestashop9'];
+        yield 'unknown website type' => [['wordpress', '--root=/x'], 'Unknown website type "wordpress" (available: generic, prestashop9)'];
+        yield 'option of another website type' => [['generic', '--root=/tmp', '--ssl=all'], '--ssl is an option of the website type prestashop9, not of generic'];
+        yield 'dev option of another website type' => [['generic', '--root=/tmp', '--mode=dev'], '--mode is an option of the website type prestashop9'];
         yield 'extra argument' => [['prestashop9', 'more', '--root=/x'], 'Unexpected argument "more"'];
         yield 'dry run and yes' => [['prestashop9', '--root=/x', '--dry-run', '--yes'], 'contradict'];
         yield 'missing root' => [['prestashop9', '--to=a.test'], 'root'];
@@ -305,6 +307,33 @@ final class MigrateCommandTest extends TestCase
 
         self::assertSame(1, $code);
         self::assertStringContainsString('not valid JSON', $output->stderr());
+    }
+
+    public function testGenericTypeUsesTheCommonOptionsOnly(): void
+    {
+        $seen = null;
+        $step = new FakeStep('a', $this->log, onPlan: static function ($context) use (&$seen): void {
+            $seen = $context->request;
+        });
+
+        [$code] = $this->execute($this->application([$step]), ['generic', '--root=' . $this->root, '--from=old.test', '--to=new.test', '--no-self-test']);
+
+        self::assertSame(0, $code);
+        self::assertInstanceOf(\ThreadSafe\Migration\MigrationRequest::class, $seen);
+        self::assertSame('old.test', $seen->domains[0]->from);
+        self::assertFalse($seen->selfTest);
+        self::assertNull($seen->physicalUri);
+    }
+
+    public function testHelpMarksTheOptionsOfAWebsiteType(): void
+    {
+        $output = new BufferedOutput();
+
+        (new Application([new MigrateCommand()]))->run(['threadsafe', 'help', 'migrate'], $output);
+
+        self::assertStringContainsString('migrate <generic|prestashop9> --root=PATH', $output->stdout());
+        self::assertMatchesRegularExpression('/--ssl=MODE\s+SSL mode: none, login or all \(default: unchanged\) \[prestashop9\]/', $output->stdout());
+        self::assertStringNotContainsString('[generic]', $output->stdout(), 'The generic type has no options of its own.');
     }
 
     public function testHelpListsEveryOption(): void

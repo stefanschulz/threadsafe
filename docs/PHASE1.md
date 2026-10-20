@@ -33,25 +33,30 @@ The copy can come from any source: a ThreadSafe backup (later phases), an Akeeba
 
 ```
 bin/threadsafe                      CLI entry point
-src/
-  Cli/                              argument parser, command classes, exit codes
-  Core/                             Step, StepResult, Plan, Runner, Report, Journal, Logger
-  Migration/                        MigrationRequest, DomainMapping, SourceState
-  Replace/                          DomainMapping, UrlMatcher, ValueCodec (SerializedCodec, JsonCodec), ValueRewriter, Stats; TableRewriter (WP 5)
-  Modules/                          ModuleRule, RuleLoader, RuleRegistry (shipped + user rules)
-  Database/                         Connection (facade over the PdoDriver / MysqliDriver), ServerInfo, SchemaInspector
-  PrestaShop9/
-    ParametersFile.php              safe reader + writer for app/config/parameters.php
-    Steps/                          one class per step (section 4)
-    DevMode/                        data-driven rules, loader
-    SelfTest/                       HTTP checks
-resources/prestashop9/              dev-mode.json, skip-tables.json, host-bound-files.json
-resources/prestashop9/modules/      one rule file per known module
+src/                                the core: knows no application
+  Cli/                              argument parser, MigrateCommand, exit codes
+  Core/                             Step, Plan, Runner, Report, Journal, Logger, Paths, Resources
+  Database/                         Connection (facade over PdoDriver / MysqliDriver), ServerInfo, SchemaInspector
+  Http/                             HttpClient for the self-tests
+  Migration/                        MigrationRequest, RequestBuilder (base), ContentReport, Mode, SslMode, MailCatcher
+  Plugin/                           WebsiteType, PluginManifest, PluginRegistry
+  Replace/                          UrlMatcher, codecs, ValueRewriter, TableRewriter
+plugins/                            one directory per website type (docs/PHASE1B.md)
+  prestashop9/
+    plugin.json                     manifest: id, entry class, autoload
+    src/                            namespace ThreadSafe\PrestaShop9: PrestaShop9Type, RequestBuilder, ParametersFile,
+                                    Steps/ (one class per step, section 3.5), DevMode/, Modules/
+    resources/                      dev-mode.json, skip-tables.json, host-bound-files.json, modules/ (rules), finalize.php ...
+  generic/
+    plugin.json
+    src/                            namespace ThreadSafe\Generic: GenericType, RequestBuilder, Steps/
+data/rules/                         your own module rules (not in the repository)
 tests/
-  Unit/ Integration/ fixtures/
+  Unit/ Integration/ fixtures/ stack/
 ```
 
-The code outside `PrestaShop9/` must not mention PrestaShop. `Replace/`, `Database/` and `Core/` are reused by the other website types later.
+The core (`src/`) must not mention PrestaShop. `Replace/`, `Database/`, `Http/` and `Core/` are used by every website type; a resource path
+starts with the plugin id (`Resources::json('prestashop9/skip-tables.json')` is `plugins/prestashop9/resources/skip-tables.json`).
 
 ### 3.2 Step contract
 
@@ -101,7 +106,7 @@ Value codecs (a value may be nested in another):
 | `Json` | string-level replacement inside JSON text, honouring `\/` and `\uXXXX`, so that numbers and key order stay byte-identical. |
 | `Plain` | everything else |
 
-Algorithm per table: read primary-key ranges in chunks (default 2,000 rows), apply codecs to text columns, write back changed rows only (`UPDATE … WHERE pk = …`). Tables without a primary key are reported and skipped. Log and cache tables (`resources/prestashop9/skip-tables.json`) are skipped by default and *counted* in the report. The dry run uses the same code path with writes disabled and reports table, column, hits, serialized/JSON flags and a redacted before/after sample.
+Algorithm per table: read primary-key ranges in chunks (default 2,000 rows), apply codecs to text columns, write back changed rows only (`UPDATE … WHERE pk = …`). Tables without a primary key are reported and skipped. Log and cache tables (`plugins/prestashop9/resources/skip-tables.json`) are skipped by default and *counted* in the report. The dry run uses the same code path with writes disabled and reports table, column, hits, serialized/JSON flags and a redacted before/after sample.
 
 ### 3.5 Steps (order matches CONCEPT 4.2)
 
@@ -117,8 +122,8 @@ Steps 5 and 9 are driven by the engine **plus module rules** (3.8).
 | 6 | `RewriteHtaccess` | rewrites only the block between `# ~~start~~` and `# ~~end~~`: the `#Domain:` comment, every `RewriteCond %{HTTP_HOST} ^<domain>$`, `REWRITEBASE`, `ErrorDocument`. PrestaShop writes the domain unescaped and only escapes `[` `]` *(verified in `Tools::generateHtaccess`)*. **Oracle:** after the DB is updated, PrestaShop's own `Tools::generateHtaccess()` is run in a test container; our rewrite must equal its output for the block. |
 | 7 | `RewriteHostBoundFiles` | `php.ini` (`error_log` absolute path → new site path), `robots.txt`, `*_sitemap.xml` (replace or delete for regeneration), generated mail templates in `mails/` and `modules/*/mails/`, `ps_gsitemap_sitemap.link`. Rule list in `host-bound-files.json`. |
 | 8 | `EnsureSkeleton` | creates missing `var/cache`, `var/logs` etc., sets writable directories (`var/`, `img/`, `upload/`, `download/`, `translations/`, `mails/`). |
-| 9 | `ApplyDevMode` and `BlockSearchEngines` (only `mode=dev`; always in the list, empty in production) *(implemented)* | data-driven (`resources/prestashop9/dev-mode.json`, see 3.9): mail catcher or no mail, PayPal sandbox without live credentials, `PS_ACCOUNTS_*` and Facebook secrets removed, cloud modules deactivated, `robots.txt` and `X-Robots-Tag`. Module deactivation mirrors `Module::disable()`: delete the `module_shop` rows and set `module.active = 0` (verified in `Module.php`). `ApplyDevMode` (database) runs **before** step 3, because the compiled container in `var/cache` lists the active modules; `BlockSearchEngines` (files) runs after step 7, because it replaces the `robots.txt` that step has just fixed. Each rule can be switched off in the request. |
-| 10 | `Finalize` (optional, `--no-finalize`) *(implemented)* | starts PrestaShop in a child process (`resources/prestashop9/finalize.php`, as the owner of the shop when ThreadSafe runs as root, so that no root-owned cache files appear) and calls `Tools::clearAllCache()`. Only after a change of the base path (`--path`) it also has PrestaShop regenerate `.htaccess` and `robots.txt` (`robots.txt` not in dev mode: the search engine block owns it). Never fatal: if PrestaShop cannot be started here (missing PHP extensions ...) the step reports a warning and the migration stays valid. An `AlwaysRuns` step: runs on every applied run. |
+| 9 | `ApplyDevMode` and `BlockSearchEngines` (only `mode=dev`; always in the list, empty in production) *(implemented)* | data-driven (`plugins/prestashop9/resources/dev-mode.json`, see 3.9): mail catcher or no mail, PayPal sandbox without live credentials, `PS_ACCOUNTS_*` and Facebook secrets removed, cloud modules deactivated, `robots.txt` and `X-Robots-Tag`. Module deactivation mirrors `Module::disable()`: delete the `module_shop` rows and set `module.active = 0` (verified in `Module.php`). `ApplyDevMode` (database) runs **before** step 3, because the compiled container in `var/cache` lists the active modules; `BlockSearchEngines` (files) runs after step 7, because it replaces the `robots.txt` that step has just fixed. Each rule can be switched off in the request. |
+| 10 | `Finalize` (optional, `--no-finalize`) *(implemented)* | starts PrestaShop in a child process (`plugins/prestashop9/resources/finalize.php`, as the owner of the shop when ThreadSafe runs as root, so that no root-owned cache files appear) and calls `Tools::clearAllCache()`. Only after a change of the base path (`--path`) it also has PrestaShop regenerate `.htaccess` and `robots.txt` (`robots.txt` not in dev mode: the search engine block owns it). Never fatal: if PrestaShop cannot be started here (missing PHP extensions ...) the step reports a warning and the migration stays valid. An `AlwaysRuns` step: runs on every applied run. |
 | 11 | `SelfTest` (`--no-self-test`) *(implemented, see 3.10)* | HTTP checks of the migrated shop: home page (complete, no links to the old domain), category, product, **a product image via its friendly URL** (proves the `.htaccess` fix), contact, front login, back-office login page; redirect loops, redirects to another host and any status other than 200 fail. A failed check gives exit code 4 (the migration stays applied). An `AlwaysRuns` step. |
 
 ### 3.6 CLI *(implemented; the option list below is the plan, `threadsafe help migrate` is authoritative)*
@@ -142,7 +147,7 @@ With no domain mapping the same steps run, but most of them find nothing to chan
 ### 3.9 Dev mode *(implemented)*
 
 `--mode=dev` turns the copy of a live shop into something that cannot hurt the live world. Everything it does is in
-`resources/prestashop9/dev-mode.json`; there is no shop-specific code. A **rule** is a named group of actions:
+`plugins/prestashop9/resources/dev-mode.json`; there is no shop-specific code. A **rule** is a named group of actions:
 
 | Rule | Does |
 |---|---|
@@ -186,7 +191,7 @@ Both steps implement `AlwaysRuns`: they run on every applied run, also when the 
 
 ### 3.8 Module rules *(implemented)*
 
-The core contains no module-specific code. A **module rule** describes one module as data: `<module>.json`, either shipped in `resources/prestashop9/modules/` or yours in a rules directory (`--rules-dir=DIR`, default `data/rules/` next to the program if it exists). A user rule replaces the shipped rule of the same module as a whole. The format is described by `resources/prestashop9/module-rule.schema.json` and validated strictly by the loader (a broken rule stops the run with exit code 2 before anything is planned):
+The core contains no module-specific code. A **module rule** describes one module as data: `<module>.json`, either shipped in `plugins/prestashop9/resources/modules/` or yours in a rules directory (`--rules-dir=DIR`, default `data/rules/` next to the program if it exists). A user rule replaces the shipped rule of the same module as a whole. The format is described by `plugins/prestashop9/resources/module-rule.schema.json` and validated strictly by the loader (a broken rule stops the run with exit code 2 before anything is planned):
 
 ```json
 {
@@ -218,8 +223,8 @@ The core contains no module-specific code. A **module rule** describes one modul
 - `dev`: `deactivate` and `emptyTables` plus the `configuration[].dev` entries form the dev rule `module:<name>`; `--dev-skip=module:<name>` switches it off.
 - There are no PHP handlers: a rule is data only (a `handler` key is refused). If logic is ever needed, it will be a reviewed class in the program, not code loaded from a rules directory.
 - The steps use only the rules of modules that are **installed** (`module` table); rules for absent modules cost nothing and change nothing. `ReadSourceState` lists the rules in use.
-- **"No rule" report:** a table with the domain in it that is not part of a clean PrestaShop 9.0.2 installation (`resources/prestashop9/core-tables.json`, generated from the test stack) and that no rule mentions is reported as a warning "No module rule for table ..." in the dry run. That is how new rules get written; the generic engine has handled the table in the meantime. (Only tables are checked; configuration keys are not.)
-- The shipped set starts empty: a rule is only accepted into `resources/prestashop9/modules/` with a test case. The rule for the fixture module (`tests/fixtures/rules/threadsafe_fixture.json`) is used by the integration tests as a user rule.
+- **"No rule" report:** a table with the domain in it that is not part of a clean PrestaShop 9.0.2 installation (`plugins/prestashop9/resources/core-tables.json`, generated from the test stack) and that no rule mentions is reported as a warning "No module rule for table ..." in the dry run. That is how new rules get written; the generic engine has handled the table in the meantime. (Only tables are checked; configuration keys are not.)
+- The shipped set starts empty: a rule is only accepted into `plugins/prestashop9/resources/modules/` with a test case. The rule for the fixture module (`tests/fixtures/rules/threadsafe_fixture.json`) is used by the integration tests as a user rule.
 
 ## 4. Test strategy
 

@@ -1,0 +1,10 @@
+{
+    "id": "prestashop9",
+    "title": "PrestaShop 9",
+    "version": "0.1.0",
+    "api": 1,
+    "class": "ThreadSafe\\PrestaShop9\\PrestaShop9Type",
+    "autoload": {
+        "ThreadSafe\\PrestaShop9\\": "src/"
+    }
+}

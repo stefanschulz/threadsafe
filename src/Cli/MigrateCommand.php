@@ -16,27 +16,34 @@ use ThreadSafe\Core\LazyJournal;
 use ThreadSafe\Core\NullJournal;
 use ThreadSafe\Core\Runner;
 use ThreadSafe\Core\Step;
-use ThreadSafe\PrestaShop9\MigrationPipeline;
-use ThreadSafe\PrestaShop9\RequestBuilder;
+use ThreadSafe\Plugin\PluginError;
+use ThreadSafe\Plugin\PluginRegistry;
+use ThreadSafe\Plugin\WebsiteType;
 
 /**
- * `threadsafe migrate prestashop9`: turns a restored copy of a PrestaShop 9 shop into a working site on a new
- * domain, path or database (or, without a new domain, into a working restore in place).
+ * `threadsafe migrate <website type>`: turns a restored copy of a site into a working site on a new domain, path or
+ * database (or, without a new domain, into a working restore in place). The website type - a plugin - decides what that
+ * means for the application: its own options, its request settings and its steps.
  *
  * Without --yes the command only plans and reports (dry run). With --yes it applies the plan, writes a journal
  * of everything it changes and reports what it did.
  */
 final class MigrateCommand implements Command
 {
-    /** @var Closure(): list<Step> */
-    private readonly Closure $steps;
+    private ?PluginRegistry $plugins;
 
     /**
-     * @param (Closure(): list<Step>)|null $steps the steps to run; defaults to the PrestaShop 9 pipeline
+     * @param (Closure(): list<Step>)|null $steps   the steps to run instead of those of the website type (for tests)
+     * @param PluginRegistry|null          $plugins the website types; default: the plugins of the program
      */
-    public function __construct(?Closure $steps = null)
+    public function __construct(private readonly ?Closure $steps = null, ?PluginRegistry $plugins = null)
     {
-        $this->steps = $steps ?? MigrationPipeline::steps(...);
+        $this->plugins = $plugins;
+    }
+
+    private function plugins(): PluginRegistry
+    {
+        return $this->plugins ??= PluginRegistry::load();
     }
 
     public function name(): string
@@ -46,43 +53,52 @@ final class MigrateCommand implements Command
 
     public function summary(): string
     {
-        return 'Migrate a restored PrestaShop 9 copy to a new domain, path or database (dry run unless --yes)';
+        return 'Migrate a restored site to a new domain, path or database (dry run unless --yes)';
     }
 
     public function usage(): string
     {
-        return 'migrate prestashop9 --root=PATH --to=DOMAIN [options]';
+        return 'migrate <' . implode('|', $this->plugins()->ids()) . '> --root=PATH --to=DOMAIN [options]';
     }
 
     public function options(): array
     {
+        $options = $this->commonOptions();
+        $known = array_flip(array_map(static fn (OptionSpec $o): string => $o->name, $options));
+        foreach ($this->plugins()->all() as $type) {
+            foreach ($type->options() as $option) {
+                if (!isset($known[$option->name])) {
+                    $known[$option->name] = true;
+                    $options[] = new OptionSpec($option->name, $option->description . ' [' . $type->id() . ']', $option->takesValue, $option->short, $option->valueName, $option->repeatable);
+                }
+            }
+        }
+
+        return $options;
+    }
+
+    /** @return list<OptionSpec> */
+    private function commonOptions(): array
+    {
         return [
-            new OptionSpec('root', 'Directory of the PrestaShop installation', takesValue: true, valueName: 'PATH'),
+            new OptionSpec('root', 'Directory of the installation', takesValue: true, valueName: 'PATH'),
             new OptionSpec('to', 'The new domain, e.g. shop.example or localhost:8290', takesValue: true, valueName: 'DOMAIN'),
-            new OptionSpec('from', 'The old domain (default: the main domain in the shop database)', takesValue: true, valueName: 'DOMAIN'),
+            new OptionSpec('from', 'The old domain (default: what the website type finds in the installation)', takesValue: true, valueName: 'DOMAIN'),
             new OptionSpec('domain', 'Another mapping, old=new (repeatable; for several shop URLs)', takesValue: true, valueName: 'OLD=NEW', repeatable: true),
-            new OptionSpec('path', 'New base path, e.g. /shop/ (default: unchanged)', takesValue: true, valueName: 'PATH'),
-            new OptionSpec('ssl', 'SSL mode: none, login or all (default: unchanged)', takesValue: true, valueName: 'MODE'),
-            new OptionSpec('mode', 'production (default) or dev: cut live mail, payment and cloud connections, keep search engines out', takesValue: true, valueName: 'MODE'),
-            new OptionSpec('mail-catcher', 'Dev mode: SMTP server that receives all mail, HOST or HOST:PORT (default: the shop sends no mail)', takesValue: true, valueName: 'HOST[:PORT]'),
-            new OptionSpec('dev-skip', 'Dev mode: rule ids to leave out, comma separated (mail, payment, accounts, tracking, noindex)', takesValue: true, valueName: 'LIST'),
-            new OptionSpec('dev-rules', 'Dev mode: JSON file with more rules (format of resources/prestashop9/dev-mode.json)', takesValue: true, valueName: 'FILE'),
-            new OptionSpec('db-host', 'Database host (default: parameters.php)', takesValue: true, valueName: 'HOST'),
-            new OptionSpec('db-port', 'Database port (default: parameters.php)', takesValue: true, valueName: 'PORT'),
-            new OptionSpec('db-name', 'Database name (default: parameters.php)', takesValue: true, valueName: 'NAME'),
-            new OptionSpec('db-user', 'Database user (default: parameters.php)', takesValue: true, valueName: 'USER'),
+            new OptionSpec('db-host', 'Database host (default: from the installation)', takesValue: true, valueName: 'HOST'),
+            new OptionSpec('db-port', 'Database port (default: from the installation)', takesValue: true, valueName: 'PORT'),
+            new OptionSpec('db-name', 'Database name (default: from the installation)', takesValue: true, valueName: 'NAME'),
+            new OptionSpec('db-user', 'Database user (default: from the installation)', takesValue: true, valueName: 'USER'),
             new OptionSpec('db-password-file', 'File containing the database password (or set THREADSAFE_DB_PASSWORD)', takesValue: true, valueName: 'FILE'),
             new OptionSpec('db-driver', 'PHP interface to the database: auto (default: pdo_mysql, else mysqli), pdo or mysqli', takesValue: true, valueName: 'DRIVER'),
-            new OptionSpec('prefix', 'Table prefix (default: parameters.php)', takesValue: true, valueName: 'PREFIX'),
-            new OptionSpec('server-path', 'Shop directory as the web server sees it, if it differs from --root', takesValue: true, valueName: 'PATH'),
-            new OptionSpec('skip-tables', 'Extra tables (without prefix) the content replacement skips, comma separated', takesValue: true, valueName: 'LIST'),
+            new OptionSpec('prefix', 'Table prefix (default: from the installation)', takesValue: true, valueName: 'PREFIX'),
+            new OptionSpec('server-path', 'Directory of the installation as the web server sees it, if it differs from --root', takesValue: true, valueName: 'PATH'),
+            new OptionSpec('skip-tables', 'Extra tables the content replacement skips, comma separated', takesValue: true, valueName: 'LIST'),
             new OptionSpec('replace-bare', 'Also replace bare domain names in content (not only URLs)'),
             new OptionSpec('chunk-size', 'Rows per chunk in the content replacement (default 2000)', takesValue: true, valueName: 'N'),
-            new OptionSpec('rules-dir', 'Directory with your module rules, one <module>.json each (default: data/rules next to the program)', takesValue: true, valueName: 'DIR'),
-            new OptionSpec('self-test-url', 'Self-test: address the web server answers on if not the shop domain, e.g. http://web (default: the shop domain)', takesValue: true, valueName: 'URL'),
+            new OptionSpec('self-test-url', 'Self-test: address the web server answers on if not the site domain, e.g. http://web (default: the site domain)', takesValue: true, valueName: 'URL'),
             new OptionSpec('self-test-insecure', 'Self-test: do not verify TLS certificates'),
-            new OptionSpec('no-self-test', 'Do not check the migrated shop over HTTP at the end'),
-            new OptionSpec('no-finalize', 'Do not let PrestaShop clear its caches itself at the end'),
+            new OptionSpec('no-self-test', 'Do not check the migrated site over HTTP at the end'),
             new OptionSpec('request', 'JSON file with the same settings (command line options win)', takesValue: true, valueName: 'FILE'),
             new OptionSpec('journal-dir', 'Where the journal goes (default: <root>/var/threadsafe-journal)', takesValue: true, valueName: 'DIR'),
             new OptionSpec('report', 'Write the report as JSON to this file', takesValue: true, valueName: 'FILE'),
@@ -93,19 +109,18 @@ final class MigrateCommand implements Command
 
     public function run(Input $input, Output $output): ExitCode
     {
-        if ($input->argument(0) !== 'prestashop9') {
-            throw new UsageError('Give the website type as the first argument: "prestashop9" is the only one available.');
-        }
+        $type = $this->websiteType($input);
         if (count($input->arguments()) > 1) {
             throw new UsageError('Unexpected argument "' . $input->arguments()[1] . '".');
         }
         if ($input->has('dry-run') && $input->has('yes')) {
             throw new UsageError('--dry-run and --yes contradict each other.');
         }
+        $this->rejectForeignOptions($input, $type);
 
-        $builder = new RequestBuilder();
+        $builder = $type->requestBuilder();
         try {
-            $request = $builder->build($this->settings($input));
+            $request = $builder->build($this->settings($input, $type));
         } catch (InvalidArgumentException $e) {
             throw new UsageError($e->getMessage(), 0, $e);
         }
@@ -118,7 +133,8 @@ final class MigrateCommand implements Command
         $journal = $apply ? new LazyJournal(static fn (): Journal => new FileJournal($journalDirectory)) : new NullJournal();
         $context = new Context($request, $journal, new OutputLogger($output), !$apply);
 
-        $result = (new Runner(($this->steps)()))->run($context, $apply);
+        $steps = $this->steps !== null ? ($this->steps)() : $type->steps();
+        $result = (new Runner($steps))->run($context, $apply);
 
         if ($result->failure instanceof GuardFailed) {
             throw $result->failure;
@@ -139,12 +155,46 @@ final class MigrateCommand implements Command
         return $result->exitCode;
     }
 
+    private function websiteType(Input $input): WebsiteType
+    {
+        $id = $input->argument(0);
+        $available = implode(', ', $this->plugins()->ids());
+        if ($id === null) {
+            throw new UsageError("Give the website type as the first argument (available: $available).");
+        }
+        if (!$this->plugins()->has($id)) {
+            throw new UsageError("Unknown website type \"$id\" (available: $available).");
+        }
+
+        try {
+            return $this->plugins()->get($id);
+        } catch (PluginError $e) {
+            throw new UsageError($e->getMessage(), 0, $e);
+        }
+    }
+
+    /** An option of another website type is a mistake, not something to ignore quietly. */
+    private function rejectForeignOptions(Input $input, WebsiteType $type): void
+    {
+        $own = array_flip(array_map(static fn (OptionSpec $o): string => $o->name, $type->options()));
+        foreach ($this->plugins()->all() as $other) {
+            if ($other->id() === $type->id()) {
+                continue;
+            }
+            foreach ($other->options() as $option) {
+                if ($input->has($option->name) && !isset($own[$option->name])) {
+                    throw new UsageError("--{$option->name} is an option of the website type {$other->id()}, not of {$type->id()}.");
+                }
+            }
+        }
+    }
+
     /**
      * The request file's settings, overridden by the command line options.
      *
      * @return array<string, mixed>
      */
-    private function settings(Input $input): array
+    private function settings(Input $input, WebsiteType $type): array
     {
         $settings = [];
         if (($file = $input->value('request')) !== null) {
@@ -163,7 +213,7 @@ final class MigrateCommand implements Command
             $settings = $decoded;
         }
 
-        $flags = ['root' => 'root', 'from' => 'from', 'to' => 'to', 'path' => 'path', 'ssl' => 'ssl', 'mode' => 'mode', 'server-path' => 'serverPath', 'mail-catcher' => 'mailCatcher', 'dev-rules' => 'devRules', 'rules-dir' => 'rulesDir', 'self-test-url' => 'selfTestUrl'];
+        $flags = ['root' => 'root', 'from' => 'from', 'to' => 'to', 'server-path' => 'serverPath', 'self-test-url' => 'selfTestUrl'];
         foreach ($flags as $option => $key) {
             if ($input->has($option)) {
                 $settings[$key] = $input->value($option);
@@ -190,13 +240,8 @@ final class MigrateCommand implements Command
         if ($input->has('skip-tables')) {
             $settings['skipTables'] = array_values(array_filter(array_map('trim', explode(',', (string) $input->value('skip-tables')))));
         }
-        if ($input->has('dev-skip')) {
-            $settings['devSkip'] = array_values(array_filter(array_map('trim', explode(',', (string) $input->value('dev-skip')))));
-        }
-        foreach (['no-self-test' => 'selfTest', 'no-finalize' => 'finalize'] as $option => $key) {
-            if ($input->has($option)) {
-                $settings[$key] = false;
-            }
+        if ($input->has('no-self-test')) {
+            $settings['selfTest'] = false;
         }
         if ($input->has('self-test-insecure')) {
             $settings['selfTestInsecure'] = true;
@@ -208,7 +253,7 @@ final class MigrateCommand implements Command
             $settings['chunkSize'] = $input->value('chunk-size');
         }
 
-        return $settings;
+        return [...$settings, ...$type->settings($input)];
     }
 
     /**

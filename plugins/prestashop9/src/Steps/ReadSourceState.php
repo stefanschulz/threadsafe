@@ -12,10 +12,10 @@ use ThreadSafe\Core\Step;
 use ThreadSafe\Core\StepResult;
 use ThreadSafe\Database\Connection;
 use ThreadSafe\Database\ConnectionFailed;
-use ThreadSafe\Migration\ShopUrlRow;
-use ThreadSafe\Migration\SourceState;
 use ThreadSafe\PrestaShop9\Exception\InvalidParametersFile;
 use ThreadSafe\PrestaShop9\ParametersFile;
+use ThreadSafe\PrestaShop9\ShopUrlRow;
+use ThreadSafe\PrestaShop9\SourceState;
 use ThreadSafe\PrestaShop9\State;
 
 /**

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace ThreadSafe\Migration;
+namespace ThreadSafe\PrestaShop9;
 
 /**
  * One row of the shop_url table.

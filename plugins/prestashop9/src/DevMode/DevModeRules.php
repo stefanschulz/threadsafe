@@ -10,7 +10,7 @@ use ThreadSafe\Core\Resources;
 use ThreadSafe\Migration\MigrationRequest;
 
 /**
- * The rules of the dev mode: the ones shipped in resources/prestashop9/dev-mode.json plus an optional file of the
+ * The rules of the dev mode: the ones shipped in plugins/prestashop9/resources/dev-mode.json plus an optional file of the
  * user (same format; a rule with a known id replaces the shipped one, a new id adds a rule).
  *
  * Rule files are data, not code: they can only set, clear and remove configuration values, empty tables, deactivate

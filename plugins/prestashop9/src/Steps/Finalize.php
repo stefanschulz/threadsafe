@@ -9,12 +9,13 @@ use ThreadSafe\Core\AlwaysRuns;
 use ThreadSafe\Core\Context;
 use ThreadSafe\Core\Notice;
 use ThreadSafe\Core\Plan;
+use ThreadSafe\Core\Resources;
 use ThreadSafe\Core\StepResult;
 use ThreadSafe\PrestaShop9\ShopAddress;
 use ThreadSafe\PrestaShop9\State;
 
 /**
- * Lets PrestaShop itself tidy up after the migration: boots it in a child process (`resources/prestashop9/finalize.php`)
+ * Lets PrestaShop itself tidy up after the migration: boots it in a child process (`plugins/prestashop9/resources/finalize.php`)
  * and calls `Tools::clearAllCache()`. After a change of the base path it also has PrestaShop regenerate `.htaccess`
  * and `robots.txt` (both hold the path in many places); in dev mode `robots.txt` is left alone, the search engine
  * block owns it.
@@ -68,7 +69,7 @@ final class Finalize implements AlwaysRuns
             'regenerate' => $request->physicalUri !== null,
             'robots' => !$request->isDevMode(),
         ], JSON_THROW_ON_ERROR);
-        $command = [PHP_BINARY, dirname(__DIR__, 3) . '/resources/prestashop9/finalize.php', $options];
+        $command = [PHP_BINARY, Resources::path('prestashop9/finalize.php'), $options];
 
         [$code, $stdout, $stderr] = ($this->runner ?? $this->run(...))($command, $root);
 

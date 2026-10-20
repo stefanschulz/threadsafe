@@ -13,8 +13,8 @@ use ThreadSafe\Core\Step;
 use ThreadSafe\Core\StepResult;
 use ThreadSafe\Database\Connection;
 use ThreadSafe\Migration\MigrationRequest;
-use ThreadSafe\Migration\ShopUrlRow;
 use ThreadSafe\PrestaShop9\ConfigurationKeys;
+use ThreadSafe\PrestaShop9\ShopUrlRow;
 use ThreadSafe\PrestaShop9\State;
 
 /**

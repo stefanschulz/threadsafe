@@ -64,8 +64,24 @@ The new `plugins/generic` handles any site: detection by choice, database option
 **Tests.** The existing unit and integration tests move with their code and keep running; new: registry and manifest
 validation, a plugin with a broken manifest is refused with a clear message, `migrate` with an unknown type.
 
-**Done when:** `prestashop9` and `generic` load as plugins, the command line has no PrestaShop names left in the core, all
-tests pass unchanged in substance.
+**Done** (2026-10-20): `prestashop9` and `generic` load as plugins; the core has no PrestaShop names left; `composer check` and
+`tests/stack/run.sh` are green on MariaDB and MySQL.
+
+**As built.**
+- *Registry.* `PluginRegistry::load()` scans `plugins/*/plugin.json`, validates every manifest strictly (`PluginManifest`: id =
+  directory name, `api` = 1, entry class, autoload namespaces inside the plugin) and registers one PSR-4 autoloader per
+  plugin, so a plugin directory works without an entry in `composer.json` (the shipped ones are in it as well, for the tools).
+  The entry class (`WebsiteType`: `id`, `title`, `options`, `settings`, `requestBuilder`, `steps`) is created on first use.
+- *Command.* `migrate <type>` is generic. The common options belong to the command; the options of a type are added to the help,
+  marked `[prestashop9]`, and an option of another type is refused (`--ssl` with `generic`). The old domain, the table prefix
+  default and the values read from the installation are hooks of the abstract `Migration\RequestBuilder`.
+- *Moves.* `src/PrestaShop9` and `resources/prestashop9` went to `plugins/prestashop9/`; `SourceState` and `ShopUrlRow` moved
+  with them; the content report of the replacement is shared (`ContentReport`).
+- *Generic type.* `ReadGenericState` (database optional, MariaDB/MySQL guard), `ReplaceContentDomains` (every text column of every table;
+  `--skip-tables` names what to leave alone) and a one-page `SelfTest`. It needs `--from` (nothing says which domain a generic site uses) and
+  rewrites no files.
+- *Not built, on purpose:* a manifest field for supported database systems (nothing would enforce it yet), detection of the type
+  from a directory (phase 2 profiles), installation of plugins from outside.
 
 ## 4. Order and sizes
 

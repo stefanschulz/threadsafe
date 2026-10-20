@@ -1,12 +1,16 @@
-# `threadsafe migrate prestashop9` – reference
+# `threadsafe migrate <website type>` – reference
 
 This is the reference for the restore core of ThreadSafe (phase 1): the command, its request, its report, its journal and
 its exit codes. The design is in [PHASE1.md](PHASE1.md), the reasons in [CONCEPT.md](CONCEPT.md).
 
-`migrate` takes a PrestaShop 9 copy that is **already restored** (files in place, database imported – by ThreadSafe's
+`migrate` takes a copy of a site that is **already restored** (files in place, database imported – by ThreadSafe's
 restore later, by Akeeba, by `tar` and `mariadb`, by hand) and makes it work where it is now: on a new domain, under a new
 path, with a new database, or – without any new address – again in the place it came from (disaster recovery). Without
 `--yes` it only plans and reports. MariaDB (from 10.2) or MySQL (from 5.7), PHP 8.4+.
+
+The **website type** (the first argument) says what ThreadSafe knows about the application. Two exist: `prestashop9` (this
+whole document, unless it says otherwise) and `generic` ([section 12](#12-the-generic-website-type)). Types are plugins in
+`plugins/`; `threadsafe help migrate` lists the types and marks the options that belong to one of them.
 
 ## 1. Quick start
 
@@ -233,7 +237,7 @@ shop does not have (no product, no `.htaccess`) are skipped with a warning. Deta
 ## 8. Dev mode
 
 `--mode=dev` is for copies of a live shop that must not touch the live world. Rules (`mail`, `payment`, `accounts`,
-`tracking`, `noindex`, plus one per module rule) are data in `resources/prestashop9/dev-mode.json`; `--dev-skip=LIST` leaves
+`tracking`, `noindex`, plus one per module rule) are data in `plugins/prestashop9/resources/dev-mode.json`; `--dev-skip=LIST` leaves
 rules out, `--dev-rules=FILE` adds or replaces rules. With `--mail-catcher=HOST[:PORT]` the shop's mail goes to an SMTP catcher
 such as Mailpit, without it the shop sends nothing. The customers' personal data stays in the database – dev mode warns about
 that and about settings that look like credentials no rule handles. Details: [PHASE1.md](PHASE1.md) 3.9.
@@ -243,7 +247,7 @@ that and about settings that look like credentials no rule handles. Details: [PH
 ThreadSafe knows nothing about third-party modules. What you know about one goes into `<rules dir>/<module>.json`: columns
 with a known format or bare host names, settings to keep, tables to skip, files to delete or rewrite, what dev mode must
 switch off. The dry run lists tables with the domain in them that no rule knows ("No module rule for table ..."). Format,
-validation and limits: [PHASE1.md](PHASE1.md) 3.8 and `resources/prestashop9/module-rule.schema.json`.
+validation and limits: [PHASE1.md](PHASE1.md) 3.8 and `plugins/prestashop9/resources/module-rule.schema.json`.
 
 ## 10. Trying it on a real backup (private, local only)
 
@@ -268,3 +272,26 @@ contains customer data, so:
 - The self-test and `finalize` need the shop to be reachable and, for `finalize`, a PHP that can start PrestaShop.
 - A changed base path is handled in `.htaccess` and, through `finalize`, in `robots.txt`; other files that hold the path
   (custom rewrite rules outside PrestaShop's block, theme files) are not touched.
+
+## 12. The generic website type
+
+`migrate generic` is for a site ThreadSafe knows nothing about. It does what needs no knowledge of the application: it replaces
+the old domain in **every text column of every table** of the database (serialized PHP and JSON stay valid; the
+[replacement rules](PHASE1.md) are the same) and, with `--to`, checks that the home page of the migrated site answers (no redirect
+loop, no redirect to another host, no links to the old domain). It rewrites **no files**, adjusts no configuration and clears
+no caches: that stays with the owner of the site.
+
+```bash
+php bin/threadsafe migrate generic --root=/var/www/blog --from=blog.example --to=dev.blog.test \
+    --db-host=127.0.0.1 --db-name=blog --db-user=blog --db-password-file=/root/blog.pw \
+    --skip-tables=wp_actionscheduler_logs,wp_statistics_visitor \
+    --self-test-url=http://127.0.0.1:8080 --yes
+```
+
+- `--from` is required: nothing in the installation says which domain it uses. All database values must be given (`--db-host`,
+  `--db-port` if not 3306, `--db-name`, `--db-user`, the password as for any type); `--prefix` is optional (it only helps to
+  name tables in `--skip-tables`). Without a database only the self-test runs.
+- There is no list of log or cache tables: name what must not be rewritten with `--skip-tables` (full table names, or without the
+  prefix if `--prefix` is given). Bare host names stay unless you give `--replace-bare`.
+- Options of the PrestaShop type (`--ssl`, `--path`, `--mode` ...) are refused. Module rules and dev mode do not exist here.
+- The steps are `read-source-state`, `replace-content-domains` and `self-test`; report, journal and exit codes are as described above.

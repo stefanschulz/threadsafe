@@ -1,7 +1,7 @@
 {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "title": "ThreadSafe module rule (PrestaShop 9)",
-    "description": "One file per module: resources/prestashop9/modules/<module>.json or <rules dir>/<module>.json. Table names are written without the table prefix. Rules are data only; there are no handlers. The loader (ModuleRules) validates the same constraints and refuses a rule that does not fit.",
+    "description": "One file per module: plugins/prestashop9/resources/modules/<module>.json or <rules dir>/<module>.json. Table names are written without the table prefix. Rules are data only; there are no handlers. The loader (ModuleRules) validates the same constraints and refuses a rule that does not fit.",
     "type": "object",
     "additionalProperties": false,
     "required": ["module"],

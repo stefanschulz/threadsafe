@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace ThreadSafe\PrestaShop9\DevMode;
 
 /**
- * One rule of the dev mode (see resources/prestashop9/dev-mode.json): everything that cuts one kind of live
+ * One rule of the dev mode (see plugins/prestashop9/resources/dev-mode.json): everything that cuts one kind of live
  * connection. A rule is switched on or off as a whole.
  */
 final readonly class DevRule

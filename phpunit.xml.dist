@@ -22,6 +22,7 @@
     <source>
         <include>
             <directory>src</directory>
+            <directory>plugins</directory>
         </include>
     </source>
 </phpunit>

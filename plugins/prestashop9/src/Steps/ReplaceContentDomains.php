@@ -13,6 +13,7 @@ use ThreadSafe\Core\Resources;
 use ThreadSafe\Core\Step;
 use ThreadSafe\Core\StepResult;
 use ThreadSafe\Database\SchemaInspector;
+use ThreadSafe\Migration\ContentReport;
 use ThreadSafe\Database\TableInfo;
 use ThreadSafe\PrestaShop9\ConfigurationKeys;
 use ThreadSafe\PrestaShop9\State;
@@ -26,7 +27,7 @@ use ThreadSafe\Replace\ValueRewriter;
  * Replaces the old domain in the content of the database (CMS pages, product descriptions, module settings …),
  * keeping serialized PHP and JSON values valid. See docs/PHASE1.md (3.4) for the matching rules.
  *
- * Log and cache tables (resources/prestashop9/skip-tables.json, plus those named by module rules) are skipped and only
+ * Log and cache tables (plugins/prestashop9/resources/skip-tables.json, plus those named by module rules) are skipped and only
  * counted. The shop URL table and the shop's own domain settings are left to {@see UpdateConfiguration}. Tables
  * without a primary key are only reported.
  *
@@ -56,7 +57,7 @@ final class ReplaceContentDomains implements Step
 
         $results = $this->run($context, apply: false);
         foreach ($results as $result) {
-            $this->describe($result, $plan);
+            ContentReport::describe($result, $plan);
         }
         $this->describeTablesWithoutRule($context, $results, $plan);
         $this->describeSkippedTables($context, $plan);
@@ -155,43 +156,6 @@ final class ReplaceContentDomains implements Step
         ]);
 
         return $db->quote('name') . ' NOT IN (' . implode(', ', $names) . ')';
-    }
-
-    private function describe(TableRewriteResult $result, Plan $plan): void
-    {
-        if ($result->candidatesWithoutKey !== null) {
-            $plan->notice(Notice::warning(
-                "{$result->candidatesWithoutKey} row(s) mention the domain but the table has no primary key; not changed.",
-                $result->table,
-            ));
-
-            return;
-        }
-
-        foreach ($result->columns as $column => $outcome) {
-            $stats = $outcome->stats;
-            if ($outcome->rowsChanged > 0) {
-                $plan->add(Change::update(
-                    "db {$result->table}.$column",
-                    sprintf('replace the old domain (%d URL(s) in %d row(s))', $stats->urlsReplaced, $outcome->rowsChanged),
-                    $outcome->sampleBefore,
-                    $outcome->sampleAfter,
-                    $outcome->rowsChanged,
-                ));
-            }
-            if ($stats->bareFound > 0) {
-                $plan->notice(Notice::info("{$stats->bareFound} value(s) mention the domain without a URL form and are left untouched (replace them with --replace-bare).", "{$result->table}.$column"));
-            }
-            if ($stats->bareReplaced > 0) {
-                $plan->notice(Notice::info("{$stats->bareReplaced} bare domain name(s) replaced.", "{$result->table}.$column"));
-            }
-            if ($stats->emailsSkipped > 0) {
-                $plan->notice(Notice::info("{$stats->emailsSkipped} e-mail address(es) at the old domain left untouched.", "{$result->table}.$column"));
-            }
-            if ($stats->unparseable > 0) {
-                $plan->notice(Notice::warning("{$stats->unparseable} structured value(s) could not be parsed and were left untouched.", "{$result->table}.$column"));
-            }
-        }
     }
 
     /**

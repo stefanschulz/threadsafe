@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace ThreadSafe\Migration;
+namespace ThreadSafe\PrestaShop9;
 
 use ThreadSafe\Database\DatabaseSettings;
 

@@ -2,7 +2,7 @@
 
 A website backup application. One instance manages backups for many sites through site profiles (dashboard, backup overview per site, manual backups, download). Backups can be restored on a different domain or path, with all application-specific adjustments done automatically. First supported application: **PrestaShop 9.x**.
 
-Status: phase 1 (the restore core) is implemented: `threadsafe migrate prestashop9` turns a restored PrestaShop 9 copy into a working site on a new domain, path or database, or back in place, with a dev mode for live → dev copies. There is no backup engine, restore wizard or web interface yet.
+Status: phase 1 (the restore core) is implemented: `threadsafe migrate prestashop9` turns a restored PrestaShop 9 copy into a working site on a new domain, path or database, or back in place, with a dev mode for live → dev copies; `threadsafe migrate generic` replaces the domain in the database of any site. Website types are plugins (`plugins/`). There is no backup engine, restore wizard or web interface yet.
 
 - Concept: [docs/CONCEPT.md](docs/CONCEPT.md)
 - Phase 1 plan (restore core): [docs/PHASE1.md](docs/PHASE1.md)
@@ -50,7 +50,7 @@ php bin/threadsafe migrate prestashop9 --root=/var/www/html --to=dev.shop.test -
 
 Without `--mail-catcher` the shop sends no mail at all. `--dev-skip=RULES` leaves rules out (`mail`, `payment`,
 `accounts`, `tracking`, `noindex`), `--dev-rules=FILE` adds your own (the format is in
-`resources/prestashop9/dev-mode.json`; docs/PHASE1.md 3.9). The copy still holds the customers' personal data - the
+`plugins/prestashop9/resources/dev-mode.json`; docs/PHASE1.md 3.9). The copy still holds the customers' personal data - the
 run warns about it and about settings that look like credentials no rule handles.
 
 ### Rules for third-party modules
@@ -58,7 +58,7 @@ run warns about it and about settings that look like credentials no rule handles
 ThreadSafe knows nothing about individual modules. Put what you know about a module in `data/rules/<module>.json` (or
 another directory given with `--rules-dir`): columns with a known format, settings to keep, files to delete or rewrite,
 what the dev mode must switch off. The dry run lists tables with the domain in them that no rule knows ("No module rule
-for table ..."). Format and examples: docs/PHASE1.md 3.8 and `resources/prestashop9/module-rule.schema.json`.
+for table ..."). Format and examples: docs/PHASE1.md 3.8 and `plugins/prestashop9/resources/module-rule.schema.json`.
 
 ## Test environment
 

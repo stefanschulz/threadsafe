@@ -228,7 +228,7 @@ final class ModuleRulesTest extends TestCase
 
     public function testTheSchemaDescribesTheKeysTheLoaderAccepts(): void
     {
-        $schema = json_decode((string) file_get_contents(dirname(__DIR__, 4) . '/resources/prestashop9/module-rule.schema.json'), true, 16, JSON_THROW_ON_ERROR);
+        $schema = json_decode((string) file_get_contents(dirname(__DIR__, 4) . '/plugins/prestashop9/resources/module-rule.schema.json'), true, 16, JSON_THROW_ON_ERROR);
 
         self::assertIsArray($schema);
         self::assertEqualsCanonicalizing(ModuleRules::KEYS, array_keys($schema['properties']));

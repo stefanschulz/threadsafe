@@ -6,15 +6,17 @@ namespace ThreadSafe\PrestaShop9\Modules;
 
 use InvalidArgumentException;
 use JsonException;
+use ThreadSafe\Core\Paths;
+use ThreadSafe\Core\Resources;
 use ThreadSafe\Database\Connection;
 use ThreadSafe\PrestaShop9\DevMode\DevRule;
 
 /**
- * The module rules in effect: the ones shipped in `resources/prestashop9/modules/` and the user's in a rules directory
+ * The module rules in effect: the ones shipped in `plugins/prestashop9/resources/modules/` and the user's in a rules directory
  * (`--rules-dir`, default `data/rules/` next to the program, if it exists). A user rule replaces a shipped rule of the
  * same module as a whole.
  *
- * A rule file is `<module>.json`, plain data (see `resources/prestashop9/module-rule.schema.json`); it is validated
+ * A rule file is `<module>.json`, plain data (see `plugins/prestashop9/resources/module-rule.schema.json`); it is validated
  * strictly, because it decides which files are deleted and which values are rewritten. The steps work with the rules
  * of the modules that are installed in the shop being migrated ({@see forInstalled()}).
  */
@@ -50,14 +52,14 @@ final readonly class ModuleRules
     public static function load(?string $userDirectory = null, ?string $shippedDirectory = null): self
     {
         $rules = [];
-        $shipped = $shippedDirectory ?? dirname(__DIR__, 3) . '/resources/prestashop9/modules';
+        $shipped = $shippedDirectory ?? Resources::path('prestashop9/modules');
         foreach (self::jsonFiles($shipped) as $file) {
             $rule = self::parse($file);
             $rules[$rule->module] = $rule;
         }
 
         if ($userDirectory === null) {
-            $default = dirname(__DIR__, 3) . '/data/rules';
+            $default = Paths::data() . '/rules';
             $userDirectory = is_dir($default) ? $default : null;
         } elseif (!is_dir($userDirectory)) {
             throw new InvalidArgumentException("The rules directory \"$userDirectory\" does not exist.");

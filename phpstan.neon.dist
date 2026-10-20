@@ -2,8 +2,11 @@ parameters:
     level: 8
     paths:
         - src
+        - plugins
         - tests
     excludePaths:
+        # runs inside the PrestaShop container in a child process (needs PrestaShop's classes)
+        - plugins/prestashop9/resources/finalize.php
         # PrestaShop module that only runs inside the Docker test stack
         - tests/fixtures
         # runs inside the PrestaShop container (needs PrestaShop's classes)

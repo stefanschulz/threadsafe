@@ -24,7 +24,7 @@ use ThreadSafe\Replace\Stats;
 /**
  * Fixes the files outside the database that carry the old host or server: absolute paths in `php.ini` and
  * `.user.ini`, the domain in `robots.txt`, the sitemaps and the generated mail templates. The list of files is in
- * resources/prestashop9/host-bound-files.json.
+ * plugins/prestashop9/resources/host-bound-files.json.
  *
  * Paths below the old base path in `robots.txt` (`Disallow: /old/…`) are not rewritten; the step points out that the
  * file should be regenerated instead.

@@ -10,7 +10,6 @@ use ThreadSafe\Core\Context;
 use ThreadSafe\Core\Exception\GuardFailed;
 use ThreadSafe\Database\Connection;
 use ThreadSafe\Migration\MigrationRequest;
-use ThreadSafe\Migration\SourceState;
 use ThreadSafe\PrestaShop9\Modules\ModuleRules;
 
 /**

@@ -1,0 +1,10 @@
+{
+    "id": "generic",
+    "title": "Any website",
+    "version": "0.1.0",
+    "api": 1,
+    "class": "ThreadSafe\\Generic\\GenericType",
+    "autoload": {
+        "ThreadSafe\\Generic\\": "src/"
+    }
+}

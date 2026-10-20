@@ -22,7 +22,7 @@ use ThreadSafe\PrestaShop9\State;
 
 /**
  * Dev mode, database part: a copy of a live shop must not talk to the live world. Applies the rules of
- * resources/prestashop9/dev-mode.json – mail goes to a catcher or nowhere, PayPal is switched to sandbox without live
+ * plugins/prestashop9/resources/dev-mode.json – mail goes to a catcher or nowhere, PayPal is switched to sandbox without live
  * credentials, the PrestaShop Account tokens are removed, modules that report to the cloud are deactivated.
  *
  * Does nothing in production mode. Like the other database steps it works out its operations from the current

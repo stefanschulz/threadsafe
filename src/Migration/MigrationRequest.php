@@ -33,7 +33,7 @@ final readonly class MigrationRequest
      *                                            runs in another container); used for absolute paths written into files
      * @param MailCatcher|null      $mailCatcher  dev mode: the SMTP server that receives all mail; null = the shop sends no mail
      * @param list<string>          $devSkip      dev mode: ids of the rules that must not be applied
-     * @param string|null           $devRulesFile dev mode: JSON file with more rules (same format as resources/prestashop9/dev-mode.json)
+     * @param string|null           $devRulesFile dev mode: JSON file with more rules (same format as plugins/prestashop9/resources/dev-mode.json)
      * @param string|null           $rulesDir     directory with the user's module rules; null = data/rules next to the program, if present
      * @param bool                  $selfTest     check the migrated shop over HTTP at the end of a run
      * @param string|null           $selfTestUrl  address the web server answers on, if that differs from the shop's domain (e.g. http://web-container); the shop's path is added

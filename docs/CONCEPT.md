@@ -242,7 +242,7 @@ Because cookie keys and `secret` are kept, sessions and password hashes keep wor
 
 Nobody can know all third-party modules, and every shop uses a different set. The core therefore knows **nothing** module-specific; module knowledge lives in **module rules**, which are added over time:
 
-- A rule is a small JSON file named after the module (`resources/prestashop9/modules/<module>.json`) and may point to an optional PHP class for logic that cannot be expressed as data.
+- A rule is a small JSON file named after the module (`plugins/prestashop9/resources/modules/<module>.json`) and may point to an optional PHP class for logic that cannot be expressed as data.
 - Rules can declare: tables and columns that hold the domain (and in which form: plain, serialized, JSON), configuration keys to rewrite, keep or neutralise in dev mode, log/cache tables to skip or keep as structure only, files to rewrite or delete, and whether the module is deactivated in dev mode.
 - **Own rules without changing the program:** a rules folder in the data directory (`data/rules/`) is loaded in addition to the shipped rules and may override them.
 - Modules without a rule are still handled by the generic engine (all text columns, URL forms only); the dry-run report lists their domain occurrences as "no rule", which is how new rules are found.
