@@ -1,0 +1,24 @@
+{
+    "description": "What is thrown away because it belongs to the old environment and PrestaShop rebuilds it.",
+    "directories": [
+        "var/cache",
+        "cache/smarty/cache",
+        "cache/smarty/compile",
+        "cache/cachefs"
+    ],
+    "keep": [
+        "CACHEDIR.TAG",
+        "index.php",
+        ".htaccess",
+        "web.config",
+        ".gitkeep"
+    ],
+    "tables": [
+        "smarty_cache",
+        "smarty_lazy_cache",
+        "smarty_last_flush"
+    ],
+    "sensitiveFiles": [
+        "appParameters.php"
+    ]
+}

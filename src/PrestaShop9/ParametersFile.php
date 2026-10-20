@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace ThreadSafe\PrestaShop9;
 
 use InvalidArgumentException;
+use ThreadSafe\Database\DatabaseSettings;
 use RuntimeException;
 use ThreadSafe\PrestaShop9\Exception\InvalidParametersFile;
 

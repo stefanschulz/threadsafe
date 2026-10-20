@@ -58,7 +58,9 @@ final class UrlMatcher
         usort($froms, static fn (string $a, string $b): int => strlen($b) <=> strlen($a));
         $alternatives = [];
         foreach ($froms as $from) {
-            $alternatives[] = preg_quote($from, '~') . ($this->byFrom[$from]->fromHasPort() ? '' : '(?!:\\d)');
+            // A port's colon may be percent-encoded in URL-encoded text ("host%3A8190").
+            $quoted = str_replace(preg_quote(':', '~'), '(?::|%3A)', preg_quote($from, '~'));
+            $alternatives[] = $quoted . ($this->byFrom[$from]->fromHasPort() ? '' : '(?!:\\d)');
         }
         $host = '(?:' . implode('|', $alternatives) . ')';
         $slashes = self::SLASHES;
@@ -74,6 +76,16 @@ final class UrlMatcher
             . '~i';
 
         $this->emailRegex = '~@' . $host . $tail . '~i';
+    }
+
+    /**
+     * Host names (without port, lower case) of all old domains; useful for pre-filtering rows in SQL.
+     *
+     * @return list<string>
+     */
+    public function hosts(): array
+    {
+        return $this->hosts;
     }
 
     /** Cheap check whether the text can contain any of the domains at all. */
@@ -105,8 +117,9 @@ final class UrlMatcher
         $result = preg_replace_callback(
             $this->regex,
             function (array $m) use ($replaceBare, $stats): string {
-                $host = $m['h1'] ?? $m['h2'] ?? $m['h3'];
-                $mapping = $this->byFrom[strtolower((string) $host)];
+                $host = (string) ($m['h1'] ?? $m['h2'] ?? $m['h3']);
+                $hostEncoded = stripos($host, '%3A') !== false;
+                $mapping = $this->byFrom[strtolower(str_ireplace('%3A', ':', $host))];
 
                 if (($m['h3'] ?? null) !== null) {
                     if (!$replaceBare) {
@@ -116,12 +129,12 @@ final class UrlMatcher
                     }
                     ++$stats->bareReplaced;
 
-                    return (($m['www3'] ?? null) !== null && $mapping->keepWww ? 'www.' : '') . $mapping->to;
+                    return (($m['www3'] ?? null) !== null && $mapping->keepWww ? 'www.' : '') . ($hostEncoded ? rawurlencode($mapping->to) : $mapping->to);
                 }
 
                 ++$stats->urlsReplaced;
                 $slashes = (string) ($m['sl'] ?? $m['sl2']);
-                $encoded = stripos($slashes, '%2F') !== false;
+                $encoded = $hostEncoded || stripos($slashes, '%2F') !== false;
                 $www = ($m['www'] ?? $m['www2'] ?? null) !== null && $mapping->keepWww ? 'www.' : '';
                 $scheme = (string) ($m['scheme'] ?? '');
                 if ($scheme !== '' && $mapping->scheme !== null) {

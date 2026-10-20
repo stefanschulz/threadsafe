@@ -1,0 +1,20 @@
+{
+    "description": "Tables (without prefix) that hold logs, statistics or caches. The content replacement does not touch them (in a real shop three of them were 98 % of the database); they are only counted in the report.",
+    "tables": [
+        "connections",
+        "connections_source",
+        "connections_page",
+        "guest",
+        "log",
+        "pagenotfound",
+        "page_viewed",
+        "statssearch",
+        "psgdpr_log",
+        "employee_session",
+        "customer_session",
+        "mail",
+        "smarty_cache",
+        "smarty_lazy_cache",
+        "smarty_last_flush"
+    ]
+}

@@ -43,3 +43,18 @@ are included: a foreign domain, an e-mail address, a bare host name.
   `bin/threadsafe migrate` exists.
 - Other variants (SSL on, other table prefix, other PrestaShop version): change `PS_TAG`, `PS_ENABLE_SSL`,
   `DB_PREFIX` in `.docker/.env` and recreate the source stack with `docker compose down -v`.
+
+## Tests that need only a database
+
+Most step tests (`ReadSourceStateTest`, `DiscardCachesTest`, `UpdateConfigurationTest`, `ReplaceContentDomainsTest`,
+`StepPipelineTest`) build a small fake PrestaShop (`tests/Support/ScratchShop.php`): a scratch database on the source
+database server and a directory tree in the temp folder, both removed after each test. They need the `db` service and
+`THREADSAFE_STACK=1`, but not the clone:
+
+```bash
+docker compose -f .docker/docker-compose.yml up -d --wait db
+docker compose -f .docker/docker-compose.yml --profile tools run --rm -e THREADSAFE_STACK=1 tools vendor/bin/phpunit --testsuite integration --filter ReplaceContentDomainsTest
+```
+
+`DatabaseMigrationTest` migrates the real clone (the files of the target stack are mounted into the `tools` container
+at `/shops/target`). It changes the target database, so it needs a fresh clone: `run.sh` always clones first.

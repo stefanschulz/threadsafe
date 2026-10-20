@@ -33,16 +33,16 @@ final class JsonCodecTest extends TestCase
             '{"url":"http://new.example.org/a"}',
         ];
         yield 'escaped unicode stays escaped' => [
-            '{"t":"größe http:\/\/old.test\/"}',
-            '{"t":"größe http:\/\/new.example.org\/"}',
+            '{"t":"gr\u00f6\u00dfe http:\/\/old.test\/"}',
+            '{"t":"gr\u00f6\u00dfe http:\/\/new.example.org\/"}',
         ];
         yield 'raw unicode stays raw' => [
             '{"t":"größe http://old.test/ ✓"}',
             '{"t":"größe http://new.example.org/ ✓"}',
         ];
         yield 'surrogate pairs stay escaped' => [
-            '{"t":"😀 http:\/\/old.test\/"}',
-            '{"t":"😀 http:\/\/new.example.org\/"}',
+            '{"t":"\ud83d\ude00 http:\/\/old.test\/"}',
+            '{"t":"\ud83d\ude00 http:\/\/new.example.org\/"}',
         ];
         yield 'control character escapes do not change the unicode style' => [
             "{\"t\":\"ü\\u0001 http://old.test/\"}",

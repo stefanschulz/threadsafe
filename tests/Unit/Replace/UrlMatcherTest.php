@@ -80,6 +80,26 @@ final class UrlMatcherTest extends TestCase
         yield 'empty' => [''];
     }
 
+    public function testUrlEncodedOldDomainWithAPortIsFoundToo(): void
+    {
+        $matcher = $this->matcher('localhost:8190', 'new.example:8443');
+
+        self::assertSame(
+            '/redirect?back=http%3A%2F%2Fnew.example%3A8443%2Fcart',
+            $matcher->rewrite('/redirect?back=http%3A%2F%2Flocalhost%3A8190%2Fcart', false, new Stats()),
+        );
+        self::assertSame(
+            'http://new.example:8443/x',
+            $matcher->rewrite('http://localhost:8190/x', false, new Stats()),
+            'The plain notation still works.',
+        );
+        self::assertSame(
+            'http%3A%2F%2Flocalhost%3A81900%2Fx',
+            $matcher->rewrite('http%3A%2F%2Flocalhost%3A81900%2Fx', false, new Stats()),
+            'Another port is another origin.',
+        );
+    }
+
     public function testEmailAddressesAreCountedNotReplaced(): void
     {
         $stats = new Stats();

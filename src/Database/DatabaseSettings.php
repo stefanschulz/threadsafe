@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace ThreadSafe\PrestaShop9;
+namespace ThreadSafe\Database;
 
 /**
  * The database connection values stored in `parameters.php` (`database_*`).

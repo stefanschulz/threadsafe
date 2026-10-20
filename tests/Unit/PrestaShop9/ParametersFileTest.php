@@ -7,7 +7,7 @@ namespace ThreadSafe\Tests\Unit\PrestaShop9;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
-use ThreadSafe\PrestaShop9\DatabaseSettings;
+use ThreadSafe\Database\DatabaseSettings;
 use ThreadSafe\PrestaShop9\Exception\InvalidParametersFile;
 use ThreadSafe\PrestaShop9\ParametersFile;
 

@@ -99,6 +99,9 @@ services:
     volumes:
       - ..:/app
       - composer_cache:/composer
+      # The shop files of both stacks, so that the integration tests can run the migration against them.
+      - ps_data:/shops/source:ro
+      - target_ps_data:/shops/target
     depends_on:
       db:
         condition: service_healthy

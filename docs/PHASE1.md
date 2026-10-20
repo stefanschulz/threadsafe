@@ -201,7 +201,7 @@ Fresh installs plus fixtures are the basis of all automated tests; no customer d
 | 2 | `Core/` (Step, Plan, Runner, Report, Journal), `Cli/` skeleton, exit codes — **done** | 1 | M |
 | 3 | `ParametersFile` reader/writer with tests | 1 | M |
 | 4 | `Replace/` engine: `UrlMatcher`, `Serialized`/`Json`/`Plain` codecs with property tests | 1 | L |
-| 5 | `Database/` and steps 1, 3, 4, 5 (including skip tables, chunking, dry run) | 2, 4 | L |
+| 5 | `Database/` and steps 1, 3, 4, 5 (including skip tables, chunking, dry run) — **done**; step 3 includes the cache *directories*, so WP 6 does not repeat them | 2, 4 | L |
 | 5b | `Modules/` rule system: JSON schema, loader, registry, user rules folder; integration into steps 3, 5, 7, 9; rule for the fixture module | 4, 5 | M |
 | 6 | steps 2, 6, 7, 8 (files) with golden tests | 2, 3 | M |
 | 7 | step 9 dev mode (data-driven rules) | 5 | M |
