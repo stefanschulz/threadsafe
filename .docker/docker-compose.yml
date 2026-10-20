@@ -54,6 +54,40 @@ services:
     image: axllent/mailpit:latest
     ports:
       - "${MAILPIT_UI_PORT:-8191}:8025"
+    networks: [default, target]
+
+  # --- Target stack (profile "target") -------------------------------------------------------------------------
+  # Receives a clone of the source shop (tests/stack/clone.sh) and is then migrated. It lives in its own network
+  # on purpose: the cloned parameters.php still says "database host: db", and in this network "db" does not exist,
+  # so the clone can never talk to the source database by accident. Before the migration it is broken in exactly
+  # the way a restored copy is.
+  target-db:
+    profiles: ["target"]
+    image: mariadb:10.11
+    environment:
+      MARIADB_DATABASE: prestashop_target
+      MARIADB_USER: target
+      MARIADB_PASSWORD: ${TARGET_DB_PASSWORD:-target}
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-prestashop}
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    volumes:
+      - target_db_data:/var/lib/mysql
+    networks: [target]
+
+  target-prestashop:
+    profiles: ["target"]
+    image: prestashop/prestashop:${PS_TAG:-9.0.2-apache}
+    # Only Apache + PHP: no installer, the files arrive through the clone script.
+    command: ["apache2-foreground"]
+    ports:
+      - "${TARGET_PORT:-8290}:80"
+    volumes:
+      - target_ps_data:/var/www/html
+    networks: [target]
 
   # Development tools (PHP 8.4 CLI + pdo_mysql + Composer). Not started by `up`; use:
   #   docker compose --profile tools run --rm tools composer install
@@ -68,8 +102,15 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    networks: [default, target]
+
+networks:
+  default: {}
+  target: {}
 
 volumes:
   ps_data:
   db_data:
+  target_ps_data:
+  target_db_data:
   composer_cache:

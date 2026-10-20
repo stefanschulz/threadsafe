@@ -23,3 +23,6 @@
 
 # Tool caches
 /.cache/
+
+# Test fixtures (SQL seed) are the exception to the *.sql rule above
+!/tests/fixtures/*.sql

@@ -179,11 +179,11 @@ The core contains no module-specific code. A **module rule** (`resources/prestas
 ### 4.2 Integration tests (Docker)
 
 1. **Source stack** `threadsafe-dev` (exists): PrestaShop 9.0.2 + MariaDB + Mailpit on `localhost:8190`.
-2. **Problem fixtures on top of the fresh install.** A fresh install already contains demo data (19 products, 2 customers, 5 orders, 5 CMS pages, 2 languages, 75 modules in the 9.0.2 image) and is the default test base. What a fresh install does not contain is added deterministically:
+2. **Problem fixtures on top of the fresh install** *(implemented in WP 9: fixture module and seed SQL)*. A fresh install already contains demo data (19 products, 2 customers, 5 orders, 5 CMS pages, 2 languages, 75 modules in the 9.0.2 image) and is the default test base. What a fresh install does not contain is added deterministically:
    - a small open-source **fixture module** `threadsafe_fixture` (in `tests/fixtures/modules/`), installed through the normal module install path. It stores the shop domain the way real modules do: a serialized option, a JSON option, URLs in a language table, a generated file with absolute URLs, a cron/webhook URL.
    - `tests/fixtures/seed-problem-cases.sql`: CMS text with `http://www.<domain>/…`, e-mail addresses at the shop domain, a second foreign domain, a generated log table with 200k rows, a changed `php.ini`, a Smarty cache entry.
    - variants of the install: SSL on/off, other language set, other table prefix, and a sub-path variant (created by migrating to a path and then checking, see acceptance criterion 1).
-3. **Clone script** `tests/integration/clone-shop.sh`: dumps the source database and copies the files (without `var/cache`) into a **target stack** `threadsafe-target` (own volumes, other port, other database name, optionally other prefix).
+3. **Clone script** `tests/stack/clone.sh`: dumps the source database and copies the files (without `var/cache`) into the **target stack** (own volumes and network, port 8290, other database name and credentials). Scripts, stack layout and extension notes: [tests/stack/README.md](../tests/stack/README.md). *(implemented in WP 9)*
 4. **Migrate and verify:** run `threadsafe migrate` in the tools container; then HTTP smoke test, DB assertions (no old domain left outside skip tables, e-mail addresses unchanged, serialized values still decodable), and the `.htaccess` oracle comparison.
 5. **Disaster-recovery scenario (same domain):** copy files and dump from the source stack, destroy its containers and volumes, recreate empty ones on the same port, restore, run `threadsafe migrate` without a mapping, smoke-test. A second variant restores an older state over a modified installation by hand to confirm what phase 3 will have to clean up.
 6. **Module rules:** the fixture module ships its own rule; a test removes the rule and checks that the dry run lists the module's occurrences as "no rule".
@@ -206,7 +206,7 @@ Fresh installs plus fixtures are the basis of all automated tests; no customer d
 | 6 | steps 2, 6, 7, 8 (files) with golden tests | 2, 3 | M |
 | 7 | step 9 dev mode (data-driven rules) | 5 | M |
 | 8 | steps 10, 11 (finalize, self-test) | 5, 6 | M |
-| 9 | integration harness: target stack, fixture, clone script, assertions, `.htaccess` oracle | 1 | L |
+| 9 | integration harness: target stack, fixture, clone script, assertions, `.htaccess` oracle — **done** (migration assertions follow with WP 5–8) | 1 | L |
 | 10 | documentation: request/report/journal format, usage, private-test procedure | all | S |
 
 WP 3, 4 and 9 can run in parallel after WP 1. Suggested order: 1 → (3, 4, 9) → 2 → (5, 6) → 7 → 8 → 10. Milestone A (after WP 5, 6): domain, parameters, `.htaccess` and caches migrated and verified in Docker; milestone B (after WP 7, 8): dev mode and self-test complete; phase 1 done.

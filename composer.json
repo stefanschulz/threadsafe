@@ -32,6 +32,7 @@
         "lint": "parallel-lint --colors src tests tools",
         "stan": "phpstan analyse --memory-limit=512M",
         "test": "phpunit --testsuite unit",
+        "test:integration": "phpunit --testsuite integration",
         "check": [
             "@lint",
             "@stan",
@@ -42,6 +43,7 @@
         "lint": "Syntax check of all PHP files",
         "stan": "Static analysis (PHPStan)",
         "test": "Unit tests (no database needed)",
+        "test:integration": "Integration tests (need the Docker stacks, see tests/stack/run.sh)",
         "check": "Lint, static analysis and unit tests"
     }
 }

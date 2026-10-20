@@ -3,5 +3,10 @@ parameters:
     paths:
         - src
         - tests
+    excludePaths:
+        # PrestaShop module that only runs inside the Docker test stack
+        - tests/fixtures
+        # runs inside the PrestaShop container (needs PrestaShop's classes)
+        - tests/stack/oracle
     # tools/ holds throw-away phase 0 scripts (syntax-checked by `composer lint`, not analysed).
     tmpDir: .cache/phpstan
