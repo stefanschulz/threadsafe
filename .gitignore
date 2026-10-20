@@ -1,0 +1,22 @@
+# IDE
+.idea/
+.vscode/
+
+# Dependencies / build
+/vendor/
+/build/
+/dist/
+
+# Local environment
+.docker/.env
+*.local
+
+# Real backups and customer data must NEVER enter the repository (see docs/CONCEPT.md, section 7)
+/private/
+*.jpa
+*.j[0-9][0-9]
+*.z[0-9][0-9]
+*.zip
+*.sql
+*.sql.gz
+*.tsv

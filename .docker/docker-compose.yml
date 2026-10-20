@@ -1,0 +1,60 @@
+# Development/test environment: PrestaShop 9 + MariaDB + Mailpit.
+# Port range 819x so that nothing collides with other local projects.
+#
+#   cp .env.example .env        (once, optional)
+#   docker compose up -d        (the first start installs PrestaShop and takes a few minutes)
+#   Shop:     http://localhost:8190      Back office: http://localhost:8190/admin-dev
+#   Mailpit:  http://localhost:8191
+name: threadsafe-dev
+
+services:
+  prestashop:
+    image: prestashop/prestashop:${PS_TAG:-9.0.2-apache}
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "${PS_PORT:-8190}:80"
+    environment:
+      DB_SERVER: db
+      DB_NAME: prestashop
+      DB_USER: prestashop
+      DB_PASSWD: ${DB_PASSWORD:-prestashop}
+      DB_PREFIX: ps_
+      PS_DOMAIN: localhost:${PS_PORT:-8190}
+      PS_INSTALL_AUTO: "1"
+      PS_ERASE_DB: "0"
+      PS_LANGUAGE: de
+      PS_COUNTRY: DE
+      PS_FOLDER_ADMIN: admin-dev
+      PS_FOLDER_INSTALL: install
+      PS_ENABLE_SSL: "0"
+      PS_DEV_MODE: "0"
+      ADMIN_MAIL: ${ADMIN_MAIL:-admin@example.com}
+      ADMIN_PASSWD: ${ADMIN_PASSWD:-Admin1234!}
+    volumes:
+      - ps_data:/var/www/html
+
+  db:
+    image: mariadb:10.11
+    environment:
+      MARIADB_DATABASE: prestashop
+      MARIADB_USER: prestashop
+      MARIADB_PASSWORD: ${DB_PASSWORD:-prestashop}
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-prestashop}
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    volumes:
+      - db_data:/var/lib/mysql
+
+  mailpit:
+    image: axllent/mailpit:latest
+    ports:
+      - "${MAILPIT_UI_PORT:-8191}:8025"
+
+volumes:
+  ps_data:
+  db_data:
