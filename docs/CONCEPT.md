@@ -25,7 +25,7 @@
 | Same-domain restore | A backup must also be restorable on the **same domain** (disaster recovery, rollback after a failed update). The same restore core handles it as a migration in which nothing has to be rewritten (4.6) |
 | Module knowledge | Support for individual (third-party) modules is an **extension point**: per-module rules as **data only** (no code), addable later without changing the core (4.7) |
 | Website type plugins | Website types become **plugins** (`plugins/<type>/` with a manifest) loaded by the tool. Plugins come only from the author, live in the repository and are code with the tool's rights: no installation from the web interface, no signatures, no stable API or developer documentation yet. Extracted together with the `generic` type ([PHASE1B.md](PHASE1B.md)). |
-| Schedule | **cron-driven backups belong in the core** (Akeeba offers them only in the Pro edition) |
+| Schedule | **cron-driven backups belong in the core** (Akeeba offers them only in the Pro edition). Design (phase 5): the schedule is part of the site profile (cron expression, editable in the web interface) and **one trigger cron job** calls `threadsafe cron` every 1-15 minutes; per-task crontab entries remain possible (`backup <profile>`), but are not the way. See 5.6 |
 | Users | initially **one admin**; download warning from **500 MB** |
 | Encryption | wanted, firmly planned (phase 5): **key pair** for cron backups (public key on the server, private key with the owner) **and password** for manual backups |
 | Remote storage | not used today, later (SFTP and similar) |
@@ -288,8 +288,14 @@ Downloading in the web interface is a **convenience, not a reliable transport fo
 - **Concurrency:** at most one run per profile (lock file), globally one run at a time by default (queue); a run starts only if the free space exceeds the estimated size (last run × 1.2).
 - **DB access without booting the application:** credentials directly from its configuration file (so a backup also works when the site is broken).
 - **PrestaShop default filters:** directories `var/cache`, `var/logs`, `cache/smarty`, `img/tmp`, `.git`, the backup directory itself and `<admin folder>/autoupgrade/{backup,download,tmp,logs}` (1.26 GB in the real shop); tables **structure only**: `connections`, `connections_source`, `guest` (98 % of the DB in the real shop) as well as `connections_page`, `log`, `pagenotfound`, `page_viewed`, `statssearch`, `psgdpr_log`, `employee_session`, `customer_session`, Smarty cache tables; list configurable. The admin folder (arbitrary name) is detected by the adapter.
-- **Operating modes:** `php threadsafe backup <profile-id>`, `backup --all`, `list`, web UI, cron (CLI or protected URL).
+- **Operating modes:** `php threadsafe backup <profile-id>`, `backup --all`, `list`, web UI, cron (CLI or protected URL), see 5.6.
 - **Storage:** local directory per profile. Retrieval by download (5.4) or server access. The `Postproc` interface is provided; SFTP/S3/WebDAV follow later and then fill `transfers[]`.
+
+### 5.6 Scheduling (phase 5)
+- **One trigger, schedule inside.** A single cron job calls `threadsafe cron` (CLI) or a protected URL at short intervals. The scheduler decides which profiles are due: a profile is due when its last scheduled time lies after its last run; a missed run is made up once within a grace period, otherwise skipped; the global lock admits one run at a time, so a second trigger while a backup runs ends at once. The same call continues interrupted runs and applies retention.
+- **Why not one crontab entry per task:** the web interface cannot edit the crontab; shared hosting allows few cron jobs; queue, retention and resume would otherwise be missing. The trigger writes a **heartbeat** on every call and the dashboard warns when it stays away (the single point of failure).
+- **CLI task or web task is decided by how the trigger is called, not by the scheduler.** `php bin/threadsafe cron` is a **CLI task**: no PHP time limit, due backups run in the calling process, the database dump in one consistent snapshot. A call of the protected URL (`wget`/`curl`) is a **web task**: PHP limits apply, every call performs one tick, the dump is consistent per table (stated in the manifest). The CLI is preferred; the URL is the fallback for hosts without a CLI cron (1&1 users of Akeeba report exactly that). If a host kills long cron processes, the next call resumes the run from its saved state - without the original snapshot, so the manifest then says `consistency: table`. A manual backup from the web interface is always a web task.
+- The granularity of the schedule is that of the trigger (hourly cron = hourly schedule); `profile test` reports whether a PHP CLI binary is found.
 
 ## 6. Security
 - Backup archives contain DB credentials, cookie keys and customer data: storage outside the web root or blocked, random file names, restrictive file permissions; no clear-text logging of passwords.
@@ -317,7 +323,7 @@ Downloading in the web interface is a **convenience, not a reliable transport fo
 | 2 | **Profile model and backup engine:** site profiles (JSON) with connection test, website types `generic` and `prestashop9`, scanner, dumper, ZIP writer with ticks, splitting, manifest + sidecar file, storage per profile, CLI (`backup <profile>`, `backup --all`, `list`) | back up several sites from the command line, round-trip test |
 | 3 | **`restore.php`:** extractor + wizard, uses the core from phase 1; also restores **over an existing installation** (drop leftover tables with the prefix, remove files that are not in the backup) | backup → move in one go |
 | 4 | **Web UI:** login, dashboard, profile management, backup overview per profile, manual backup with progress, download (5.4) | multi-site interface, Solo replacement for own needs |
-| 5 | **Schedule via cron** (CLI or protected URL), retention, **archive encryption** | automatic, encrypted backups |
+| 5 | **Schedule via one trigger cron job** (5.6: schedule in the profile, `threadsafe cron` as CLI or protected URL, heartbeat), retention, **archive encryption** | automatic, encrypted backups |
 | later | SFTP/S3 export (fills "transferred"), further types (WordPress, Joomla), anonymisation of customer data | extensibility |
 
 Phase 1 deliberately comes before the engine: it solves the actual problem (the move), works with existing Akeeba backups and is the riskiest domain logic.
@@ -345,6 +351,7 @@ Phase 1 deliberately comes before the engine: it solves the actual problem (the 
 - Dev mail: mail catcher (Mailpit) by default, otherwise sending is switched off.
 - Anonymisation: later, as an option; until then only a notice.
 - Encryption: both (key pair for cron, password for manual backups).
+- Scheduling (5.6): schedule in the profile plus one trigger cron job with a heartbeat, instead of one crontab entry per task; CLI task when the trigger is a CLI cron (preferred), web task when it is the protected URL.
 - Database: first MariaDB instead of MySQL; since 2026-10-20 **MariaDB and MySQL** (nothing else for now), PHP interface selectable per profile (PHASE1B.md).
 - Website types become plugins (author only, in the repository, internal API, no installation from the UI); module rules stay data only (PHASE1B.md).
 - Same-domain restore (disaster recovery, rollback) is a core requirement (4.6); module-specific knowledge is an extension point (4.7).

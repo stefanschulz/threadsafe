@@ -145,6 +145,13 @@ Own streaming implementation, standard format (CONCEPT 3.3):
 - **Reader** (needed for `verify`, the extractor of phase 3 and the tests): reads the central directory (ZIP64 aware), streams an entry with bounded memory, checks CRC32 and sizes, refuses unsafe names (Zip Slip, absolute paths, `..`, NUL), refuses entries claiming absurd sizes.
 - Oracles in the tests: `unzip -t` (installed in the tools container), the own reader, and a cross-check that a part written in one tick equals the same part written in many ticks (byte for byte after the timestamps).
 
+**As built (WP 3).** `src/Archive/`: `ZipFormat` (the record layouts as pure functions, name safety, DOS time), `ZipWriter`, `ZipReader`, `Entry`, `PartInfo`, `VerifyResult`, `Compression` (the file types that are stored), `ZipException`.
+
+- *Writer API.* `ZipWriter::create($path, $level, $forceZip64)` / `resume($state)`; `beginFile($name, $mtime, $mode, $expectedSize, $compress)`, `writeBlock($block)` (exactly 256 KiB), `endFile($tail)` (shorter than a block, possibly empty), `addDirectory()`, `addString()`; `state()` at the end of a tick; `needsRollover($partSize, $nextEntrySize)` tells the caller to `close()` this part and `create()` the next - the writer itself knows nothing about parts or manifests. `close()` writes the central directory and end records, fsyncs, renames `<path>.part` to `<path>` and returns a `PartInfo` with the SHA-256 computed while writing. The central directory is collected in `<path>.cd`.
+- *ZIP64.* An entry gets ZIP64 records when its size is unknown or expected to reach 3.75 GiB; the central record uses the 64-bit fields only for values that do not fit 32 bits; the end records switch at 65,535 entries or 4 GiB. The 4 GiB limits are tested through the pure encoders and forced mode, not with 4 GiB of data.
+- *Reader.* Streams an entry with bounded memory (input in 16 KiB steps, output stopped at the declared size), checks CRC32 and sizes, understands what the writer and the common tools produce, refuses unsafe names, encrypted entries, other methods, multi-disk archives, ZIP64 values that are announced but missing, absurd expansion claims (more than 1100:1) and data that runs into the central directory. `verify()` collects all problems of a part instead of stopping at the first.
+- *Tests.* 40 seeded runs cut the writing into ticks at random points - a new writer object from the saved state, with junk appended to the part and directory files as a process that died after the save would leave - and require **byte-identical** output; every written archive is read back by the reader and accepted by `unzip -t`; hostile archives are built byte by byte (`tests/Support/RawZip.php`). Not covered: archives made by *other* writers (no `zip` tool or `ZipArchive` in the test container), which is why the reader stays strict about what it does not understand.
+
 ### 3.8 Archive, manifest, sidecar, storage
 
 ```
@@ -205,7 +212,7 @@ As in [MIGRATE.md](MIGRATE.md) section 10: the real shop (the examined one, CONC
 |---|---|---|---|
 | 1 | **Spikes** - **done**, findings in section 8: (a) one ZIP entry over several processes with serialised CRC/SHA state, checked by `unzip -t`, ZIP64 layout; (b) exact values of all column types, both drivers, MariaDB and MySQL, dump-import round trip; (c) tables without primary key; (d) memory with a 40 MB cell. Scripts in `tools/spikes/` | – | S |
 | 2 | `Engine/`: `Budget`, `Task`, `RunState`/`RunStore`, `Lock`, run loop with save/reload between ticks, queue | – | M |
-| 3 | `Archive/`: `ZipWriter` (ZIP64, data descriptors, chunked deflate, stored/deflate choice, parts) and `ZipReader` with the property and hostile-input tests | 1 | L |
+| 3 | `Archive/`: `ZipWriter` (ZIP64, data descriptors, chunked deflate, stored/deflate choice, parts) and `ZipReader` with the property and hostile-input tests - **done**, see "As built" in 3.7 | 1 | L |
 | 4 | `Backup/Scanner` + `Filters` (resumable walk, patterns, symlinks, warnings) | 2 | M |
 | 5 | `Backup/Dumper` + `SqlWriter` (tables, views, triggers, keyset paging, exact values, snapshot/table consistency, MariaDB/MySQL) with the type round trip test | 1, 2 | L |
 | 6 | `Profile/` (model, store, validation, connection test) and the `Backupable` capability with `prestashop9` and `generic` implementations, `backup-defaults.json` | 2 | M |
