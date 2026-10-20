@@ -6,6 +6,7 @@ Status: phase 1 (the restore core) is implemented: `threadsafe migrate prestasho
 
 - Concept: [docs/CONCEPT.md](docs/CONCEPT.md)
 - Phase 1 plan (restore core): [docs/PHASE1.md](docs/PHASE1.md)
+- Phase 2 plan (site profiles and backup engine): [docs/PHASE2.md](docs/PHASE2.md)
 - Phase 1b (MariaDB and MySQL, selectable driver, website type plugins): [docs/PHASE1B.md](docs/PHASE1B.md)
 - Reference of the `migrate` command (request, report, journal, exit codes, trying it on a real backup): [docs/MIGRATE.md](docs/MIGRATE.md)
 - Test environment (PrestaShop 9 + MariaDB or MySQL + Mailpit): [.docker/docker-compose.yml](.docker/docker-compose.yml)

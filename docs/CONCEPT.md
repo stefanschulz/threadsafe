@@ -348,12 +348,13 @@ Phase 1 deliberately comes before the engine: it solves the actual problem (the 
 - Database: first MariaDB instead of MySQL; since 2026-10-20 **MariaDB and MySQL** (nothing else for now), PHP interface selectable per profile (PHASE1B.md).
 - Website types become plugins (author only, in the repository, internal API, no installation from the UI); module rules stay data only (PHASE1B.md).
 - Same-domain restore (disaster recovery, rollback) is a core requirement (4.6); module-specific knowledge is an extension point (4.7).
+- Phase 2 (PHASE2.md): consistent snapshot in the CLI and per table in ticked runs, no reliance on `exec`/`proc_open`; ZIP split only on request; symlinks skipped with a warning; `generic` database passwords in plain text in a 0600 profile file; one SQL file per table with real names; deflate 6; CRC32 per entry and SHA-256 per part.
 - Multi-site (section 5): profiles, dashboard, backup overview, manual backup and download are core requirements; all sites live on the same server/account, one instance is enough; one admin user at first, roles can be added later; download warning from 500 MB (configurable).
 
 **Open**
 - Which database does the live host use (MariaDB or MySQL)? Check with `SELECT VERSION()` on the live system. Both are supported now; the answer decides which one the private reality check runs against.
 
-Next step: phase 1b (database drivers, then plugins; [PHASE1B.md](PHASE1B.md)), then phase 2.
+Next step: phase 2 (profiles and backup engine; plan: [PHASE2.md](PHASE2.md), decisions settled). Phases 1 and 1b are done.
 
 ## Sources
 - Akeeba Solo Core 9.2.0 (local): `composer.json`, `vendor/akeeba/engine/CLAUDE.md`, `engine/Core/scripting.json`, `Solo/Pythia/**`, `Solo/assets/installers/**` (JPA packages unpacked and inspected), [Solo documentation](https://akeeba.com/documentation/solo.html), [ANGIE installers](https://akeeba.com/documentation/solo/angie-installers.html)
