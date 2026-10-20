@@ -69,9 +69,44 @@ final class PdoDriver implements Driver
         return $this->run($sql, $parameters)->rowCount();
     }
 
+    public function stream(string $sql, array $parameters): \Generator
+    {
+        $this->pdo->setAttribute(PDO::MYSQL_ATTR_USE_BUFFERED_QUERY, false);
+        $statement = null;
+        try {
+            $statement = $this->run($sql, $parameters);
+            while (($row = $statement->fetch()) !== false) {
+                yield $row;
+            }
+        } catch (PDOException $e) {
+            throw new DatabaseError($e->getMessage(), 0, $e);
+        } finally {
+            $statement?->closeCursor();
+            $this->pdo->setAttribute(PDO::MYSQL_ATTR_USE_BUFFERED_QUERY, true);
+        }
+    }
+
     public function lastInsertId(): int
     {
         return (int) $this->pdo->lastInsertId();
+    }
+
+    public function beginSnapshot(): void
+    {
+        try {
+            $this->pdo->exec('START TRANSACTION WITH CONSISTENT SNAPSHOT');
+        } catch (PDOException $e) {
+            throw new DatabaseError($e->getMessage(), 0, $e);
+        }
+    }
+
+    public function endSnapshot(): void
+    {
+        try {
+            $this->pdo->exec('COMMIT');
+        } catch (PDOException $e) {
+            throw new DatabaseError($e->getMessage(), 0, $e);
+        }
     }
 
     public function begin(): void

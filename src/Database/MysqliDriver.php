@@ -90,9 +90,57 @@ final class MysqliDriver implements Driver
         }
     }
 
+    public function stream(string $sql, array $parameters): \Generator
+    {
+        $statement = $this->run($sql, $parameters);
+        try {
+            $meta = $statement->result_metadata();
+            if ($meta === false) {
+                return;
+            }
+            $names = array_map(static fn (object $field): string => $field->name, $meta->fetch_fields());
+            $meta->free();
+            $values = array_fill(0, count($names), null);
+            $references = [];
+            foreach (array_keys($values) as $i) {
+                $references[$i] = &$values[$i];
+            }
+            $statement->bind_result(...$references);
+            while ($statement->fetch()) {
+                $row = [];
+                foreach ($names as $i => $name) {
+                    $row[$name] = $values[$i];
+                }
+                yield $row;
+            }
+        } catch (mysqli_sql_exception $e) {
+            throw new DatabaseError($e->getMessage(), 0, $e);
+        } finally {
+            $statement->close();
+        }
+    }
+
     public function lastInsertId(): int
     {
         return (int) $this->mysqli->insert_id;
+    }
+
+    public function beginSnapshot(): void
+    {
+        try {
+            $this->mysqli->begin_transaction(MYSQLI_TRANS_START_WITH_CONSISTENT_SNAPSHOT);
+        } catch (mysqli_sql_exception $e) {
+            throw new DatabaseError($e->getMessage(), 0, $e);
+        }
+    }
+
+    public function endSnapshot(): void
+    {
+        try {
+            $this->mysqli->commit();
+        } catch (mysqli_sql_exception $e) {
+            throw new DatabaseError($e->getMessage(), 0, $e);
+        }
     }
 
     public function begin(): void

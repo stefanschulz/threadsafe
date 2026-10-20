@@ -40,7 +40,29 @@ interface Driver
      */
     public function execute(string $sql, array $parameters): int;
 
+    /**
+     * Runs a SELECT and hands out the rows one by one without holding the whole result in memory. The connection cannot
+     * run another statement until the generator is finished or discarded.
+     *
+     * @param list<scalar|null> $parameters
+     *
+     * @return \Generator<int, array<string, mixed>>
+     *
+     * @throws DatabaseError
+     */
+    public function stream(string $sql, array $parameters): \Generator;
+
     public function lastInsertId(): int;
+
+    /**
+     * Starts a transaction that sees the data as of this moment (`START TRANSACTION WITH CONSISTENT SNAPSHOT`).
+     *
+     * @throws DatabaseError
+     */
+    public function beginSnapshot(): void;
+
+    /** Ends what {@see beginSnapshot()} started. */
+    public function endSnapshot(): void;
 
     /** @throws DatabaseError */
     public function begin(): void;
