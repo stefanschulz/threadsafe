@@ -60,6 +60,15 @@ Every component is a small state machine with `tick(Budget): TaskState` (`INIT �
 - **Space check** before the run: free space ≥ last backup × 1.2 (or, for a first backup, the size of the site files + 1.5 × database size); `--force` skips it with a warning.
 - **Failure:** a failed run deletes its `.part` files and keeps the run state for diagnosis; a finished run deletes the state. Result of a run: `ok`, `ok-with-warnings` (vanished files, unreadable files, skipped objects) or `failed`; exit codes follow phase 1 (0 / 1 usage / 2 refused / 3 failed / 5 internal; `ok-with-warnings` is 0 with the warnings in the report).
 
+**As built (WP 2).** `src/Engine/`:
+
+- `Task` has no state of its own: `initialState($parameters)` and `tick($state, Budget): TickOutcome` (new state, finished?, a progress line). The state is plain JSON data.
+- `Budget` is the time and memory a tick may use: unlimited seconds in the CLI, 60 % of `max_execution_time` in a web request (20 s if PHP has no limit), and always 80 % of `memory_limit`; a task asks `exhausted()` between its units of work and stops at a boundary it can continue from.
+- `RunStore` keeps one file per run in `data/runs/` (`<task>-<UTC time>-<random>.json`, directory 0700, files 0600, written atomically, ids validated against path tricks); `Run` has status `running` / `finished` / `failed`, tick count, progress line, error message and the state. No hash and no stack trace in the error line, only `Class: message`.
+- `Lock` is an exclusive `flock` that the operating system releases when the process ends however it ends; `isHeld()` tells a live executor from a dead one, so **"interrupted" = status `running` without a held lock** (`RunStore::isInterrupted()`). Tested with a second process that is killed with signal 9.
+- `Executor::execute($id, $maxTicks, $onTick)` takes the run's lock, then repeats: load the run from the store, one tick with a fresh budget, save, callback. State goes through the store **after every tick, in the same process too**, so the resume path is the normal path. A throwing task marks the run `failed` (the last good state is kept) and the exception goes to the caller; `resume($id)` refuses a run that another process executes; a failed run is not resumed.
+- *Not built:* the persistent queue. In phase 2 the only queue is `backup --all` going through the profiles one after the other under the global lock; a persistent queue belongs with the trigger cron of phase 5.
+
 ### 3.3 Site profile
 
 `data/profiles/<id>.json`, one file per site (fields as in CONCEPT 5.1; schedule, retention and encryption are reserved fields that phase 5 fills):
@@ -211,7 +220,7 @@ As in [MIGRATE.md](MIGRATE.md) section 10: the real shop (the examined one, CONC
 | WP | Content | Depends on | Size |
 |---|---|---|---|
 | 1 | **Spikes** - **done**, findings in section 8: (a) one ZIP entry over several processes with serialised CRC/SHA state, checked by `unzip -t`, ZIP64 layout; (b) exact values of all column types, both drivers, MariaDB and MySQL, dump-import round trip; (c) tables without primary key; (d) memory with a 40 MB cell. Scripts in `tools/spikes/` | – | S |
-| 2 | `Engine/`: `Budget`, `Task`, `RunState`/`RunStore`, `Lock`, run loop with save/reload between ticks, queue | – | M |
+| 2 | `Engine/`: `Budget`, `Task`, `Run`/`RunStore`, `Lock`, `Executor` with save/reload between ticks and resume - **done**, see "As built" in 3.2; the queue is not built (see there) | – | M |
 | 3 | `Archive/`: `ZipWriter` (ZIP64, data descriptors, chunked deflate, stored/deflate choice, parts) and `ZipReader` with the property and hostile-input tests - **done**, see "As built" in 3.7 | 1 | L |
 | 4 | `Backup/Scanner` + `Filters` (resumable walk, patterns, symlinks, warnings) | 2 | M |
 | 5 | `Backup/Dumper` + `SqlWriter` (tables, views, triggers, keyset paging, exact values, snapshot/table consistency, MariaDB/MySQL) with the type round trip test | 1, 2 | L |
