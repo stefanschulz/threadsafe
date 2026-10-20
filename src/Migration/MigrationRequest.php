@@ -29,6 +29,8 @@ final readonly class MigrationRequest
      * @param list<string>          $skipTables   additional tables (without prefix) the content replacement must skip
      * @param bool                  $replaceBare  also replace bare domain names (host name without URL form) in content
      * @param int                   $chunkSize    rows per query and transaction in the content replacement
+     * @param string|null           $serverPath   where the web server sees the shop, if that differs from $root (e.g. ThreadSafe
+     *                                            runs in another container); used for absolute paths written into files
      */
     public function __construct(
         public string $root,
@@ -40,6 +42,7 @@ final readonly class MigrationRequest
         public array $skipTables = [],
         public bool $replaceBare = false,
         public int $chunkSize = 2000,
+        public ?string $serverPath = null,
     ) {
         if ($root === '') {
             throw new InvalidArgumentException('The shop root directory must not be empty.');
@@ -59,6 +62,12 @@ final readonly class MigrationRequest
             $seen[$mapping->from] = true;
         }
         $this->domains = $domains;
+    }
+
+    /** The shop's directory as the web server sees it, without a trailing slash. */
+    public function serverPath(): string
+    {
+        return rtrim($this->serverPath ?? $this->root, '/\\');
     }
 
     /** True if no domain is to be replaced (restore on the same domain). */

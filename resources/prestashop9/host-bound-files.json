@@ -1,0 +1,24 @@
+{
+    "description": "Files that contain values tied to the host or the server and are not part of the database.",
+    "phpIni": [
+        "php.ini",
+        ".user.ini"
+    ],
+    "phpIniDirectives": [
+        "error_log",
+        "upload_tmp_dir",
+        "session.save_path",
+        "sys_temp_dir",
+        "auto_prepend_file",
+        "auto_append_file"
+    ],
+    "files": [
+        "robots.txt",
+        "*_sitemap.xml"
+    ],
+    "directories": [
+        {"glob": "mails", "extensions": ["html", "txt"]},
+        {"glob": "modules/*/mails", "extensions": ["html", "txt"]}
+    ],
+    "maxFileBytes": 52428800
+}

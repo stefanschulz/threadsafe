@@ -1,0 +1,21 @@
+{
+    "description": "Directories PrestaShop needs. 'create' are made if they are missing (a backup usually leaves out cache, logs and sessions); 'writable' must be writable for the owner.",
+    "create": [
+        "var/cache",
+        "var/logs",
+        "var/sessions",
+        "img/tmp"
+    ],
+    "writable": [
+        "var",
+        "var/cache",
+        "var/logs",
+        "var/sessions",
+        "img",
+        "img/tmp",
+        "upload",
+        "download",
+        "translations",
+        "mails"
+    ]
+}

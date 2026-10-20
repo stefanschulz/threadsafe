@@ -14,21 +14,18 @@ use ThreadSafe\Core\StepStatus;
 use ThreadSafe\Core\Context;
 use ThreadSafe\Database\DatabaseSettings;
 use ThreadSafe\Migration\MigrationRequest;
-use ThreadSafe\PrestaShop9\Steps\DiscardCaches;
-use ThreadSafe\PrestaShop9\Steps\ReadSourceState;
-use ThreadSafe\PrestaShop9\Steps\ReplaceContentDomains;
-use ThreadSafe\PrestaShop9\Steps\UpdateConfiguration;
+use ThreadSafe\PrestaShop9\MigrationPipeline;
 use ThreadSafe\Replace\DomainMapping;
 use ThreadSafe\Tests\Support\Stack;
 use ThreadSafe\Tests\Support\TempDirectory;
 
 /**
- * The database steps against the real clone of the seeded PrestaShop 9 shop (tests/stack/run.sh clones first):
+ * The whole migration (every step of the pipeline) against the real clone of the seeded PrestaShop 9 shop (tests/stack/run.sh clones first):
  * 298 tables, 200,000 log rows, serialized and JSON options, CMS text in all URL notations.
  *
  * The files of the target stack are mounted at /shops/target. parameters.php there still points to the source
  * database host, so the request names the target database explicitly. Runs after CloneTest (which expects the
- * untouched clone) and migrates the target's database.
+ * untouched clone) and migrates the target's database and files; FileMigrationTest and MigratedSiteTest check the rest.
  */
 final class DatabaseMigrationTest extends IntegrationTestCase
 {
@@ -49,12 +46,13 @@ final class DatabaseMigrationTest extends IntegrationTestCase
             '/shops/target',
             [new DomainMapping(Stack::SOURCE_HOST, Stack::TARGET_HOST)],
             database: new DatabaseSettings('target-db', 3306, 'prestashop_target', 'target', 'target', 'ps_'),
+            serverPath: '/var/www/html',
         );
     }
 
     private function runner(): Runner
     {
-        return new Runner([new ReadSourceState(), new DiscardCaches(), new UpdateConfiguration(), new ReplaceContentDomains()]);
+        return new Runner(MigrationPipeline::steps());
     }
 
     private function context(MigrationRequest $request, bool $dryRun): Context

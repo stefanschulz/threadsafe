@@ -33,7 +33,7 @@ dc exec -T prestashop sh -c 'cat > /var/www/html/php.ini' <<'EOF'
 error_reporting = E_ALL & ~E_DEPRECATED;
 log_errors = On;
 display_errors = Off;
-error_log = /var/www/html/var/logs/php-errors.log;
+error_log = /kunden/homepages/22/d000/htdocs/shoptest/var/logs/php-errors.log;
 memory_limit = 512M
 EOF
 dc exec -T prestashop sh -c 'cat > /var/www/html/1_index_sitemap.xml' <<EOF

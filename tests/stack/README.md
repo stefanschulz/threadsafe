@@ -14,7 +14,7 @@ and before the migration it is broken in exactly the way a restored copy is (HTT
 ## Run everything
 
 ```bash
-tests/stack/run.sh            # seed → clone → oracle → PHPUnit "integration" suite (about a minute)
+tests/stack/run.sh            # seed → clone → PHPUnit phase 1 (incl. the migration of the clone) → oracle → phase 2 (about a minute)
 ```
 
 Single steps:

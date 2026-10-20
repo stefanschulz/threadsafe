@@ -203,7 +203,7 @@ Fresh installs plus fixtures are the basis of all automated tests; no customer d
 | 4 | `Replace/` engine: `UrlMatcher`, `Serialized`/`Json`/`Plain` codecs with property tests | 1 | L |
 | 5 | `Database/` and steps 1, 3, 4, 5 (including skip tables, chunking, dry run) — **done**; step 3 includes the cache *directories*, so WP 6 does not repeat them | 2, 4 | L |
 | 5b | `Modules/` rule system: JSON schema, loader, registry, user rules folder; integration into steps 3, 5, 7, 9; rule for the fixture module | 4, 5 | M |
-| 6 | steps 2, 6, 7, 8 (files) with golden tests | 2, 3 | M |
+| 6 | steps 2, 6, 7, 8 (files) with golden tests — **done**; with the database steps the migrated clone serves the shop under the new domain and its `.htaccess` block equals PrestaShop's own regeneration. Request option `serverPath` for the case that the web server sees the shop under another path than the tool | 2, 3 | M |
 | 7 | step 9 dev mode (data-driven rules) | 5 | M |
 | 8 | steps 10, 11 (finalize, self-test) | 5, 6 | M |
 | 9 | integration harness: target stack, fixture, clone script, assertions, `.htaccess` oracle — **done** (migration assertions follow with WP 5–8) | 1 | L |

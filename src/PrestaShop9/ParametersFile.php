@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace ThreadSafe\PrestaShop9;
 
 use InvalidArgumentException;
+use ThreadSafe\Core\AtomicFile;
 use ThreadSafe\Database\DatabaseSettings;
-use RuntimeException;
 use ThreadSafe\PrestaShop9\Exception\InvalidParametersFile;
 
 /**
@@ -164,26 +164,13 @@ final class ParametersFile
     }
 
     /**
-     * Writes the file atomically (temporary file in the same directory, then rename) and keeps the permissions of
-     * an existing file.
+     * Writes the file atomically and keeps the permissions (and, for root, the owner) of an existing file.
+     *
+     * @see AtomicFile
      */
     public function writeTo(string $path): void
     {
-        $mode = is_file($path) ? (fileperms($path) & 0777) : 0644;
-        $temporary = $path . '.threadsafe-' . bin2hex(random_bytes(4)) . '.tmp';
-
-        if (@file_put_contents($temporary, $this->source, LOCK_EX) === false) {
-            throw new RuntimeException("Cannot write \"$temporary\".");
-        }
-        @chmod($temporary, $mode);
-        if (!@rename($temporary, $path)) {
-            @unlink($temporary);
-
-            throw new RuntimeException("Cannot replace \"$path\".");
-        }
-        if (function_exists('opcache_invalidate')) {
-            @opcache_invalidate($path, true);
-        }
+        AtomicFile::write($path, $this->source);
     }
 
     /** The last entry for the key (the one PHP would use). */
