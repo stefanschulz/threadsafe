@@ -3,6 +3,17 @@
 # See tests/fixtures/ and docs/PHASE1.md (test strategy).
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
+# The live connections of a real shop (mail account, PayPal, PrestaShop Account …) for the dev mode tests; separate from
+# the first seeding so that an already seeded source stack gets them too.
+seed_live_links() {
+    local prefix="$1"
+    if [ "$(sql db "$SOURCE_DB_NAME" "SELECT COUNT(*) FROM ${prefix}configuration WHERE name='THREADSAFE_SEEDED_LIVE_LINKS'")" != "0" ]; then
+        return
+    fi
+    log "Adding the live connections (mail account, PayPal, PrestaShop Account) for the dev mode tests"
+    sed -e "s/{{prefix}}/${prefix}/g" "$REPO_ROOT/tests/fixtures/seed-live-links.sql"         | dc exec -T db mariadb -uroot -p"$DB_ROOT_PASSWORD" "$SOURCE_DB_NAME"
+}
+
 log "Starting the source stack"
 dc up -d --wait db prestashop mailpit >/dev/null
 
@@ -12,6 +23,7 @@ domain="$(sql db "$SOURCE_DB_NAME" "SELECT value FROM ${prefix}configuration WHE
 
 if [ "$(sql db "$SOURCE_DB_NAME" "SELECT COUNT(*) FROM ${prefix}configuration WHERE name='THREADSAFE_SEEDED'")" != "0" ]; then
     log "Source stack is already seeded ($domain)"
+    seed_live_links "$prefix"
     exit 0
 fi
 
@@ -43,5 +55,7 @@ dc exec -T prestashop sh -c 'cat > /var/www/html/1_index_sitemap.xml' <<EOF
 </sitemapindex>
 EOF
 dc exec -T prestashop chown www-data:www-data /var/www/html/php.ini /var/www/html/1_index_sitemap.xml
+
+seed_live_links "$prefix"
 
 log "Seeded the source stack at $domain"

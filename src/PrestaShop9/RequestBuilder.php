@@ -10,9 +10,11 @@ use ThreadSafe\Core\Exception\GuardFailed;
 use ThreadSafe\Database\Connection;
 use ThreadSafe\Database\ConnectionFailed;
 use ThreadSafe\Database\DatabaseSettings;
+use ThreadSafe\Migration\MailCatcher;
 use ThreadSafe\Migration\MigrationRequest;
 use ThreadSafe\Migration\Mode;
 use ThreadSafe\Migration\SslMode;
+use ThreadSafe\PrestaShop9\DevMode\DevModeRules;
 use ThreadSafe\PrestaShop9\Exception\InvalidParametersFile;
 use ThreadSafe\Replace\DomainMapping;
 
@@ -25,7 +27,10 @@ use ThreadSafe\Replace\DomainMapping;
  *   domains       list     further mappings, each "old=new" or {"from": …, "to": …}
  *   path          string   new base path, e.g. "/shop/"
  *   ssl           string   none | login | all
- *   mode          string   production (dev is not available yet)
+ *   mode          string   production (default) or dev: cut live mail, payment and cloud connections
+ *   mailCatcher   string   dev mode: HOST or HOST:PORT of the SMTP server that receives all mail (default: no mail at all)
+ *   devSkip       list     dev mode: ids of rules to leave out (see resources/prestashop9/dev-mode.json)
+ *   devRules      string   dev mode: JSON file with more rules
  *   serverPath    string   where the web server sees the shop, if different from root
  *   database      object   host, port, name, user, password, passwordFile, prefix – each defaults to parameters.php
  *   replaceBare   bool     also replace bare domain names
@@ -65,7 +70,7 @@ final class RequestBuilder
      */
     public function build(array $settings): MigrationRequest
     {
-        $known = ['root', 'from', 'to', 'domains', 'path', 'ssl', 'mode', 'serverPath', 'database', 'replaceBare', 'skipTables', 'chunkSize'];
+        $known = ['root', 'from', 'to', 'domains', 'path', 'ssl', 'mode', 'mailCatcher', 'devSkip', 'devRules', 'serverPath', 'database', 'replaceBare', 'skipTables', 'chunkSize'];
         foreach (array_keys($settings) as $key) {
             if (!in_array($key, $known, true)) {
                 throw new InvalidArgumentException("Unknown setting \"$key\".");
@@ -79,9 +84,7 @@ final class RequestBuilder
         }
 
         $mode = Mode::tryFrom($this->string($settings, 'mode') ?? 'production') ?? throw new InvalidArgumentException('The mode must be "production" or "dev".');
-        if ($mode === Mode::Dev) {
-            throw new InvalidArgumentException('The dev mode is not available yet: it would leave live mail, payment and cloud connections active. Use --mode=production.');
-        }
+        [$mailCatcher, $devSkip, $devRules] = $this->devSettings($settings, $mode);
 
         $ssl = null;
         if (($value = $this->string($settings, 'ssl')) !== null) {
@@ -115,7 +118,40 @@ final class RequestBuilder
             $replaceBare,
             (int) $chunkSize,
             $this->string($settings, 'serverPath'),
+            $mailCatcher,
+            $devSkip,
+            $devRules,
         );
+    }
+
+    /**
+     * The dev mode settings; they make no sense in production mode, where they would be silently ignored.
+     *
+     * @param array<string, mixed> $settings
+     *
+     * @return array{MailCatcher|null, list<string>, string|null}
+     */
+    private function devSettings(array $settings, Mode $mode): array
+    {
+        $catcher = $this->string($settings, 'mailCatcher');
+        $skip = $settings['devSkip'] ?? [];
+        $file = $this->string($settings, 'devRules');
+        if (!is_array($skip) || array_filter($skip, static fn (mixed $id): bool => !is_string($id) || $id === '') !== []) {
+            throw new InvalidArgumentException('devSkip must be a list of rule ids.');
+        }
+
+        if ($mode !== Mode::Dev) {
+            if ($catcher !== null || $skip !== [] || $file !== null) {
+                throw new InvalidArgumentException('The mail catcher and the dev rule settings need --mode=dev.');
+            }
+
+            return [null, [], null];
+        }
+
+        $skip = array_values($skip);
+        DevModeRules::load($file)->assertKnown($skip);
+
+        return [$catcher === null ? null : MailCatcher::parse($catcher), $skip, $file];
     }
 
     /**

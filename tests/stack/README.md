@@ -4,7 +4,7 @@ Integration tests run against two PrestaShop 9 stacks defined in `.docker/docker
 
 | Stack | Services | Purpose |
 |---|---|---|
-| **source** | `db`, `prestashop`, `mailpit` | A freshly installed shop at `localhost:8190`, seeded with problem cases |
+| **source** | `db`, `prestashop`, `mailpit` | A freshly installed shop at `localhost:8190`, seeded with problem cases and with the live connections of a real shop (`seed-live-links.sql`) |
 | **target** | `target-db`, `target-prestashop` | Apache + PHP only, in an **isolated network**. Receives a clone of the source and is then migrated (`localhost:8290`) |
 
 The target has its own network on purpose: the cloned `parameters.php` still says "database host: `db`", and inside

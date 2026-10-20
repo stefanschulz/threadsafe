@@ -31,6 +31,9 @@ final readonly class MigrationRequest
      * @param int                   $chunkSize    rows per query and transaction in the content replacement
      * @param string|null           $serverPath   where the web server sees the shop, if that differs from $root (e.g. ThreadSafe
      *                                            runs in another container); used for absolute paths written into files
+     * @param MailCatcher|null      $mailCatcher  dev mode: the SMTP server that receives all mail; null = the shop sends no mail
+     * @param list<string>          $devSkip      dev mode: ids of the rules that must not be applied
+     * @param string|null           $devRulesFile dev mode: JSON file with more rules (same format as resources/prestashop9/dev-mode.json)
      */
     public function __construct(
         public string $root,
@@ -43,6 +46,9 @@ final readonly class MigrationRequest
         public bool $replaceBare = false,
         public int $chunkSize = 2000,
         public ?string $serverPath = null,
+        public ?MailCatcher $mailCatcher = null,
+        public array $devSkip = [],
+        public ?string $devRulesFile = null,
     ) {
         if ($root === '') {
             throw new InvalidArgumentException('The shop root directory must not be empty.');
@@ -68,6 +74,11 @@ final readonly class MigrationRequest
     public function serverPath(): string
     {
         return rtrim($this->serverPath ?? $this->root, '/\\');
+    }
+
+    public function isDevMode(): bool
+    {
+        return $this->mode === Mode::Dev;
     }
 
     /** True if no domain is to be replaced (restore on the same domain). */

@@ -63,7 +63,10 @@ final class MigrateCommand implements Command
             new OptionSpec('domain', 'Another mapping, old=new (repeatable; for several shop URLs)', takesValue: true, valueName: 'OLD=NEW', repeatable: true),
             new OptionSpec('path', 'New base path, e.g. /shop/ (default: unchanged)', takesValue: true, valueName: 'PATH'),
             new OptionSpec('ssl', 'SSL mode: none, login or all (default: unchanged)', takesValue: true, valueName: 'MODE'),
-            new OptionSpec('mode', 'production (dev is not available yet)', takesValue: true, valueName: 'MODE'),
+            new OptionSpec('mode', 'production (default) or dev: cut live mail, payment and cloud connections, keep search engines out', takesValue: true, valueName: 'MODE'),
+            new OptionSpec('mail-catcher', 'Dev mode: SMTP server that receives all mail, HOST or HOST:PORT (default: the shop sends no mail)', takesValue: true, valueName: 'HOST[:PORT]'),
+            new OptionSpec('dev-skip', 'Dev mode: rule ids to leave out, comma separated (mail, payment, accounts, tracking, noindex)', takesValue: true, valueName: 'LIST'),
+            new OptionSpec('dev-rules', 'Dev mode: JSON file with more rules (format of resources/prestashop9/dev-mode.json)', takesValue: true, valueName: 'FILE'),
             new OptionSpec('db-host', 'Database host (default: parameters.php)', takesValue: true, valueName: 'HOST'),
             new OptionSpec('db-port', 'Database port (default: parameters.php)', takesValue: true, valueName: 'PORT'),
             new OptionSpec('db-name', 'Database name (default: parameters.php)', takesValue: true, valueName: 'NAME'),
@@ -154,7 +157,7 @@ final class MigrateCommand implements Command
             $settings = $decoded;
         }
 
-        $flags = ['root' => 'root', 'from' => 'from', 'to' => 'to', 'path' => 'path', 'ssl' => 'ssl', 'mode' => 'mode', 'server-path' => 'serverPath'];
+        $flags = ['root' => 'root', 'from' => 'from', 'to' => 'to', 'path' => 'path', 'ssl' => 'ssl', 'mode' => 'mode', 'server-path' => 'serverPath', 'mail-catcher' => 'mailCatcher', 'dev-rules' => 'devRules'];
         foreach ($flags as $option => $key) {
             if ($input->has($option)) {
                 $settings[$key] = $input->value($option);
@@ -180,6 +183,9 @@ final class MigrateCommand implements Command
 
         if ($input->has('skip-tables')) {
             $settings['skipTables'] = array_values(array_filter(array_map('trim', explode(',', (string) $input->value('skip-tables')))));
+        }
+        if ($input->has('dev-skip')) {
+            $settings['devSkip'] = array_values(array_filter(array_map('trim', explode(',', (string) $input->value('dev-skip')))));
         }
         if ($input->has('replace-bare')) {
             $settings['replaceBare'] = true;

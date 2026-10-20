@@ -214,6 +214,8 @@ Chosen at restore time ("production" or "dev/staging"). The dev mode **performs*
 
 The list of affected configuration keys/modules is data (JSON in the adapter), not code, so it can grow without program changes.
 
+*Implementation (phase 1, see PHASE1.md 3.9):* the recipients `MA_*_EMAILS` are not changed - with a catcher or without sending they never matter; `ps_checkout` is deactivated together with the PayPal rule; the cache backend and unhandled credential-like settings are reported as warnings, not changed.
+
 ### 4.5 Versions
 PrestaShop **9.0 and 9.1** are supported (officially PHP 8.1–8.4 and 8.1–8.5 respectively, MySQL ≥ 5.7 / MariaDB ≥ 10.2 – ThreadSafe supports only MariaDB of these; [system requirements PS 9](https://devdocs.prestashop-project.org/9/basics/installation/system-requirements/)). Configuration exclusively through `app/config/parameters.php`; older versions (1.6–8.x) are out of scope.
 

@@ -28,6 +28,21 @@ replaced. Exit codes: 0 ok, 1 usage error, 2 refused (wrong shop, unsupported ve
 4 self-test failed, 5 internal error. `threadsafe help migrate` lists all options. The journal (default
 `<root>/var/threadsafe-journal`) contains old and new values, including passwords: keep it private.
 
+### Dev mode: a live shop as a dev copy
+
+`--mode=dev` makes sure the copy cannot talk to the live world: mail goes to a mail catcher (or nowhere), PayPal is
+switched to sandbox without live credentials, the PrestaShop Account tokens and the Facebook token are removed, modules
+that report to the cloud are deactivated and search engines are kept out (`robots.txt`, `X-Robots-Tag`).
+
+```bash
+php bin/threadsafe migrate prestashop9 --root=/var/www/html --to=dev.shop.test --mode=dev --mail-catcher=127.0.0.1:1025 --yes
+```
+
+Without `--mail-catcher` the shop sends no mail at all. `--dev-skip=RULES` leaves rules out (`mail`, `payment`,
+`accounts`, `tracking`, `noindex`), `--dev-rules=FILE` adds your own (the format is in
+`resources/prestashop9/dev-mode.json`; docs/PHASE1.md 3.9). The copy still holds the customers' personal data - the
+run warns about it and about settings that look like credentials no rule handles.
+
 ## Test environment
 
 ```bash

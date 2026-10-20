@@ -81,8 +81,9 @@ services:
   target-prestashop:
     profiles: ["target"]
     image: prestashop/prestashop:${PS_TAG:-9.0.2-apache}
-    # Only Apache + PHP: no installer, the files arrive through the clone script.
-    command: ["apache2-foreground"]
+    # Only Apache + PHP: no installer, the files arrive through the clone script. mod_headers is on because the dev mode
+    # sends X-Robots-Tag through .htaccess.
+    command: ["sh", "-c", "a2enmod headers >/dev/null && exec apache2-foreground"]
     ports:
       - "${TARGET_PORT:-8290}:80"
     volumes:

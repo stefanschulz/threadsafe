@@ -1,0 +1,64 @@
+{
+    "description": "Rules of the dev mode (--mode=dev): a copy of a live shop must not talk to the live world. Each rule can be switched off with --dev-skip=ID; more rules can be added with --dev-rules=FILE (same format, a rule with a known id replaces the built-in one). See docs/PHASE1.md 3.9.",
+    "rules": [
+        {
+            "id": "mail",
+            "title": "Send no mail to real recipients",
+            "description": "With a mail catcher (--mail-catcher=HOST:PORT) the shop sends through it over SMTP; without one it does not send at all.",
+            "set": [
+                {"name": "PS_MAIL_METHOD", "value": "2", "when": "mailCatcher", "create": true},
+                {"name": "PS_MAIL_SERVER", "value": "{mailCatcher.host}", "when": "mailCatcher", "create": true},
+                {"name": "PS_MAIL_SMTP_PORT", "value": "{mailCatcher.port}", "when": "mailCatcher", "create": true},
+                {"name": "PS_MAIL_SMTP_ENCRYPTION", "value": "off", "when": "mailCatcher", "create": true},
+                {"name": "PS_MAIL_METHOD", "value": "3", "when": "noMailCatcher", "create": true},
+                {"name": "PS_MAIL_DKIM_ENABLE", "value": "0"}
+            ],
+            "clear": ["PS_MAIL_USER", "PS_MAIL_PASSWD", "PS_MAIL_DKIM_KEY"]
+        },
+        {
+            "id": "payment",
+            "title": "Cut the live payment connections",
+            "description": "PayPal is switched to sandbox without any live credential; PrestaShop Checkout (which pays through the live PayPal account) is deactivated.",
+            "set": [
+                {"name": "PAYPAL_SANDBOX", "value": "1", "create": true},
+                {"name": "PAYPAL_ENABLE_WEBHOOK", "value": "0"}
+            ],
+            "clear": [
+                "PAYPAL_WEBHOOK_ID",
+                "PAYPAL_USERNAME_LIVE",
+                "PAYPAL_PSWD_LIVE",
+                "PAYPAL_SIGNATURE_LIVE"
+            ],
+            "remove": ["PAYPAL\\_LIVE\\_%", "PS\\_CHECKOUT\\_WEBHOOK\\_SECRET"],
+            "emptyTables": ["paypal_webhook"],
+            "deactivateModules": ["ps_checkout"]
+        },
+        {
+            "id": "accounts",
+            "title": "Detach the shop from PrestaShop Account and its cloud services",
+            "description": "The keys, tokens and shop proof of PrestaShop Account (and its Firebase login) identify the live shop in PrestaShop's cloud; a copy that keeps them acts on behalf of the live shop.",
+            "remove": ["PS\\_ACCOUNTS\\_%", "PS\\_PSX\\_FIREBASE\\_%"],
+            "emptyTables": ["eventbus_incremental_sync", "eventbus_job", "eventbus_live_sync", "eventbus_type_sync"],
+            "deactivateModules": ["ps_accounts", "ps_eventbus"]
+        },
+        {
+            "id": "tracking",
+            "title": "Stop advertising and analytics tracking",
+            "description": "Visits and orders on the dev copy must not show up in the live Google Analytics, Google Ads or Facebook accounts.",
+            "remove": ["PS\\_FACEBOOK\\_%"],
+            "deactivateModules": ["ps_facebook", "ps_googleanalytics", "psxmarketingwithgoogle"]
+        },
+        {
+            "id": "noindex",
+            "title": "Keep search engines out",
+            "description": "robots.txt forbids everything and every response carries X-Robots-Tag: noindex, nofollow (a block in .htaccess outside PrestaShop's own markers, so it survives a regeneration).",
+            "noindex": {
+                "robots": "User-agent: *\nDisallow: /\n",
+                "header": "noindex, nofollow"
+            }
+        }
+    ],
+    "warnPatterns": ["%SECRET%", "%TOKEN%", "%API_KEY%", "%APIKEY%", "%PASSWD%", "%PASSWORD%", "%PRIVATE_KEY%"],
+    "warnMinLength": 12,
+    "warnIgnore": ["PS_SECURITY_TOKEN", "PS_TOKEN_ENABLE", "PS_MAIL_PASSWD"]
+}

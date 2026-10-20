@@ -77,6 +77,31 @@ final class RequestBuilderTest extends TestCase
         self::assertSame(500, $request->chunkSize);
     }
 
+    public function testDevModeSettings(): void
+    {
+        $request = $this->build(['mode' => 'dev', 'mailCatcher' => 'mailpit:1025', 'devSkip' => ['tracking', 'noindex']]);
+
+        self::assertSame(Mode::Dev, $request->mode);
+        self::assertTrue($request->isDevMode());
+        self::assertSame('mailpit:1025', (string) $request->mailCatcher);
+        self::assertSame(['tracking', 'noindex'], $request->devSkip);
+        self::assertNull($request->devRulesFile);
+    }
+
+    public function testDevModeWithoutExtras(): void
+    {
+        $request = $this->build(['mode' => 'dev']);
+
+        self::assertTrue($request->isDevMode());
+        self::assertNull($request->mailCatcher);
+        self::assertSame([], $request->devSkip);
+    }
+
+    public function testProductionIsNotDevMode(): void
+    {
+        self::assertFalse($this->build([])->isDevMode());
+    }
+
     public function testNoDomainMeansRestoreInPlace(): void
     {
         self::assertTrue($this->build([])->isRestoreInPlace());
@@ -109,7 +134,13 @@ final class RequestBuilderTest extends TestCase
     {
         yield 'unknown setting' => [['colour' => 'red'], 'Unknown setting "colour"'];
         yield 'from without to' => [['from' => 'a.test'], '--from needs --to'];
-        yield 'dev mode' => [['mode' => 'dev'], 'dev mode is not available yet'];
+        yield 'mail catcher in production' => [['mailCatcher' => 'mailpit:1025'], 'need --mode=dev'];
+        yield 'dev skip in production' => [['devSkip' => ['mail']], 'need --mode=dev'];
+        yield 'dev rules in production' => [['devRules' => '/x.json'], 'need --mode=dev'];
+        yield 'unknown dev rule' => [['mode' => 'dev', 'devSkip' => ['teleport']], 'Unknown dev rule "teleport"'];
+        yield 'dev skip not a list of ids' => [['mode' => 'dev', 'devSkip' => [1]], 'devSkip must be a list'];
+        yield 'invalid mail catcher' => [['mode' => 'dev', 'mailCatcher' => 'mail:port'], 'HOST or HOST:PORT'];
+        yield 'missing dev rules file' => [['mode' => 'dev', 'devRules' => '/nope/rules.json'], 'cannot be read'];
         yield 'invalid mode' => [['mode' => 'staging'], 'must be "production" or "dev"'];
         yield 'invalid ssl' => [['ssl' => 'always'], 'SSL mode'];
         yield 'invalid domain' => [['from' => 'https://a.test', 'to' => 'b.test'], 'Invalid "from" domain'];

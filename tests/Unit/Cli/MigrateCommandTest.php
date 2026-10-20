@@ -230,10 +230,26 @@ final class MigrateCommandTest extends TestCase
         yield 'extra argument' => [['prestashop9', 'more', '--root=/x'], 'Unexpected argument "more"'];
         yield 'dry run and yes' => [['prestashop9', '--root=/x', '--dry-run', '--yes'], 'contradict'];
         yield 'missing root' => [['prestashop9', '--to=a.test'], 'root'];
-        yield 'dev mode' => [['prestashop9', '--root=/tmp', '--mode=dev'], 'dev mode is not available'];
+        yield 'mail catcher without dev mode' => [['prestashop9', '--root=/tmp', '--mail-catcher=mailpit'], 'need --mode=dev'];
+        yield 'unknown dev rule' => [['prestashop9', '--root=/tmp', '--mode=dev', '--dev-skip=mail,teleport'], 'Unknown dev rule "teleport"'];
         yield 'unknown option' => [['prestashop9', '--bogus'], 'Unknown option --bogus'];
         yield 'option without value' => [['prestashop9', '--root'], 'needs a value'];
         yield 'missing request file' => [['prestashop9', '--request=/nope.json'], 'cannot be read'];
+    }
+
+    public function testDevModeSettingsReachTheRequest(): void
+    {
+        $seen = null;
+        $step = new FakeStep('a', $this->log, onPlan: static function ($context) use (&$seen): void {
+            $seen = $context->request;
+        });
+
+        $this->execute($this->application([$step]), ['prestashop9', '--root=' . $this->root, '--mode=dev', '--mail-catcher=mailpit:1025', '--dev-skip=tracking, noindex']);
+
+        self::assertInstanceOf(\ThreadSafe\Migration\MigrationRequest::class, $seen);
+        self::assertTrue($seen->isDevMode());
+        self::assertSame('mailpit:1025', (string) $seen->mailCatcher);
+        self::assertSame(['tracking', 'noindex'], $seen->devSkip);
     }
 
     public function testBrokenRequestFileIsAUsageError(): void
@@ -253,7 +269,7 @@ final class MigrateCommandTest extends TestCase
 
         (new Application([new MigrateCommand()]))->run(['threadsafe', 'help', 'migrate'], $output);
 
-        foreach (['--root=PATH', '--to=DOMAIN', '--from=DOMAIN', '--domain=OLD=NEW', '--ssl=MODE', '--db-password-file=FILE', '--journal-dir=DIR', '--report=FILE', '--yes', '--dry-run'] as $synopsis) {
+        foreach (['--root=PATH', '--to=DOMAIN', '--from=DOMAIN', '--domain=OLD=NEW', '--ssl=MODE', '--db-password-file=FILE', '--journal-dir=DIR', '--report=FILE', '--yes', '--dry-run', '--mode=MODE', '--mail-catcher=HOST[:PORT]', '--dev-skip=LIST', '--dev-rules=FILE'] as $synopsis) {
             self::assertStringContainsString($synopsis, $output->stdout());
         }
     }

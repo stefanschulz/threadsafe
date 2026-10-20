@@ -117,7 +117,7 @@ Steps 5 and 9 are driven by the engine **plus module rules** (3.8).
 | 6 | `RewriteHtaccess` | rewrites only the block between `# ~~start~~` and `# ~~end~~`: the `#Domain:` comment, every `RewriteCond %{HTTP_HOST} ^<domain>$`, `REWRITEBASE`, `ErrorDocument`. PrestaShop writes the domain unescaped and only escapes `[` `]` *(verified in `Tools::generateHtaccess`)*. **Oracle:** after the DB is updated, PrestaShop's own `Tools::generateHtaccess()` is run in a test container; our rewrite must equal its output for the block. |
 | 7 | `RewriteHostBoundFiles` | `php.ini` (`error_log` absolute path → new site path), `robots.txt`, `*_sitemap.xml` (replace or delete for regeneration), generated mail templates in `mails/` and `modules/*/mails/`, `ps_gsitemap_sitemap.link`. Rule list in `host-bound-files.json`. |
 | 8 | `EnsureSkeleton` | creates missing `var/cache`, `var/logs` etc., sets writable directories (`var/`, `img/`, `upload/`, `download/`, `translations/`, `mails/`). |
-| 9 | `ApplyDevMode` (only `mode=dev`) | data-driven (`dev-mode.json`): mail catcher (`PS_MAIL_METHOD=2`, `PS_MAIL_SERVER`, `PS_MAIL_SMTP_PORT`, encryption off, clear user/password, neutralise `MA_*_EMAILS`), PayPal sandbox and removal of live credentials/webhook id, removal of `PS_ACCOUNTS_*` secrets, module deactivation, `noindex`/`robots.txt` disallow. Module deactivation mirrors `Module::disable()`: delete the `module_shop` rows and set `module.active = 0` once no shop association is left *(verified in `Module.php`; overrides, if any, need `uninstallOverrides`, (verify))*. Each rule can be switched off in the request. |
+| 9 | `ApplyDevMode` and `BlockSearchEngines` (only `mode=dev`; always in the list, empty in production) *(implemented)* | data-driven (`resources/prestashop9/dev-mode.json`, see 3.9): mail catcher or no mail, PayPal sandbox without live credentials, `PS_ACCOUNTS_*` and Facebook secrets removed, cloud modules deactivated, `robots.txt` and `X-Robots-Tag`. Module deactivation mirrors `Module::disable()`: delete the `module_shop` rows and set `module.active = 0` (verified in `Module.php`). `ApplyDevMode` (database) runs **before** step 3, because the compiled container in `var/cache` lists the active modules; `BlockSearchEngines` (files) runs after step 7, because it replaces the `robots.txt` that step has just fixed. Each rule can be switched off in the request. |
 | 10 | `Finalize` (optional) | boots PrestaShop in a child process and calls its own routines (`Tools::clearAllCache`, `Tools::generateHtaccess`, `Tools::generateRobotsFile`); failure is reported as a warning, steps 1–9 stay valid. |
 | 11 | `SelfTest` | HTTP checks against the base URL of the request: home page, a category, a product, **a product image via its friendly URL** (proves the `.htaccess` fix), contact, front login, back-office login page; redirect-loop detection; scan of the home page for the old domain. Traffic-light report. |
 
@@ -126,6 +126,7 @@ Steps 5 and 9 are driven by the engine **plus module rules** (3.8).
 ```
 threadsafe migrate prestashop9 --root=/var/www/html --to=shop.example.test [--from=localhost:8190]
     [--path=/] [--ssl=none|login|all] [--mode=production|dev]
+    [--mail-catcher=mailpit:1025] [--dev-skip=mail,tracking] [--dev-rules=more-rules.json]
     [--db-host=… --db-name=… --db-user=… --db-password-file=…] [--prefix=ps_]
     [--request=request.json] [--dry-run] [--yes] [--report=report.json]
     [--replace-bare] [--skip-tables=a,b] [--no-finalize] [--self-test-url=http://…]
@@ -136,6 +137,43 @@ Passwords are never accepted as plain command-line arguments (they end up in she
 ### 3.7 Restore in place (same domain)
 
 With no domain mapping the same steps run, but most of them find nothing to change and say so ("already correct") in the report. Mode defaults to `production`; dev mode is never applied implicitly. What still happens: step 2 when database credentials changed, step 3 (caches, always), step 7 for host-bound values such as an absolute `error_log` path that differs on a new server, step 8 (directory skeleton and permissions, always) and step 11 (self-test). Details: CONCEPT 4.6. The journal is written as usual.
+
+### 3.9 Dev mode *(implemented)*
+
+`--mode=dev` turns the copy of a live shop into something that cannot hurt the live world. Everything it does is in
+`resources/prestashop9/dev-mode.json`; there is no shop-specific code. A **rule** is a named group of actions:
+
+| Rule | Does |
+|---|---|
+| `mail` | with `--mail-catcher=HOST[:PORT]` (default port 1025): `PS_MAIL_METHOD=2`, `PS_MAIL_SERVER`, `PS_MAIL_SMTP_PORT`, encryption off; without it `PS_MAIL_METHOD=3` (the shop sends nothing). In both cases the SMTP user, password and the DKIM key are cleared and DKIM is switched off. The recipient settings (`MA_*_EMAILS`, `PS_SHOP_EMAIL`) stay: the mail never reaches them. |
+| `payment` | `PAYPAL_SANDBOX=1`, webhook switched off, `PAYPAL_WEBHOOK_ID`, the live user/password/signature and every `PAYPAL_LIVE_*` and `PS_CHECKOUT_WEBHOOK_SECRET` row removed, table `paypal_webhook` emptied, module `ps_checkout` deactivated (it pays through the live PayPal account via PrestaShop's servers). |
+| `accounts` | all `PS_ACCOUNTS_*` and `PS_PSX_FIREBASE_*` rows removed (they identify the live shop to PrestaShop's cloud), the `eventbus_*` synchronisation tables emptied, modules `ps_accounts` and `ps_eventbus` deactivated. |
+| `tracking` | `PS_FACEBOOK_*` rows removed, modules `ps_facebook`, `ps_googleanalytics`, `psxmarketingwithgoogle` deactivated. |
+| `noindex` | `robots.txt` is replaced by `Disallow: /`; a block in `.htaccess` (outside PrestaShop's own markers, inside `<IfModule mod_headers.c>`) sends `X-Robots-Tag: noindex, nofollow`. A regenerated `.htaccess` keeps the block. |
+
+A rule is made of `set` (configuration values; entries can be `create`d and can depend on `when: mailCatcher|noMailCatcher`),
+`clear`, `remove` (LIKE patterns), `emptyTables`, `deactivateModules` and `noindex`. Switch rules off with
+`--dev-skip=mail,tracking` (the plan then says which live connections stay active); add or replace rules with
+`--dev-rules=FILE` (same format, a known `id` replaces the shipped rule, a new one adds a rule; a file can only contain
+these data actions, never code). Settings are only looked at if they exist (a shop without PayPal is not given a
+`PAYPAL_*` row, except where a rule says `create`).
+
+Beyond the rules the step **warns** (it changes nothing) about
+
+- customer data: the copy still holds the customers, addresses and orders; anonymisation is a later option,
+- an enabled cache (`ps_cache_enable`) with servers listed in `memcached_servers`: they must not be the live shop's,
+- configuration names that look like credentials (`%SECRET%`, `%TOKEN%`, `%API_KEY%`, `%PASSWORD%` ... with a value of 12
+  characters or more) and that no rule handles - by name, never with the value.
+
+The journal keeps the old value of every changed or removed setting (and the original `robots.txt`/`.htaccess`), so a
+step can be reverted by hand; the contents of emptied tables are **not** journalled (logs and synchronisation state of
+the live shop). The report masks the values of removed and cleared settings. The rule data follows the names found in a
+real shop and in the modules' sources; a module with other names needs a user rule file.
+
+Tests: unit (rules loader, request, options), scratch database (`DevModeTest`: every action, masking, idempotence,
+journal, skipped rules, warnings) and, as phase 3 of `tests/stack/run.sh`, the real command on the migrated clone with
+the live connections of `tests/fixtures/seed-live-links.sql` (`DevModeMigrationTest`: the secrets are gone from
+database and report, the shop still answers, sends `X-Robots-Tag`, and a password-reset mail arrives in Mailpit).
 
 ### 3.8 Module rules
 
@@ -204,7 +242,7 @@ Fresh installs plus fixtures are the basis of all automated tests; no customer d
 | 5 | `Database/` and steps 1, 3, 4, 5 (including skip tables, chunking, dry run) — **done**; step 3 includes the cache *directories*, so WP 6 does not repeat them | 2, 4 | L |
 | 5b | `Modules/` rule system: JSON schema, loader, registry, user rules folder; integration into steps 3, 5, 7, 9; rule for the fixture module | 4, 5 | M |
 | 6 | steps 2, 6, 7, 8 (files) with golden tests — **done**; with the database steps the migrated clone serves the shop under the new domain and its `.htaccess` block equals PrestaShop's own regeneration. Request option `serverPath` for the case that the web server sees the shop under another path than the tool | 2, 3 | M |
-| 7 | step 9 dev mode (data-driven rules) | 5 | M |
+| 7 | step 9 dev mode (data-driven rules) - **done**: `--mode=dev`, rules in `dev-mode.json`, own rule files, mail catcher, robots/`X-Robots-Tag`; phase 3 of `tests/stack/run.sh` runs it on the migrated clone and proves that a shop mail arrives in Mailpit | 5 | M |
 | 8 | steps 10, 11 (finalize, self-test) | 5, 6 | M |
 | 9 | integration harness: target stack, fixture, clone script, assertions, `.htaccess` oracle — **done** (migration assertions follow with WP 5–8) | 1 | L |
 | 10 | documentation: request/report/journal format, usage, private-test procedure | all | S |
