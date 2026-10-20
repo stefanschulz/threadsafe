@@ -14,7 +14,8 @@ and before the migration it is broken in exactly the way a restored copy is (HTT
 ## Run everything
 
 ```bash
-tests/stack/run.sh            # seed → clone → PHPUnit phase 1 (incl. the migration of the clone) → oracle → phase 2 (about two minutes)
+tests/stack/run.sh            # seed → clone → PHPUnit phase 1 (incl. the migration of the clone) → oracle → phase 2 → phase 3 (dev mode) → phase 4
+                              # (the backup round trip: back up the source shop, restore it into the wiped target, migrate; a few minutes)
 ```
 
 ## Database servers: MariaDB and MySQL

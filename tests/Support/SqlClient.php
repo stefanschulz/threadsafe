@@ -13,21 +13,21 @@ use RuntimeException;
 final class SqlClient
 {
     /**
-     * Imports a file into a database of the test stack's database server.
+     * Imports a file into a database of the test stack's database server (root of the source server by default).
      *
      * @return string what the client printed on stderr (empty on success)
      *
      * @throws RuntimeException the client could not be started or the import failed
      */
-    public static function import(string $database, string $file): string
+    public static function import(string $database, string $file, string $host = 'db', string $user = 'root', ?string $password = null): string
     {
-        $password = getenv('DB_ROOT_PASSWORD');
+        $root = getenv('DB_ROOT_PASSWORD');
         $process = proc_open(
-            ['mariadb', '--protocol=tcp', '-h', 'db', '-u', 'root', '--default-character-set=utf8mb4', $database],
+            ['mariadb', '--protocol=tcp', '-h', $host, '-u', $user, '--default-character-set=utf8mb4', $database],
             [0 => ['file', $file, 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
             $pipes,
             null,
-            ['MYSQL_PWD' => $password === false || $password === '' ? 'prestashop' : $password, 'PATH' => (string) getenv('PATH')],
+            ['MYSQL_PWD' => $password ?? ($root === false || $root === '' ? 'prestashop' : $root), 'PATH' => (string) getenv('PATH')],
         );
         if (!is_resource($process)) {
             throw new RuntimeException('Cannot start the mariadb client.');

@@ -21,6 +21,7 @@ use ThreadSafe\Plugin\PluginRegistry;
 use ThreadSafe\Profile\ProfileStore;
 use ThreadSafe\Profile\SiteProfile;
 use ThreadSafe\Storage\LocalStorage;
+use ThreadSafe\Storage\SpaceCheck;
 use ThreadSafe\Tests\Support\TempDirectory;
 use ThreadSafe\Tests\Support\UnzipOracle;
 
@@ -74,9 +75,9 @@ final class BackupRunTest extends TestCase
         $this->profiles = new ProfileStore(dirname($this->site) . '/profiles');
     }
 
-    private function task(?int $scanBatch = null): BackupRun
+    private function task(?int $scanBatch = null, ?SpaceCheck $space = null): BackupRun
     {
-        return new BackupRun($this->profiles, PluginRegistry::load(), dirname($this->site) . '/data', null, $scanBatch ?? 500);
+        return new BackupRun($this->profiles, PluginRegistry::load(), dirname($this->site) . '/data', null, $scanBatch ?? 500, $space);
     }
 
     /** @return array<string, mixed> */
@@ -346,5 +347,42 @@ final class BackupRunTest extends TestCase
         $this->expectExceptionMessage('There is no profile "nope"');
 
         $executor->execute($run->id);
+    }
+    public function testTooLittleFreeSpaceRefusesTheBackupUnlessForced(): void
+    {
+        $small = new SpaceCheck(static fn (): int => 1000);
+        $executor = new Executor($this->runs, $this->task(space: $small), static fn (): Budget => Budget::unlimited());
+
+        try {
+            $executor->execute($executor->start(['profile' => 'blog'])->id);
+            self::fail('The backup was not refused.');
+        } catch (GuardFailed $e) {
+            self::assertStringContainsString('Not enough free space', $e->getMessage());
+            self::assertStringContainsString('--force', $e->getMessage());
+        }
+
+        $forced = $this->finishedResult($executor->execute($executor->start(['profile' => 'blog', 'force' => true])->id));
+        $manifest = Manifest::fromArchive($this->storage . '/' . $forced['parts'][0]);
+        self::assertStringContainsString('going on because of --force', implode("\n", $manifest->warnings));
+        self::assertSame(BackupStatus::OkWithWarnings->value, $forced['status']);
+    }
+
+    public function testAFileThatChangesWhileTheRunLastsIsAWarning(): void
+    {
+        $executor = new Executor($this->runs, $this->task(), static fn (): Budget => new Budget(0.0));
+        $run = $executor->start(['profile' => 'blog']);
+        for ($i = 0; $i < 50; ++$i) {
+            $run = $executor->execute($run->id, 1);
+            if (($run->state['phase'] ?? '') === BackupState::PACK) {
+                break;
+            }
+        }
+        file_put_contents($this->site . '/index.php', "<?php echo 'much longer than it was when the site was scanned';\n");
+        $result = $this->finishedResult($executor->execute($run->id));
+
+        $manifest = Manifest::fromArchive($this->storage . '/' . $result['parts'][0]);
+        self::assertStringContainsString('The file changed while it was backed up', implode("\n", $manifest->warnings));
+        self::assertStringContainsString('/index.php', implode("\n", $manifest->warnings));
+        self::assertSame(BackupStatus::OkWithWarnings->value, $result['status']);
     }
 }

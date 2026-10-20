@@ -15,7 +15,7 @@ application automatically. First target: **PrestaShop 9.x**; MariaDB and MySQL; 
 | Phase | Content | State |
 |---|---|---|
 | 1, 1b | Restore core: `threadsafe migrate <type>`, dev mode, module rules, self-test; database drivers; website type plugins | done |
-| 2 | Site profiles and backup engine (CLI) | **in progress**: work packages 1-9 done, 10-11 open (table in [docs/PHASE2.md](docs/PHASE2.md) section 5) |
+| 2 | Site profiles and backup engine (CLI) | **in progress**: work packages 1-10 done, 11 open (table in [docs/PHASE2.md](docs/PHASE2.md) section 5) |
 | 3 | `restore.php` (extractor and wizard) | not started |
 | 4 | Web interface (dashboard, download) | not started |
 | 5 | One trigger cron, retention, encryption | not started |
@@ -56,7 +56,7 @@ docker compose --profile tools run --rm tools composer check        # lint + PHP
 Integration tests (`tests/Integration`, skipped unless `THREADSAFE_STACK=1`) need the database containers:
 
 ```bash
-tests/stack/run.sh                 # seed, clone, all integration tests in three phases (about two minutes)
+tests/stack/run.sh                 # seed, clone, all integration tests in four phases (a few minutes)
 # one test class, against the running stack:
 docker compose -f .docker/docker-compose.yml --profile target --profile tools run --rm -e THREADSAFE_STACK=1 tools \
     vendor/bin/phpunit --testsuite integration --filter DumperTest
@@ -106,13 +106,12 @@ Oracles are real tools where possible: `unzip -t`, the `mariadb` client, `CHECKS
 
 ## Next steps
 
-`threadsafe profile`, `backup`, `backups` and `verify` work end to end. Phase 2, work package 10 is next: the integration
-tests that are still missing - low limits (`--tick-seconds=1`, `memory_limit=64M`, a throttled source), `kill -9` of a real
-backup process in each phase followed by `backup --resume`, a second concurrent run refused by the lock, a profile whose
-site path vanished, unreadable files (`chmod 000`), a file that changes during the run, tables without a primary key and a
-40 MB row in a backup, `generic` with and without a database, the damage tests through the command line, and the whole
-matrix on MariaDB and MySQL (`tests/stack/matrix.sh`); the acceptance criteria are in `docs/PHASE2.md` section 6. Then 11:
-`docs/BACKUP.md` (profile file, archive layout, manifest, commands, extracting a backup with plain tools).
+`threadsafe profile`, `backup`, `backups` and `verify` work end to end and are proven by the integration tests (the
+backup round trip of the seeded shop, SIGKILL and resume, low limits, damaged archives; `docs/PHASE2.md` 4.2). Phase 2, work
+package 11 is next: `docs/BACKUP.md` - the profile file, the archive layout, the manifest and sidecar, the commands and
+exit codes, how to take a backup apart with plain tools in an emergency (`unzip`, the `mysql` client, `threadsafe migrate`),
+the private real-shop test procedure - and the final status updates (README, CONCEPT). Then phase 3 (`restore.php`) can be
+planned the way phase 2 was: `docs/PHASE3.md` first, decisions with the owner, spikes for the risky parts.
 
 Open questions for the owner (not blocking): which database server and which PHP functions (`exec`, CLI cron) the production
 host offers - see CONCEPT section 10.

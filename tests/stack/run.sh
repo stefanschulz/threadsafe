@@ -6,7 +6,9 @@
 #   3. ask PrestaShop itself what the migrated target's .htaccess should look like (oracle),
 #   4. phase two: the tests that need the migrated site (group "after-migration"),
 #   5. phase three: the dev mode run on the migrated target (group "dev-migration"); it changes files and settings the
-#      earlier phases compare with PrestaShop's own output, so it comes last.
+#      earlier phases compare with PrestaShop's own output.
+#   6. phase four: the backup round trip (group "backup-roundtrip"): back up the source shop, unzip it and import the SQL
+#      into the wiped target with the plain tools, compare, migrate; it overwrites the target, so it comes last.
 #
 #   tests/stack/run.sh [phpunit arguments]
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
@@ -20,7 +22,7 @@ phpunit() {
 }
 
 log "Integration tests, phase 1: baseline, steps, migration of the clone"
-phpunit --exclude-group after-migration --exclude-group dev-migration "$@"
+phpunit --exclude-group after-migration --exclude-group dev-migration --exclude-group backup-roundtrip "$@"
 
 "$STACK_DIR/oracle.sh" target
 
@@ -29,3 +31,6 @@ phpunit --group after-migration "$@"
 
 log "Integration tests, phase 3: dev mode on the migrated target"
 phpunit --group dev-migration "$@"
+
+log "Integration tests, phase 4: back up the source shop and restore the backup into the target"
+phpunit --group backup-roundtrip "$@"

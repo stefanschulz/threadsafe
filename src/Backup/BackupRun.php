@@ -44,6 +44,7 @@ final class BackupRun implements Task
 
     /**
      * @param Closure(): int|null $clock the current time as a Unix timestamp (for tests)
+     * @param SpaceCheck|null     $space the free-space check (for tests)
      */
     public function __construct(
         private readonly ProfileStore $profiles,
@@ -51,6 +52,7 @@ final class BackupRun implements Task
         private readonly ?string $dataDirectory = null,
         ?Closure $clock = null,
         private readonly int $scanBatch = 500,
+        private readonly ?SpaceCheck $space = null,
     ) {
         $this->clock = $clock ?? time(...);
     }
@@ -231,7 +233,7 @@ final class BackupRun implements Task
             }
         }
         $required = SpaceCheck::required($this->lastBackupSize($context), $s->scanBytes, $databaseBytes);
-        $result = (new SpaceCheck())->check($context->storage->directory(), $required, $s->force);
+        $result = ($this->space ?? new SpaceCheck())->check($context->storage->directory(), $required, $s->force);
         if (!$result->allowed) {
             throw new GuardFailed($result->refusal());
         }
