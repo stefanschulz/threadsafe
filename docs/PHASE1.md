@@ -37,7 +37,7 @@ src/
   Cli/                              argument parser, command classes, exit codes
   Core/                             Step, StepResult, Plan, Runner, Report, Journal, Logger
   Migration/                        MigrationRequest, DomainMapping, SourceState
-  Replace/                          UrlMatcher, ValueCodec (Plain, Json, Serialized), TableRewriter
+  Replace/                          DomainMapping, UrlMatcher, ValueCodec (SerializedCodec, JsonCodec), ValueRewriter, Stats; TableRewriter (WP 5)
   Modules/                          ModuleRule, RuleLoader, RuleRegistry (shipped + user rules)
   Database/                         Connection (PDO wrapper, MariaDB check), SchemaInspector
   PrestaShop9/
