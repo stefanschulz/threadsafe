@@ -2,8 +2,9 @@
 
 A website backup application. One instance manages backups for many sites through site profiles (dashboard, backup overview per site, manual backups, download). Backups can be restored on a different domain or path, with all application-specific adjustments done automatically. First supported application: **PrestaShop 9.x**.
 
-Status: phase 1 (the restore core) is implemented: `threadsafe migrate prestashop9` turns a restored PrestaShop 9 copy into a working site on a new domain, path or database, or back in place, with a dev mode for live → dev copies; `threadsafe migrate generic` replaces the domain in the database of any site. Website types are plugins (`plugins/`). There is no backup engine, restore wizard or web interface yet.
+Status: phase 1 (the restore core) is implemented: `threadsafe migrate prestashop9` turns a restored PrestaShop 9 copy into a working site on a new domain, path or database, or back in place, with a dev mode for live → dev copies; `threadsafe migrate generic` replaces the domain in the database of any site. Website types are plugins (`plugins/`). Phase 2 (site profiles and the backup engine) is **in progress**: the building blocks exist as libraries and are tested - tick engine, streaming ZIP writer and reader, file scanner with filters, database dumper (MariaDB and MySQL), site profiles with a connection test - but there is **no `backup` command yet**; manifest, storage and the command line follow (work packages 7-11 in [docs/PHASE2.md](docs/PHASE2.md)). There is no restore wizard or web interface yet.
 
+- Working on the project (rules, how to run the checks, map of the code, next steps): [AGENTS.md](AGENTS.md)
 - Concept: [docs/CONCEPT.md](docs/CONCEPT.md)
 - Phase 1 plan (restore core): [docs/PHASE1.md](docs/PHASE1.md)
 - Phase 2 plan (site profiles and backup engine): [docs/PHASE2.md](docs/PHASE2.md)
@@ -90,7 +91,7 @@ docker compose --profile tools run --rm tools composer install
 docker compose --profile tools run --rm tools composer check   # lint, PHPStan (level 8), unit tests
 ```
 
-Single steps: `composer lint`, `composer stan`, `composer test`. Integration tests (`tests/Integration`) run against Docker stacks: `tests/stack/run.sh` seeds the source shop, clones it into an isolated target stack and runs them (see [tests/stack/README.md](tests/stack/README.md) and [docs/PHASE1.md](docs/PHASE1.md)). All code, comments and documentation are written in English.
+Single steps: `composer lint`, `composer stan`, `composer test`. The checks are meant to run in this container (PHP 8.4); a host PHP without the database drivers or of another version gives false failures. Integration tests (`tests/Integration`) run against Docker stacks: `tests/stack/run.sh` seeds the source shop, clones it into an isolated target stack and runs them (see [tests/stack/README.md](tests/stack/README.md) and [docs/PHASE1.md](docs/PHASE1.md)). All code, comments and documentation are written in English.
 
 ## Data protection
 

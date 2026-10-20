@@ -1,6 +1,6 @@
 # Phase 2 – Site profiles and backup engine
 
-**Status:** plan, draft 1 (2026-10-20); the decisions in section 7 are settled (confirmed 2026-10-20). Nothing in this document is implemented.
+**Status (2026-10-20):** in progress. Work packages **1-6 are done** (spikes, tick engine, ZIP writer and reader, scanner and filters, database dumper, site profiles); **7-11 are open** (manifest and storage, `BackupRun` and the CLI, `backups` and `verify`, integration tests, documentation). The work package table in section 5 and the "As built" paragraphs in sections 3.2-3.7 say what exists; where they differ from the text of the plan, **the "As built" paragraph and section 8 (findings) win** - the plan text is kept as written unless it would mislead. The decisions in section 7 are settled (confirmed 2026-10-20).
 **Context:** see [CONCEPT.md](CONCEPT.md), sections 3 (architecture), 5 (profiles, dashboard, backup run) and 8 (plan); phase 1 ([PHASE1.md](PHASE1.md), [PHASE1B.md](PHASE1B.md)) is done. Facts about the test shop were checked against the PrestaShop 9.0.2 test stack (`.docker/`); items marked *(verify)* still have to be confirmed, and the first work package exists to confirm the risky ones.
 
 ## 1. Goal and scope
