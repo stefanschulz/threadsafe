@@ -252,6 +252,20 @@ final class MigrateCommandTest extends TestCase
         self::assertSame(['tracking', 'noindex'], $seen->devSkip);
     }
 
+    public function testDatabaseDriverFlagReachesTheRequest(): void
+    {
+        $seen = null;
+        $step = new FakeStep('a', $this->log, onPlan: static function ($context) use (&$seen): void {
+            $seen = $context->request;
+        });
+        file_put_contents($this->root . '/pw', 'secret');
+
+        $this->execute($this->application([$step]), ['prestashop9', '--root=' . $this->root, '--db-host=h', '--db-port=3306', '--db-name=n', '--db-user=u', '--prefix=p_', '--db-password-file=' . $this->root . '/pw', '--db-driver=mysqli']);
+
+        self::assertInstanceOf(\ThreadSafe\Migration\MigrationRequest::class, $seen);
+        self::assertSame('mysqli', $seen->database?->driver);
+    }
+
     public function testSelfTestAndFinalizeFlagsReachTheRequest(): void
     {
         $seen = null;
@@ -299,7 +313,7 @@ final class MigrateCommandTest extends TestCase
 
         (new Application([new MigrateCommand()]))->run(['threadsafe', 'help', 'migrate'], $output);
 
-        foreach (['--root=PATH', '--to=DOMAIN', '--from=DOMAIN', '--domain=OLD=NEW', '--ssl=MODE', '--db-password-file=FILE', '--journal-dir=DIR', '--report=FILE', '--yes', '--dry-run', '--mode=MODE', '--mail-catcher=HOST[:PORT]', '--dev-skip=LIST', '--dev-rules=FILE', '--rules-dir=DIR', '--self-test-url=URL', '--no-self-test', '--no-finalize', '--self-test-insecure'] as $synopsis) {
+        foreach (['--root=PATH', '--to=DOMAIN', '--from=DOMAIN', '--domain=OLD=NEW', '--ssl=MODE', '--db-password-file=FILE', '--journal-dir=DIR', '--report=FILE', '--yes', '--dry-run', '--mode=MODE', '--mail-catcher=HOST[:PORT]', '--dev-skip=LIST', '--dev-rules=FILE', '--rules-dir=DIR', '--self-test-url=URL', '--no-self-test', '--no-finalize', '--self-test-insecure', '--db-driver=DRIVER'] as $synopsis) {
             self::assertStringContainsString($synopsis, $output->stdout());
         }
     }

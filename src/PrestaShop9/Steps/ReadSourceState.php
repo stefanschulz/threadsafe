@@ -63,22 +63,23 @@ final class ReadSourceState implements Step
         } catch (ConnectionFailed $e) {
             throw new GuardFailed($e->getMessage(), 0, $e);
         }
-        if (!$connection->isMariaDb()) {
-            throw new GuardFailed("The database server reports \"{$connection->serverVersion}\"; only MariaDB is supported.");
+        if (($problem = $connection->server->problem()) !== null) {
+            throw new GuardFailed($problem);
         }
 
         $shopUrls = $this->readShopUrls($connection);
         $this->checkDomains($context, $shopUrls, $plan);
 
-        $source = new SourceState($root, $version, $this->detectAdminDirectory($root), $configured, $database, $connection->serverVersion, $shopUrls);
+        $source = new SourceState($root, $version, $this->detectAdminDirectory($root), $configured, $database, $connection->serverVersion(), $shopUrls);
         State::store($context, $source, $connection);
 
         $plan->notice(Notice::info(sprintf(
-            'PrestaShop %s, database "%s" (prefix "%s") on MariaDB %s, %d shop URL(s), back office folder: %s.',
+            'PrestaShop %s, database "%s" (prefix "%s") on %s (%s), %d shop URL(s), back office folder: %s.',
             $version,
             $database->name,
             $database->prefix,
-            $connection->serverVersion,
+            $connection->server->describe(),
+            $connection->driverName(),
             count($shopUrls),
             $source->adminDirectory ?? 'not found',
         )));

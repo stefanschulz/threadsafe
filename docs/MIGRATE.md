@@ -6,7 +6,7 @@ its exit codes. The design is in [PHASE1.md](PHASE1.md), the reasons in [CONCEPT
 `migrate` takes a PrestaShop 9 copy that is **already restored** (files in place, database imported – by ThreadSafe's
 restore later, by Akeeba, by `tar` and `mariadb`, by hand) and makes it work where it is now: on a new domain, under a new
 path, with a new database, or – without any new address – again in the place it came from (disaster recovery). Without
-`--yes` it only plans and reports. MariaDB only, PHP 8.4+.
+`--yes` it only plans and reports. MariaDB (from 10.2) or MySQL (from 5.7), PHP 8.4+.
 
 ## 1. Quick start
 
@@ -46,7 +46,7 @@ third column. Unknown settings are refused.
 | `path` | string | `--path=/shop/` | New base path (`physical_uri`), starts and ends with `/`. Default: unchanged. |
 | `ssl` | string | `--ssl=MODE` | `none`, `login` (HTTPS for login and checkout) or `all`. Default: unchanged. |
 | `mode` | string | `--mode=MODE` | `production` (default) or `dev`, see [section 8](#8-dev-mode). |
-| `database` | object | `--db-host`, `--db-port`, `--db-name`, `--db-user`, `--db-password-file`, `--prefix` | Connection to use; every missing value comes from `app/config/parameters.php`. With a new database the command writes it into `parameters.php`. |
+| `database` | object | `--db-host`, `--db-port`, `--db-name`, `--db-user`, `--db-password-file`, `--prefix`, `--db-driver` | Connection to use; every missing value comes from `app/config/parameters.php`. With a new database the command writes it into `parameters.php`. `driver` is the PHP interface: `auto` (default: `pdo_mysql` if loaded, otherwise `mysqli`), `pdo` or `mysqli`. |
 | `serverPath` | string | `--server-path=PATH` | The shop's directory as the **web server** sees it, if that differs from `root` (ThreadSafe in another container). Used for absolute paths written into files such as `php.ini`. |
 | `replaceBare` | bool | `--replace-bare` | Also replace bare host names in content (not only URLs). Off by default: a bare name is often a mail domain or a note. |
 | `skipTables` | list | `--skip-tables=a,b` | More tables (without prefix) the content replacement leaves alone. Logs and caches are skipped anyway. |
@@ -80,7 +80,7 @@ file private), the environment variable `THREADSAFE_DB_PASSWORD`, or `parameters
 ## 3. How a run goes
 
 1. **Guards.** `ReadSourceState` looks at the installation and refuses (exit code 2) if this is not what the request
-   expects: not PrestaShop 9, database not reachable or not MariaDB, no shop URL, or `--from` is not a domain of this
+   expects: not PrestaShop 9, database not reachable or not MariaDB/MySQL (or too old), no shop URL, or `--from` is not a domain of this
    shop. It changes nothing.
 2. **Plan.** Every step computes what it would do (`plan()`, read-only). All plans are computed before anything is
    changed. This alone is the dry run.
@@ -126,7 +126,7 @@ shows work for `discard-caches` again.
 Dry run – nothing was changed.
 
   = read-source-state – Read the installation to be migrated (already correct)
-        note: PrestaShop 9.0.2, database "shop_dev" (prefix "ps_") on MariaDB 10.11, 1 shop URL(s), back office folder: admin-dev.
+        note: PrestaShop 9.0.2, database "shop_dev" (prefix "ps_") on MariaDB 10.11.18 (pdo), 1 shop URL(s), back office folder: admin-dev.
   ~ update-configuration – Set shop domain, SSL and shop URLs (4 change(s) planned)
       update db ps_configuration PS_SHOP_DOMAIN: set the new domain
   ~ replace-content-domains – Replace the old domain in database content (25 change(s) planned)
@@ -262,7 +262,7 @@ contains customer data, so:
 
 ## 11. Limits of phase 1
 
-- PrestaShop 9.x and MariaDB only; one `migrate` per shop at a time.
+- PrestaShop 9.x on MariaDB or MySQL only; one `migrate` per shop at a time.
 - The restore itself (unpacking an archive, importing the dump) and the backup are not part of this command yet.
 - No automatic undo; no anonymisation of customer data; multistore is only tested with one shop.
 - The self-test and `finalize` need the shop to be reachable and, for `finalize`, a PHP that can start PrestaShop.

@@ -35,15 +35,18 @@ services:
     volumes:
       - ps_data:/var/www/html
 
+  # The database server is MariaDB 10.11 by default; DB_IMAGE=mysql:8.4 with VOLUME_SUFFIX=_mysql (see
+  # tests/stack/matrix.sh) runs the same stack on MySQL. The MYSQL_* variables are understood by both images.
   db:
-    image: mariadb:10.11
+    image: ${DB_IMAGE:-mariadb:10.11}
     environment:
-      MARIADB_DATABASE: prestashop
-      MARIADB_USER: prestashop
-      MARIADB_PASSWORD: ${DB_PASSWORD:-prestashop}
-      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-prestashop}
+      MYSQL_DATABASE: prestashop
+      MYSQL_USER: prestashop
+      MYSQL_PASSWORD: ${DB_PASSWORD:-prestashop}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-prestashop}
     healthcheck:
-      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      # mysqladmin exists in MariaDB and MySQL images; over TCP it fails while the entrypoint's temporary server runs.
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$$MYSQL_ROOT_PASSWORD\" --silent"]
       interval: 5s
       timeout: 5s
       retries: 20
@@ -63,14 +66,15 @@ services:
   # the way a restored copy is.
   target-db:
     profiles: ["target"]
-    image: mariadb:10.11
+    image: ${DB_IMAGE:-mariadb:10.11}
     environment:
-      MARIADB_DATABASE: prestashop_target
-      MARIADB_USER: target
-      MARIADB_PASSWORD: ${TARGET_DB_PASSWORD:-target}
-      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-prestashop}
+      MYSQL_DATABASE: prestashop_target
+      MYSQL_USER: target
+      MYSQL_PASSWORD: ${TARGET_DB_PASSWORD:-target}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-prestashop}
     healthcheck:
-      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      # mysqladmin exists in MariaDB and MySQL images; over TCP it fails while the entrypoint's temporary server runs.
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$$MYSQL_ROOT_PASSWORD\" --silent"]
       interval: 5s
       timeout: 5s
       retries: 20
@@ -112,9 +116,15 @@ networks:
   default: {}
   target: {}
 
+# The names are the usual ones of project "threadsafe-dev"; VOLUME_SUFFIX=_mysql (tests/stack/matrix.sh) gives the stack
+# for the other database server its own volumes without a second project (which would need new Docker networks).
 volumes:
   ps_data:
+    name: threadsafe-dev_ps_data${VOLUME_SUFFIX:-}
   db_data:
+    name: threadsafe-dev_db_data${VOLUME_SUFFIX:-}
   target_ps_data:
+    name: threadsafe-dev_target_ps_data${VOLUME_SUFFIX:-}
   target_db_data:
+    name: threadsafe-dev_target_db_data${VOLUME_SUFFIX:-}
   composer_cache:

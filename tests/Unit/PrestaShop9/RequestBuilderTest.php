@@ -201,6 +201,7 @@ final class RequestBuilderTest extends TestCase
         yield 'replace bare not boolean' => [['replaceBare' => 'yes'], 'replaceBare'];
         yield 'empty string' => [['path' => ''], 'non-empty string'];
         yield 'unknown database setting' => [['database' => ['socket' => 'x']], 'Unknown database setting "socket"'];
+        yield 'unknown database driver' => [['database' => ['driver' => 'odbc']], 'driver must be auto, pdo, mysqli'];
         yield 'database not an object' => [['database' => 'x'], 'must be an object'];
     }
 
@@ -224,6 +225,14 @@ final class RequestBuilderTest extends TestCase
         $request = $this->build(['database' => ['host' => 'new-host', 'name' => 'new_db']]);
 
         self::assertEquals(new DatabaseSettings('new-host', 3307, 'new_db', 'file_user', 'file-secret', 'fp_'), $request->database);
+    }
+
+    public function testDatabaseDriverIsASettingOfTheDatabase(): void
+    {
+        $request = $this->build(['database' => ['driver' => 'mysqli']]);
+
+        self::assertEquals(new DatabaseSettings('file-host', 3307, 'file_db', 'file_user', 'file-secret', 'fp_', 'mysqli'), $request->database);
+        self::assertSame('auto', $this->build(['database' => ['host' => 'h']])->database?->driver);
     }
 
     public function testPasswordComesFromAFile(): void

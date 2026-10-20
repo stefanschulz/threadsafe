@@ -118,7 +118,8 @@ final class DatabaseMigrationTest extends IntegrationTestCase
         self::assertSame($oldDomain, self::scalar(Stack::sourceDb(), 'SELECT domain FROM ps_shop_url LIMIT 1'), 'The source database was not touched.');
 
         // --- the same command again finds nothing to do (the shop already uses the new domain)
-        [$code, $stdout, $stderr] = CliProcess::run([...$command, '--yes', '--report=' . $directory . '/again.json']);
+        // (with the other PHP interface to the database than the first run, which used the default)
+        [$code, $stdout, $stderr] = CliProcess::run([...$command, '--db-driver=mysqli', '--yes', '--report=' . $directory . '/again.json']);
         self::assertSame(0, $code, $stderr . $stdout);
         self::assertStringContainsString('already uses', $stdout);
         $again = $this->report($directory . '/again.json');

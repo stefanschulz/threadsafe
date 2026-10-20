@@ -21,8 +21,8 @@ dc exec -T prestashop tar -C /var/www/html --exclude=./var/cache --exclude=./cac
     | dc exec -T target-prestashop tar -C /var/www/html -xpf -
 
 log "Copying the database"
-dc exec -T db mariadb-dump -uroot -p"$DB_ROOT_PASSWORD" --single-transaction --skip-comments "$SOURCE_DB_NAME" \
-    | dc exec -T target-db mariadb -uroot -p"$DB_ROOT_PASSWORD" "$TARGET_DB_NAME"
+dbdump db -uroot -p"$DB_ROOT_PASSWORD" --single-transaction --skip-comments "$SOURCE_DB_NAME" \
+    | dbclient target-db -uroot -p"$DB_ROOT_PASSWORD" "$TARGET_DB_NAME"
 
 tables_source="$(sql db "$SOURCE_DB_NAME" "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='${SOURCE_DB_NAME}'")"
 tables_target="$(sql target-db "$TARGET_DB_NAME" "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='${TARGET_DB_NAME}'")"

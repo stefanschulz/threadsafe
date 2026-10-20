@@ -19,11 +19,12 @@
 | Multi-site | one **site profile** per site (path, DB access, storage path, filters …); a **dashboard** with all profiles; per profile an **overview page** of the existing (later also transferred) backups; manual backup from the UI; **download** of existing backups with a warning about the problems of large archives (section 5) |
 | Storage | backups go to a **server-local directory**; retrieval via existing server access |
 | PHP version | target **PHP 8.4+** (modern language features allowed); the production hosting provides PHP 8.4 or newer (confirmed) |
-| Database | **MariaDB** (not MySQL): test environment 10.11 LTS, test matrix also 11.4 LTS. On the PHP side the PDO driver `pdo_mysql` (the name is historic; it serves MariaDB; DSN prefix `mysql:`). Manifest and restore check the server type. |
+| Database | **MariaDB and MySQL** (decided 2026-10-20, replacing "MariaDB only"; nothing else for now). MariaDB ≥ 10.2 and MySQL ≥ 5.7, tested with MariaDB 10.11 and MySQL 8.4. The PHP interface is chosen **per site profile**: `pdo_mysql`, `mysqli` or automatic. Manifest and restore check the server type; a dump with MySQL 8 collations is not restored onto MariaDB without conversion. See [PHASE1B.md](PHASE1B.md). |
 | Production shop | **PrestaShop 9.0.x** (PHP 8.1–8.4 according to the docs) |
 | Main use case | **back up live, restore to dev**; also domain A → B, production → local/Docker, path change/subdirectory |
 | Same-domain restore | A backup must also be restorable on the **same domain** (disaster recovery, rollback after a failed update). The same restore core handles it as a migration in which nothing has to be rewritten (4.6) |
-| Module knowledge | Support for individual (third-party) modules is an **extension point**: per-module rules as data plus optional code, addable later without changing the core (4.7) |
+| Module knowledge | Support for individual (third-party) modules is an **extension point**: per-module rules as **data only** (no code), addable later without changing the core (4.7) |
+| Website type plugins | Website types become **plugins** (`plugins/<type>/` with a manifest) loaded by the tool. Plugins come only from the author, live in the repository and are code with the tool's rights: no installation from the web interface, no signatures, no stable API or developer documentation yet. Extracted together with the `generic` type ([PHASE1B.md](PHASE1B.md)). |
 | Schedule | **cron-driven backups belong in the core** (Akeeba offers them only in the Pro edition) |
 | Users | initially **one admin**; download warning from **500 MB** |
 | Encryption | wanted, firmly planned (phase 5): **key pair** for cron backups (public key on the server, private key with the owner) **and password** for manual backups |
@@ -178,7 +179,7 @@ Every site profile has exactly one **website type**. The type determines how the
 ### 3.5 Technology
 - **PHP 8.4+**, modern language features (enums, readonly, typed properties). Note: PS 9.0 officially runs only up to PHP 8.4; a host with PHP 8.1–8.3 could therefore not run ThreadSafe.
 - No runtime dependencies besides standard PHP extensions (`pdo_mysql` as the driver for MariaDB; `mysqli` only as a fallback because PrestaShop hosting does not always have it; `zip` optional, with a pure-PHP fallback via `gzinflate`).
-- **MariaDB only**: SQL may use MariaDB syntax and peculiarities (`information_schema`, PCRE `REGEXP`, `JSON` as a `LONGTEXT` alias, `mariadb-dump`-compatible format). Related checks: the manifest stores server type and version (`SELECT VERSION()` contains "MariaDB"); the restore refuses target servers that are not MariaDB and warns about dumps with MySQL 8 collations (`utf8mb4_0900_*`), which MariaDB does not know.
+- **MariaDB and MySQL**: SQL stays within what both understand (`information_schema`, plain DML); the few differences are handled where they occur ([PHASE1B.md](PHASE1B.md) 2). The manifest stores server type and version (`SELECT VERSION()`); a dump with MySQL 8 collations (`utf8mb4_0900_*`) is not restored onto MariaDB without conversion. The PHP interface (`pdo_mysql` or `mysqli`) is a setting of the site profile; `auto` prefers `pdo_mysql`.
 - Development with Composer, PHPUnit, PHPStan; a build script produces the application ZIP and `restore.php`.
 - State/configuration (site profiles, jobs, logs) as JSON in a protected data folder, no database of its own; server-rendered UI, Bootstrap 5, progress via `fetch`; CLI first.
 - Development environment: Docker Compose (see `.docker/`).
@@ -344,14 +345,15 @@ Phase 1 deliberately comes before the engine: it solves the actual problem (the 
 - Dev mail: mail catcher (Mailpit) by default, otherwise sending is switched off.
 - Anonymisation: later, as an option; until then only a notice.
 - Encryption: both (key pair for cron, password for manual backups).
-- Database: MariaDB instead of MySQL.
+- Database: first MariaDB instead of MySQL; since 2026-10-20 **MariaDB and MySQL** (nothing else for now), PHP interface selectable per profile (PHASE1B.md).
+- Website types become plugins (author only, in the repository, internal API, no installation from the UI); module rules stay data only (PHASE1B.md).
 - Same-domain restore (disaster recovery, rollback) is a core requirement (4.6); module-specific knowledge is an extension point (4.7).
 - Multi-site (section 5): profiles, dashboard, backup overview, manual backup and download are core requirements; all sites live on the same server/account, one instance is enough; one admin user at first, roles can be added later; download warning from 500 MB (configurable).
 
 **Open**
-- Which database does the live host use (MariaDB or MySQL)? Check with `SELECT VERSION()` on the live system. If it is MySQL, the dump from the source must still be MariaDB-compatible.
+- Which database does the live host use (MariaDB or MySQL)? Check with `SELECT VERSION()` on the live system. Both are supported now; the answer decides which one the private reality check runs against.
 
-Next step: phase 1 (restore core).
+Next step: phase 1b (database drivers, then plugins; [PHASE1B.md](PHASE1B.md)), then phase 2.
 
 ## Sources
 - Akeeba Solo Core 9.2.0 (local): `composer.json`, `vendor/akeeba/engine/CLAUDE.md`, `engine/Core/scripting.json`, `Solo/Pythia/**`, `Solo/assets/installers/**` (JPA packages unpacked and inspected), [Solo documentation](https://akeeba.com/documentation/solo.html), [ANGIE installers](https://akeeba.com/documentation/solo/angie-installers.html)

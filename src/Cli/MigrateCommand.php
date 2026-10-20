@@ -72,6 +72,7 @@ final class MigrateCommand implements Command
             new OptionSpec('db-name', 'Database name (default: parameters.php)', takesValue: true, valueName: 'NAME'),
             new OptionSpec('db-user', 'Database user (default: parameters.php)', takesValue: true, valueName: 'USER'),
             new OptionSpec('db-password-file', 'File containing the database password (or set THREADSAFE_DB_PASSWORD)', takesValue: true, valueName: 'FILE'),
+            new OptionSpec('db-driver', 'PHP interface to the database: auto (default: pdo_mysql, else mysqli), pdo or mysqli', takesValue: true, valueName: 'DRIVER'),
             new OptionSpec('prefix', 'Table prefix (default: parameters.php)', takesValue: true, valueName: 'PREFIX'),
             new OptionSpec('server-path', 'Shop directory as the web server sees it, if it differs from --root', takesValue: true, valueName: 'PATH'),
             new OptionSpec('skip-tables', 'Extra tables (without prefix) the content replacement skips, comma separated', takesValue: true, valueName: 'LIST'),
@@ -174,7 +175,7 @@ final class MigrateCommand implements Command
         }
 
         $database = is_array($settings['database'] ?? null) ? $settings['database'] : [];
-        foreach (['db-host' => 'host', 'db-port' => 'port', 'db-name' => 'name', 'db-user' => 'user', 'db-password-file' => 'passwordFile', 'prefix' => 'prefix'] as $option => $key) {
+        foreach (['db-host' => 'host', 'db-port' => 'port', 'db-name' => 'name', 'db-user' => 'user', 'db-password-file' => 'passwordFile', 'db-driver' => 'driver', 'prefix' => 'prefix'] as $option => $key) {
             if ($input->has($option)) {
                 $database[$key] = $input->value($option);
                 if ($key === 'passwordFile') {

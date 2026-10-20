@@ -36,12 +36,27 @@ die() {
     exit 1
 }
 
+# dbclient <service> <client arguments>: the command line client of the database server in that container. It is called
+# "mariadb" in MariaDB images (newer ones no longer have "mysql") and "mysql" in MySQL images.
+dbclient() {
+    local service="$1"
+    shift
+    dc exec -T "$service" sh -c 'if command -v mariadb >/dev/null 2>&1; then exec mariadb "$@"; else exec mysql "$@"; fi' sh "$@"
+}
+
+# dbdump <service> <dump arguments>: mariadb-dump or mysqldump, whichever the container has
+dbdump() {
+    local service="$1"
+    shift
+    dc exec -T "$service" sh -c 'if command -v mariadb-dump >/dev/null 2>&1; then exec mariadb-dump "$@"; else exec mysqldump "$@"; fi' sh "$@"
+}
+
 # sql <service> <database> <statement>: run one statement as root and print the raw result (database may be empty)
 sql() {
     local service="$1" database="$2" statement="$3"
     local args=(-uroot -p"$DB_ROOT_PASSWORD" -N -B)
     [ -n "$database" ] && args+=("$database")
-    dc exec -T "$service" mariadb "${args[@]}" -e "$statement"
+    dbclient "$service" "${args[@]}" -e "$statement"
 }
 
 # wait_http <url> <host-header> <seconds>: wait until the URL answers with any HTTP status

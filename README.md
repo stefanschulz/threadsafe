@@ -6,8 +6,9 @@ Status: phase 1 (the restore core) is implemented: `threadsafe migrate prestasho
 
 - Concept: [docs/CONCEPT.md](docs/CONCEPT.md)
 - Phase 1 plan (restore core): [docs/PHASE1.md](docs/PHASE1.md)
+- Phase 1b (MariaDB and MySQL, selectable driver, website type plugins): [docs/PHASE1B.md](docs/PHASE1B.md)
 - Reference of the `migrate` command (request, report, journal, exit codes, trying it on a real backup): [docs/MIGRATE.md](docs/MIGRATE.md)
-- Test environment (PrestaShop 9 + MariaDB + Mailpit): [.docker/docker-compose.yml](.docker/docker-compose.yml)
+- Test environment (PrestaShop 9 + MariaDB or MySQL + Mailpit): [.docker/docker-compose.yml](.docker/docker-compose.yml)
 - Phase-0 tool: [tools/domain-inventory.php](tools/domain-inventory.php) – read-only report of where a domain occurs in database and files of a PrestaShop
 
 ## Usage: migrate a restored PrestaShop 9 copy
@@ -67,7 +68,9 @@ docker compose up -d        # first start installs PrestaShop (a few minutes)
 # Shop http://localhost:8190, back office http://localhost:8190/admin-dev, Mailpit http://localhost:8191
 ```
 
-ThreadSafe targets **MariaDB** only (MySQL is not supported). The PHP driver is still called `pdo_mysql`; it talks to MariaDB.
+ThreadSafe supports **MariaDB** (from 10.2) and **MySQL** (from 5.7); the stack runs on MariaDB 10.11 by default and on MySQL 8.4 with
+`DB_IMAGE=mysql:8.4 VOLUME_SUFFIX=_mysql tests/stack/run.sh`. `tests/stack/matrix.sh` runs the whole pipeline on both. The PHP
+interface to the database is `pdo_mysql` or `mysqli` (`--db-driver=auto|pdo|mysqli`; auto prefers `pdo_mysql`).
 
 Run the domain inventory inside the shop container (it has PHP 8.4 and `pdo_mysql`):
 
@@ -78,7 +81,7 @@ docker exec threadsafe-dev-prestashop-1 php /tmp/domain-inventory.php --root=/va
 
 ## Development
 
-PHP tooling runs in a container (the host PHP has no database driver). PHP 8.4+, MariaDB only.
+PHP tooling runs in a container (the host PHP has no database driver). PHP 8.4+, MariaDB or MySQL.
 
 ```bash
 cd .docker

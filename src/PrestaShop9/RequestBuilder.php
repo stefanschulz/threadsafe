@@ -38,7 +38,8 @@ use ThreadSafe\Replace\DomainMapping;
  *   selfTestInsecure bool  do not verify TLS certificates in the self-test
  *   finalize      bool     let PrestaShop clear its caches itself at the end (default true)
  *   serverPath    string   where the web server sees the shop, if different from root
- *   database      object   host, port, name, user, password, passwordFile, prefix – each defaults to parameters.php
+ *   database      object   host, port, name, user, password, passwordFile, prefix – each defaults to parameters.php –
+ *                          and driver: auto (default), pdo or mysqli, the PHP interface to the database
  *   replaceBare   bool     also replace bare domain names
  *   skipTables    list     extra tables to skip (without prefix)
  *   chunkSize     int      rows per chunk
@@ -229,7 +230,7 @@ final class RequestBuilder
             throw new InvalidArgumentException('Setting "database" must be an object.');
         }
         foreach (array_keys($given) as $key) {
-            if (!in_array($key, ['host', 'port', 'name', 'user', 'password', 'passwordFile', 'prefix'], true)) {
+            if (!in_array($key, ['host', 'port', 'name', 'user', 'password', 'passwordFile', 'prefix', 'driver'], true)) {
                 throw new InvalidArgumentException("Unknown database setting \"$key\".");
             }
         }
@@ -248,7 +249,11 @@ final class RequestBuilder
             $password = $fromEnvironment !== '' ? $fromEnvironment : null;
         }
 
-        $overrides = array_intersect_key($given, array_flip(['host', 'port', 'name', 'user', 'prefix']));
+        $driver = $this->string($given, 'driver') ?? DatabaseSettings::AUTO;
+        if (!in_array($driver, DatabaseSettings::DRIVERS, true)) {
+            throw new InvalidArgumentException('The database driver must be ' . implode(', ', DatabaseSettings::DRIVERS) . '.');
+        }
+        $overrides = array_intersect_key($given, array_flip(['host', 'port', 'name', 'user', 'prefix', 'driver']));
         if ($overrides === [] && $password === null) {
             return null;
         }
@@ -277,7 +282,7 @@ final class RequestBuilder
             throw new InvalidArgumentException('The database port must be a number.');
         }
 
-        return new DatabaseSettings((string) $values['host'], (int) $port, (string) $values['name'], (string) $values['user'], (string) $values['password'], (string) $values['prefix']);
+        return new DatabaseSettings((string) $values['host'], (int) $port, (string) $values['name'], (string) $values['user'], (string) $values['password'], (string) $values['prefix'], $driver);
     }
 
     /**

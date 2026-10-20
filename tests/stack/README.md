@@ -4,7 +4,7 @@ Integration tests run against two PrestaShop 9 stacks defined in `.docker/docker
 
 | Stack | Services | Purpose |
 |---|---|---|
-| **source** | `db`, `prestashop`, `mailpit` | A freshly installed shop at `localhost:8190`, seeded with problem cases and with the live connections of a real shop (`seed-live-links.sql`) |
+| **source** | `db` (MariaDB 10.11 or MySQL 8.4), `prestashop`, `mailpit` | A freshly installed shop at `localhost:8190`, seeded with problem cases and with the live connections of a real shop (`seed-live-links.sql`) |
 | **target** | `target-db`, `target-prestashop` | Apache + PHP only, in an **isolated network**. Receives a clone of the source and is then migrated (`localhost:8290`) |
 
 The target has its own network on purpose: the cloned `parameters.php` still says "database host: `db`", and inside
@@ -14,8 +14,21 @@ and before the migration it is broken in exactly the way a restored copy is (HTT
 ## Run everything
 
 ```bash
-tests/stack/run.sh            # seed → clone → PHPUnit phase 1 (incl. the migration of the clone) → oracle → phase 2 (about a minute)
+tests/stack/run.sh            # seed → clone → PHPUnit phase 1 (incl. the migration of the clone) → oracle → phase 2 (about two minutes)
 ```
+
+## Database servers: MariaDB and MySQL
+
+The stack runs on MariaDB 10.11 by default. The same pipeline runs on MySQL 8.4 with its own volumes:
+
+```bash
+DB_IMAGE=mysql:8.4 VOLUME_SUFFIX=_mysql tests/stack/run.sh   # one server
+tests/stack/matrix.sh                                        # MariaDB 10.11, then MySQL 8.4
+```
+
+The first start on a new volume installs PrestaShop (a few minutes; `seed.sh` waits for it). The volumes of the variants
+stay, so switching back and forth is fast; the containers are recreated on every switch and both variants use the same
+ports.
 
 Single steps:
 

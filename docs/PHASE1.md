@@ -39,7 +39,7 @@ src/
   Migration/                        MigrationRequest, DomainMapping, SourceState
   Replace/                          DomainMapping, UrlMatcher, ValueCodec (SerializedCodec, JsonCodec), ValueRewriter, Stats; TableRewriter (WP 5)
   Modules/                          ModuleRule, RuleLoader, RuleRegistry (shipped + user rules)
-  Database/                         Connection (PDO wrapper, MariaDB check), SchemaInspector
+  Database/                         Connection (facade over the PdoDriver / MysqliDriver), ServerInfo, SchemaInspector
   PrestaShop9/
     ParametersFile.php              safe reader + writer for app/config/parameters.php
     Steps/                          one class per step (section 4)

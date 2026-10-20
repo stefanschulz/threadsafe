@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace ThreadSafe\Tests\Integration;
 
+use ThreadSafe\Database\ServerInfo;
 use ThreadSafe\Tests\Support\Stack;
 
 /**
@@ -12,9 +13,12 @@ use ThreadSafe\Tests\Support\Stack;
  */
 final class SourceStackTest extends IntegrationTestCase
 {
-    public function testDatabaseIsMariaDb(): void
+    public function testDatabaseIsASupportedServer(): void
     {
-        self::assertStringContainsString('MariaDB', self::scalar(Stack::sourceDb(), 'SELECT VERSION()'));
+        // MariaDB or MySQL, depending on the DB_IMAGE the stack was started with (tests/stack/matrix.sh).
+        $server = ServerInfo::parse(self::scalar(Stack::sourceDb(), 'SELECT VERSION()'));
+
+        self::assertTrue($server->isSupported(), $server->describe());
     }
 
     public function testHomePageAnswers(): void

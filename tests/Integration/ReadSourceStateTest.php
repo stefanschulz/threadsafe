@@ -51,10 +51,10 @@ final class ReadSourceStateTest extends IntegrationTestCase
         self::assertCount(1, $source->shopUrls);
         self::assertSame('old.test', $source->shopUrls[0]->domain);
         self::assertTrue($source->shopUrls[0]->main);
-        self::assertStringContainsString('MariaDB', $source->serverVersion);
+        self::assertNotSame('', $source->serverVersion);
         self::assertFalse($plan->hasChanges(), 'Reading changes nothing.');
         self::assertSame(NoticeLevel::Info, $plan->notices()[0]->level);
-        self::assertTrue(State::connection($context)->isMariaDb());
+        self::assertTrue(State::connection($context)->server->isSupported());
     }
 
     public function testRequestedDatabaseOverridesTheOneInParametersFile(): void

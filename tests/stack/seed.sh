@@ -11,11 +11,15 @@ seed_live_links() {
         return
     fi
     log "Adding the live connections (mail account, PayPal, PrestaShop Account) for the dev mode tests"
-    sed -e "s/{{prefix}}/${prefix}/g" "$REPO_ROOT/tests/fixtures/seed-live-links.sql"         | dc exec -T db mariadb -uroot -p"$DB_ROOT_PASSWORD" "$SOURCE_DB_NAME"
+    sed -e "s/{{prefix}}/${prefix}/g" "$REPO_ROOT/tests/fixtures/seed-live-links.sql"         | dbclient db -uroot -p"$DB_ROOT_PASSWORD" "$SOURCE_DB_NAME"
 }
 
 log "Starting the source stack"
 dc up -d --wait db prestashop mailpit >/dev/null
+
+# On a new volume the container installs PrestaShop before Apache starts (a few minutes); the shop answers afterwards.
+log "Waiting for the shop to answer (the very first start installs PrestaShop and takes a few minutes)"
+wait_http "http://localhost:${SOURCE_PORT}/" "localhost:${SOURCE_PORT}" 1800
 
 prefix="$(dc exec -T prestashop php -r '$p = include "/var/www/html/app/config/parameters.php"; echo $p["parameters"]["database_prefix"];')"
 domain="$(sql db "$SOURCE_DB_NAME" "SELECT value FROM ${prefix}configuration WHERE name='PS_SHOP_DOMAIN'")"
@@ -38,7 +42,7 @@ log "Loading the seed SQL (200,000 log rows, CMS content, cache entry)"
 encoded="${domain//:/%3A}"
 sed -e "s/{{prefix}}/${prefix}/g" -e "s/{{domain_encoded}}/${encoded}/g" -e "s/{{domain}}/${domain}/g" \
     "$REPO_ROOT/tests/fixtures/seed-problem-cases.sql" \
-    | dc exec -T db mariadb -uroot -p"$DB_ROOT_PASSWORD" "$SOURCE_DB_NAME"
+    | dbclient db -uroot -p"$DB_ROOT_PASSWORD" "$SOURCE_DB_NAME"
 
 log "Writing host-bound files (php.ini, sitemap)"
 dc exec -T prestashop sh -c 'cat > /var/www/html/php.ini' <<'EOF'
