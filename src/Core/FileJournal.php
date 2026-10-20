@@ -33,10 +33,8 @@ final class FileJournal implements Journal
     {
         $now ??= new DateTimeImmutable('now', new DateTimeZone('UTC'));
 
-        if (!is_dir($directory) && !mkdir($directory, 0700, true) && !is_dir($directory)) {
-            throw new RuntimeException("Cannot create the journal directory \"$directory\".");
-        }
         $this->directory = rtrim($directory, '/\\');
+        self::createDirectory($this->directory);
 
         // The random suffix keeps two journals created in the same second apart; 'x' never overwrites.
         $this->path = $this->directory . '/threadsafe-journal-' . $now->format('Ymd-His') . '-' . bin2hex(random_bytes(2)) . '.jsonl';
@@ -53,6 +51,31 @@ final class FileJournal implements Journal
     public function __destruct()
     {
         $this->close();
+    }
+
+    /**
+     * Creates the journal directory (mode 0700, it holds secrets) and any missing parents. Parents get the mode of
+     * their own parent, so that a `var/` created on the way stays usable for the web server; every new directory
+     * gets the owner of its parent when running as root.
+     */
+    private static function createDirectory(string $directory): void
+    {
+        if (is_dir($directory)) {
+            return;
+        }
+        $missing = [];
+        for ($path = $directory; !is_dir($path) && $path !== dirname($path); $path = dirname($path)) {
+            array_unshift($missing, $path);
+        }
+        foreach ($missing as $path) {
+            $parent = dirname($path);
+            $mode = $path === $directory ? 0700 : ((fileperms($parent) & 0777) | 0700);
+            if (!@mkdir($path, $mode) && !is_dir($path)) {
+                throw new RuntimeException("Cannot create the journal directory \"$directory\".");
+            }
+            @chmod($path, $mode);
+            AtomicFile::adoptOwner($path, $parent);
+        }
     }
 
     public function close(): void

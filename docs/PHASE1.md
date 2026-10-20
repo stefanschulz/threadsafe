@@ -121,7 +121,7 @@ Steps 5 and 9 are driven by the engine **plus module rules** (3.8).
 | 10 | `Finalize` (optional) | boots PrestaShop in a child process and calls its own routines (`Tools::clearAllCache`, `Tools::generateHtaccess`, `Tools::generateRobotsFile`); failure is reported as a warning, steps 1–9 stay valid. |
 | 11 | `SelfTest` | HTTP checks against the base URL of the request: home page, a category, a product, **a product image via its friendly URL** (proves the `.htaccess` fix), contact, front login, back-office login page; redirect-loop detection; scan of the home page for the old domain. Traffic-light report. |
 
-### 3.6 CLI
+### 3.6 CLI *(implemented; the option list below is the plan, `threadsafe help migrate` is authoritative)*
 
 ```
 threadsafe migrate prestashop9 --root=/var/www/html --to=shop.example.test [--from=localhost:8190]

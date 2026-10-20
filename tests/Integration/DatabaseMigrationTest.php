@@ -5,27 +5,18 @@ declare(strict_types=1);
 namespace ThreadSafe\Tests\Integration;
 
 use stdClass;
-use ThreadSafe\Core\ExitCode;
-use ThreadSafe\Core\FileJournal;
-use ThreadSafe\Core\NullJournal;
-use ThreadSafe\Core\NullLogger;
-use ThreadSafe\Core\Runner;
-use ThreadSafe\Core\StepStatus;
-use ThreadSafe\Core\Context;
-use ThreadSafe\Database\DatabaseSettings;
-use ThreadSafe\Migration\MigrationRequest;
-use ThreadSafe\PrestaShop9\MigrationPipeline;
-use ThreadSafe\Replace\DomainMapping;
+use ThreadSafe\Tests\Support\CliProcess;
 use ThreadSafe\Tests\Support\Stack;
 use ThreadSafe\Tests\Support\TempDirectory;
 
 /**
- * The whole migration (every step of the pipeline) against the real clone of the seeded PrestaShop 9 shop (tests/stack/run.sh clones first):
- * 298 tables, 200,000 log rows, serialized and JSON options, CMS text in all URL notations.
+ * The whole migration, started the way a user starts it – `threadsafe migrate prestashop9` as a real process –
+ * against the real clone of the seeded PrestaShop 9 shop (tests/stack/run.sh clones first): 298 tables, 200,000 log
+ * rows, serialized and JSON options, CMS text in all URL notations.
  *
  * The files of the target stack are mounted at /shops/target. parameters.php there still points to the source
- * database host, so the request names the target database explicitly. Runs after CloneTest (which expects the
- * untouched clone) and migrates the target's database and files; FileMigrationTest and MigratedSiteTest check the rest.
+ * database host, so the command is told the target database. Runs after CloneTest (which expects the untouched
+ * clone) and migrates the target's database and files; FileMigrationTest and MigratedSiteTest check the rest.
  */
 final class DatabaseMigrationTest extends IntegrationTestCase
 {
@@ -36,28 +27,36 @@ final class DatabaseMigrationTest extends IntegrationTestCase
         $this->cleanUpTempDirectories();
     }
 
-    private function request(): MigrationRequest
+    /**
+     * @return list<string> the command line without the options that differ between the runs
+     */
+    private function command(string $directory, string $to = Stack::TARGET_HOST): array
     {
         if (!is_dir('/shops/target/src/Core')) {
             self::markTestSkipped('The target volume is not mounted at /shops/target.');
         }
+        file_put_contents($directory . '/db-password', "target\n");
 
-        return new MigrationRequest(
-            '/shops/target',
-            [new DomainMapping(Stack::SOURCE_HOST, Stack::TARGET_HOST)],
-            database: new DatabaseSettings('target-db', 3306, 'prestashop_target', 'target', 'target', 'ps_'),
-            serverPath: '/var/www/html',
-        );
+        return [
+            'migrate', 'prestashop9',
+            '--root=/shops/target',
+            '--to=' . $to,
+            '--db-host=target-db', '--db-name=prestashop_target', '--db-user=target',
+            '--db-password-file=' . $directory . '/db-password',
+            '--server-path=/var/www/html',
+            '--journal-dir=' . $directory . '/journal',
+        ];
     }
 
-    private function runner(): Runner
+    /**
+     * @return array<string, mixed>
+     */
+    private function report(string $path): array
     {
-        return new Runner(MigrationPipeline::steps());
-    }
+        $data = json_decode((string) file_get_contents($path), true);
+        self::assertIsArray($data);
 
-    private function context(MigrationRequest $request, bool $dryRun): Context
-    {
-        return new Context($request, $dryRun ? new NullJournal() : new FileJournal($this->tempDirectory()), new NullLogger(), $dryRun);
+        return $data;
     }
 
     public function testMigratesTheClone(): void
@@ -66,40 +65,69 @@ final class DatabaseMigrationTest extends IntegrationTestCase
         $oldDomain = Stack::SOURCE_HOST;
         $newDomain = Stack::TARGET_HOST;
         $logRowsBefore = self::scalar($db, 'SELECT COUNT(*) FROM ps_connections_source');
+        $directory = $this->tempDirectory();
+        $command = $this->command($directory);
 
-        // --- dry run: reports a lot, changes nothing
+        // --- without --yes: plans, reports, changes nothing
         $started = microtime(true);
-        $dry = $this->runner()->run($this->context($this->request(), dryRun: true), apply: false);
-        self::assertSame(ExitCode::Ok, $dry->exitCode);
-        self::assertGreaterThan(10, $dry->report->plannedChanges());
+        [$code, $stdout, $stderr] = CliProcess::run([...$command, '--report=' . $directory . '/dry.json']);
+        self::assertSame(0, $code, $stderr);
+        self::assertStringContainsString('Dry run – nothing was changed.', $stdout);
+        self::assertStringContainsString("Old domain taken from the shop's database: $oldDomain", $stdout, 'The old domain is found without --from.');
+        self::assertStringContainsString('Run the same command with --yes', $stdout);
+        $dry = $this->report($directory . '/dry.json');
+        self::assertTrue($dry['dryRun']);
+        self::assertGreaterThan(10, $dry['plannedChanges']);
         self::assertSame($oldDomain, self::scalar($db, 'SELECT domain FROM ps_shop_url LIMIT 1'));
+        self::assertDirectoryDoesNotExist($directory . '/journal', 'A dry run writes no journal.');
         self::assertLessThan(60, microtime(true) - $started, 'The dry run must skip the 200,000-row log table.');
 
-        // --- apply
-        $applied = $this->runner()->run($this->context($this->request(), dryRun: false), apply: true);
-        self::assertSame(ExitCode::Ok, $applied->exitCode, (string) $applied->failure?->getMessage());
+        // --- with --yes: applies
+        [$code, $stdout, $stderr] = CliProcess::run([...$command, '--yes', '--report=' . $directory . '/applied.json']);
+        self::assertSame(0, $code, $stderr . $stdout);
+        self::assertStringContainsString('Run finished.', $stdout);
         self::assertSame($newDomain, self::scalar($db, 'SELECT domain FROM ps_shop_url LIMIT 1'));
-        self::assertSame($newDomain, self::scalar($db, "SELECT domain_ssl FROM ps_shop_url LIMIT 1"));
+        self::assertSame($newDomain, self::scalar($db, 'SELECT domain_ssl FROM ps_shop_url LIMIT 1'));
         self::assertSame($newDomain, self::scalar($db, "SELECT value FROM ps_configuration WHERE name = 'PS_SHOP_DOMAIN'"));
         self::assertSame($newDomain, self::scalar($db, "SELECT value FROM ps_configuration WHERE name = 'PS_SHOP_DOMAIN_SSL'"));
+        $applied = $this->report($directory . '/applied.json');
+        self::assertFalse($applied['dryRun']);
+        self::assertSame($dry['plannedChanges'], $applied['plannedChanges'], 'The dry run announced what the real run did.');
+        self::assertGreaterThan(0, $applied['appliedChanges']);
 
-        // --- caches
+        $journals = glob($directory . '/journal/threadsafe-journal-*.jsonl') ?: [];
+        self::assertCount(1, $journals);
+        self::assertSame(0600, fileperms($journals[0]) & 0777);
+        self::assertSame(0700, fileperms($directory . '/journal') & 0777);
+        self::assertGreaterThan(20, count(array_filter(explode("\n", (string) file_get_contents($journals[0])))), 'Every changed value is journalled.');
+
+        // --- caches, skipped log table, source
         self::assertSame('0', self::scalar($db, 'SELECT COUNT(*) FROM ps_smarty_cache'));
-
-        // --- skipped log table is untouched
         self::assertSame($logRowsBefore, self::scalar($db, 'SELECT COUNT(*) FROM ps_connections_source'));
         self::assertGreaterThanOrEqual(200000, (int) self::scalar($db, "SELECT COUNT(*) FROM ps_connections_source WHERE http_referer LIKE '%$oldDomain%'"));
+        self::assertSame($oldDomain, self::scalar(Stack::sourceDb(), 'SELECT domain FROM ps_shop_url LIMIT 1'), 'The source database was not touched.');
 
-        // --- the source database was not touched
-        self::assertSame($oldDomain, self::scalar(Stack::sourceDb(), 'SELECT domain FROM ps_shop_url LIMIT 1'));
-
-        // --- a second run finds nothing to do
-        $again = $this->runner()->run($this->context($this->request(), dryRun: false), apply: true);
-        self::assertSame(ExitCode::Ok, $again->exitCode);
-        self::assertSame(0, $again->report->plannedChanges());
-        foreach ($again->report->steps as $step) {
-            self::assertSame(StepStatus::Unchanged, $step->status, $step->id);
+        // --- the same command again finds nothing to do (the shop already uses the new domain)
+        [$code, $stdout, $stderr] = CliProcess::run([...$command, '--yes', '--report=' . $directory . '/again.json']);
+        self::assertSame(0, $code, $stderr . $stdout);
+        self::assertStringContainsString('already uses', $stdout);
+        $again = $this->report($directory . '/again.json');
+        self::assertSame(0, $again['plannedChanges'], 'A repeated run must not change anything.');
+        foreach ($again['steps'] as $step) {
+            self::assertSame('unchanged', $step['status'], $step['id']);
         }
+    }
+
+    public function testWrongOldDomainIsRefused(): void
+    {
+        $directory = $this->tempDirectory();
+        $command = $this->command($directory, 'also-elsewhere.test');
+
+        // Naming a domain that is not the shop's (and a target the shop does not use): refused before anything is planned.
+        [$code, , $stderr] = CliProcess::run([...$command, '--from=somewhere-else.test', '--yes']);
+
+        self::assertSame(2, $code);
+        self::assertStringContainsString('is not a domain of this shop', $stderr);
     }
 
     /** Depends on the migration above having run; PHPUnit runs the tests of a class in order. */

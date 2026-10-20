@@ -39,8 +39,10 @@ are included: a foreign domain, an e-mail address, a bare host name.
 
 - New problem cases: add SQL to `tests/fixtures/seed-problem-cases.sql` or data to the fixture module, remove the
   `THREADSAFE_SEEDED` configuration row (or recreate the source stack) and run `seed.sh` again.
-- The end-to-end migration test is `tests/Integration/MigrationTest.php`; it is a placeholder until
-  `bin/threadsafe migrate` exists.
+- The end-to-end migration is `tests/Integration/DatabaseMigrationTest.php`: it starts `bin/threadsafe migrate
+  prestashop9` as a real process against the clone. `FileMigrationTest` checks the files afterwards, and
+  `MigratedSiteTest` (group `after-migration`, run in the second phase) checks the site over HTTP and against the
+  `.htaccess` oracle.
 - Other variants (SSL on, other table prefix, other PrestaShop version): change `PS_TAG`, `PS_ENABLE_SSL`,
   `DB_PREFIX` in `.docker/.env` and recreate the source stack with `docker compose down -v`.
 

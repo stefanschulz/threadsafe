@@ -9,6 +9,25 @@ Status: concept and Phase 0 (test environment, domain inventory). No backup or r
 - Test environment (PrestaShop 9 + MariaDB + Mailpit): [.docker/docker-compose.yml](.docker/docker-compose.yml)
 - Phase-0 tool: [tools/domain-inventory.php](tools/domain-inventory.php) – read-only report of where a domain occurs in database and files of a PrestaShop
 
+## Usage: migrate a restored PrestaShop 9 copy
+
+`threadsafe migrate prestashop9` takes an already restored copy (files in place, database imported) and makes it work
+on a new domain, path or database. Without `--yes` it only plans and reports.
+
+```bash
+# plan only: shows every change, writes nothing
+php bin/threadsafe migrate prestashop9 --root=/var/www/html --to=shop.example     --db-host=127.0.0.1 --db-name=shop --db-user=shop --db-password-file=/root/shop.pw
+
+# apply, with a journal of every changed value and a JSON report
+php bin/threadsafe migrate prestashop9 --root=/var/www/html --to=shop.example     --db-host=127.0.0.1 --db-name=shop --db-user=shop --db-password-file=/root/shop.pw     --report=/root/migration.json --yes
+```
+
+The old domain is read from the shop's database (or given with `--from`). Without `--to` and without a new domain the
+run is a restore in place on the same domain: caches, directories and database credentials are fixed, nothing is
+replaced. Exit codes: 0 ok, 1 usage error, 2 refused (wrong shop, unsupported version or database), 3 a step failed,
+4 self-test failed, 5 internal error. `threadsafe help migrate` lists all options. The journal (default
+`<root>/var/threadsafe-journal`) contains old and new values, including passwords: keep it private.
+
 ## Test environment
 
 ```bash
