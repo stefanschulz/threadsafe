@@ -1,0 +1,24 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+use ThreadSafe\Cli\Application;
+use ThreadSafe\Cli\StreamOutput;
+
+if (PHP_VERSION_ID < 80400) {
+    fwrite(STDERR, "ThreadSafe needs PHP 8.4 or newer (this is " . PHP_VERSION . ").\n");
+    exit(1);
+}
+
+$autoload = dirname(__DIR__) . '/vendor/autoload.php';
+if (!is_file($autoload)) {
+    fwrite(STDERR, "Dependencies are missing: run \"composer install\".\n");
+    exit(1);
+}
+require $autoload;
+
+// Commands are registered here as they are implemented (migrate: work packages 5–8).
+$application = new Application([]);
+
+exit($application->run($argv, StreamOutput::standard()));

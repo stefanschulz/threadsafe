@@ -28,13 +28,18 @@ final class CloneTest extends IntegrationTestCase
             self::scalar($source, "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'prestashop'"),
             self::scalar($target, "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'prestashop_target'"),
         );
-        foreach (['ps_product', 'ps_cms_lang', 'ps_configuration', 'ps_shop_url', 'ps_threadsafe_fixture_item', 'ps_connections_source'] as $table) {
+        foreach (['ps_product', 'ps_cms_lang', 'ps_configuration', 'ps_shop_url', 'ps_threadsafe_fixture_item'] as $table) {
             self::assertSame(
                 self::scalar($source, "SELECT COUNT(*) FROM $table"),
                 self::scalar($target, "SELECT COUNT(*) FROM $table"),
                 "Row count of $table",
             );
         }
+
+        // A statistics table keeps growing while the source shop is visited, so it can only be compared roughly.
+        $logRows = (int) self::scalar($target, 'SELECT COUNT(*) FROM ps_connections_source');
+        self::assertGreaterThanOrEqual(200000, $logRows);
+        self::assertLessThanOrEqual((int) self::scalar($source, 'SELECT COUNT(*) FROM ps_connections_source'), $logRows);
         self::assertSame(
             self::scalar($source, 'SELECT value FROM ps_configuration WHERE name = \'THREADSAFE_FIXTURE_SERIALIZED\''),
             self::scalar($target, 'SELECT value FROM ps_configuration WHERE name = \'THREADSAFE_FIXTURE_SERIALIZED\''),

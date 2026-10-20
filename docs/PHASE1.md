@@ -65,7 +65,7 @@ interface Step {
 
 - `Runner` runs `plan()` of all steps first (this *is* the dry run), shows the combined report, and only then calls `apply()` in order. `--dry-run` stops after planning.
 - Steps are **idempotent**: running the migration twice with the same request yields no further changes.
-- Every `apply()` writes to the **journal** (`threadsafe-journal-<timestamp>.json` in the site's data folder): old and new values for database rows, copies (`.orig`) of changed files. Phase 1 has no automatic undo, but the journal makes a manual revert possible.
+- Every `apply()` writes to the **journal** (`threadsafe-journal-<timestamp>-<random>.jsonl`, JSON Lines, flushed per entry so a crash loses nothing; directory mode 0700, file mode 0600): old and new values for database rows, copies (`.orig`) of changed files. The journal can contain passwords and keys and must be kept private. Phase 1 has no automatic undo, but the journal makes a manual revert possible.
 - A step failing aborts the run; steps already applied stay applied (reported). Database changes within one step run in one transaction where MariaDB allows it.
 
 ### 3.3 Request
@@ -131,7 +131,7 @@ threadsafe migrate prestashop9 --root=/var/www/html --to=shop.example.test [--fr
     [--replace-bare] [--skip-tables=a,b] [--no-finalize] [--self-test-url=http://…]
 ```
 
-Passwords are never accepted as plain command-line arguments (they end up in shell history and process lists); use `--db-password-file`, an environment variable or the request file. Exit codes: `0` ok, `1` usage error, `2` guard failed, `3` step failed, `4` self-test failed.
+Passwords are never accepted as plain command-line arguments (they end up in shell history and process lists); use `--db-password-file`, an environment variable or the request file. Exit codes: `0` ok, `1` usage error, `2` guard failed, `3` step failed, `4` self-test failed, `5` internal error.
 
 ### 3.7 Restore in place (same domain)
 
@@ -198,7 +198,7 @@ Fresh installs plus fixtures are the basis of all automated tests; no customer d
 | WP | Content | Depends on | Size |
 |---|---|---|---|
 | 1 | Dev container (PHP 8.4 CLI, `pdo_mysql`, Composer) in `.docker/`, `composer.json`, PHPUnit and PHPStan setup, CI workflow for lint, static analysis and unit tests | – | S |
-| 2 | `Core/` (Step, Plan, Runner, Report, Journal), `Cli/` skeleton, exit codes | 1 | M |
+| 2 | `Core/` (Step, Plan, Runner, Report, Journal), `Cli/` skeleton, exit codes — **done** | 1 | M |
 | 3 | `ParametersFile` reader/writer with tests | 1 | M |
 | 4 | `Replace/` engine: `UrlMatcher`, `Serialized`/`Json`/`Plain` codecs with property tests | 1 | L |
 | 5 | `Database/` and steps 1, 3, 4, 5 (including skip tables, chunking, dry run) | 2, 4 | L |

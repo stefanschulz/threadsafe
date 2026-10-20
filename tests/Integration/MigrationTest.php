@@ -21,10 +21,27 @@ final class MigrationTest extends IntegrationTestCase
 {
     public function testMigratedTargetServesTheShop(): void
     {
-        if (!is_file(dirname(__DIR__, 2) . '/bin/threadsafe')) {
-            self::markTestSkipped('The migrate command does not exist yet (work packages 2 and 5–8).');
+        if (!$this->commandExists('migrate')) {
+            self::markTestSkipped('The migrate command does not exist yet (work packages 5–8).');
         }
 
         self::markTestIncomplete('Add the assertions listed in the class comment together with the command.');
+    }
+
+    /** Whether `bin/threadsafe help <command>` succeeds, i.e. the command is registered. */
+    private function commandExists(string $command): bool
+    {
+        $process = proc_open(
+            [PHP_BINARY, dirname(__DIR__, 2) . '/bin/threadsafe', 'help', $command],
+            [1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+            $pipes,
+        );
+        if (!is_resource($process)) {
+            return false;
+        }
+        stream_get_contents($pipes[1]);
+        stream_get_contents($pipes[2]);
+
+        return proc_close($process) === 0;
     }
 }
