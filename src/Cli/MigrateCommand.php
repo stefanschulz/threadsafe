@@ -77,6 +77,7 @@ final class MigrateCommand implements Command
             new OptionSpec('skip-tables', 'Extra tables (without prefix) the content replacement skips, comma separated', takesValue: true, valueName: 'LIST'),
             new OptionSpec('replace-bare', 'Also replace bare domain names in content (not only URLs)'),
             new OptionSpec('chunk-size', 'Rows per chunk in the content replacement (default 2000)', takesValue: true, valueName: 'N'),
+            new OptionSpec('rules-dir', 'Directory with your module rules, one <module>.json each (default: data/rules next to the program)', takesValue: true, valueName: 'DIR'),
             new OptionSpec('request', 'JSON file with the same settings (command line options win)', takesValue: true, valueName: 'FILE'),
             new OptionSpec('journal-dir', 'Where the journal goes (default: <root>/var/threadsafe-journal)', takesValue: true, valueName: 'DIR'),
             new OptionSpec('report', 'Write the report as JSON to this file', takesValue: true, valueName: 'FILE'),
@@ -157,7 +158,7 @@ final class MigrateCommand implements Command
             $settings = $decoded;
         }
 
-        $flags = ['root' => 'root', 'from' => 'from', 'to' => 'to', 'path' => 'path', 'ssl' => 'ssl', 'mode' => 'mode', 'server-path' => 'serverPath', 'mail-catcher' => 'mailCatcher', 'dev-rules' => 'devRules'];
+        $flags = ['root' => 'root', 'from' => 'from', 'to' => 'to', 'path' => 'path', 'ssl' => 'ssl', 'mode' => 'mode', 'server-path' => 'serverPath', 'mail-catcher' => 'mailCatcher', 'dev-rules' => 'devRules', 'rules-dir' => 'rulesDir'];
         foreach ($flags as $option => $key) {
             if ($input->has($option)) {
                 $settings[$key] = $input->value($option);

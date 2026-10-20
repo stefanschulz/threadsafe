@@ -1,0 +1,14 @@
+{
+    "module": "threadsafe_fixture",
+    "description": "Rule for the test fixture module (tests/fixtures/modules/threadsafe_fixture): used by the integration tests as a user rule.",
+    "domainColumns": [
+        {"table": "threadsafe_fixture_item", "column": "url", "form": "plain", "bare": true}
+    ],
+    "configuration": [
+        {"key": "THREADSAFE_FIXTURE_BARE", "migrate": "replace-bare"},
+        {"key": "THREADSAFE_FIXTURE_WEBHOOK", "migrate": "keep", "dev": "clear"}
+    ],
+    "files": [
+        {"glob": "modules/threadsafe_fixture/generated/*.json", "action": "replace"}
+    ]
+}

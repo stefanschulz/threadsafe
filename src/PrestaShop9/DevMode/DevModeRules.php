@@ -73,27 +73,30 @@ final readonly class DevModeRules
     /**
      * The rules the request wants applied: all but the skipped ones.
      *
+     * @param list<string> $modules modules that have a module rule (their `module:<name>` ids may be skipped)
+     *
      * @return list<DevRule>
      *
      * @throws InvalidArgumentException a skipped id is unknown
      */
-    public function activeFor(MigrationRequest $request): array
+    public function activeFor(MigrationRequest $request, array $modules = []): array
     {
-        $this->assertKnown($request->devSkip);
+        $this->assertKnown($request->devSkip, $modules);
 
         return array_values(array_filter($this->rules, static fn (DevRule $rule): bool => !in_array($rule->id, $request->devSkip, true)));
     }
 
     /**
      * @param list<string> $ids
+     * @param list<string> $modules modules that have a module rule; `module:<name>` of these may be skipped too
      *
      * @throws InvalidArgumentException
      */
-    public function assertKnown(array $ids): void
+    public function assertKnown(array $ids, array $modules = []): void
     {
         foreach ($ids as $id) {
-            if (!isset($this->rules[$id])) {
-                throw new InvalidArgumentException(sprintf('Unknown dev rule "%s" (known: %s).', $id, implode(', ', array_keys($this->rules))));
+            if (!isset($this->rules[$id]) && !(str_starts_with($id, 'module:') && in_array(substr($id, 7), $modules, true))) {
+                throw new InvalidArgumentException(sprintf('Unknown dev rule "%s" (known: %s).', $id, implode(', ', [...array_keys($this->rules), ...array_map(static fn (string $m): string => "module:$m", $modules)])));
             }
         }
     }

@@ -97,6 +97,34 @@ final class RequestBuilderTest extends TestCase
         self::assertSame([], $request->devSkip);
     }
 
+    public function testRulesDirectoryAndModuleSkips(): void
+    {
+        $rules = $this->tempDirectory() . '/rules';
+        mkdir($rules);
+        file_put_contents($rules . '/ps_ex.json', json_encode(['module' => 'ps_ex']));
+
+        $request = $this->build(['mode' => 'dev', 'rulesDir' => $rules, 'devSkip' => ['module:ps_ex', 'mail']]);
+
+        self::assertSame($rules, $request->rulesDir);
+        self::assertSame(['module:ps_ex', 'mail'], $request->devSkip);
+    }
+
+    public function testSkippingTheRuleOfAnUnknownModuleIsRefused(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Unknown dev rule "module:ps_ex"');
+
+        $this->build(['mode' => 'dev', 'devSkip' => ['module:ps_ex']]);
+    }
+
+    public function testRulesDirectoryMustExist(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('rules directory');
+
+        $this->build(['rulesDir' => $this->root . '/missing']);
+    }
+
     public function testProductionIsNotDevMode(): void
     {
         self::assertFalse($this->build([])->isDevMode());

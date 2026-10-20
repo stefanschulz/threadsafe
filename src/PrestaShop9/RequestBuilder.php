@@ -16,6 +16,7 @@ use ThreadSafe\Migration\Mode;
 use ThreadSafe\Migration\SslMode;
 use ThreadSafe\PrestaShop9\DevMode\DevModeRules;
 use ThreadSafe\PrestaShop9\Exception\InvalidParametersFile;
+use ThreadSafe\PrestaShop9\Modules\ModuleRules;
 use ThreadSafe\Replace\DomainMapping;
 
 /**
@@ -31,6 +32,7 @@ use ThreadSafe\Replace\DomainMapping;
  *   mailCatcher   string   dev mode: HOST or HOST:PORT of the SMTP server that receives all mail (default: no mail at all)
  *   devSkip       list     dev mode: ids of rules to leave out (see resources/prestashop9/dev-mode.json)
  *   devRules      string   dev mode: JSON file with more rules
+ *   rulesDir      string   directory with the user's module rules (default: data/rules next to the program)
  *   serverPath    string   where the web server sees the shop, if different from root
  *   database      object   host, port, name, user, password, passwordFile, prefix – each defaults to parameters.php
  *   replaceBare   bool     also replace bare domain names
@@ -70,7 +72,7 @@ final class RequestBuilder
      */
     public function build(array $settings): MigrationRequest
     {
-        $known = ['root', 'from', 'to', 'domains', 'path', 'ssl', 'mode', 'mailCatcher', 'devSkip', 'devRules', 'serverPath', 'database', 'replaceBare', 'skipTables', 'chunkSize'];
+        $known = ['root', 'from', 'to', 'domains', 'path', 'ssl', 'mode', 'mailCatcher', 'devSkip', 'devRules', 'rulesDir', 'serverPath', 'database', 'replaceBare', 'skipTables', 'chunkSize'];
         foreach (array_keys($settings) as $key) {
             if (!in_array($key, $known, true)) {
                 throw new InvalidArgumentException("Unknown setting \"$key\".");
@@ -84,7 +86,11 @@ final class RequestBuilder
         }
 
         $mode = Mode::tryFrom($this->string($settings, 'mode') ?? 'production') ?? throw new InvalidArgumentException('The mode must be "production" or "dev".');
-        [$mailCatcher, $devSkip, $devRules] = $this->devSettings($settings, $mode);
+        $rulesDir = $this->string($settings, 'rulesDir');
+        if ($rulesDir !== null && !is_dir($rulesDir)) {
+            throw new InvalidArgumentException("The rules directory \"$rulesDir\" does not exist.");
+        }
+        [$mailCatcher, $devSkip, $devRules] = $this->devSettings($settings, $mode, $rulesDir);
 
         $ssl = null;
         if (($value = $this->string($settings, 'ssl')) !== null) {
@@ -121,6 +127,7 @@ final class RequestBuilder
             $mailCatcher,
             $devSkip,
             $devRules,
+            $rulesDir,
         );
     }
 
@@ -131,7 +138,7 @@ final class RequestBuilder
      *
      * @return array{MailCatcher|null, list<string>, string|null}
      */
-    private function devSettings(array $settings, Mode $mode): array
+    private function devSettings(array $settings, Mode $mode, ?string $rulesDir): array
     {
         $catcher = $this->string($settings, 'mailCatcher');
         $skip = $settings['devSkip'] ?? [];
@@ -149,7 +156,7 @@ final class RequestBuilder
         }
 
         $skip = array_values($skip);
-        DevModeRules::load($file)->assertKnown($skip);
+        DevModeRules::load($file)->assertKnown($skip, ModuleRules::load($rulesDir)->knownNames());
 
         return [$catcher === null ? null : MailCatcher::parse($catcher), $skip, $file];
     }

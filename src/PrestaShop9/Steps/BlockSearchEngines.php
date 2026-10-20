@@ -97,7 +97,7 @@ final class BlockSearchEngines implements Step
             return null;
         }
         try {
-            $rules = DevModeRules::load($request->devRulesFile)->activeFor($request);
+            $rules = DevModeRules::load($request->devRulesFile)->activeFor($request, State::moduleRules($context)->knownNames());
         } catch (InvalidArgumentException $e) {
             throw new GuardFailed($e->getMessage(), 0, $e);
         }

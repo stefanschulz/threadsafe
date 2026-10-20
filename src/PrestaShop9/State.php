@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 namespace ThreadSafe\PrestaShop9;
 
+use InvalidArgumentException;
 use RuntimeException;
 use ThreadSafe\Core\Context;
+use ThreadSafe\Core\Exception\GuardFailed;
 use ThreadSafe\Database\Connection;
 use ThreadSafe\Migration\MigrationRequest;
 use ThreadSafe\Migration\SourceState;
+use ThreadSafe\PrestaShop9\Modules\ModuleRules;
 
 /**
  * Typed access to what the steps share through the {@see Context}: the request, the discovered source state and the
@@ -19,6 +22,8 @@ final class State
     private const string SOURCE = 'prestashop9.source';
 
     private const string CONNECTION = 'prestashop9.connection';
+
+    private const string MODULE_RULES = 'prestashop9.moduleRules';
 
     public static function request(Context $context): MigrationRequest
     {
@@ -44,6 +49,30 @@ final class State
         }
 
         return $source;
+    }
+
+    /**
+     * The module rules of the modules installed in the shop. Loaded on first use; a broken rule file stops the run
+     * before anything is changed (it is first used by ReadSourceState).
+     *
+     * @throws GuardFailed a rule file is invalid
+     */
+    public static function moduleRules(Context $context): ModuleRules
+    {
+        if (!$context->has(self::MODULE_RULES)) {
+            try {
+                $rules = ModuleRules::load(self::request($context)->rulesDir)->forInstalled(self::connection($context));
+            } catch (InvalidArgumentException $e) {
+                throw new GuardFailed($e->getMessage(), 0, $e);
+            }
+            $context->set(self::MODULE_RULES, $rules);
+        }
+        $rules = $context->get(self::MODULE_RULES);
+        if (!$rules instanceof ModuleRules) {
+            throw new RuntimeException('The module rules are invalid.');
+        }
+
+        return $rules;
     }
 
     public static function connection(Context $context): Connection

@@ -126,7 +126,8 @@ Steps 5 and 9 are driven by the engine **plus module rules** (3.8).
 ```
 threadsafe migrate prestashop9 --root=/var/www/html --to=shop.example.test [--from=localhost:8190]
     [--path=/] [--ssl=none|login|all] [--mode=production|dev]
-    [--mail-catcher=mailpit:1025] [--dev-skip=mail,tracking] [--dev-rules=more-rules.json]
+    [--mail-catcher=mailpit:1025] [--dev-skip=mail,tracking,module:ps_example] [--dev-rules=more-rules.json]
+    [--rules-dir=data/rules]
     [--db-host=… --db-name=… --db-user=… --db-password-file=…] [--prefix=ps_]
     [--request=request.json] [--dry-run] [--yes] [--report=report.json]
     [--replace-bare] [--skip-tables=a,b] [--no-finalize] [--self-test-url=http://…]
@@ -175,33 +176,42 @@ journal, skipped rules, warnings) and, as phase 3 of `tests/stack/run.sh`, the r
 the live connections of `tests/fixtures/seed-live-links.sql` (`DevModeMigrationTest`: the secrets are gone from
 database and report, the shop still answers, sends `X-Robots-Tag`, and a password-reset mail arrives in Mailpit).
 
-### 3.8 Module rules
+### 3.8 Module rules *(implemented)*
 
-The core contains no module-specific code. A **module rule** (`resources/prestashop9/modules/<module>.json`, plus optional user rules in `data/rules/`, user rules win) describes one module:
+The core contains no module-specific code. A **module rule** describes one module as data: `<module>.json`, either shipped in `resources/prestashop9/modules/` or yours in a rules directory (`--rules-dir=DIR`, default `data/rules/` next to the program if it exists). A user rule replaces the shipped rule of the same module as a whole. The format is described by `resources/prestashop9/module-rule.schema.json` and validated strictly by the loader (a broken rule stops the run with exit code 2 before anything is planned):
 
 ```json
 {
   "module": "ps_example",
+  "description": "What this rule is about",
   "domainColumns": [
     {"table": "example_option", "column": "value", "form": "serialized"},
-    {"table": "example_link", "column": "url", "form": "plain"}
+    {"table": "example_link", "column": "host", "bare": true}
   ],
   "configuration": [
-    {"key": "EXAMPLE_API_TOKEN", "dev": "clear"},
-    {"key": "EXAMPLE_CALLBACK_URL", "migrate": "replace"}
+    {"key": "EXAMPLE_CALLBACK_URL", "migrate": "keep", "dev": "clear"},
+    {"key": "EXAMPLE_HOST", "migrate": "replace-bare"},
+    {"key": "EXAMPLE_API_TOKEN", "dev": "remove"}
   ],
   "skipTables": ["example_log"],
-  "files": [{"glob": "modules/ps_example/cache/**", "action": "delete"}],
-  "dev": {"deactivate": true},
-  "handler": null
+  "files": [
+    {"glob": "modules/ps_example/cache/*", "action": "delete"},
+    {"glob": "modules/ps_example/*.xml", "action": "replace"}
+  ],
+  "dev": {"deactivate": true, "emptyTables": ["example_queue"]}
 }
 ```
 
-- Table names are written without the prefix. `form` tells the engine which codec to force; without a rule the engine detects it.
-- `handler` may name a PHP class implementing `ModuleHandler` for logic that data cannot express; it is optional and rare.
-- Steps 3, 5, 7 and 9 load all rules for modules that are actually installed (`ps_module`), so rules for absent modules cost nothing.
-- Modules without a rule: handled by the generic engine; their domain hits are listed as "no rule" in the dry-run report, which is how new rules get written.
-- A schema file validates rules; a rule without a test case is not accepted into the shipped set.
+- Table names are written without the prefix; the file must be named after the module.
+- `domainColumns`: `form` (`plain`, `serialized`, `json`) tells the engine which structured format to try in that column; without it the engine detects the format. Use `plain` or a fixed form only where the column really always has that form - a plain text replacement inside a serialized value would corrupt it. `bare: true` also replaces bare host names in the column.
+- `configuration`: `migrate` is `replace` (default, URL forms), `replace-bare` (the value is a bare host name) or `keep` (never touched); `dev` is `keep` (default), `clear` (value becomes empty) or `remove` (row deleted) in dev mode.
+- `skipTables`: log or cache tables the content replacement leaves alone.
+- `files`: `delete` is done with the caches (step 3) and only allowed below `modules/<module>/`, `var/cache/`, `var/logs/`, `cache/` and `img/tmp/`; protection files (`index.php`, `.htaccess` ...) stay, directories are emptied, links are removed but never followed. `replace` replaces the domain in these text files (step 7). Globs are relative to the shop root, without `..`.
+- `dev`: `deactivate` and `emptyTables` plus the `configuration[].dev` entries form the dev rule `module:<name>`; `--dev-skip=module:<name>` switches it off.
+- There are no PHP handlers: a rule is data only (a `handler` key is refused). If logic is ever needed, it will be a reviewed class in the program, not code loaded from a rules directory.
+- The steps use only the rules of modules that are **installed** (`module` table); rules for absent modules cost nothing and change nothing. `ReadSourceState` lists the rules in use.
+- **"No rule" report:** a table with the domain in it that is not part of a clean PrestaShop 9.0.2 installation (`resources/prestashop9/core-tables.json`, generated from the test stack) and that no rule mentions is reported as a warning "No module rule for table ..." in the dry run. That is how new rules get written; the generic engine has handled the table in the meantime. (Only tables are checked; configuration keys are not.)
+- The shipped set starts empty: a rule is only accepted into `resources/prestashop9/modules/` with a test case. The rule for the fixture module (`tests/fixtures/rules/threadsafe_fixture.json`) is used by the integration tests as a user rule.
 
 ## 4. Test strategy
 
@@ -240,7 +250,7 @@ Fresh installs plus fixtures are the basis of all automated tests; no customer d
 | 3 | `ParametersFile` reader/writer with tests | 1 | M |
 | 4 | `Replace/` engine: `UrlMatcher`, `Serialized`/`Json`/`Plain` codecs with property tests | 1 | L |
 | 5 | `Database/` and steps 1, 3, 4, 5 (including skip tables, chunking, dry run) — **done**; step 3 includes the cache *directories*, so WP 6 does not repeat them | 2, 4 | L |
-| 5b | `Modules/` rule system: JSON schema, loader, registry, user rules folder; integration into steps 3, 5, 7, 9; rule for the fixture module | 4, 5 | M |
+| 5b | `Modules/` rule system: JSON schema, loader, registry, user rules folder; integration into steps 3, 5, 7, 9; rule for the fixture module - **done** (3.8; the fixture rule runs through the whole clone migration and the dev run) | 4, 5 | M |
 | 6 | steps 2, 6, 7, 8 (files) with golden tests — **done**; with the database steps the migrated clone serves the shop under the new domain and its `.htaccess` block equals PrestaShop's own regeneration. Request option `serverPath` for the case that the web server sees the shop under another path than the tool | 2, 3 | M |
 | 7 | step 9 dev mode (data-driven rules) - **done**: `--mode=dev`, rules in `dev-mode.json`, own rule files, mail catcher, robots/`X-Robots-Tag`; phase 3 of `tests/stack/run.sh` runs it on the migrated clone and proves that a shop mail arrives in Mailpit | 5 | M |
 | 8 | steps 10, 11 (finalize, self-test) | 5, 6 | M |

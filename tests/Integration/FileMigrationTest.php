@@ -64,6 +64,15 @@ final class FileMigrationTest extends IntegrationTestCase
         self::assertStringNotContainsString(Stack::SOURCE_HOST, $mail);
     }
 
+    public function testFilesNamedByTheFixtureRuleAreRewritten(): void
+    {
+        $urls = (string) file_get_contents(self::TARGET . '/modules/threadsafe_fixture/generated/urls.json');
+
+        self::assertStringContainsString('http://' . Stack::TARGET_HOST . '/', $urls);
+        self::assertStringContainsString('https://' . Stack::TARGET_HOST . '/feed.xml', $urls);
+        self::assertStringNotContainsString(Stack::SOURCE_HOST, $urls);
+    }
+
     public function testCachesAreGoneAndTheSkeletonIsBack(): void
     {
         self::assertDirectoryDoesNotExist(self::TARGET . '/var/cache/prod/ps_mainmenu');

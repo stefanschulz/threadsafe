@@ -16,6 +16,7 @@ use ThreadSafe\Core\Plan;
 use ThreadSafe\Core\Resources;
 use ThreadSafe\Core\Step;
 use ThreadSafe\Core\StepResult;
+use ThreadSafe\PrestaShop9\Modules\FileRule;
 use ThreadSafe\PrestaShop9\PhpIniRewriter;
 use ThreadSafe\PrestaShop9\State;
 use ThreadSafe\Replace\Stats;
@@ -163,6 +164,11 @@ final class RewriteHostBoundFiles implements Step
         foreach (Resources::strings('prestashop9/host-bound-files.json', 'files') as $pattern) {
             foreach (glob($root . '/' . $pattern) ?: [] as $path) {
                 $consider($pattern, $path);
+            }
+        }
+        foreach (State::moduleRules($context)->files(FileRule::REPLACE) as $file) {
+            foreach (glob($root . '/' . $file->glob) ?: [] as $path) {
+                $consider($file->glob . ' (module rule)', $path);
             }
         }
         $directories = $config['directories'] ?? [];

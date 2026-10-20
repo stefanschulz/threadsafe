@@ -16,6 +16,7 @@ use ThreadSafe\Core\Plan;
 use ThreadSafe\Core\Resources;
 use ThreadSafe\Core\Step;
 use ThreadSafe\Core\StepResult;
+use ThreadSafe\PrestaShop9\Modules\FileRule;
 use ThreadSafe\PrestaShop9\State;
 
 /**
@@ -61,6 +62,16 @@ final class DiscardCaches implements Step
             }
         }
 
+        foreach ($this->moduleFiles($context) as [$module, $glob, $paths]) {
+            $files = 0;
+            foreach ($paths as $path) {
+                $files += is_dir($path) && !is_link($path) ? $this->countFiles($path, $keep) : 1;
+            }
+            if ($files > 0) {
+                $plan->add(Change::delete("files $glob", "remove files of module $module that are rebuilt (module rule)", count: $files));
+            }
+        }
+
         $db = State::connection($context);
         foreach (Resources::strings('prestashop9/caches.json', 'tables') as $name) {
             $table = $db->table($name);
@@ -96,6 +107,23 @@ final class DiscardCaches implements Step
             }
         }
 
+        foreach ($this->moduleFiles($context) as [$module, $glob, $paths]) {
+            $removed = 0;
+            foreach ($paths as $path) {
+                if (is_dir($path) && !is_link($path)) {
+                    $removed += $this->emptyDirectory($path, $keep);
+                } elseif (@unlink($path)) {
+                    ++$removed;
+                } else {
+                    throw new RuntimeException("Cannot delete \"$path\".");
+                }
+            }
+            if ($removed > 0) {
+                $context->journal->note('module files removed', ['module' => $module, 'glob' => $glob, 'files' => $removed]);
+                $applied += $removed;
+            }
+        }
+
         foreach (Resources::strings('prestashop9/caches.json', 'tables') as $name) {
             $table = $db->table($name);
             if (!$db->tableExists($table)) {
@@ -110,6 +138,41 @@ final class DiscardCaches implements Step
         }
 
         return new StepResult($applied);
+    }
+
+    /**
+     * The files that module rules say to delete: module, glob and the matching paths, all inside the shop root.
+     *
+     * @return list<array{string, string, list<string>}>
+     */
+    private function moduleFiles(Context $context): array
+    {
+        $root = realpath(State::source($context)->root);
+        $keep = Resources::strings('prestashop9/caches.json', 'keep');
+        $found = [];
+        foreach (State::moduleRules($context)->all() as $rule) {
+            foreach ($rule->files as $file) {
+                if ($file->action !== FileRule::DELETE || $root === false) {
+                    continue;
+                }
+                $paths = [];
+                foreach (glob($root . '/' . $file->glob) ?: [] as $path) {
+                    if (in_array(basename($path), $keep, true)) {
+                        continue; // protection files (index.php, .htaccess …) stay, like in the cache directories
+                    }
+                    $real = is_link($path) ? $path : realpath($path);
+                    // A link is deleted itself (never followed); anything else must really be inside the shop.
+                    if ($real !== false && (is_link($path) || str_starts_with($real . '/', $root . '/')) && $real !== $root) {
+                        $paths[] = $path;
+                    }
+                }
+                if ($paths !== []) {
+                    $found[] = [$rule->module, $file->glob, $paths];
+                }
+            }
+        }
+
+        return $found;
     }
 
     /** The absolute path of a cache directory, or null if it does not exist or leads out of the shop root. */

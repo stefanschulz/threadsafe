@@ -44,6 +44,7 @@ final class DatabaseMigrationTest extends IntegrationTestCase
             '--db-host=target-db', '--db-name=prestashop_target', '--db-user=target',
             '--db-password-file=' . $directory . '/db-password',
             '--server-path=/var/www/html',
+            '--rules-dir=' . dirname(__DIR__) . '/fixtures/rules',
             '--journal-dir=' . $directory . '/journal',
         ];
     }
@@ -75,6 +76,9 @@ final class DatabaseMigrationTest extends IntegrationTestCase
         self::assertStringContainsString('Dry run – nothing was changed.', $stdout);
         self::assertStringContainsString("Old domain taken from the shop's database: $oldDomain", $stdout, 'The old domain is found without --from.');
         self::assertStringContainsString('Run the same command with --yes', $stdout);
+        self::assertStringContainsString('Module rules in use: threadsafe_fixture.', $stdout);
+        self::assertStringContainsString('No module rule for table "threadsafe_fixture_item_lang"', $stdout, 'A module table no rule describes is pointed out.');
+        self::assertStringNotContainsString('No module rule for table "threadsafe_fixture_item"', $stdout);
         $dry = $this->report($directory . '/dry.json');
         self::assertTrue($dry['dryRun']);
         self::assertGreaterThan(10, $dry['plannedChanges']);
@@ -187,8 +191,9 @@ final class DatabaseMigrationTest extends IntegrationTestCase
         $new = Stack::TARGET_HOST;
 
         self::assertSame("http://$new/plain/url", self::scalar($db, "SELECT value FROM ps_configuration WHERE name = 'THREADSAFE_FIXTURE_URL'"));
-        self::assertSame("http://$new/module/threadsafe_fixture/hook?token=abc", self::scalar($db, "SELECT value FROM ps_configuration WHERE name = 'THREADSAFE_FIXTURE_WEBHOOK'"));
-        self::assertSame(Stack::SOURCE_HOST, self::scalar($db, "SELECT value FROM ps_configuration WHERE name = 'THREADSAFE_FIXTURE_BARE'"));
+        // The fixture rule (tests/fixtures/rules): this webhook is registered elsewhere and kept, the bare name is replaced.
+        self::assertSame('http://' . Stack::SOURCE_HOST . '/module/threadsafe_fixture/hook?token=abc', self::scalar($db, "SELECT value FROM ps_configuration WHERE name = 'THREADSAFE_FIXTURE_WEBHOOK'"));
+        self::assertSame($new, self::scalar($db, "SELECT value FROM ps_configuration WHERE name = 'THREADSAFE_FIXTURE_BARE'"));
         self::assertSame(0, (int) self::scalar($db, "SELECT COUNT(*) FROM ps_threadsafe_fixture_item WHERE url LIKE '%" . Stack::SOURCE_HOST . "%'"));
         self::assertSame(0, (int) self::scalar($db, "SELECT COUNT(*) FROM ps_threadsafe_fixture_item_lang WHERE text LIKE '%http://" . Stack::SOURCE_HOST . "%'"));
 

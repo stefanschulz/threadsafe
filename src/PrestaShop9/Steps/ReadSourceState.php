@@ -83,6 +83,11 @@ final class ReadSourceState implements Step
             $source->adminDirectory ?? 'not found',
         )));
 
+        $rules = State::moduleRules($context)->names();
+        if ($rules !== []) {
+            $plan->notice(Notice::info('Module rules in use: ' . implode(', ', $rules) . '.'));
+        }
+
         return $plan;
     }
 

@@ -43,6 +43,13 @@ Without `--mail-catcher` the shop sends no mail at all. `--dev-skip=RULES` leave
 `resources/prestashop9/dev-mode.json`; docs/PHASE1.md 3.9). The copy still holds the customers' personal data - the
 run warns about it and about settings that look like credentials no rule handles.
 
+### Rules for third-party modules
+
+ThreadSafe knows nothing about individual modules. Put what you know about a module in `data/rules/<module>.json` (or
+another directory given with `--rules-dir`): columns with a known format, settings to keep, files to delete or rewrite,
+what the dev mode must switch off. The dry run lists tables with the domain in them that no rule knows ("No module rule
+for table ..."). Format and examples: docs/PHASE1.md 3.8 and `resources/prestashop9/module-rule.schema.json`.
+
 ## Test environment
 
 ```bash

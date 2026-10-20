@@ -53,7 +53,7 @@ final class ApplyDevMode implements Step
             return $plan;
         }
 
-        $rules = $this->rules($request);
+        $rules = $this->rules($context);
         $db = State::connection($context);
         [$operations, $claimed] = $this->operations($db, $rules, $request);
         foreach ($operations as $operation) {
@@ -69,7 +69,7 @@ final class ApplyDevMode implements Step
     {
         $request = State::request($context);
         $db = State::connection($context);
-        [$operations] = $this->operations($db, $this->rules($request), $request);
+        [$operations] = $this->operations($db, $this->rules($context), $request);
 
         $db->transaction(function () use ($db, $operations, $context): void {
             foreach ($operations as $operation) {
@@ -83,13 +83,24 @@ final class ApplyDevMode implements Step
     /**
      * @return list<DevRule>
      */
-    private function rules(MigrationRequest $request): array
+    private function rules(Context $context): array
     {
+        $request = State::request($context);
+        $modules = State::moduleRules($context);
         try {
-            return DevModeRules::load($request->devRulesFile)->activeFor($request);
+            $rules = DevModeRules::load($request->devRulesFile)->activeFor($request, $modules->knownNames());
         } catch (InvalidArgumentException $e) {
             throw new GuardFailed($e->getMessage(), 0, $e);
         }
+
+        // What the rules of the installed modules say about dev mode (their ids are "module:<name>").
+        foreach ($modules->devRules() as $rule) {
+            if (!in_array($rule->id, $request->devSkip, true)) {
+                $rules[] = $rule;
+            }
+        }
+
+        return $rules;
     }
 
     /**
@@ -102,6 +113,7 @@ final class ApplyDevMode implements Step
         $configuration = $db->table('configuration');
         $claimed = [];
         $inserted = [];
+        $handled = [];
         $operations = [];
 
         foreach ($rules as $rule) {
@@ -157,9 +169,10 @@ final class ApplyDevMode implements Step
 
             foreach ($rule->emptyTables as $name) {
                 $table = $db->table($name);
-                if (!$db->tableExists($table)) {
+                if (isset($handled["table $table"]) || !$db->tableExists($table)) {
                     continue;
                 }
+                $handled["table $table"] = true;
                 $rows = (int) $db->scalar('SELECT COUNT(*) FROM ' . $db->quote($table));
                 if ($rows > 0) {
                     $operations[] = DevOperation::emptyTable($rule->id, $table, $rows);
@@ -167,6 +180,10 @@ final class ApplyDevMode implements Step
             }
 
             foreach ($rule->deactivateModules as $module) {
+                if (isset($handled["module $module"])) {
+                    continue;
+                }
+                $handled["module $module"] = true;
                 $operation = $this->moduleOperation($db, $rule->id, $module);
                 if ($operation !== null) {
                     $operations[] = $operation;

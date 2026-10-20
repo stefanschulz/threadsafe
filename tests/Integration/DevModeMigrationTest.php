@@ -47,6 +47,7 @@ final class DevModeMigrationTest extends IntegrationTestCase
             '--db-host=target-db', '--db-name=prestashop_target', '--db-user=target',
             '--db-password-file=' . $directory . '/db-password',
             '--server-path=/var/www/html',
+            '--rules-dir=' . dirname(__DIR__) . '/fixtures/rules',
             '--mode=dev', '--mail-catcher=' . Stack::MAIL_CATCHER,
             '--journal-dir=' . $directory . '/journal',
         ];
@@ -122,6 +123,7 @@ final class DevModeMigrationTest extends IntegrationTestCase
         foreach (['ps_accounts', 'ps_eventbus', 'ps_checkout', 'ps_facebook', 'ps_googleanalytics', 'psxmarketingwithgoogle'] as $module) {
             self::assertContains(self::moduleActive($module), ['0', ''], "module $module is off (or was never installed)");
         }
+        self::assertSame('', self::config('THREADSAFE_FIXTURE_WEBHOOK'), 'The fixture module rule clears its webhook in dev mode.');
         self::assertSame('seed-unknown-service-key', self::config('THREADSAFE_FIXTURE_API_KEY'), 'What no rule knows is left alone (and was reported).');
         self::assertGreaterThan(0, (int) self::scalar(Stack::targetDb(), 'SELECT COUNT(*) FROM ps_customer'), 'Customers are not touched.');
 

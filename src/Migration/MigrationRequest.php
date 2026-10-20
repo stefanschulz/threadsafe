@@ -34,6 +34,7 @@ final readonly class MigrationRequest
      * @param MailCatcher|null      $mailCatcher  dev mode: the SMTP server that receives all mail; null = the shop sends no mail
      * @param list<string>          $devSkip      dev mode: ids of the rules that must not be applied
      * @param string|null           $devRulesFile dev mode: JSON file with more rules (same format as resources/prestashop9/dev-mode.json)
+     * @param string|null           $rulesDir     directory with the user's module rules; null = data/rules next to the program, if present
      */
     public function __construct(
         public string $root,
@@ -49,6 +50,7 @@ final readonly class MigrationRequest
         public ?MailCatcher $mailCatcher = null,
         public array $devSkip = [],
         public ?string $devRulesFile = null,
+        public ?string $rulesDir = null,
     ) {
         if ($root === '') {
             throw new InvalidArgumentException('The shop root directory must not be empty.');

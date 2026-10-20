@@ -269,7 +269,7 @@ final class MigrateCommandTest extends TestCase
 
         (new Application([new MigrateCommand()]))->run(['threadsafe', 'help', 'migrate'], $output);
 
-        foreach (['--root=PATH', '--to=DOMAIN', '--from=DOMAIN', '--domain=OLD=NEW', '--ssl=MODE', '--db-password-file=FILE', '--journal-dir=DIR', '--report=FILE', '--yes', '--dry-run', '--mode=MODE', '--mail-catcher=HOST[:PORT]', '--dev-skip=LIST', '--dev-rules=FILE'] as $synopsis) {
+        foreach (['--root=PATH', '--to=DOMAIN', '--from=DOMAIN', '--domain=OLD=NEW', '--ssl=MODE', '--db-password-file=FILE', '--journal-dir=DIR', '--report=FILE', '--yes', '--dry-run', '--mode=MODE', '--mail-catcher=HOST[:PORT]', '--dev-skip=LIST', '--dev-rules=FILE', '--rules-dir=DIR'] as $synopsis) {
             self::assertStringContainsString($synopsis, $output->stdout());
         }
     }

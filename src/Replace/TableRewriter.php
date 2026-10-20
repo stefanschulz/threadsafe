@@ -23,6 +23,9 @@ final class TableRewriter
 {
     private const int SAMPLE_CONTEXT = 50;
 
+    /** @var array<string, ValueRewriter> */
+    private array $formRewriters = [];
+
     public function __construct(
         private readonly Connection $db,
         private readonly UrlMatcher $matcher,
@@ -35,8 +38,9 @@ final class TableRewriter
      * @param string $rowFilter      extra SQL condition restricting the rows to look at (internal use, trusted), or ''
      * @param bool   $replaceBare    also replace bare domain names
      * @param bool   $apply          write the changes
+     * @param array<string, ColumnTreatment> $treatments what is known about single columns (by column name): the format they hold, bare host names
      */
-    public function rewrite(TableInfo $table, string $rowFilter, bool $replaceBare, bool $apply, Journal $journal): TableRewriteResult
+    public function rewrite(TableInfo $table, string $rowFilter, bool $replaceBare, bool $apply, Journal $journal, array $treatments = []): TableRewriteResult
     {
         $result = new TableRewriteResult($table->name);
         $columns = array_values(array_diff($table->textColumns, $table->primaryKey));
@@ -90,7 +94,8 @@ final class TableRewriter
                     if (!is_string($value) || !$this->matcher->mayContain($value)) {
                         continue;
                     }
-                    $outcome = $this->rewriter->rewrite($value, $replaceBare);
+                    $treatment = $treatments[$column] ?? null;
+                    $outcome = $this->rewriterFor($treatment?->form)->rewrite($value, $replaceBare || ($treatment->bare ?? false));
                     $columnResult = $result->column($column);
                     $columnResult->stats->add($outcome->stats);
                     if ($outcome->changed) {
@@ -122,6 +127,20 @@ final class TableRewriter
 
         // Drop columns in which only look-alikes (bare names, e-mail addresses) were seen? No: they are reported.
         return $result;
+    }
+
+    /** The value rewriter for a column of a known format; null = the one that detects the format. */
+    private function rewriterFor(?string $form): ValueRewriter
+    {
+        if ($form === null) {
+            return $this->rewriter;
+        }
+
+        return $this->formRewriters[$form] ??= new ValueRewriter($this->matcher, match ($form) {
+            'serialized' => [new SerializedCodec()],
+            'json' => [new JsonCodec()],
+            default => [],
+        });
     }
 
     /**

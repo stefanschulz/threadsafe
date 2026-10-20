@@ -68,6 +68,20 @@ final class Connection
         return '`' . str_replace('`', '``', $identifier) . '`';
     }
 
+    /** The name of a table without the shop prefix. */
+    public function unprefixed(string $table): string
+    {
+        $prefix = $this->settings->prefix;
+
+        return $prefix !== '' && str_starts_with($table, $prefix) ? substr($table, strlen($prefix)) : $table;
+    }
+
+    /** A value as a quoted SQL string literal, for the few places that build a condition as text. */
+    public function quotedString(string $value): string
+    {
+        return $this->pdo->quote($value);
+    }
+
     /**
      * @param list<scalar|null> $parameters
      *

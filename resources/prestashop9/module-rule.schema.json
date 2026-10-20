@@ -1,0 +1,61 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "ThreadSafe module rule (PrestaShop 9)",
+    "description": "One file per module: resources/prestashop9/modules/<module>.json or <rules dir>/<module>.json. Table names are written without the table prefix. Rules are data only; there are no handlers. The loader (ModuleRules) validates the same constraints and refuses a rule that does not fit.",
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["module"],
+    "properties": {
+        "module": {"type": "string", "pattern": "^[A-Za-z0-9_]+$", "description": "The module's name; the file is named <module>.json."},
+        "description": {"type": "string"},
+        "domainColumns": {
+            "type": "array",
+            "description": "Columns the generic engine is told more about.",
+            "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["table", "column"],
+                "properties": {
+                    "table": {"type": "string", "pattern": "^[A-Za-z0-9_]+$"},
+                    "column": {"type": "string", "pattern": "^[A-Za-z0-9_]+$"},
+                    "form": {"enum": ["plain", "serialized", "json"], "description": "Only this structured format is tried; without it the engine detects the format."},
+                    "bare": {"type": "boolean", "description": "The column holds bare host names, which are replaced as well."}
+                }
+            }
+        },
+        "configuration": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["key"],
+                "properties": {
+                    "key": {"type": "string", "pattern": "^[A-Za-z0-9_]+$"},
+                    "migrate": {"enum": ["replace", "replace-bare", "keep"], "default": "replace"},
+                    "dev": {"enum": ["keep", "clear", "remove"], "default": "keep"}
+                }
+            }
+        },
+        "skipTables": {"type": "array", "items": {"type": "string", "pattern": "^[A-Za-z0-9_]+$"}, "description": "Log or cache tables of the module the content replacement skips."},
+        "files": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["glob", "action"],
+                "properties": {
+                    "glob": {"type": "string", "pattern": "^[A-Za-z0-9_./*?\\[\\]-]+$", "description": "Relative to the shop root, no '..'. 'delete' only below modules/<module>/, var/cache/, var/logs/, cache/ and img/tmp/."},
+                    "action": {"enum": ["delete", "replace"], "description": "delete: removed with the caches; replace: the domain is replaced in this text file."}
+                }
+            }
+        },
+        "dev": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "deactivate": {"type": "boolean", "description": "Deactivate the module in dev mode."},
+                "emptyTables": {"type": "array", "items": {"type": "string", "pattern": "^[A-Za-z0-9_]+$"}}
+            }
+        }
+    }
+}
