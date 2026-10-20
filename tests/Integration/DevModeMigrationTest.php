@@ -48,6 +48,7 @@ final class DevModeMigrationTest extends IntegrationTestCase
             '--db-password-file=' . $directory . '/db-password',
             '--server-path=/var/www/html',
             '--rules-dir=' . dirname(__DIR__) . '/fixtures/rules',
+            '--self-test-url=' . Stack::TARGET_URL,
             '--mode=dev', '--mail-catcher=' . Stack::MAIL_CATCHER,
             '--journal-dir=' . $directory . '/journal',
         ];
@@ -143,7 +144,12 @@ final class DevModeMigrationTest extends IntegrationTestCase
         self::assertSame(0, $code, $stderr . $stdout);
         $again = json_decode((string) file_get_contents($directory . '/again.json'), true);
         self::assertIsArray($again);
-        self::assertSame(0, $again['plannedChanges'], 'A repeated dev run must not change anything.');
+        foreach ($again['steps'] as $step) {
+            // The self-test of the first run visited the shop; PrestaShop rebuilt caches, which the cache step removes again.
+            if ($step['id'] !== 'discard-caches') {
+                self::assertSame([], $step['plan']['changes'], $step['id'] . ': a repeated dev run must not change anything.');
+            }
+        }
     }
 
     public function testTheShopStillWorksAndKeepsSearchEnginesOut(): void

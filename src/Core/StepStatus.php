@@ -15,6 +15,9 @@ enum StepStatus: string
     /** The changes were applied. */
     case Applied = 'applied';
 
+    /** Nothing to change, but the step ran anyway (see {@see AlwaysRuns}): a check, a clean-up. */
+    case Ran = 'ran';
+
     /** The step threw an exception. */
     case Failed = 'failed';
 

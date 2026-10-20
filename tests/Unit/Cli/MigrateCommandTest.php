@@ -252,6 +252,36 @@ final class MigrateCommandTest extends TestCase
         self::assertSame(['tracking', 'noindex'], $seen->devSkip);
     }
 
+    public function testSelfTestAndFinalizeFlagsReachTheRequest(): void
+    {
+        $seen = null;
+        $step = new FakeStep('a', $this->log, onPlan: static function ($context) use (&$seen): void {
+            $seen = $context->request;
+        });
+
+        $this->execute($this->application([$step]), ['prestashop9', '--root=' . $this->root, '--no-self-test', '--no-finalize', '--self-test-url=http://web', '--self-test-insecure']);
+
+        self::assertInstanceOf(\ThreadSafe\Migration\MigrationRequest::class, $seen);
+        self::assertFalse($seen->selfTest);
+        self::assertFalse($seen->finalize);
+        self::assertSame('http://web', $seen->selfTestUrl);
+        self::assertTrue($seen->selfTestInsecure);
+    }
+
+    public function testSelfTestAndFinalizeAreOnByDefault(): void
+    {
+        $seen = null;
+        $step = new FakeStep('a', $this->log, onPlan: static function ($context) use (&$seen): void {
+            $seen = $context->request;
+        });
+
+        $this->execute($this->application([$step]), ['prestashop9', '--root=' . $this->root]);
+
+        self::assertInstanceOf(\ThreadSafe\Migration\MigrationRequest::class, $seen);
+        self::assertTrue($seen->selfTest);
+        self::assertTrue($seen->finalize);
+    }
+
     public function testBrokenRequestFileIsAUsageError(): void
     {
         $file = $this->root . '/request.json';
@@ -269,7 +299,7 @@ final class MigrateCommandTest extends TestCase
 
         (new Application([new MigrateCommand()]))->run(['threadsafe', 'help', 'migrate'], $output);
 
-        foreach (['--root=PATH', '--to=DOMAIN', '--from=DOMAIN', '--domain=OLD=NEW', '--ssl=MODE', '--db-password-file=FILE', '--journal-dir=DIR', '--report=FILE', '--yes', '--dry-run', '--mode=MODE', '--mail-catcher=HOST[:PORT]', '--dev-skip=LIST', '--dev-rules=FILE', '--rules-dir=DIR'] as $synopsis) {
+        foreach (['--root=PATH', '--to=DOMAIN', '--from=DOMAIN', '--domain=OLD=NEW', '--ssl=MODE', '--db-password-file=FILE', '--journal-dir=DIR', '--report=FILE', '--yes', '--dry-run', '--mode=MODE', '--mail-catcher=HOST[:PORT]', '--dev-skip=LIST', '--dev-rules=FILE', '--rules-dir=DIR', '--self-test-url=URL', '--no-self-test', '--no-finalize', '--self-test-insecure'] as $synopsis) {
             self::assertStringContainsString($synopsis, $output->stdout());
         }
     }

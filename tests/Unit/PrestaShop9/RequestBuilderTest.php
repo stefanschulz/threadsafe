@@ -125,6 +125,21 @@ final class RequestBuilderTest extends TestCase
         $this->build(['rulesDir' => $this->root . '/missing']);
     }
 
+    public function testSelfTestAndFinalizeDefaultsAndSettings(): void
+    {
+        $default = $this->build([]);
+        self::assertTrue($default->selfTest);
+        self::assertTrue($default->finalize);
+        self::assertNull($default->selfTestUrl);
+        self::assertFalse($default->selfTestInsecure);
+
+        $request = $this->build(['selfTest' => false, 'finalize' => false, 'selfTestUrl' => 'http://web:8080/', 'selfTestInsecure' => true]);
+        self::assertFalse($request->selfTest);
+        self::assertFalse($request->finalize);
+        self::assertSame('http://web:8080/', $request->selfTestUrl);
+        self::assertTrue($request->selfTestInsecure);
+    }
+
     public function testProductionIsNotDevMode(): void
     {
         self::assertFalse($this->build([])->isDevMode());
@@ -170,6 +185,11 @@ final class RequestBuilderTest extends TestCase
         yield 'invalid mail catcher' => [['mode' => 'dev', 'mailCatcher' => 'mail:port'], 'HOST or HOST:PORT'];
         yield 'missing dev rules file' => [['mode' => 'dev', 'devRules' => '/nope/rules.json'], 'cannot be read'];
         yield 'invalid mode' => [['mode' => 'staging'], 'must be "production" or "dev"'];
+        yield 'self-test url without scheme' => [['selfTestUrl' => 'web:8080'], 'selfTestUrl must look like'];
+        yield 'self-test url with a path' => [['selfTestUrl' => 'http://web/shop'], 'selfTestUrl must look like'];
+        yield 'self-test url with ftp' => [['selfTestUrl' => 'ftp://web'], 'selfTestUrl must look like'];
+        yield 'self-test not a boolean' => [['selfTest' => 'no'], 'selfTest must be true or false'];
+        yield 'finalize not a boolean' => [['finalize' => 0], 'finalize must be true or false'];
         yield 'invalid ssl' => [['ssl' => 'always'], 'SSL mode'];
         yield 'invalid domain' => [['from' => 'https://a.test', 'to' => 'b.test'], 'Invalid "from" domain'];
         yield 'mapping without arrow' => [['domains' => ['a.test']], 'old=new'];

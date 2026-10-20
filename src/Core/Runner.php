@@ -15,7 +15,8 @@ use Throwable;
  *
  * 1. Every guard is checked; a violated guard ends the run (exit code 2).
  * 2. plan() of every step is called, in order. This alone is the dry run.
- * 3. Only if $apply is true: apply() of every step whose plan has changes, in order. The first failing step ends
+ * 3. Only if $apply is true: apply() of every step whose plan has changes (and of every {@see AlwaysRuns} step), in order.
+ *    The first failing step ends
  *    the run (exit code 3, or 4 for a failed self-test); steps already applied stay applied and are reported, the
  *    rest is reported as skipped.
  */
@@ -76,7 +77,7 @@ final class Runner
                 $reports[] = new StepReport($step->id(), $step->title(), StepStatus::Skipped, $plan);
                 continue;
             }
-            if (!$plan->hasChanges()) {
+            if (!$plan->hasChanges() && !($step instanceof AlwaysRuns && !$dryRun)) {
                 $reports[] = new StepReport($step->id(), $step->title(), StepStatus::Unchanged, $plan);
                 continue;
             }
@@ -87,9 +88,11 @@ final class Runner
 
             try {
                 $context->logger->info("Applying \"{$step->id()}\"");
-                $context->journal->step($step->id());
+                if ($plan->hasChanges()) {
+                    $context->journal->step($step->id());
+                }
                 $result = $step->apply($context, $plan);
-                $reports[] = new StepReport($step->id(), $step->title(), StepStatus::Applied, $plan, $result);
+                $reports[] = new StepReport($step->id(), $step->title(), $plan->hasChanges() ? StepStatus::Applied : StepStatus::Ran, $plan, $result);
             } catch (Throwable $e) {
                 $failure = $e instanceof StepFailed ? $e->withStepId($step->id()) : StepFailed::in($step->id(), $e);
                 $context->logger->error($failure->getMessage());

@@ -35,6 +35,10 @@ final readonly class MigrationRequest
      * @param list<string>          $devSkip      dev mode: ids of the rules that must not be applied
      * @param string|null           $devRulesFile dev mode: JSON file with more rules (same format as resources/prestashop9/dev-mode.json)
      * @param string|null           $rulesDir     directory with the user's module rules; null = data/rules next to the program, if present
+     * @param bool                  $selfTest     check the migrated shop over HTTP at the end of a run
+     * @param string|null           $selfTestUrl  address the web server answers on, if that differs from the shop's domain (e.g. http://web-container); the shop's path is added
+     * @param bool                  $selfTestInsecure do not verify TLS certificates in the self-test
+     * @param bool                  $finalize     let PrestaShop itself clear its caches (and regenerate .htaccess and robots.txt after a path change)
      */
     public function __construct(
         public string $root,
@@ -51,6 +55,10 @@ final readonly class MigrationRequest
         public array $devSkip = [],
         public ?string $devRulesFile = null,
         public ?string $rulesDir = null,
+        public bool $selfTest = true,
+        public ?string $selfTestUrl = null,
+        public bool $selfTestInsecure = false,
+        public bool $finalize = true,
     ) {
         if ($root === '') {
             throw new InvalidArgumentException('The shop root directory must not be empty.');

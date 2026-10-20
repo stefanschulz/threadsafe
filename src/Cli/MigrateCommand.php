@@ -78,6 +78,10 @@ final class MigrateCommand implements Command
             new OptionSpec('replace-bare', 'Also replace bare domain names in content (not only URLs)'),
             new OptionSpec('chunk-size', 'Rows per chunk in the content replacement (default 2000)', takesValue: true, valueName: 'N'),
             new OptionSpec('rules-dir', 'Directory with your module rules, one <module>.json each (default: data/rules next to the program)', takesValue: true, valueName: 'DIR'),
+            new OptionSpec('self-test-url', 'Self-test: address the web server answers on if not the shop domain, e.g. http://web (default: the shop domain)', takesValue: true, valueName: 'URL'),
+            new OptionSpec('self-test-insecure', 'Self-test: do not verify TLS certificates'),
+            new OptionSpec('no-self-test', 'Do not check the migrated shop over HTTP at the end'),
+            new OptionSpec('no-finalize', 'Do not let PrestaShop clear its caches itself at the end'),
             new OptionSpec('request', 'JSON file with the same settings (command line options win)', takesValue: true, valueName: 'FILE'),
             new OptionSpec('journal-dir', 'Where the journal goes (default: <root>/var/threadsafe-journal)', takesValue: true, valueName: 'DIR'),
             new OptionSpec('report', 'Write the report as JSON to this file', takesValue: true, valueName: 'FILE'),
@@ -158,7 +162,7 @@ final class MigrateCommand implements Command
             $settings = $decoded;
         }
 
-        $flags = ['root' => 'root', 'from' => 'from', 'to' => 'to', 'path' => 'path', 'ssl' => 'ssl', 'mode' => 'mode', 'server-path' => 'serverPath', 'mail-catcher' => 'mailCatcher', 'dev-rules' => 'devRules', 'rules-dir' => 'rulesDir'];
+        $flags = ['root' => 'root', 'from' => 'from', 'to' => 'to', 'path' => 'path', 'ssl' => 'ssl', 'mode' => 'mode', 'server-path' => 'serverPath', 'mail-catcher' => 'mailCatcher', 'dev-rules' => 'devRules', 'rules-dir' => 'rulesDir', 'self-test-url' => 'selfTestUrl'];
         foreach ($flags as $option => $key) {
             if ($input->has($option)) {
                 $settings[$key] = $input->value($option);
@@ -187,6 +191,14 @@ final class MigrateCommand implements Command
         }
         if ($input->has('dev-skip')) {
             $settings['devSkip'] = array_values(array_filter(array_map('trim', explode(',', (string) $input->value('dev-skip')))));
+        }
+        foreach (['no-self-test' => 'selfTest', 'no-finalize' => 'finalize'] as $option => $key) {
+            if ($input->has($option)) {
+                $settings[$key] = false;
+            }
+        }
+        if ($input->has('self-test-insecure')) {
+            $settings['selfTestInsecure'] = true;
         }
         if ($input->has('replace-bare')) {
             $settings['replaceBare'] = true;

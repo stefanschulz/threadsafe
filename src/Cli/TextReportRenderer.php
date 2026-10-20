@@ -44,6 +44,7 @@ final class TextReportRenderer
             StepStatus::Unchanged => '=',
             StepStatus::Planned => '~',
             StepStatus::Applied => '+',
+            StepStatus::Ran => '*',
             StepStatus::Failed => 'x',
             StepStatus::Skipped => '-',
         };
@@ -51,6 +52,7 @@ final class TextReportRenderer
             StepStatus::Unchanged => 'already correct',
             StepStatus::Planned => $step->plan->changeCount() . ' change(s) planned',
             StepStatus::Applied => ($step->result->applied ?? 0) . ' change(s) applied',
+            StepStatus::Ran => 'done',
             StepStatus::Failed => 'FAILED: ' . $this->clip($step->error ?? ''),
             StepStatus::Skipped => 'skipped',
         };

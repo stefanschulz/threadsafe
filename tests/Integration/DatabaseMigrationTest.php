@@ -45,6 +45,7 @@ final class DatabaseMigrationTest extends IntegrationTestCase
             '--db-password-file=' . $directory . '/db-password',
             '--server-path=/var/www/html',
             '--rules-dir=' . dirname(__DIR__) . '/fixtures/rules',
+            '--self-test-url=' . Stack::TARGET_URL,
             '--journal-dir=' . $directory . '/journal',
         ];
     }
@@ -96,6 +97,10 @@ final class DatabaseMigrationTest extends IntegrationTestCase
         self::assertSame($newDomain, self::scalar($db, "SELECT value FROM ps_configuration WHERE name = 'PS_SHOP_DOMAIN_SSL'"));
         $applied = $this->report($directory . '/applied.json');
         self::assertFalse($applied['dryRun']);
+        $statuses = array_column($applied['steps'], 'status', 'id');
+        self::assertSame('ran', $statuses['self-test'], 'The self-test ran after the migration.');
+        self::assertSame('ran', $statuses['finalize']);
+        self::assertStringContainsString('ok: home page (/) - HTTP 200', json_encode($applied, JSON_UNESCAPED_SLASHES) ?: '');
         self::assertSame($dry['plannedChanges'], $applied['plannedChanges'], 'The dry run announced what the real run did.');
         self::assertGreaterThan(0, $applied['appliedChanges']);
 
@@ -107,7 +112,8 @@ final class DatabaseMigrationTest extends IntegrationTestCase
 
         // --- caches, skipped log table, source
         self::assertSame('0', self::scalar($db, 'SELECT COUNT(*) FROM ps_smarty_cache'));
-        self::assertSame($logRowsBefore, self::scalar($db, 'SELECT COUNT(*) FROM ps_connections_source'));
+        // The self-test visits the shop, and every visit is logged: a few rows more, but the 200,000 old ones are not rewritten.
+        self::assertLessThan(100, (int) self::scalar($db, 'SELECT COUNT(*) FROM ps_connections_source') - (int) $logRowsBefore);
         self::assertGreaterThanOrEqual(200000, (int) self::scalar($db, "SELECT COUNT(*) FROM ps_connections_source WHERE http_referer LIKE '%$oldDomain%'"));
         self::assertSame($oldDomain, self::scalar(Stack::sourceDb(), 'SELECT domain FROM ps_shop_url LIMIT 1'), 'The source database was not touched.');
 
@@ -116,10 +122,37 @@ final class DatabaseMigrationTest extends IntegrationTestCase
         self::assertSame(0, $code, $stderr . $stdout);
         self::assertStringContainsString('already uses', $stdout);
         $again = $this->report($directory . '/again.json');
-        self::assertSame(0, $again['plannedChanges'], 'A repeated run must not change anything.');
         foreach ($again['steps'] as $step) {
-            self::assertSame('unchanged', $step['status'], $step['id']);
+            // Finalize and the self-test run on every applied run. The first run's self-test visited the shop and PrestaShop
+            // rebuilt some caches, so the cache step has work again; everything else is done.
+            $expected = match ($step['id']) {
+                'finalize', 'self-test' => ['ran'],
+                'discard-caches' => ['applied', 'unchanged'],
+                default => ['unchanged'],
+            };
+            self::assertContains($step['status'], $expected, $step['id']);
+            if ($step['id'] !== 'discard-caches') {
+                self::assertSame([], $step['plan']['changes'], $step['id'] . ' must not change anything on a repeated run.');
+            }
         }
+    }
+
+    public function testSelfTestFailureGivesExitCodeFour(): void
+    {
+        $directory = $this->tempDirectory();
+        $command = array_values(array_filter($this->command($directory), static fn (string $a): bool => !str_starts_with($a, '--self-test-url=')));
+
+        // Nothing is left to migrate; the shop cannot be reached at this address, so the check of the result fails.
+        [$code, $stdout, $stderr] = CliProcess::run([...$command, '--self-test-url=http://127.0.0.1:9', '--no-finalize', '--yes']);
+
+        self::assertSame(4, $code, $stdout . $stderr);
+        self::assertStringContainsString('The migrated shop does not work', $stderr);
+        self::assertStringContainsString('no answer from', $stderr);
+
+        [$code, $stdout, $stderr] = CliProcess::run([...$command, '--no-self-test', '--no-finalize', '--yes']);
+
+        self::assertSame(0, $code, $stdout . $stderr);
+        self::assertStringContainsString('The self-test is switched off', $stdout);
     }
 
     public function testWrongOldDomainIsRefused(): void

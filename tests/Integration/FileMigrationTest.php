@@ -75,7 +75,12 @@ final class FileMigrationTest extends IntegrationTestCase
 
     public function testCachesAreGoneAndTheSkeletonIsBack(): void
     {
-        self::assertDirectoryDoesNotExist(self::TARGET . '/var/cache/prod/ps_mainmenu');
+        // The self-test visits the shop, which rebuilds some caches; what must not survive is the copy of the old settings.
+        $parameters = self::TARGET . '/var/cache/prod/appParameters.php';
+        if (is_file($parameters)) {
+            self::assertStringNotContainsString("'database_host' => 'db'", (string) file_get_contents($parameters));
+            self::assertStringContainsString('target-db', (string) file_get_contents($parameters));
+        }
         foreach (['var/logs', 'var/sessions', 'var/cache', 'img/tmp'] as $directory) {
             self::assertDirectoryExists(self::TARGET . '/' . $directory);
             self::assertSame(

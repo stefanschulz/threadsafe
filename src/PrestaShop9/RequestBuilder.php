@@ -33,6 +33,10 @@ use ThreadSafe\Replace\DomainMapping;
  *   devSkip       list     dev mode: ids of rules to leave out (see resources/prestashop9/dev-mode.json)
  *   devRules      string   dev mode: JSON file with more rules
  *   rulesDir      string   directory with the user's module rules (default: data/rules next to the program)
+ *   selfTest      bool     check the migrated shop over HTTP at the end (default true)
+ *   selfTestUrl   string   address the web server answers on, if not the shop's domain, e.g. http://web (scheme, host, port)
+ *   selfTestInsecure bool  do not verify TLS certificates in the self-test
+ *   finalize      bool     let PrestaShop clear its caches itself at the end (default true)
  *   serverPath    string   where the web server sees the shop, if different from root
  *   database      object   host, port, name, user, password, passwordFile, prefix – each defaults to parameters.php
  *   replaceBare   bool     also replace bare domain names
@@ -72,7 +76,7 @@ final class RequestBuilder
      */
     public function build(array $settings): MigrationRequest
     {
-        $known = ['root', 'from', 'to', 'domains', 'path', 'ssl', 'mode', 'mailCatcher', 'devSkip', 'devRules', 'rulesDir', 'serverPath', 'database', 'replaceBare', 'skipTables', 'chunkSize'];
+        $known = ['root', 'from', 'to', 'domains', 'path', 'ssl', 'mode', 'mailCatcher', 'devSkip', 'devRules', 'rulesDir', 'selfTest', 'selfTestUrl', 'selfTestInsecure', 'finalize', 'serverPath', 'database', 'replaceBare', 'skipTables', 'chunkSize'];
         foreach (array_keys($settings) as $key) {
             if (!in_array($key, $known, true)) {
                 throw new InvalidArgumentException("Unknown setting \"$key\".");
@@ -128,6 +132,10 @@ final class RequestBuilder
             $devSkip,
             $devRules,
             $rulesDir,
+            $this->boolean($settings, 'selfTest', true),
+            $this->selfTestUrl($settings),
+            $this->boolean($settings, 'selfTestInsecure', false),
+            $this->boolean($settings, 'finalize', true),
         );
     }
 
@@ -159,6 +167,37 @@ final class RequestBuilder
         DevModeRules::load($file)->assertKnown($skip, ModuleRules::load($rulesDir)->knownNames());
 
         return [$catcher === null ? null : MailCatcher::parse($catcher), $skip, $file];
+    }
+
+    /**
+     * @param array<string, mixed> $settings
+     */
+    private function boolean(array $settings, string $key, bool $default): bool
+    {
+        $value = $settings[$key] ?? $default;
+        if (!is_bool($value)) {
+            throw new InvalidArgumentException("$key must be true or false.");
+        }
+
+        return $value;
+    }
+
+    /**
+     * @param array<string, mixed> $settings
+     */
+    private function selfTestUrl(array $settings): ?string
+    {
+        $url = $this->string($settings, 'selfTestUrl');
+        if ($url === null) {
+            return null;
+        }
+        $parts = parse_url($url);
+        if (!is_array($parts) || !in_array($parts['scheme'] ?? '', ['http', 'https'], true) || !isset($parts['host'])
+            || isset($parts['query']) || isset($parts['fragment']) || !in_array($parts['path'] ?? '', ['', '/'], true)) {
+            throw new InvalidArgumentException('selfTestUrl must look like http://host[:port] (the shop path is added automatically).');
+        }
+
+        return $url;
     }
 
     /**

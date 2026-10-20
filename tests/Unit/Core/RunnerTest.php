@@ -18,6 +18,7 @@ use ThreadSafe\Core\NullLogger;
 use ThreadSafe\Core\Runner;
 use ThreadSafe\Core\StepStatus;
 use ThreadSafe\Tests\Support\EventLog;
+use ThreadSafe\Tests\Support\FakeAlwaysRunsStep;
 use ThreadSafe\Tests\Support\FakeStep;
 use ThreadSafe\Tests\Support\RecordingJournal;
 
@@ -68,6 +69,40 @@ final class RunnerTest extends TestCase
             array_map(static fn (StepStatus $s): string => $s->value, $expected),
             array_map(static fn ($step): string => $step->status->value, $result->report->steps),
         );
+    }
+
+    public function testAlwaysRunsStepRunsWithoutChangesOnAnAppliedRun(): void
+    {
+        $runner = new Runner([new FakeStep('a', $this->log, 0), new FakeAlwaysRunsStep('check', $this->log)]);
+
+        $result = $runner->run($this->context(), apply: true);
+
+        self::assertSame(['plan:a', 'plan:check', 'apply:check'], $this->log->events);
+        $this->assertStatuses([StepStatus::Unchanged, StepStatus::Ran], $result);
+        self::assertSame([], $this->journal->steps, 'A step that changes nothing leaves no trace in the journal.');
+        self::assertTrue($result->isOk());
+    }
+
+    public function testAlwaysRunsStepDoesNotRunInADryRun(): void
+    {
+        $runner = new Runner([new FakeAlwaysRunsStep('check', $this->log)]);
+
+        $result = $runner->run($this->context(dryRun: true), apply: false);
+
+        self::assertSame(['plan:check'], $this->log->events);
+        $this->assertStatuses([StepStatus::Unchanged], $result);
+    }
+
+    public function testFailingAlwaysRunsStepGivesTheSelfTestExitCode(): void
+    {
+        $check = new FakeAlwaysRunsStep('self-test', $this->log, static function (): never {
+            throw new SelfTestFailed('home page answers 500');
+        });
+
+        $result = (new Runner([new FakeStep('a', $this->log), $check]))->run($this->context(), apply: true);
+
+        self::assertSame(ExitCode::SelfTestFailed, $result->exitCode);
+        $this->assertStatuses([StepStatus::Applied, StepStatus::Failed], $result);
     }
 
     public function testDryRunPlansEverythingAndAppliesNothing(): void

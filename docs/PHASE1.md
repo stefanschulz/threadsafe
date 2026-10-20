@@ -118,8 +118,8 @@ Steps 5 and 9 are driven by the engine **plus module rules** (3.8).
 | 7 | `RewriteHostBoundFiles` | `php.ini` (`error_log` absolute path → new site path), `robots.txt`, `*_sitemap.xml` (replace or delete for regeneration), generated mail templates in `mails/` and `modules/*/mails/`, `ps_gsitemap_sitemap.link`. Rule list in `host-bound-files.json`. |
 | 8 | `EnsureSkeleton` | creates missing `var/cache`, `var/logs` etc., sets writable directories (`var/`, `img/`, `upload/`, `download/`, `translations/`, `mails/`). |
 | 9 | `ApplyDevMode` and `BlockSearchEngines` (only `mode=dev`; always in the list, empty in production) *(implemented)* | data-driven (`resources/prestashop9/dev-mode.json`, see 3.9): mail catcher or no mail, PayPal sandbox without live credentials, `PS_ACCOUNTS_*` and Facebook secrets removed, cloud modules deactivated, `robots.txt` and `X-Robots-Tag`. Module deactivation mirrors `Module::disable()`: delete the `module_shop` rows and set `module.active = 0` (verified in `Module.php`). `ApplyDevMode` (database) runs **before** step 3, because the compiled container in `var/cache` lists the active modules; `BlockSearchEngines` (files) runs after step 7, because it replaces the `robots.txt` that step has just fixed. Each rule can be switched off in the request. |
-| 10 | `Finalize` (optional) | boots PrestaShop in a child process and calls its own routines (`Tools::clearAllCache`, `Tools::generateHtaccess`, `Tools::generateRobotsFile`); failure is reported as a warning, steps 1–9 stay valid. |
-| 11 | `SelfTest` | HTTP checks against the base URL of the request: home page, a category, a product, **a product image via its friendly URL** (proves the `.htaccess` fix), contact, front login, back-office login page; redirect-loop detection; scan of the home page for the old domain. Traffic-light report. |
+| 10 | `Finalize` (optional, `--no-finalize`) *(implemented)* | starts PrestaShop in a child process (`resources/prestashop9/finalize.php`, as the owner of the shop when ThreadSafe runs as root, so that no root-owned cache files appear) and calls `Tools::clearAllCache()`. Only after a change of the base path (`--path`) it also has PrestaShop regenerate `.htaccess` and `robots.txt` (`robots.txt` not in dev mode: the search engine block owns it). Never fatal: if PrestaShop cannot be started here (missing PHP extensions ...) the step reports a warning and the migration stays valid. An `AlwaysRuns` step: runs on every applied run. |
+| 11 | `SelfTest` (`--no-self-test`) *(implemented, see 3.10)* | HTTP checks of the migrated shop: home page (complete, no links to the old domain), category, product, **a product image via its friendly URL** (proves the `.htaccess` fix), contact, front login, back-office login page; redirect loops, redirects to another host and any status other than 200 fail. A failed check gives exit code 4 (the migration stays applied). An `AlwaysRuns` step. |
 
 ### 3.6 CLI *(implemented; the option list below is the plan, `threadsafe help migrate` is authoritative)*
 
@@ -127,7 +127,7 @@ Steps 5 and 9 are driven by the engine **plus module rules** (3.8).
 threadsafe migrate prestashop9 --root=/var/www/html --to=shop.example.test [--from=localhost:8190]
     [--path=/] [--ssl=none|login|all] [--mode=production|dev]
     [--mail-catcher=mailpit:1025] [--dev-skip=mail,tracking,module:ps_example] [--dev-rules=more-rules.json]
-    [--rules-dir=data/rules]
+    [--rules-dir=data/rules] [--self-test-url=http://web] [--self-test-insecure] [--no-self-test]
     [--db-host=… --db-name=… --db-user=… --db-password-file=…] [--prefix=ps_]
     [--request=request.json] [--dry-run] [--yes] [--report=report.json]
     [--replace-bare] [--skip-tables=a,b] [--no-finalize] [--self-test-url=http://…]
@@ -175,6 +175,14 @@ Tests: unit (rules loader, request, options), scratch database (`DevModeTest`: e
 journal, skipped rules, warnings) and, as phase 3 of `tests/stack/run.sh`, the real command on the migrated clone with
 the live connections of `tests/fixtures/seed-live-links.sql` (`DevModeMigrationTest`: the secrets are gone from
 database and report, the shop still answers, sends `X-Robots-Tag`, and a password-reset mail arrives in Mailpit).
+
+### 3.10 Finalize and self-test *(implemented)*
+
+Both steps implement `AlwaysRuns`: they run on every applied run, also when the migration found nothing to change (a restore in place still gets its self-test), are reported as `ran` and leave no journal entries. A dry run does not run them (there is no result to check yet); it says what they will do.
+
+**Self-test.** The shop is requested at its own domain (https if it uses https everywhere; the main shop URL with the requested domain mapping and base path) or at `--self-test-url=http://host[:port]` when the web server must be reached under another address (another container, `127.0.0.1`); the shop's domain always goes into the `Host` header, the base path is added. `--self-test-insecure` skips the TLS verification (self-signed dev certificates). Checks (by name in the report): home page, category page (`PS_HOME_CATEGORY`), product page (first active product), product image through its friendly URL, contact page, login page, back office login (the folder found by `ReadSourceState`). A check that has nothing to look at (no product, no image, no `.htaccess`, no back office folder) is skipped with a warning. Redirects on the shop's own host are followed (at most 10); a redirect loop, a redirect to **another host** (typically the old domain) and a page that stays incomplete (no closing `</html>`) fail, as do links to the old domain on the home page. The failure message lists every failed check; the exit code is 4. `--no-self-test` switches the whole step off (warning). The visits are real visits: they show up in the shop's logs and rebuild some caches.
+
+**Finalize.** See step 10 above. The child process gets its options as one JSON argument; ThreadSafe's own PHP binary is used, so it must be able to start PrestaShop (the extensions of PrestaShop's `composer.json`); where it cannot, Finalize only warns.
 
 ### 3.8 Module rules *(implemented)*
 
@@ -253,7 +261,7 @@ Fresh installs plus fixtures are the basis of all automated tests; no customer d
 | 5b | `Modules/` rule system: JSON schema, loader, registry, user rules folder; integration into steps 3, 5, 7, 9; rule for the fixture module - **done** (3.8; the fixture rule runs through the whole clone migration and the dev run) | 4, 5 | M |
 | 6 | steps 2, 6, 7, 8 (files) with golden tests — **done**; with the database steps the migrated clone serves the shop under the new domain and its `.htaccess` block equals PrestaShop's own regeneration. Request option `serverPath` for the case that the web server sees the shop under another path than the tool | 2, 3 | M |
 | 7 | step 9 dev mode (data-driven rules) - **done**: `--mode=dev`, rules in `dev-mode.json`, own rule files, mail catcher, robots/`X-Robots-Tag`; phase 3 of `tests/stack/run.sh` runs it on the migrated clone and proves that a shop mail arrives in Mailpit | 5 | M |
-| 8 | steps 10, 11 (finalize, self-test) | 5, 6 | M |
+| 8 | steps 10, 11 (finalize, self-test) - **done** (3.10); the clone migration in `run.sh` ends with a real self-test of the migrated target | 5, 6 | M |
 | 9 | integration harness: target stack, fixture, clone script, assertions, `.htaccess` oracle — **done** (migration assertions follow with WP 5–8) | 1 | L |
 | 10 | documentation: request/report/journal format, usage, private-test procedure | all | S |
 

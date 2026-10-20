@@ -28,6 +28,14 @@ replaced. Exit codes: 0 ok, 1 usage error, 2 refused (wrong shop, unsupported ve
 4 self-test failed, 5 internal error. `threadsafe help migrate` lists all options. The journal (default
 `<root>/var/threadsafe-journal`) contains old and new values, including passwords: keep it private.
 
+### Self-test
+
+After a real run the shop is requested over HTTP (home page, category, product, a product image through its friendly URL,
+contact, login, back office login). A failure ends the run with exit code 4; the migration stays applied. If the web
+server cannot be reached under the shop's domain from where ThreadSafe runs, give its address with
+`--self-test-url=http://127.0.0.1:8080` (the shop's domain is sent as Host header). `--no-self-test` switches the check
+off, `--no-finalize` the cache clearing by PrestaShop itself.
+
 ### Dev mode: a live shop as a dev copy
 
 `--mode=dev` makes sure the copy cannot talk to the live world: mail goes to a mail catcher (or nowhere), PayPal is
