@@ -91,7 +91,7 @@ foreach (array('exec', 'proc_open', 'shell_exec', 'passthru', 'popen', 'system',
 echo "\nFile system (directory of this file)\n";
 $base = dirname(__FILE__);
 probe_line('directory', is_writable($base) ? 'writable' : 'NOT WRITABLE');
-$free = @disk_free_space($base);
+$free = function_exists('disk_free_space') ? @disk_free_space($base) : false;
 probe_line('free space', $free === false ? 'unknown' : round($free / 1048576) . ' MB');
 $dir = $base . '/.threadsafe-probe-' . substr(md5(uniqid('', true)), 0, 8);
 if (@mkdir($dir, 0700)) {
@@ -133,11 +133,15 @@ if (@mkdir($dir, 0700)) {
         $seconds = microtime(true) - $t;
         probe_line('inflate speed', sprintf('%.0f MB/s', 5 * strlen($text) / 1048576 / max($seconds, 0.001)));
     }
-    @chmod($dir . '/f1.php', 0600);
+    if (function_exists('chmod')) {
+        @chmod($dir . '/f1.php', 0600);
+    }
     probe_line('chmod 0600', sprintf('mode %04o', fileperms($dir . '/f1.php') & 0777));
-    @touch($dir . '/f1.php', 1700000000);
+    if (function_exists('touch')) {
+        @touch($dir . '/f1.php', 1700000000);
+    }
     clearstatcache();
-    probe_line('touch (set mtime)', filemtime($dir . '/f1.php') === 1700000000 ? 'ok' : 'ignored');
+    probe_line('touch (set mtime)', filemtime($dir . '/f1.php') === 1700000000 ? 'ok' : 'ignored or disabled');
     $linked = function_exists('symlink') && @symlink($dir . '/f1.php', $dir . '/link');
     probe_line('symlink', $linked ? 'ok' : 'not possible');
     $self = @unlink($dir . '/f2.php');
@@ -162,7 +166,33 @@ if ($cli || probe_function('exec') === 'available') {
 }
 $binary = defined('PHP_BINARY') && PHP_BINARY !== '' ? PHP_BINARY : '(unknown)';
 probe_line('PHP binary', $binary);
-probe_line('php in PATH', trim((string) @shell_exec('command -v php 2>/dev/null')) !== '' ? trim((string) @shell_exec('command -v php 2>/dev/null')) : 'not found / shell_exec unavailable');
+$which = array();
+if (probe_function('exec') === 'available') {
+    @exec('command -v php 2>/dev/null', $which);
+}
+probe_line('php in PATH', isset($which[0]) && trim($which[0]) !== '' ? trim($which[0]) : 'not found, or exec unavailable');
+if (probe_function('exec') === 'available') {
+    // which PHP binaries exist, and what does each say? (a shell may run PHP 4 while the web server runs PHP 8)
+    $candidates = array();
+    if ($binary !== '(unknown)') {
+        $candidates[] = $binary;
+    }
+    if (isset($which[0]) && trim($which[0]) !== '') {
+        $candidates[] = trim($which[0]);
+    }
+    foreach (array('php', 'php8.4', 'php84', 'php8', 'php-cli') as $candidateName) {
+        foreach (array('/usr/bin/', '/usr/local/bin/', '/bin/', '/usr/lib/cgi-bin/', '/opt/php84/bin/', '/opt/php-8.4/bin/', '/opt/plesk/php/8.4/bin/', '/opt/alt/php84/usr/bin/', '/usr/local/php84/bin/') as $dir) {
+            if (@is_file($dir . $candidateName) && @is_executable($dir . $candidateName)) {
+                $candidates[] = $dir . $candidateName;
+            }
+        }
+    }
+    foreach (array_unique($candidates) as $candidate) {
+        $first = array();
+        @exec(escapeshellarg($candidate) . ' -v 2>&1', $first);
+        probe_line('  ' . $candidate, isset($first[0]) ? substr(trim($first[0]), 0, 60) : '(no answer)');
+    }
+}
 
 $busy = 0;
 if ($cli) {
@@ -176,7 +206,9 @@ if ($cli) {
 }
 if ($busy > 0) {
     echo "\nRequest time ($busy s): a line every 5 s - note where the output stops\n";
-    @set_time_limit($busy + 30);
+    if (function_exists('set_time_limit')) {
+        @set_time_limit($busy + 30);
+    }
     $start = time();
     while (time() - $start < $busy) {
         sleep(5);
@@ -201,9 +233,24 @@ if ($cli) {
         }
     }
 }
+$password = '';
+$settingsFile = dirname(__FILE__) . '/host-probe-db.php';
+if ($host === null && is_file($settingsFile)) {
+    // <?php return array('host' => '...', 'name' => '...', 'user' => '...', 'password' => '...');
+    $settings = include $settingsFile;
+    if (is_array($settings) && isset($settings['host'], $settings['name'], $settings['user'])) {
+        $host = $settings['host'];
+        $name = $settings['name'];
+        $user = $settings['user'];
+        $password = isset($settings['password']) ? (string) $settings['password'] : '';
+        $file = '';
+    }
+}
 if ($host !== null && $name !== null && $user !== null && $file !== null) {
     echo "\nDatabase\n";
-    $password = is_file($file) ? rtrim((string) file_get_contents($file), "\r\n") : '';
+    if ($file !== '') {
+        $password = is_file($file) ? rtrim((string) file_get_contents($file), "\r\n") : '';
+    }
     try {
         if (extension_loaded('pdo_mysql')) {
             $pdo = new PDO('mysql:host=' . $host . ';dbname=' . $name . ';charset=utf8mb4', $user, $password, array(PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION));
@@ -234,8 +281,8 @@ if ($host !== null && $name !== null && $user !== null && $file !== null) {
     } catch (Exception $e) {
         probe_line('connection', 'FAILED: ' . preg_replace('/password[^,]*/i', 'password ***', $e->getMessage()));
     }
-} elseif ($cli) {
-    echo "\n(add --db-host=H --db-name=N --db-user=U --db-password-file=FILE to test the database)\n";
+} else {
+    echo "\n(to test the database put a file host-probe-db.php next to this one:\n   <?php return array('host' => 'localhost', 'name' => '...', 'user' => '...', 'password' => '...');\n or, on the command line, use --db-host=H --db-name=N --db-user=U --db-password-file=FILE)\n";
 }
 
-echo "\nDelete this file when you are done.\n";
+echo "\nDelete this file - and host-probe-db.php - when you are done.\n";

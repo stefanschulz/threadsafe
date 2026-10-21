@@ -359,7 +359,8 @@ Phase 1 deliberately comes before the engine: it solves the actual problem (the 
 - Multi-site (section 5): profiles, dashboard, backup overview, manual backup and download are core requirements; all sites live on the same server/account, one instance is enough; one admin user at first, roles can be added later; download warning from 500 MB (configurable).
 
 **Open**
-- Which database does the live host use (MariaDB or MySQL)? Check with `SELECT VERSION()` on the live system. Both are supported now; the answer decides which one the private reality check runs against.
+- Which database does the live host use (MariaDB or MySQL)? Check with `SELECT VERSION()` on the live system, or with `tools/spikes/host-probe.php --db-host=… --db-name=… --db-user=… --db-password-file=…`. Both are supported now; the answer decides which one the private reality check runs against.
+- Answered by the host probe run on the live host through the web server (2026-10-21): PHP 8.4.26 (`cgi-fcgi`), `max_execution_time` 30, 512 MB, nothing disabled, `exec` works, a moderately fast file system; **the SSH shell of that account runs PHP 4**, so the command line path needs an explicit PHP 8.4 binary and the web paths (wizard, protected-URL trigger) are the realistic ones - see [PHASE3.md](PHASE3.md) section 8, finding 6. Still open: whether a proxy in front of PHP cuts requests before 30 s, and the database server.
 
 Next step: phase 2 (profiles and backup engine; plan: [PHASE2.md](PHASE2.md), decisions settled) is in progress - all work packages are done, the status is at the top of that document. Phases 1 and 1b are done. How to continue the work: [AGENTS.md](../AGENTS.md).
 
