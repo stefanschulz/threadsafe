@@ -76,7 +76,7 @@ final class VerifyCommand implements Command
             return ExitCode::StepFailed;
         }
 
-        $report = (new Verifier($storage, $catalog))->verify(BackupName::parse($entry->name->base()) ?? $entry->name, !$input->has('quick'));
+        $report = (new Verifier($storage))->verify(BackupName::parse($entry->name->base()) ?? $entry->name, !$input->has('quick'));
 
         if ($input->has('json')) {
             $output->writeln(json_encode($report->toArray(), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR));

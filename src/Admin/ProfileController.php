@@ -6,12 +6,14 @@ namespace ThreadSafe\Admin;
 
 use ThreadSafe\App\Detection;
 use ThreadSafe\App\ProfileService;
+use ThreadSafe\Core\Exception\GuardFailed;
 use ThreadSafe\Database\DatabaseSettings;
 use ThreadSafe\Plugin\PluginRegistry;
 use ThreadSafe\Profile\ProfileException;
 use ThreadSafe\Profile\ProfileStore;
 use ThreadSafe\Profile\SiteProfile;
 use ThreadSafe\Profile\TestReport;
+use ThreadSafe\Storage\SpaceCheck;
 use ThreadSafe\Web\Html;
 use ThreadSafe\Web\Response;
 
@@ -91,8 +93,10 @@ final class ProfileController
             . ' <a class="button danger" href="' . Html::e($context->urls->to("/profiles/$id/delete")) . '">Remove</a></div>';
 
         $backups = new BackupController($this->services);
+        $catalog = new CatalogController($this->services);
 
-        return View::page($context, $profile->name, $actions . $backups->runsBox($context, $id) . '<h2>Back up</h2>' . $backups->startForm($context, $id) . '<h2>Settings</h2>' . $table, '/profiles');
+        return View::page($context, $profile->name, $actions . $backups->runsBox($context, $id) . $catalog->checksBox($context, $id) . '<h2>Back up</h2>' . $backups->startForm($context, $id)
+            . '<h2>Backups</h2>' . $catalog->table($context, $id) . '<h2>Settings</h2>' . $table, '/profiles');
     }
 
     /**
@@ -158,9 +162,23 @@ final class ProfileController
             return $this->missing($context);
         }
 
+        try {
+            $entries = (new CatalogController($this->services))->service()->backups($profile->id);
+        } catch (\Throwable) {
+            $entries = [];   // the storage cannot be read: the profile can still be removed, its backups stay
+        }
+        $bytes = 0;
+        foreach ($entries as $entry) {
+            $bytes += $entry->sidecar?->size() ?? 0;
+        }
+        $choice = $entries === []
+            ? ''
+            : '<div class="field check"><label><input type="checkbox" name="delete_backups" value="1"> Also delete its ' . count($entries) . ' backup' . (count($entries) === 1 ? '' : 's') . ' (' . Html::e(SpaceCheck::format($bytes)) . ')</label>'
+                . '<p class="hint">This cannot be undone. Without the tick the backups stay where they are.</p></div>';
+
         $body = '<p>Remove the profile <strong>' . Html::e($profile->name) . '</strong>?</p>'
-            . '<p>Only the profile is removed. The site <code>' . Html::e($profile->path) . '</code> and its backups in <code>' . Html::e($profile->storage) . '</code> stay where they are.</p>'
-            . View::form($context, '/profiles/' . $profile->id . '/delete', '<button type="submit" class="danger">Remove the profile</button> <a href="' . Html::e($context->urls->to('/profiles/' . $profile->id)) . '">Cancel</a>');
+            . '<p>The site <code>' . Html::e($profile->path) . '</code> is not touched. Its backups in <code>' . Html::e($profile->storage) . '</code> stay where they are unless you tick the box.</p>'
+            . View::form($context, '/profiles/' . $profile->id . '/delete', $choice . '<button type="submit" class="danger">Remove the profile</button> <a href="' . Html::e($context->urls->to('/profiles/' . $profile->id)) . '">Cancel</a>');
 
         return View::page($context, 'Remove ' . $profile->name, $body, '/profiles');
     }
@@ -174,9 +192,19 @@ final class ProfileController
         if ($profile === null) {
             return $this->missing($context);
         }
+        $deleted = null;
+        if ($context->request->post('delete_backups') === '1') {
+            try {
+                $deleted = (new CatalogController($this->services))->service()->deleteAll($profile->id);
+            } catch (GuardFailed $e) {
+                $context->flash('error', $e->getMessage());
+
+                return Response::redirect($context->urls->to('/profiles/' . $profile->id . '/delete'));
+            }
+        }
         $this->service()->remove($profile->id);
-        $this->services->audit->record('profile.removed', $context->user() ?? '-', $context->request->remoteAddress, ['profile' => $profile->id]);
-        $context->flash('ok', 'The profile "' . $profile->name . '" was removed. Its backups stay where they are.');
+        $this->services->audit->record('profile.removed', $context->user() ?? '-', $context->request->remoteAddress, ['profile' => $profile->id, 'backupsDeleted' => $deleted]);
+        $context->flash('ok', 'The profile "' . $profile->name . '" was removed. ' . ($deleted === null ? 'Its backups stay where they are.' : ($deleted . ' backup' . ($deleted === 1 ? '' : 's') . ' deleted.')));
 
         return Response::redirect($context->urls->to('/profiles'));
     }

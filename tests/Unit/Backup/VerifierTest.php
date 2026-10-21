@@ -35,7 +35,7 @@ final class VerifierTest extends TestCase
     {
         $storage = $this->fixture->storage();
 
-        return new Verifier($storage, new BackupCatalog($storage));
+        return new Verifier($storage);
     }
 
     public function testAnIntactBackupPassesBothLevels(): void

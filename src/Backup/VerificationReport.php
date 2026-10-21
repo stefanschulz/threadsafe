@@ -29,6 +29,33 @@ final readonly class VerificationReport
         return $this->problems === [];
     }
 
+    /**
+     * @param array<string, mixed> $data as made by {@see toArray()}
+     */
+    public static function fromArray(array $data): self
+    {
+        $strings = static function (mixed $list): array {
+            $out = [];
+            foreach (is_array($list) ? $list : [] as $entry) {
+                if (is_string($entry)) {
+                    $out[] = $entry;
+                }
+            }
+
+            return $out;
+        };
+
+        return new self(
+            is_string($data['backup'] ?? null) ? $data['backup'] : '',
+            (($data['level'] ?? 'full') === 'full'),
+            is_int($data['parts'] ?? null) ? $data['parts'] : 0,
+            is_int($data['bytes'] ?? null) ? $data['bytes'] : 0,
+            $strings($data['problems'] ?? null),
+            is_string($data['status'] ?? null) ? BackupStatus::tryFrom($data['status']) : null,
+            $strings($data['notes'] ?? null),
+        );
+    }
+
     /** @return array<string, mixed> */
     public function toArray(): array
     {

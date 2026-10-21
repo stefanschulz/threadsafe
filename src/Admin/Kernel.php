@@ -95,6 +95,7 @@ final class Kernel
         $dashboard = new DashboardController($services);
         $profiles = new ProfileController($services);
         $backups = new BackupController($services);
+        $catalog = new CatalogController($services);
         $router = new Router();
         $router->add('GET', '/login', $auth->loginPage(...), public: true);
         $router->add('POST', '/login', $auth->login(...), public: true);
@@ -110,6 +111,14 @@ final class Kernel
         $router->add('GET', '/profiles/{id}/delete', $profiles->confirmRemove(...));
         $router->add('POST', '/profiles/{id}/delete', $profiles->remove(...));
         $router->add('POST', '/profiles/{id}/backup', $backups->start(...));
+        $router->add('GET', '/profiles/{id}/backups/{name}', $catalog->show(...));
+        $router->add('POST', '/profiles/{id}/backups/{name}/verify', $catalog->startCheck(...));
+        $router->add('GET', '/profiles/{id}/backups/{name}/delete', $catalog->confirmDelete(...));
+        $router->add('POST', '/profiles/{id}/backups/{name}/delete', $catalog->delete(...));
+        $router->add('GET', '/checks/{run}', $catalog->showCheck(...));
+        $router->add('POST', '/checks/{run}/tick', $catalog->tickCheck(...));
+        $router->add('POST', '/checks/{run}/continue', $catalog->nextCheck(...));
+        $router->add('POST', '/checks/{run}/discard', $catalog->discardCheck(...));
         $router->add('GET', '/runs/{run}', $backups->show(...));
         $router->add('POST', '/runs/{run}/tick', $backups->tick(...));
         $router->add('POST', '/runs/{run}/continue', $backups->next(...));

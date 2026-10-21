@@ -394,7 +394,7 @@ final class ZipReader
      *
      * @throws ZipException
      */
-    private function dataOffset(Entry $entry): int
+    public function dataOffset(Entry $entry): int
     {
         fseek($this->handle, $entry->localOffset);
         $header = (string) fread($this->handle, 30);

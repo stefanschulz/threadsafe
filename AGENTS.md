@@ -17,7 +17,7 @@ application automatically. First target: **PrestaShop 9.x**; MariaDB and MySQL; 
 | 1, 1b | Restore core: `threadsafe migrate <type>`, dev mode, module rules, self-test; database drivers; website type plugins | done |
 | 2 | Site profiles and backup engine (CLI) | done (work packages in [docs/PHASE2.md](docs/PHASE2.md) section 5; user documentation [docs/BACKUP.md](docs/BACKUP.md)) |
 | 3 | `restore.php` (extractor and wizard) | done (plan and "As built" in [docs/PHASE3.md](docs/PHASE3.md); user documentation [docs/RESTORE.md](docs/RESTORE.md)); milestone A: `threadsafe restore`, milestone B: the single file `dist/restore.php` with the wizard; disaster recovery proven on the Docker stack |
-| 4 | Web interface (dashboard, download) | **planned**: [docs/PHASE4.md](docs/PHASE4.md), decisions settled; work packages 1 (spikes), 2 (foundations: login, setup, `threadsafe admin`) and 3 (profile pages) and 4 (backup run in the browser, `BackupService`) done, 5 (backup overview, verify, delete) is next |
+| 4 | Web interface (dashboard, download) | **planned**: [docs/PHASE4.md](docs/PHASE4.md), decisions settled; work packages 1 (spikes), 2 (foundations: login, setup, `threadsafe admin`) and 3 (profile pages) and 4 (backup run in the browser, `BackupService`) and 5 (backup overview, check, delete: `CatalogService`, `VerifyRun`) done, 6 (download) is next |
 | 5 | One trigger cron, retention, encryption | not started |
 
 Each finished work package has an **"As built"** paragraph in `docs/PHASE2.md` (what exists, where it differs from the plan,
@@ -85,7 +85,7 @@ Oracles are real tools where possible: `unzip -t`, the `mariadb` client, `CHECKS
 | `src/Restore` | Phase 3: `RestoreRun` (the task: preflight, extract, import, adapt, finalize) with `BackupSource`, `Preflight`; `Extractor` (resumable extraction of the archive parts); `SqlSplitter`, `PrefixRewriter`, `Importer` (resumable SQL import in plain PHP, optional table prefix change) |
 | `src/Web`, `src/Build` | Phase 3: the restore wizard (`Wizard`, `AccessKey`, `Sessions`, `Cleanup`, `Entry` ...); the build of the single file `restore.php` (`Bundler`, `RestoreBuilder`, `RestoreStub`; `php tools/build-restore.php`). `tools/restore-web.php` is the wizard's development entry |
 | `src/Admin`, `public/` | Phase 4: the web interface (`Kernel`, `Router`, `AuthController`, `View` ...; not part of `restore.php`); `public/index.php` is its only entry point, `public/app.css`/`app.js` its static files |
-| `src/App` | Phase 4: services that the commands and the web pages share (`ProfileService`, `BackupService`; `CatalogService` follows) |
+| `src/App` | Phase 4: services that the commands and the web pages share (`ProfileService`, `BackupService`, `CatalogService`) |
 | `src/Profile` | Phase 2: `SiteProfile`, `ProfileStore`, `ProfileResolver`, `ConnectionTest` |
 | `src/Storage`, `src/Backup/Manifest*` | Phase 2: `LocalStorage` (protection files, sidecar, listing), `BackupCatalog` (listing, sidecar rebuild), `SpaceCheck`, `Postproc`; `BackupName`, `Manifest`, `Sidecar`, `Verifier` |
 | `tests/Unit`, `tests/Integration`, `tests/Support`, `tests/stack` | Tests, helpers, Docker stack scripts |
@@ -122,7 +122,7 @@ MariaDB 11.8, `tests/stack/cross.sh` between the two kinds of server. The refere
 
 **Phase 4, the web interface** (login, dashboard, profile management, backup overview, manual backup with progress, download -
 `docs/CONCEPT.md` section 5) comes next. The plan is `docs/PHASE4.md` (all twelve decisions settled with the owner on 2026-10-21; work packages 1
-(spikes, findings in section 8), 2 (foundations), 3 (profiles) and 4 (backup run) are done, then 5-9 in order). The engine (ticks, `RunStore`, `Executor`, `Lock`),
+(spikes, findings in section 8), 2 (foundations), 3 (profiles), 4 (backup run) and 5 (overview, check, delete) are done, then 6-9 in order). The engine (ticks, `RunStore`, `Executor`, `Lock`),
 the wizard classes in `src/Web` (`Request`, `Response`, `Html`, sessions, CSRF, the key file) and `Budget::forThisProcess()` are
 there to build on.
 
