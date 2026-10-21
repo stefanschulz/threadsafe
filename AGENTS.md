@@ -2,7 +2,7 @@
 
 For anyone - person or coding agent - who continues work on this project without having followed its history. Read this
 first, then [docs/CONCEPT.md](docs/CONCEPT.md) (what and why) and the plan of the last finished phase
-([docs/PHASE3.md](docs/PHASE3.md)); the next phase has no plan yet.
+([docs/PHASE3.md](docs/PHASE3.md)); the next phase is planned in [docs/PHASE4.md](docs/PHASE4.md).
 
 ## What this is
 
@@ -17,7 +17,7 @@ application automatically. First target: **PrestaShop 9.x**; MariaDB and MySQL; 
 | 1, 1b | Restore core: `threadsafe migrate <type>`, dev mode, module rules, self-test; database drivers; website type plugins | done |
 | 2 | Site profiles and backup engine (CLI) | done (work packages in [docs/PHASE2.md](docs/PHASE2.md) section 5; user documentation [docs/BACKUP.md](docs/BACKUP.md)) |
 | 3 | `restore.php` (extractor and wizard) | done (plan and "As built" in [docs/PHASE3.md](docs/PHASE3.md); user documentation [docs/RESTORE.md](docs/RESTORE.md)); milestone A: `threadsafe restore`, milestone B: the single file `dist/restore.php` with the wizard; disaster recovery proven on the Docker stack |
-| 4 | Web interface (dashboard, download) | not started |
+| 4 | Web interface (dashboard, download) | **planned**: [docs/PHASE4.md](docs/PHASE4.md), decisions settled; work package 1 (spikes) is next |
 | 5 | One trigger cron, retention, encryption | not started |
 
 Each finished work package has an **"As built"** paragraph in `docs/PHASE2.md` (what exists, where it differs from the plan,
@@ -119,8 +119,8 @@ MariaDB 11.8, `tests/stack/cross.sh` between the two kinds of server. The refere
 `docs/MIGRATE.md`.
 
 **Phase 4, the web interface** (login, dashboard, profile management, backup overview, manual backup with progress, download -
-`docs/CONCEPT.md` section 5) comes next. It needs a plan first, `docs/PHASE4.md`, the way phases 2 and 3 had one: decisions with
-the owner, spikes for the risky parts, work packages with "As built" paragraphs. The engine (ticks, `RunStore`, `Executor`, `Lock`),
+`docs/CONCEPT.md` section 5) comes next. The plan is `docs/PHASE4.md` (all twelve decisions settled with the owner on 2026-10-21; work package 1
+are the spikes, then 2-9 in order). The engine (ticks, `RunStore`, `Executor`, `Lock`),
 the wizard classes in `src/Web` (`Request`, `Response`, `Html`, sessions, CSRF, the key file) and `Budget::forThisProcess()` are
 there to build on.
 
