@@ -11,26 +11,21 @@ use Closure;
  * secret (`<?php return 'a secret you choose';`). Fetched over HTTP such a file executes and prints nothing, where a text file
  * would be served. Nothing works without it.
  *
- * Wrong keys are slowed down: after three failures within a quarter of an hour the next attempt has to wait (5 s, doubling, up
- * to 5 minutes) and an attempt during the wait is not even compared. Every failure is logged (time and address).
+ * Wrong keys are slowed down by a {@see Throttle}: after three failures within a quarter of an hour the next attempt has to wait
+ * (5 s, doubling, up to 5 minutes) and an attempt during the wait is not even compared. Every failure is logged (time and address).
  */
 final class AccessKey
 {
     public const int MIN_LENGTH = 8;
 
-    private const int WINDOW = 900;
-
-    private const int FREE_ATTEMPTS = 3;
-
-    /** @var Closure(): int */
-    private readonly Closure $clock;
+    private readonly Throttle $throttle;
 
     /**
      * @param Closure(): int|null $clock for tests: the time in seconds
      */
-    public function __construct(private readonly string $keyFile, private readonly string $attemptsFile, private readonly string $logFile, ?Closure $clock = null)
+    public function __construct(private readonly string $keyFile, string $attemptsFile, string $logFile, ?Closure $clock = null)
     {
-        $this->clock = $clock ?? static fn (): int => time();
+        $this->throttle = new Throttle($attemptsFile, $logFile, $clock);
     }
 
     public function exists(): bool
@@ -67,12 +62,12 @@ final class AccessKey
         }
         $key = $this->load();
         if ($key !== null && strlen($key) >= self::MIN_LENGTH && hash_equals($key, $given)) {
-            @unlink($this->attemptsFile);
+            $this->throttle->reset();
 
             return null;
         }
 
-        $this->recordFailure($address);
+        $this->throttle->fail($address, 'wrong key');
 
         return 'This is not the key.';
     }
@@ -80,13 +75,7 @@ final class AccessKey
     /** Seconds until the next attempt is accepted; 0 if one is accepted now. */
     public function waitSeconds(): int
     {
-        $failures = $this->failures();
-        if (count($failures) < self::FREE_ATTEMPTS) {
-            return 0;
-        }
-        $delay = min(300, 5 * (2 ** (count($failures) - self::FREE_ATTEMPTS)));
-
-        return max(0, (int) end($failures) + $delay - ($this->clock)());
+        return $this->throttle->waitSeconds();
     }
 
     private function load(): ?string
@@ -106,25 +95,5 @@ final class AccessKey
         }
 
         return is_string($key) ? $key : null;
-    }
-
-    /** @return list<int> times of the failures within the window, oldest first */
-    private function failures(): array
-    {
-        $content = is_file($this->attemptsFile) ? @file_get_contents($this->attemptsFile) : false;
-        $data = $content === false ? [] : json_decode($content, true);
-        $now = ($this->clock)();
-
-        return array_values(array_filter(is_array($data) ? array_filter($data, 'is_int') : [], static fn (int $t): bool => $t > $now - self::WINDOW));
-    }
-
-    private function recordFailure(string $address): void
-    {
-        $now = ($this->clock)();
-        $failures = [...$this->failures(), $now];
-        @file_put_contents($this->attemptsFile, json_encode($failures), LOCK_EX);
-        @chmod($this->attemptsFile, 0600);
-        @file_put_contents($this->logFile, sprintf("%s wrong key from %s\n", gmdate('Y-m-d\TH:i:s\Z', $now), preg_replace('/[^0-9a-fA-F:.]/', '?', $address)), FILE_APPEND | LOCK_EX);
-        @chmod($this->logFile, 0600);
     }
 }

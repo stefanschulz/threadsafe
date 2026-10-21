@@ -118,6 +118,29 @@ final class AccessKeyAndSessionsTest extends TestCase
         self::assertNull($sessions->load($token));
     }
 
+    public function testASessionHasAnIdleTimeAndAnAbsoluteLifetimeOfItsOwn(): void
+    {
+        $sessions = new Sessions($this->directory . '/sessions', fn (): int => $this->now, 600, 3600);
+        [$token, $data] = $sessions->create();
+
+        $this->now += 500;
+        self::assertNotNull($sessions->load($token));
+        $sessions->save($token, $data); // activity moves the idle clock on
+        $this->now += 500;
+        self::assertNotNull($sessions->load($token), 'idle for 500 s only');
+        $sessions->save($token, $data);
+
+        $this->now += 700;
+        self::assertNull($sessions->load($token), 'idle for 700 s');
+
+        [$token, $data] = $sessions->create();
+        for ($i = 0; $i < 7; ++$i) {
+            $this->now += 550;
+            $sessions->save($token, $data);
+        }
+        self::assertNull($sessions->load($token), 'busy all the time, but an hour old');
+    }
+
     public function testBadTokensFindNothing(): void
     {
         $sessions = new Sessions($this->directory . '/sessions', fn (): int => $this->now);

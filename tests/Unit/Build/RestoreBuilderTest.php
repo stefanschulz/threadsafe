@@ -84,6 +84,7 @@ final class RestoreBuilderTest extends TestCase
         }
         self::assertStringNotContainsString('namespace ThreadSafe\\Build', $entries['bundle.php'], 'the build tool is not part of the tool');
         self::assertStringNotContainsString('namespace ThreadSafe\\Tests', $entries['bundle.php']);
+        self::assertStringNotContainsString('namespace ThreadSafe\\Admin', $entries['bundle.php'], 'the web interface is not part of the restore tool');
     }
 
     public function testEveryClassOfTheProgramIsInTheBundleAndItLoadsByItself(): void

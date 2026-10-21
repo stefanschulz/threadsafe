@@ -9,7 +9,8 @@ use Closure;
 /**
  * Who is logged in, kept in files of the state directory (not in PHP sessions, which a host may not have or may lose): a random
  * token in a cookie, and next to it a file with the CSRF token and what the person has chosen so far. The file name is a hash of
- * the token, so a listing of the directory gives no valid cookie. A session ends after two idle hours.
+ * the token, so a listing of the directory gives no valid cookie. A session ends after two idle hours (or the time given), and,
+ * if an absolute lifetime is given, that long after it began however busy it was.
  */
 final class Sessions
 {
@@ -19,9 +20,11 @@ final class Sessions
     private readonly Closure $clock;
 
     /**
-     * @param Closure(): int|null $clock for tests: the time in seconds
+     * @param int                 $idle     seconds without a request after which a session ends
+     * @param int|null            $absolute seconds after its creation at which a session ends in any case; null = no such limit
+     * @param Closure(): int|null $clock    for tests: the time in seconds
      */
-    public function __construct(private readonly string $directory, ?Closure $clock = null)
+    public function __construct(private readonly string $directory, ?Closure $clock = null, private readonly int $idle = self::IDLE, private readonly ?int $absolute = null)
     {
         $this->clock = $clock ?? static fn (): int => time();
     }
@@ -53,7 +56,8 @@ final class Sessions
         if (!is_array($data) || !is_int($data['last'] ?? null) || !is_string($data['csrf'] ?? null)) {
             return null;
         }
-        if ($data['last'] < ($this->clock)() - self::IDLE) {
+        $now = ($this->clock)();
+        if ($data['last'] < $now - $this->idle || ($this->absolute !== null && is_int($data['created'] ?? null) && $data['created'] < $now - $this->absolute)) {
             @unlink($path);
 
             return null;
@@ -95,7 +99,7 @@ final class Sessions
     private function collectOld(): void
     {
         foreach (glob($this->directory . '/*.json') ?: [] as $file) {
-            if ((int) @filemtime($file) < ($this->clock)() - self::IDLE) {
+            if ((int) @filemtime($file) < ($this->clock)() - max($this->idle, $this->absolute ?? 0)) {
                 @unlink($file);
             }
         }

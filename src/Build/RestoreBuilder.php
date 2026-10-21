@@ -15,7 +15,8 @@ use ThreadSafe\Core\Version;
  * deflated payload, which is the bundle of all the code ({@see Bundler}) and the plugins' data files. It is the same file for every
  * backup and every website type; it is built once and kept with the backups.
  *
- * What goes in: all of `src/` except `src/Build` (the build itself), the PHP of every plugin, and each plugin's `plugin.json` and
+ * What goes in: all of `src/` except `src/Build` (the build itself) and `src/Admin` (the web interface, which a restore has no use
+ * for and which would triple the size), the PHP of every plugin, and each plugin's `plugin.json` and
  * `resources/`, which the code reads from disk at run time. Nothing else: no tests, no documentation, no configuration.
  */
 final class RestoreBuilder
@@ -36,7 +37,7 @@ final class RestoreBuilder
         foreach ([$this->root . '/src', $this->root . '/plugins'] as $directory) {
             foreach ($this->walk($directory) as $path) {
                 $relative = substr($path, strlen($this->root) + 1);
-                if (str_ends_with($path, '.php') && !str_starts_with($relative, 'src/Build/') && !str_contains($relative, '/resources/')) {
+                if (str_ends_with($path, '.php') && !str_starts_with($relative, 'src/Build/') && !str_starts_with($relative, 'src/Admin/') && !str_contains($relative, '/resources/')) {
                     $files[] = $path;
                 }
             }

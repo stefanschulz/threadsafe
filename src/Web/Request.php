@@ -13,6 +13,7 @@ final readonly class Request
      * @param array<string, string> $query   the GET parameters
      * @param array<string, string> $post    the POST fields (arrays are not accepted anywhere in the wizard and are dropped)
      * @param array<string, string> $cookies
+     * @param array<string, string> $headers the request headers, names in lower case ("x-csrf-token")
      */
     public function __construct(
         public string $method = 'GET',
@@ -22,6 +23,7 @@ final readonly class Request
         public bool $https = false,
         public string $remoteAddress = '',
         public string $path = '',
+        public array $headers = [],
     ) {
     }
 
@@ -32,6 +34,13 @@ final readonly class Request
         $https = (isset($server['HTTPS']) && $server['HTTPS'] !== '' && strtolower((string) $server['HTTPS']) !== 'off')
             || (string) ($server['SERVER_PORT'] ?? '') === '443';
 
+        $headers = [];
+        foreach ($server as $name => $value) {
+            if (is_string($value) && str_starts_with($name, 'HTTP_')) {
+                $headers[strtolower(str_replace('_', '-', substr($name, 5)))] = $value;
+            }
+        }
+
         return new self(
             strtoupper((string) ($server['REQUEST_METHOD'] ?? 'GET')),
             $strings($_GET),
@@ -40,6 +49,7 @@ final readonly class Request
             $https,
             (string) ($server['REMOTE_ADDR'] ?? ''),
             (string) (parse_url((string) ($server['REQUEST_URI'] ?? ''), PHP_URL_PATH) ?? ''),
+            $headers,
         );
     }
 
@@ -61,6 +71,12 @@ final readonly class Request
     public function cookie(string $name): ?string
     {
         return $this->cookies[$name] ?? null;
+    }
+
+    /** A request header by its name in lower case, or null. */
+    public function header(string $name): ?string
+    {
+        return $this->headers[$name] ?? null;
     }
 
     /** Whether the request comes from the machine itself (a tunnel, a local test server). */

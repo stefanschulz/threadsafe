@@ -1,0 +1,21 @@
+# The web interface of ThreadSafe: this directory is the only one meant to be served.
+Options -Indexes
+
+# Every address that is not a file is answered by index.php (the pages are /login, /profiles/shop ...). Without mod_rewrite set
+# "web.prettyUrls" to false in data/config.json; the pages are then index.php?route=/login.
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^ index.php [L]
+</IfModule>
+
+# Only these are served from here; the rest of the program directory is closed by the .htaccess one level up, this one opens
+# the directory again (a later .htaccess replaces the rule of an earlier one).
+<IfModule mod_authz_core.c>
+    Require all granted
+</IfModule>
+<IfModule !mod_authz_core.c>
+    Order allow,deny
+    Allow from all
+</IfModule>
