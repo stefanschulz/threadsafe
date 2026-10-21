@@ -36,8 +36,8 @@ final class DashboardController
                 . '<td>' . Html::e((string) ($entry['user'] ?? '')) . '</td><td>' . Html::e(implode(', ', $text)) . '</td></tr>';
         }
 
-        $body = '<p class="summary"><strong>' . $profiles . '</strong> site ' . ($profiles === 1 ? 'profile' : 'profiles') . '.'
-            . ($profiles === 0 ? ' Create one with <code>php bin/threadsafe profile add</code>; the browser form comes next.' : '') . '</p>'
+        $link = '<a href="' . Html::e($context->urls->to($profiles === 0 ? '/new-profile' : '/profiles')) . '">' . ($profiles === 0 ? 'Create one' : 'Manage them') . '</a>';
+        $body = '<p class="summary"><strong>' . $profiles . '</strong> site ' . ($profiles === 1 ? 'profile' : 'profiles') . '. ' . $link . '.</p>'
             . '<h2>Recent activity</h2>'
             . ($rows === '' ? '<p class="hint">Nothing yet.</p>' : '<div class="scroll"><table><thead><tr><th>Time (UTC)</th><th>Event</th><th>User</th><th>Details</th></tr></thead><tbody>' . $rows . '</tbody></table></div>');
 

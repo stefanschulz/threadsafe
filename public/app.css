@@ -114,3 +114,29 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.5); }
   .bar { padding: 0.5rem 0.75rem; }
   main { padding: 0.75rem 1rem 2rem; }
 }
+
+/* forms and the profile pages */
+select, textarea {
+  width: 100%;
+  padding: 0.55rem 0.6rem;
+  font: inherit;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+textarea { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: 0.9rem; }
+.field .hint { margin: 0.25rem 0 0; }
+form.wide { max-width: 40rem; }
+form.inline { display: inline; }
+form.inline button { margin: 0; }
+button.secondary, .button.secondary { background: var(--muted); color: var(--bg); }
+button.danger, .button.danger { background: var(--error); color: var(--bg); }
+.actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+.box { margin: 1rem 0; padding: 0.6rem 1rem; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
+.checks { padding-left: 1.2rem; }
+.checks li { margin: 0.2rem 0; }
+.checks li.failure strong { color: var(--error); }
+.checks li.warning strong { color: var(--warning); }
+.checks li.ok strong { color: var(--ok); }
+table.facts th { width: 11rem; }

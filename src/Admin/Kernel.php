@@ -92,11 +92,21 @@ final class Kernel
     private function router(Services $services, AuthController $auth): Router
     {
         $dashboard = new DashboardController($services);
+        $profiles = new ProfileController($services);
         $router = new Router();
         $router->add('GET', '/login', $auth->loginPage(...), public: true);
         $router->add('POST', '/login', $auth->login(...), public: true);
         $router->add('POST', '/logout', $auth->logout(...));
         $router->add('GET', '/', $dashboard->index(...));
+        $router->add('GET', '/profiles', $profiles->index(...));
+        $router->add('POST', '/profiles', $profiles->create(...));
+        $router->add('GET', '/new-profile', $profiles->newForm(...));
+        $router->add('GET', '/profiles/{id}', $profiles->show(...));
+        $router->add('POST', '/profiles/{id}', $profiles->update(...));
+        $router->add('GET', '/profiles/{id}/edit', $profiles->editForm(...));
+        $router->add('POST', '/profiles/{id}/test', $profiles->test(...));
+        $router->add('GET', '/profiles/{id}/delete', $profiles->confirmRemove(...));
+        $router->add('POST', '/profiles/{id}/delete', $profiles->remove(...));
 
         return $router;
     }

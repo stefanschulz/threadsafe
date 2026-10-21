@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace ThreadSafe\Admin;
 
 use ThreadSafe\Core\Version;
+use ThreadSafe\Profile\TestReport;
 use ThreadSafe\Web\Html;
 use ThreadSafe\Web\Response;
 
@@ -17,7 +18,7 @@ use ThreadSafe\Web\Response;
 final class View
 {
     /** The entries of the navigation: route => label. Later work packages add theirs. */
-    private const array NAVIGATION = ['/' => 'Dashboard'];
+    private const array NAVIGATION = ['/' => 'Dashboard', '/profiles' => 'Profiles'];
 
     /**
      * A page for a logged-in user.
@@ -63,7 +64,7 @@ final class View
      *
      * @param array<string, string> $attributes more attributes (autocomplete, autofocus ...), values are escaped
      */
-    public static function field(string $name, string $label, string $type = 'text', string $value = '', array $attributes = []): string
+    public static function field(string $name, string $label, string $type = 'text', string $value = '', array $attributes = [], string $hint = ''): string
     {
         $extra = '';
         foreach ($attributes as $attribute => $content) {
@@ -73,7 +74,52 @@ final class View
         }
 
         return '<div class="field"><label for="f-' . Html::e($name) . '">' . Html::e($label) . '</label><input id="f-' . Html::e($name) . '" name="' . Html::e($name) . '" type="' . Html::e($type) . '"'
-            . ($type === 'password' ? '' : ' value="' . Html::e($value) . '"') . $extra . '></div>';
+            . ($type === 'password' ? '' : ' value="' . Html::e($value) . '"') . $extra . '>' . self::hintText($hint) . '</div>';
+    }
+
+    /**
+     * A multi-line text field.
+     */
+    public static function textarea(string $name, string $label, string $value = '', int $rows = 4, string $hint = ''): string
+    {
+        return '<div class="field"><label for="f-' . Html::e($name) . '">' . Html::e($label) . '</label><textarea id="f-' . Html::e($name) . '" name="' . Html::e($name) . '" rows="' . $rows . '">'
+            . Html::e($value) . '</textarea>' . self::hintText($hint) . '</div>';
+    }
+
+    /**
+     * A choice from a list.
+     *
+     * @param array<string, string> $options value => label
+     */
+    public static function select(string $name, string $label, array $options, string $selected, string $hint = ''): string
+    {
+        $html = '';
+        foreach ($options as $value => $text) {
+            $html .= '<option value="' . Html::e((string) $value) . '"' . ((string) $value === $selected ? ' selected' : '') . '>' . Html::e($text) . '</option>';
+        }
+
+        return '<div class="field"><label for="f-' . Html::e($name) . '">' . Html::e($label) . '</label><select id="f-' . Html::e($name) . '" name="' . Html::e($name) . '">' . $html . '</select>' . self::hintText($hint) . '</div>';
+    }
+
+    public static function checkbox(string $name, string $label, bool $checked, string $hint = ''): string
+    {
+        return '<div class="field check"><label><input type="checkbox" name="' . Html::e($name) . '" value="1"' . ($checked ? ' checked' : '') . '> ' . Html::e($label) . '</label>' . self::hintText($hint) . '</div>';
+    }
+
+    /**
+     * The checks of a connection test as a list; the level is written out, not only coloured.
+     */
+    public static function report(TestReport $report): string
+    {
+        $labels = ['ok' => 'OK', 'info' => 'Info', 'warning' => 'Warning', 'failure' => 'Failed'];
+        $html = '<ul class="checks">';
+        foreach ($report->checks as $check) {
+            $html .= '<li class="' . Html::e($check->level->value) . '"><strong>' . Html::e($labels[$check->level->value]) . '</strong> '
+                . Html::e($check->subject) . ': ' . Html::e($check->message) . '</li>';
+        }
+
+        return $html . '</ul><p class="' . ($report->passed() ? 'flash ok' : 'flash error') . '">'
+            . ($report->passed() ? 'The profile can be backed up.' : 'The profile cannot be backed up as it is.') . '</p>';
     }
 
     /** A plain page for an error before anything else is set up (no session, no addresses). */
@@ -81,6 +127,11 @@ final class View
     {
         return new Response($status, ['Content-Type: text/html; charset=utf-8'], '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>' . Html::e($title) . ' - ThreadSafe</title>'
             . '<meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex"></head><body><h1>' . Html::e($title) . '</h1><p>' . Html::e($message) . '</p></body></html>');
+    }
+
+    private static function hintText(string $hint): string
+    {
+        return $hint === '' ? '' : '<p class="hint">' . Html::e($hint) . '</p>';
     }
 
     private static function flashes(Context $context): string

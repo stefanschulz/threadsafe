@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace ThreadSafe\Cli;
 
+use ThreadSafe\App\ProfileService;
 use ThreadSafe\Core\Exception\GuardFailed;
 use ThreadSafe\Core\ExitCode;
 use ThreadSafe\Core\Paths;
@@ -99,6 +100,11 @@ final class ProfileCommand implements Command
         return $this->plugins ??= PluginRegistry::load();
     }
 
+    private function service(ProfileStore $store): ProfileService
+    {
+        return new ProfileService($store, $this->registry(), $this->dataDirectory);
+    }
+
     private function forProfile(string $action, string $id, ProfileStore $store, Input $input, Output $output): ExitCode
     {
         if (!ProfileStore::validId($id)) {
@@ -109,7 +115,7 @@ final class ProfileCommand implements Command
             'add' => $this->add($id, $store, $input, $output),
             'edit' => $this->edit($id, $store, $input, $output),
             'show' => $this->show($this->load($store, $id), $input, $output),
-            'test' => $this->test($this->load($store, $id), $input, $output),
+            'test' => $this->test($this->load($store, $id), $store, $input, $output),
             default => $this->remove($id, $store, $input, $output),
         };
     }
@@ -160,17 +166,15 @@ final class ProfileCommand implements Command
             throw new UsageError($e->getMessage(), 0, $e);
         }
 
-        if (!$input->has('no-test')) {
-            $report = (new ConnectionTest($this->registry(), $this->dataDirectory))->run($profile);
-            $this->printReport($report, $output);
-            if (!$report->passed()) {
-                throw new GuardFailed("The profile \"{$profile->id}\" was not stored because it cannot be backed up as it is. Fix the problems above, or use --no-test to store it anyway.");
-            }
+        $result = $this->service($store)->store($profile, test: !$input->has('no-test'));
+        if ($result->report !== null) {
+            $this->printReport($result->report, $output);
         }
-        try {
-            $store->save($profile);
-        } catch (ProfileException $e) {
-            throw new GuardFailed($e->getMessage(), 0, $e);
+        if ($result->rejectedByTest()) {
+            throw new GuardFailed("The profile \"{$profile->id}\" was not stored because it cannot be backed up as it is. Fix the problems above, or use --no-test to store it anyway.");
+        }
+        if ($result->error !== null) {
+            throw new GuardFailed($result->error);
         }
         $output->writeln("Profile \"{$profile->id}\" $verb.");
 
@@ -311,8 +315,7 @@ final class ProfileCommand implements Command
 
     private function list(ProfileStore $store, Input $input, Output $output): ExitCode
     {
-        $profiles = $store->all();
-        $broken = array_values(array_diff($store->ids(), array_map(static fn (SiteProfile $p): string => $p->id, $profiles)));
+        ['profiles' => $profiles, 'damaged' => $broken] = $this->service($store)->listing();
         if ($input->has('json')) {
             $output->writeln(json_encode(array_map(static fn (SiteProfile $p): array => $p->toArray(withPassword: false), $profiles), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR));
 
@@ -334,9 +337,9 @@ final class ProfileCommand implements Command
         return ExitCode::Ok;
     }
 
-    private function test(SiteProfile $profile, Input $input, Output $output): ExitCode
+    private function test(SiteProfile $profile, ProfileStore $store, Input $input, Output $output): ExitCode
     {
-        $report = (new ConnectionTest($this->registry(), $this->dataDirectory))->run($profile);
+        $report = $this->service($store)->test($profile);
         if ($input->has('json')) {
             $output->writeln(json_encode($report->toArray(), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR));
         } else {
@@ -353,7 +356,7 @@ final class ProfileCommand implements Command
         if (!$input->has('yes')) {
             throw new UsageError("Removing profile \"$id\" needs --yes. Its backups are not touched.");
         }
-        $store->delete($id);
+        $this->service($store)->remove($id);
         $output->writeln("Profile \"$id\" removed. Its backups stay where they are.");
 
         return ExitCode::Ok;
