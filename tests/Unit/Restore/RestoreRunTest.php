@@ -111,6 +111,22 @@ final class RestoreRunTest extends TestCase
         self::assertDirectoryDoesNotExist($this->base . '/work/db');
     }
 
+    public function testTheWorkDirectoryIsClosedToTheWebBecauseTheJournalInItHoldsPasswords(): void
+    {
+        $archive = $this->archive();
+        $root = $this->base . '/restored';
+        $executor = $this->executor();
+
+        $run = $executor->start(['archive' => $archive, 'root' => $root, 'settings' => ['selfTest' => false]]);
+        $executor->execute($run->id);
+
+        $work = $root . '/.threadsafe-restore';
+        self::assertSame(0700, fileperms($work) & 0777);
+        self::assertStringContainsString('Require all denied', (string) file_get_contents($work . '/.htaccess'));
+        self::assertFileExists($work . '/index.html');
+        self::assertDirectoryExists($work . '/journal');
+    }
+
     public function testTheWorkDirectoryInTheRootIsProtectedAndNotInTheWay(): void
     {
         $archive = $this->archive();

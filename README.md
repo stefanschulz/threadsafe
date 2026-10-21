@@ -2,13 +2,13 @@
 
 A website backup application. One instance manages backups for many sites through site profiles (dashboard, backup overview per site, manual backups, download). Backups can be restored on a different domain or path, with all application-specific adjustments done automatically. First supported application: **PrestaShop 9.x**.
 
-Status: phase 1 (the restore core) is implemented: `threadsafe migrate prestashop9` turns a restored PrestaShop 9 copy into a working site on a new domain, path or database, or back in place, with a dev mode for live → dev copies; `threadsafe migrate generic` replaces the domain in the database of any site. Website types are plugins (`plugins/`). Phase 2 (site profiles and the backup engine) is **done**: the building blocks exist as libraries and are tested - tick engine, streaming ZIP writer and reader, file scanner with filters, database dumper (MariaDB and MySQL), site profiles with a connection test, manifest and local storage - and `threadsafe backup <profile>` makes a verifiable standard ZIP archive (files plus one SQL file per table plus a manifest) of a PrestaShop 9 or any other site; `backups` lists them and `verify` checks that they are intact ([docs/BACKUP.md](docs/BACKUP.md)). Phase 3 (`restore.php`) is under way: `threadsafe restore <archive> --root=DIR` restores a backup into an empty directory and database from the command line; the single-file wizard is not there yet. There is no web interface (phase 4), schedule, retention or encryption (phase 5) yet.
+Status: phase 1 (the restore core) is implemented: `threadsafe migrate prestashop9` turns a restored PrestaShop 9 copy into a working site on a new domain, path or database, or back in place, with a dev mode for live → dev copies; `threadsafe migrate generic` replaces the domain in the database of any site. Website types are plugins (`plugins/`). Phase 2 (site profiles and the backup engine) is **done**: the building blocks exist as libraries and are tested - tick engine, streaming ZIP writer and reader, file scanner with filters, database dumper (MariaDB and MySQL), site profiles with a connection test, manifest and local storage - and `threadsafe backup <profile>` makes a verifiable standard ZIP archive (files plus one SQL file per table plus a manifest) of a PrestaShop 9 or any other site; `backups` lists them and `verify` checks that they are intact ([docs/BACKUP.md](docs/BACKUP.md)). Phase 3 (restoring a backup) is **done**: `threadsafe restore <archive> --root=DIR` restores a backup into an empty directory and database, and the single file `restore.php` (built by `php tools/build-restore.php`, about 200 KB) does the same behind a web server with a wizard, on a host where nothing else is installed; a destroyed web stack, brought back that way, serves the same shop again (disaster recovery test) - see [docs/RESTORE.md](docs/RESTORE.md). There is no web interface for managing backups (phase 4), schedule, retention or encryption (phase 5) yet.
 
 - Working on the project (rules, how to run the checks, map of the code, next steps): [AGENTS.md](AGENTS.md)
 - Concept: [docs/CONCEPT.md](docs/CONCEPT.md)
 - Phase 1 plan (restore core): [docs/PHASE1.md](docs/PHASE1.md)
 - Backups: profile file, commands, archive layout, manifest, taking a backup apart with plain tools: [docs/BACKUP.md](docs/BACKUP.md)
-- Phase 3 plan (`restore.php`, restoring a backup in one go; draft): [docs/PHASE3.md](docs/PHASE3.md)
+- Restoring a backup (`restore.php`, `threadsafe restore`): [docs/RESTORE.md](docs/RESTORE.md); the design and what was built: [docs/PHASE3.md](docs/PHASE3.md)
 - Phase 2 plan (site profiles and backup engine): [docs/PHASE2.md](docs/PHASE2.md)
 - Phase 1b (MariaDB and MySQL, selectable driver, website type plugins): [docs/PHASE1B.md](docs/PHASE1B.md)
 - Reference of the `migrate` command (request, report, journal, exit codes, trying it on a real backup): [docs/MIGRATE.md](docs/MIGRATE.md)
@@ -52,7 +52,8 @@ php bin/threadsafe restore --resume=<run id>                                    
 Without `--yes` it only shows what the backup is and every requirement it checked (free space, empty target, database reachable
 and empty, collations, table prefix). With `--yes` it unpacks the files and the SQL files, imports the dump in plain PHP (no
 `mysql` client needed; `--prefix=` changes the table prefix), and adapts the site to its new place like `migrate` does (the
-options of `migrate` are accepted). It works in saved steps, so a run that stops continues where it was.
+options of `migrate` are accepted). It works in saved steps, so a run that stops continues where it was. Everything about it - the
+checks, the messages and what to do, what it cannot do - is in [docs/RESTORE.md](docs/RESTORE.md).
 
 **On a host where ThreadSafe is not installed** - the usual case when a site has to be rebuilt in a hurry - use the single file
 `restore.php` (about 200 KB, built once, the same for every backup and website type; keep a copy with your backups):

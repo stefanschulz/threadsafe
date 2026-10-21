@@ -1,6 +1,6 @@
 # Phase 3 – `restore.php`: restoring a backup in one go
 
-**Status:** plan, draft 2 (2026-10-21); work package 1 (spikes) done, findings in section 8. Decisions 1-4 are settled (2026-10-21: single file with stub; access protection by a key file `restore-key.php`; prefix change with restriction; **no restore over an existing installation in this phase**); decisions 5-9 are proposals as written. Nothing in this document is implemented.
+**Status:** **done** (2026-10-21). All nine work packages are built and tested; the user documentation is [RESTORE.md](RESTORE.md). Decisions 1-4 were settled with the owner on 2026-10-21 (single file with stub; access by a key file `restore-key.php`; prefix change with restrictions; **no restore over an existing installation**), decisions 5-9 were confirmed as proposed when the work packages began (the database must exist; state in `.threadsafe-restore/` with the database password until the end; the tool deletes itself, the backup stays; PHP 8.4 on the target). The text of the plan is kept as it was written unless it would mislead; **the "As built" paragraphs (3.1-3.10, 4.2) and section 8 win where they differ.**
 **Context:** see [CONCEPT.md](CONCEPT.md) (3.2 and 3.3 architecture, 4 restore core, 4.6 same-domain restore, 6 security, 7 tests) and [BACKUP.md](BACKUP.md) for the archives this phase reads. Phase 1 ([MIGRATE.md](MIGRATE.md)) already turns a restored copy into a working site; phase 2 makes the archives. Facts about the code were read from the repository on 2026-10-21; items marked *(verify)* are what the first work package (spikes) has to confirm.
 
 ## 1. Goal and scope
@@ -227,7 +227,7 @@ Also: the wizard's journey helper accepts the "plain http" notice, as a person w
 | 6 | **Done** (see "As built" in 3.9): Wizard: access protection, steps, HTTP interface, progress | 5 | L |
 | 7 | **Done** (see "As built" in 3.1): Build script: bundle, stub, `dist/restore.php`, key file helper; bundle tests | 1, 6 | M |
 | 8 | **Done** (see "As built" in 4.2): Integration: CLI and HTTP round trips, disaster recovery, refusal of a non-empty target, prefix, interruption, cross-server, matrix | 5-7 | L |
-| 9 | Documentation: `docs/RESTORE.md`, README, CONCEPT status | all | S |
+| 9 | **Done**: Documentation: `docs/RESTORE.md`, README, CONCEPT status | all | S |
 
 Suggested order: 1 → (2, 3, 4) → 5 → 6 → 7 → 8 → 9. **Milestone A** (after 5): `threadsafe restore` restores a backup end to end from the command line. **Milestone B** (after 7): the same through `restore.php` in a browser. **Milestone C** (after 8): disaster recovery is proven and phase 3 is done.
 

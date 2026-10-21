@@ -1,8 +1,8 @@
 # Working on ThreadSafe
 
 For anyone - person or coding agent - who continues work on this project without having followed its history. Read this
-first, then [docs/CONCEPT.md](docs/CONCEPT.md) (what and why) and the plan of the phase in progress
-([docs/PHASE2.md](docs/PHASE2.md)).
+first, then [docs/CONCEPT.md](docs/CONCEPT.md) (what and why) and the plan of the last finished phase
+([docs/PHASE3.md](docs/PHASE3.md)); the next phase has no plan yet.
 
 ## What this is
 
@@ -16,7 +16,7 @@ application automatically. First target: **PrestaShop 9.x**; MariaDB and MySQL; 
 |---|---|---|
 | 1, 1b | Restore core: `threadsafe migrate <type>`, dev mode, module rules, self-test; database drivers; website type plugins | done |
 | 2 | Site profiles and backup engine (CLI) | done (work packages in [docs/PHASE2.md](docs/PHASE2.md) section 5; user documentation [docs/BACKUP.md](docs/BACKUP.md)) |
-| 3 | `restore.php` (extractor and wizard) | **in progress**: plan [docs/PHASE3.md](docs/PHASE3.md); work packages 1-8 done (milestone A: `threadsafe restore`; milestone B: the single file `dist/restore.php` with the wizard; disaster recovery proven on the Docker stack), 9 open |
+| 3 | `restore.php` (extractor and wizard) | done (plan and "As built" in [docs/PHASE3.md](docs/PHASE3.md); user documentation [docs/RESTORE.md](docs/RESTORE.md)); milestone A: `threadsafe restore`, milestone B: the single file `dist/restore.php` with the wizard; disaster recovery proven on the Docker stack |
 | 4 | Web interface (dashboard, download) | not started |
 | 5 | One trigger cron, retention, encryption | not started |
 
@@ -88,7 +88,7 @@ Oracles are real tools where possible: `unzip -t`, the `mariadb` client, `CHECKS
 | `src/Storage`, `src/Backup/Manifest*` | Phase 2: `LocalStorage` (protection files, sidecar, listing), `BackupCatalog` (listing, sidecar rebuild), `SpaceCheck`, `Postproc`; `BackupName`, `Manifest`, `Sidecar`, `Verifier` |
 | `tests/Unit`, `tests/Integration`, `tests/Support`, `tests/stack` | Tests, helpers, Docker stack scripts |
 | `tools/spikes` | Throw-away scripts behind the findings in PHASE2.md section 8 (kept for reference) |
-| `docs` | Concept, phase plans, `MIGRATE.md` (reference of the `migrate` command), `BACKUP.md` (reference of the backup commands and the archive) |
+| `docs` | Concept, phase plans, `MIGRATE.md` (reference of the `migrate` command), `BACKUP.md` (reference of the backup commands and the archive), `RESTORE.md` (reference of the restore: wizard, command, checks, limits) |
 
 ## Design rules that are easy to break
 
@@ -111,19 +111,24 @@ Oracles are real tools where possible: `unzip -t`, the `mariadb` client, `CHECKS
 
 ## Next steps
 
-Phase 2 is finished: `threadsafe profile`, `backup`, `backups` and `verify` work end to end, and `restore` (phase 3, milestone A) restores a backup from the command line and are proven by the
-integration tests (the backup round trip of the seeded shop, SIGKILL and resume, low limits, damaged archives;
-`docs/PHASE2.md` 4.2); the reference is `docs/BACKUP.md`. Next is **phase 3, `restore.php`**: `docs/PHASE3.md` is the plan (decisions 1-4 and 6 settled with the owner, 5 and 7-9
-proposed), its work package 1 (spikes, `tools/spikes/bundle.php`, `sql-import.php`, `inflate-speed.php`, `host-probe.php`) is
-done and its findings are in section 8. Work packages 2-5 (extractor, SQL importer and `RestoreRun` in `src/Restore`, the resumable migration with
-`TickedRunner`, the CLI `restore`) are done - milestone A - and so are the wizard (6, `src/Web`) and the build of the single file `restore.php` (7, `src/Build`, milestone B); continue with 9
-(`docs/RESTORE.md`, the user documentation; README and CONCEPT status), each tested and
-committed on request. The
-restore must read these archives with `ZipReader` (or a stand-alone extractor of its own, since `restore.php` runs on a host
-that has no ThreadSafe installed), import the SQL with plain PHP (including `DELIMITER` blocks and large `INSERT`s under a
-time limit, in ticks), rename the table prefix, restore over an existing installation, and hand over to the migration of
-phase 1. Open questions the plan must settle with the owner are listed in `docs/CONCEPT.md` section 10.
+Phases 1, 1b, 2 and 3 are done and proven: `threadsafe migrate`, `profile`, `backup`, `backups`, `verify` and `restore` work end to
+end, and the single file `restore.php` (`php tools/build-restore.php`) restores a backup behind a web server on a host where
+nothing else is installed. The disaster recovery test (`tests/stack/run.sh`, phase 5) destroys the target stack, makes it again
+empty and brings the shop back through the wizard; `tests/stack/matrix.sh` does all of it on MariaDB 10.11, MySQL 8.4 and
+MariaDB 11.8, `tests/stack/cross.sh` between the two kinds of server. The references are `docs/BACKUP.md`, `docs/RESTORE.md` and
+`docs/MIGRATE.md`.
 
+**Phase 4, the web interface** (login, dashboard, profile management, backup overview, manual backup with progress, download -
+`docs/CONCEPT.md` section 5) comes next. It needs a plan first, `docs/PHASE4.md`, the way phases 2 and 3 had one: decisions with
+the owner, spikes for the risky parts, work packages with "As built" paragraphs. The engine (ticks, `RunStore`, `Executor`, `Lock`),
+the wizard classes in `src/Web` (`Request`, `Response`, `Html`, sessions, CSRF, the key file) and `Budget::forThisProcess()` are
+there to build on.
+
+Known gaps that the owner may want to turn into work (all listed in `docs/RESTORE.md` section 9): restoring **over** an existing
+installation with a rollback (left out of phase 3 on purpose); a MySQL 8 backup onto MariaDB (refused because of the collation
+`utf8mb4_0900_ai_ci`; mapping it while importing would be a feature); views and triggers whose `DEFINER` does not exist on the
+new server; a prefix change for backups with views, triggers or foreign keys; website types for WordPress and Joomla (the
+`Restorable` capability in `src/Plugin` is what they implement, `plugins/generic` is the smallest example).
 The live host (probe runs of 2026-10-21, `docs/PHASE3.md` section 8, finding 6): PHP 8.4.26 only as CGI builds (web: 30 s per
 request, 512 MB, `exec` allowed, no cut-off up to 40 s; the SSH shell's `php` is PHP 4 but `/usr/bin/php8.4 -q` works),
 database MariaDB 11.8.8 with 64 MB `max_allowed_packet`. `bin/threadsafe` runs with the CGI binary. No open question about

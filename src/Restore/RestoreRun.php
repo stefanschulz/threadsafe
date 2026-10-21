@@ -23,6 +23,7 @@ use ThreadSafe\Plugin\PluginError;
 use ThreadSafe\Plugin\PluginRegistry;
 use ThreadSafe\Plugin\Restorable;
 use ThreadSafe\Plugin\WebsiteType;
+use ThreadSafe\Web\StateDirectory;
 
 /**
  * Puts a backup back (docs/PHASE3.md 3.3): **preflight** (everything that can be checked before a byte is written), **extract**
@@ -191,8 +192,11 @@ final class RestoreRun implements Task
             throw new RestoreException("Cannot create the directory \"$root\".", ExitCode::StepFailed);
         }
         $work = (string) $state['work'];
-        if (!is_dir($work) && !@mkdir($work, 0700, true) && !is_dir($work)) {
-            throw new RestoreException("Cannot create the work directory \"$work\".", ExitCode::StepFailed);
+        try {
+            // inside the web root (the default) it must not be served: the journal in it holds old and new values, passwords included
+            StateDirectory::prepare($work);
+        } catch (\RuntimeException $e) {
+            throw new RestoreException($e->getMessage(), ExitCode::StepFailed, $e);
         }
 
         try {
