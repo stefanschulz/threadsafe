@@ -106,6 +106,21 @@ final class PluginRegistry
     }
 
     /**
+     * The restore side of a website type.
+     *
+     * @throws PluginError no such plugin, or the type cannot be restored
+     */
+    public function restorable(string $id): Restorable
+    {
+        $type = $this->get($id);
+        if (!$type instanceof Restorable) {
+            throw new PluginError("The website type \"$id\" does not support restores.");
+        }
+
+        return $type;
+    }
+
+    /**
      * Every website type, in id order.
      *
      * @return list<WebsiteType>

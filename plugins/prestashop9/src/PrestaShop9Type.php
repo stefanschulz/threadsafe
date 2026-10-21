@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace ThreadSafe\PrestaShop9;
 
+use ThreadSafe\Backup\Manifest;
 use ThreadSafe\Cli\Input;
 use ThreadSafe\Cli\OptionSpec;
 use ThreadSafe\Database\Connection;
@@ -12,14 +13,36 @@ use ThreadSafe\Migration\RequestBuilder as BaseRequestBuilder;
 use ThreadSafe\Plugin\Backupable;
 use ThreadSafe\Plugin\BackupDefaults;
 use ThreadSafe\Plugin\DetectedSite;
+use ThreadSafe\Plugin\Restorable;
 use ThreadSafe\Plugin\WebsiteType;
 use ThreadSafe\PrestaShop9\Backup\PrestaShop9Backup;
+use ThreadSafe\PrestaShop9\Restore\PrestaShop9Restore;
 
 /**
  * The website type "PrestaShop 9": entry class of the plugin in `plugins/prestashop9/`.
  */
-final class PrestaShop9Type implements WebsiteType, Backupable
+final class PrestaShop9Type implements WebsiteType, Backupable, Restorable
 {
+    public function fields(Manifest $manifest): array
+    {
+        return (new PrestaShop9Restore())->fields($manifest);
+    }
+
+    public function restoreSettings(array $values): array
+    {
+        return (new PrestaShop9Restore())->restoreSettings($values);
+    }
+
+    public function sourceDomain(Manifest $manifest): ?string
+    {
+        return (new PrestaShop9Restore())->sourceDomain($manifest);
+    }
+
+    public function restoreChecks(Manifest $manifest): array
+    {
+        return (new PrestaShop9Restore())->restoreChecks($manifest);
+    }
+
     public function detect(string $path): ?DetectedSite
     {
         return (new PrestaShop9Backup())->detect($path);

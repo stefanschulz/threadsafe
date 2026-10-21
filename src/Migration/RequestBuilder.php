@@ -250,7 +250,8 @@ abstract class RequestBuilder
             'name' => $this->string($given, 'name') ?? $base?->name,
             'user' => $this->string($given, 'user') ?? $base?->user,
             'password' => $password ?? $base?->password,
-            'prefix' => $this->string($given, 'prefix') ?? $prefixDefault,
+            // a site may have no table prefix at all (the empty string), which the other settings may not be
+            'prefix' => is_string($given['prefix'] ?? null) ? $given['prefix'] : $prefixDefault,
         ];
         foreach ($values as $name => $value) {
             if ($value === null) {

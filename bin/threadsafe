@@ -8,6 +8,7 @@ use ThreadSafe\Cli\BackupCommand;
 use ThreadSafe\Cli\BackupsCommand;
 use ThreadSafe\Cli\MigrateCommand;
 use ThreadSafe\Cli\ProfileCommand;
+use ThreadSafe\Cli\RestoreCommand;
 use ThreadSafe\Cli\StreamOutput;
 use ThreadSafe\Cli\VerifyCommand;
 
@@ -30,6 +31,6 @@ if (!is_file($autoload)) {
 }
 require $autoload;
 
-$application = new Application([new MigrateCommand(), new ProfileCommand(), new BackupCommand(), new BackupsCommand(), new VerifyCommand()]);
+$application = new Application([new MigrateCommand(), new ProfileCommand(), new BackupCommand(), new BackupsCommand(), new VerifyCommand(), new RestoreCommand()]);
 
 exit($application->run($argv, StreamOutput::standard()));

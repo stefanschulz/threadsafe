@@ -39,7 +39,8 @@ final class ExtractorTest extends TestCase
         self::assertSame(0644, fileperms($root . '/index.php') & 0777);
         self::assertSame(0600, fileperms($root . '/secret.txt') & 0777);
         self::assertSame(0755, fileperms($root . '/empty') & 0777);
-        self::assertSame(5, $state['files'], 'four files below files/ and the SQL file');
+        self::assertSame(4, $state['files'], 'four files below files/');
+        self::assertSame(1, $state['databaseFiles'], 'and the SQL file');
         self::assertSame(2, $state['directories']);
         self::assertSame(1, $state['ignored'], 'the entry that is neither files/ nor db/');
         self::assertSame($state['total'], $state['bytes']);
@@ -74,7 +75,8 @@ final class ExtractorTest extends TestCase
         self::assertSame('more', file_get_contents($root . '/second/more.txt'));
         self::assertSame('<?php echo 1;', file_get_contents($root . '/index.php'));
         self::assertFileExists($database . '/0002_u.sql');
-        self::assertSame(8, $state['files']);
+        self::assertSame(6, $state['files']);
+        self::assertSame(2, $state['databaseFiles']);
     }
 
     public function testABigStoredFileContinuesAtTheByteItReached(): void

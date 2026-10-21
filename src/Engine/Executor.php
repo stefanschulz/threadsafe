@@ -94,6 +94,25 @@ final class Executor
     }
 
     /**
+     * Sets a failed run going again from the state of its last good tick (a failure does not change the state). For work whose
+     * cause the person can remove - a full disk, a wrong password, a statement the server refused - and that can continue where it
+     * stopped.
+     *
+     * @throws EngineException the run does not exist or has not failed
+     */
+    public function retry(string $id): Run
+    {
+        $run = $this->store->load($id);
+        if ($run->status !== RunStatus::Failed) {
+            throw new EngineException("Run \"$id\" has not failed; there is nothing to retry.");
+        }
+        $again = $run->with(RunStatus::Running, $run->state, null);
+        $this->store->save($again);
+
+        return $again;
+    }
+
+    /**
      * Continues a run whose process died.
      *
      * @param (callable(Run): void)|null $onTick

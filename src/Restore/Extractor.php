@@ -31,7 +31,7 @@ use ThreadSafe\Engine\TickOutcome;
  *   file created in them). Ownership stays that of the PHP user.
  *
  * State: `parts`, `root`, `database`, `protected`, `part`, `index`, `position`, `current` (null, or the byte reached in the
- * stored entry in progress), `files`, `directories`, `bytes`, `ignored`, `warnings`, and `entries`/`total` for the progress.
+ * stored entry in progress), `files` (below `files/`), `databaseFiles` (SQL files), `directories`, `bytes`, `ignored`, `warnings`, and `entries`/`total` for the progress.
  */
 final class Extractor
 {
@@ -78,6 +78,7 @@ final class Extractor
             'position' => 0,
             'current' => null,
             'files' => 0,
+            'databaseFiles' => 0,
             'directories' => 0,
             'bytes' => 0,
             'ignored' => 0,
@@ -181,7 +182,7 @@ final class Extractor
             return;
         }
 
-        $this->file($reader, $entry, $run, $target, $budget);
+        $this->file($reader, $entry, $run, $target, $budget, str_starts_with($name, 'db/'));
     }
 
     private function directory(ExtractRun $run, string $relative, Entry $entry): void
@@ -197,7 +198,7 @@ final class Extractor
      * @throws ExtractException
      * @throws ZipException
      */
-    private function file(ZipReader $reader, Entry $entry, ExtractRun $run, string $target, Budget $budget): void
+    private function file(ZipReader $reader, Entry $entry, ExtractRun $run, string $target, Budget $budget, bool $isDump): void
     {
         if (is_link($target) || is_dir($target)) {
             throw new ExtractException($run->describe('Cannot write') . ': the target is ' . (is_link($target) ? 'a symbolic link' : 'a directory') . ', not a file. The target is in a partial state.');
@@ -243,6 +244,7 @@ final class Extractor
             throw new ExtractException($run->describe('Cannot extract') . ': the CRC32 does not match (the data is damaged). The target is in a partial state.');
         }
         $run->current = null;
+        $run->adopt($target);
         $mode = $entry->mode !== null && ($entry->mode & 0170000) === 0100000 ? $entry->mode & 0777 : 0644;
         if (!@chmod($target, $mode)) {
             $run->warn("Cannot set the permissions of /{$run->relative($target)}");
@@ -250,7 +252,7 @@ final class Extractor
         if ($entry->mtime > 0 && !@touch($target, $entry->mtime)) {
             $run->warn("Cannot set the modification time of /{$run->relative($target)}");
         }
-        ++$run->files;
+        $isDump ? ++$run->databaseFiles : ++$run->files;
     }
 
     private function crc(string $path): int

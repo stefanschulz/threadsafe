@@ -17,6 +17,7 @@ final class ExtractRun
     public int $position;
     public ?int $current;
     public int $files;
+    public int $databaseFiles;
     public int $directories;
     public int $bytes;
     public int $ignored;
@@ -36,6 +37,9 @@ final class ExtractRun
     /** @var array<string, true> directories below the root that were looked at in this tick and are real directories */
     private array $verified = [];
 
+    /** @var list<int>|null user and group of the root directory when this process may give them away (root), [] when not */
+    private ?array $owner = null;
+
     /**
      * @param array<string, mixed> $state
      */
@@ -46,6 +50,7 @@ final class ExtractRun
         $this->position = (int) $state['position'];
         $this->current = $state['current'] === null ? null : (int) $state['current'];
         $this->files = (int) $state['files'];
+        $this->databaseFiles = (int) $state['databaseFiles'];
         $this->directories = (int) $state['directories'];
         $this->bytes = (int) $state['bytes'];
         $this->ignored = (int) $state['ignored'];
@@ -67,7 +72,7 @@ final class ExtractRun
     public function toState(array $state): array
     {
         return [...$state, 'part' => $this->part, 'index' => $this->index, 'position' => $this->position, 'current' => $this->current,
-            'files' => $this->files, 'directories' => $this->directories, 'bytes' => $this->bytes, 'ignored' => $this->ignored, 'warnings' => $this->warnings];
+            'files' => $this->files, 'databaseFiles' => $this->databaseFiles, 'directories' => $this->directories, 'bytes' => $this->bytes, 'ignored' => $this->ignored, 'warnings' => $this->warnings];
     }
 
     public function warn(string $message): void
@@ -94,6 +99,24 @@ final class ExtractRun
         }
 
         return false;
+    }
+
+    /**
+     * Gives a file or directory that was just made the owner and group of the root directory, when the restore runs as root: files
+     * made by root in a directory of the web server's user would be of no use to the web server. Anyone else cannot change the owner,
+     * and what they create already belongs to them.
+     */
+    public function adopt(string $path): void
+    {
+        if ($this->owner === null) {
+            $owner = function_exists('posix_geteuid') && posix_geteuid() === 0 ? @fileowner($this->root) : false;
+            $group = $owner === false ? false : @filegroup($this->root);
+            $this->owner = $owner === false || $group === false ? [] : [$owner, $group];
+        }
+        if ($this->owner !== []) {
+            @chown($path, $this->owner[0]);
+            @chgrp($path, $this->owner[1]);
+        }
     }
 
     /** A path below the root, for messages. */
@@ -141,6 +164,7 @@ final class ExtractRun
                 if (!@mkdir($path, 0755) && !is_dir($path)) {
                     throw new ExtractException($this->describe('Cannot create') . ": the directory /$walked cannot be made. The target is in a partial state.");
                 }
+                $this->adopt($path);
             }
             $this->verified[$walked] = true;
         }

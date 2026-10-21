@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace ThreadSafe\Generic;
 
+use ThreadSafe\Backup\Manifest;
 use ThreadSafe\Cli\Input;
 use ThreadSafe\Database\Connection;
 use ThreadSafe\Database\DatabaseSettings;
 use ThreadSafe\Generic\Backup\GenericBackup;
+use ThreadSafe\Generic\Restore\GenericRestore;
 use ThreadSafe\Generic\Steps\ReadGenericState;
 use ThreadSafe\Generic\Steps\ReplaceContentDomains;
 use ThreadSafe\Generic\Steps\SelfTest;
@@ -15,6 +17,7 @@ use ThreadSafe\Migration\RequestBuilder as BaseRequestBuilder;
 use ThreadSafe\Plugin\Backupable;
 use ThreadSafe\Plugin\BackupDefaults;
 use ThreadSafe\Plugin\DetectedSite;
+use ThreadSafe\Plugin\Restorable;
 use ThreadSafe\Plugin\WebsiteType;
 
 /**
@@ -23,8 +26,28 @@ use ThreadSafe\Plugin\WebsiteType;
  * check that the migrated site answers. Everything else - configuration files, caches, web server rules - stays with
  * the owner of the site.
  */
-final class GenericType implements WebsiteType, Backupable
+final class GenericType implements WebsiteType, Backupable, Restorable
 {
+    public function fields(Manifest $manifest): array
+    {
+        return (new GenericRestore())->fields($manifest);
+    }
+
+    public function restoreSettings(array $values): array
+    {
+        return (new GenericRestore())->restoreSettings($values);
+    }
+
+    public function sourceDomain(Manifest $manifest): ?string
+    {
+        return (new GenericRestore())->sourceDomain($manifest);
+    }
+
+    public function restoreChecks(Manifest $manifest): array
+    {
+        return (new GenericRestore())->restoreChecks($manifest);
+    }
+
     public function detect(string $path): ?DetectedSite
     {
         return (new GenericBackup())->detect($path);
