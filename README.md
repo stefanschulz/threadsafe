@@ -96,7 +96,7 @@ docker compose up -d        # first start installs PrestaShop (a few minutes)
 # Shop http://localhost:8190, back office http://localhost:8190/admin-dev, Mailpit http://localhost:8191
 ```
 
-ThreadSafe supports **MariaDB** (from 10.2) and **MySQL** (from 5.7); the stack runs on MariaDB 10.11 by default and on MySQL 8.4 with
+ThreadSafe supports **MariaDB** (from 10.2) and **MySQL** (from 5.7); the stack runs on MariaDB 10.11 by default (also tested: MySQL 8.4 and MariaDB 11.8) and on MySQL 8.4 with
 `DB_IMAGE=mysql:8.4 VOLUME_SUFFIX=_mysql tests/stack/run.sh`. `tests/stack/matrix.sh` runs the whole pipeline on both. The PHP
 interface to the database is `pdo_mysql` or `mysqli` (`--db-driver=auto|pdo|mysqli`; auto prefers `pdo_mysql`).
 

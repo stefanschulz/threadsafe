@@ -45,8 +45,8 @@ services:
       MYSQL_PASSWORD: ${DB_PASSWORD:-prestashop}
       MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-prestashop}
     healthcheck:
-      # mysqladmin exists in MariaDB and MySQL images; over TCP it fails while the entrypoint's temporary server runs.
-      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$$MYSQL_ROOT_PASSWORD\" --silent"]
+      # MariaDB 11 images have mariadb-admin only, MySQL images mysqladmin; over TCP it fails while the entrypoint's temporary server runs.
+      test: ["CMD-SHELL", "if command -v mariadb-admin >/dev/null 2>&1; then A=mariadb-admin; else A=mysqladmin; fi; $$A ping -h 127.0.0.1 -uroot -p\"$$MYSQL_ROOT_PASSWORD\" --silent"]
       interval: 5s
       timeout: 5s
       retries: 20
@@ -73,8 +73,8 @@ services:
       MYSQL_PASSWORD: ${TARGET_DB_PASSWORD:-target}
       MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-prestashop}
     healthcheck:
-      # mysqladmin exists in MariaDB and MySQL images; over TCP it fails while the entrypoint's temporary server runs.
-      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$$MYSQL_ROOT_PASSWORD\" --silent"]
+      # MariaDB 11 images have mariadb-admin only, MySQL images mysqladmin; over TCP it fails while the entrypoint's temporary server runs.
+      test: ["CMD-SHELL", "if command -v mariadb-admin >/dev/null 2>&1; then A=mariadb-admin; else A=mysqladmin; fi; $$A ping -h 127.0.0.1 -uroot -p\"$$MYSQL_ROOT_PASSWORD\" --silent"]
       interval: 5s
       timeout: 5s
       retries: 20

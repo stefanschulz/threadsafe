@@ -62,7 +62,7 @@ docker compose -f .docker/docker-compose.yml --profile target --profile tools ru
     vendor/bin/phpunit --testsuite integration --filter DumperTest
 ```
 
-**Both servers must stay green.** The stack runs MariaDB 10.11 by default; MySQL 8.4 needs
+**All three servers must stay green** (MariaDB 10.11, MySQL 8.4, MariaDB 11.8 - the live host's version). The stack runs MariaDB 10.11 by default; MySQL 8.4 needs
 `DB_IMAGE=mysql:8.4 VOLUME_SUFFIX=_mysql` *on every docker compose call* - a call without them silently recreates the `db`
 container as MariaDB. `tests/stack/matrix.sh` runs everything on both. Details: [tests/stack/README.md](tests/stack/README.md).
 
@@ -121,8 +121,7 @@ that has no ThreadSafe installed), import the SQL with plain PHP (including `DEL
 time limit, in ticks), rename the table prefix, restore over an existing installation, and hand over to the migration of
 phase 1. Open questions the plan must settle with the owner are listed in `docs/CONCEPT.md` section 10.
 
-Open questions for the owner (not blocking): the live host has PHP 8.4 only as CGI builds (web: 30 s per request, 512 MB,
-`exec` allowed, no cut-off up to 40 s); its SSH shell has PHP 4 (probe runs of 2026-10-21, `docs/PHASE3.md` section 8).
-`bin/threadsafe` runs with the CGI binary (`php8.4 -q bin/threadsafe …`). Still unknown is the database server there: run
-`tools/spikes/host-probe.php?token=…&form=1` and enter the host as the shop's `parameters.php` has it (not `localhost` if
-that fails on the socket); the form stores nothing - see CONCEPT section 10.
+The live host (probe runs of 2026-10-21, `docs/PHASE3.md` section 8, finding 6): PHP 8.4.26 only as CGI builds (web: 30 s per
+request, 512 MB, `exec` allowed, no cut-off up to 40 s; the SSH shell's `php` is PHP 4 but `/usr/bin/php8.4 -q` works),
+database MariaDB 11.8.8 with 64 MB `max_allowed_packet`. `bin/threadsafe` runs with the CGI binary. No open question about
+the host remains; see CONCEPT section 10.
