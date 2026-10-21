@@ -30,9 +30,10 @@ final class Kernel
     /**
      * @param string              $data  the data directory
      * @param string              $base  the path of the directory `index.php` is in ("" or "/threadsafe/public")
-     * @param Closure(): int|null $clock for tests: the time in seconds
+     * @param Closure(): int|null                     $clock   for tests: the time in seconds
+     * @param (Closure(): \ThreadSafe\Engine\Budget)|null $budgets for tests: the budget of a tick
      */
-    public function __construct(private readonly string $data, private readonly string $base = '', private readonly ?Closure $clock = null)
+    public function __construct(private readonly string $data, private readonly string $base = '', private readonly ?Closure $clock = null, private readonly ?Closure $budgets = null)
     {
     }
 
@@ -51,7 +52,7 @@ final class Kernel
     private function dispatch(Request $request): Response
     {
         try {
-            $services = new Services($this->data, $this->clock);
+            $services = new Services($this->data, $this->clock, $this->budgets);
         } catch (ConfigException $e) {
             return View::error('The configuration cannot be read', $e->getMessage(), 500);
         }
@@ -93,6 +94,7 @@ final class Kernel
     {
         $dashboard = new DashboardController($services);
         $profiles = new ProfileController($services);
+        $backups = new BackupController($services);
         $router = new Router();
         $router->add('GET', '/login', $auth->loginPage(...), public: true);
         $router->add('POST', '/login', $auth->login(...), public: true);
@@ -107,6 +109,12 @@ final class Kernel
         $router->add('POST', '/profiles/{id}/test', $profiles->test(...));
         $router->add('GET', '/profiles/{id}/delete', $profiles->confirmRemove(...));
         $router->add('POST', '/profiles/{id}/delete', $profiles->remove(...));
+        $router->add('POST', '/profiles/{id}/backup', $backups->start(...));
+        $router->add('GET', '/runs/{run}', $backups->show(...));
+        $router->add('POST', '/runs/{run}/tick', $backups->tick(...));
+        $router->add('POST', '/runs/{run}/continue', $backups->next(...));
+        $router->add('POST', '/runs/{run}/abandon', $backups->abandon(...));
+        $router->add('POST', '/runs/{run}/dismiss', $backups->dismiss(...));
 
         return $router;
     }
@@ -167,7 +175,7 @@ final class Kernel
     private function loggedIn(Request $request): bool
     {
         try {
-            $services = new Services($this->data, $this->clock);
+            $services = new Services($this->data, $this->clock, $this->budgets);
 
             return $services->sessions->load($request->cookie(AuthController::COOKIE)) !== null;
         } catch (Throwable) {

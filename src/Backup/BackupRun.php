@@ -64,7 +64,7 @@ final class BackupRun implements Task
 
     /**
      * @param array<string, mixed> $parameters `profile` (id), `force`, `snapshot` (dump inside one consistent snapshot),
-     *                                         `partSize` and `compression` (override the profile)
+     *                                         `web` (started by the web interface), `partSize` and `compression` (override the profile)
      */
     public function initialState(array $parameters): array
     {
@@ -78,7 +78,10 @@ final class BackupRun implements Task
             throw new InvalidArgumentException('The part size must be at least 1 MiB and the compression 0-9.');
         }
 
-        return (new BackupState($profile, ($parameters['force'] ?? false) === true, ($parameters['snapshot'] ?? false) === true, $partSize, $compression))->toArray();
+        $state = new BackupState($profile, ($parameters['force'] ?? false) === true, ($parameters['snapshot'] ?? false) === true, $partSize, $compression);
+        $state->web = ($parameters['web'] ?? false) === true;
+
+        return $state->toArray();
     }
 
     public function tick(array $state, Budget $budget): TickOutcome

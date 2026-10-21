@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace ThreadSafe\Cli;
 
 use JsonException;
+use ThreadSafe\App\BackupService;
 use ThreadSafe\Backup\BackupRun;
 use ThreadSafe\Core\Exception\GuardFailed;
 use ThreadSafe\Core\Exception\StepFailed;
@@ -196,6 +197,7 @@ final class BackupCommand implements Command
             throw new GuardFailed("The profile \"$id\" is being backed up by another process.");
         }
         try {
+            $this->service($profiles, $runs)->assertNoActiveRun();
             foreach ($runs->all('backup') as $run) {
                 if ($run->status === RunStatus::Running && ($run->state['profileId'] ?? null) === $id && $runs->isInterrupted($run)) {
                     $output->writeln("Note: an interrupted backup of \"$id\" exists ({$run->id}); continue it with --resume={$run->id}.");
@@ -232,6 +234,11 @@ final class BackupCommand implements Command
         if ($run->task !== 'backup') {
             throw new UsageError("Run \"$runId\" is not a backup.");
         }
+        $service = $this->service($profiles, $runs);
+        if ($service->state($run) === 'active') {
+            throw new GuardFailed("Run \"$runId\" is being worked on right now (by the web interface or another process).");
+        }
+        $service->assertNoActiveRun($runId);
         $task = new BackupRun($profiles, $this->plugins ?? PluginRegistry::load(), $this->dataDirectory);
         $executor = $this->executor($runs, $task, $options['tickSeconds']);
         $output->writeln('Continuing the backup of "' . (string) ($run->state['profileId'] ?? '?') . '" (run ' . $runId . ') ...');
@@ -239,6 +246,11 @@ final class BackupCommand implements Command
         $this->writeReport($options['report'], $report);
 
         return ExitCode::Ok;
+    }
+
+    private function service(ProfileStore $profiles, RunStore $runs): BackupService
+    {
+        return new BackupService($profiles, $this->plugins ?? PluginRegistry::load(), $runs, $this->dataDirectory);
     }
 
     private function executor(RunStore $runs, BackupRun $task, ?float $tickSeconds): Executor

@@ -1,6 +1,7 @@
 // ThreadSafe web interface. One file, no framework, no inline code (the content security policy allows only this file).
-// What it does so far: local time next to the UTC time, and a confirmation before a form that asks for one.
-// Later work packages add the tick loop of a running backup and the download dialog here.
+// What it does: local time next to the UTC time, a confirmation before a form that asks for one, and the tick loop of a running
+// backup (a page with a [data-tick-url] element asks for one tick after the other and shows how far the run is).
+// The download dialog is added here by a later work package.
 (function () {
   'use strict';
 
@@ -12,6 +13,56 @@
       element.textContent = date.toLocaleString();
     }
   });
+
+  // The page of a running backup: every request does one tick on the server (about 60 % of its time limit). The server decides
+  // when the run is done; a closed tab only stops the asking, and the run can be continued from its saved state.
+  var run = document.getElementById('run');
+  if (run) {
+    var token = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
+    var bar = document.getElementById('run-progress');
+    var label = document.getElementById('run-label');
+    var note = document.getElementById('run-note');
+    var actions = document.getElementById('run-actions');
+    var failures = 0;
+
+    // with script the "next step" button is not needed
+    var next = actions ? actions.querySelector('form') : null;
+    if (next) { next.hidden = true; }
+
+    var show = function (text) { if (note) { note.textContent = text; } };
+    var again = function (milliseconds) { window.setTimeout(tick, milliseconds); };
+
+    var tick = function () {
+      fetch(run.getAttribute('data-tick-url'), { method: 'POST', credentials: 'same-origin', headers: { 'X-CSRF-Token': token } })
+        .then(function (response) {
+          return response.json().then(function (data) { return { http: response.status, data: data }; });
+        })
+        .then(function (answer) {
+          var data = answer.data;
+          failures = 0;
+          if (data.status === 'busy') { show(data.label || 'Waiting ...'); again(1500); return; }
+          if (data.status === 'running') {
+            show('');
+            if (label && data.label) { label.textContent = data.label; }
+            if (bar) {
+              if (typeof data.percent === 'number') { bar.value = data.percent; bar.textContent = data.percent + ' %'; } else { bar.removeAttribute('value'); }
+            }
+            again(100);
+            return;
+          }
+          if (data.status === 'login') { show('The session has ended. Log in again; the backup stays where it is and can be continued.'); return; }
+          // finished, failed or gone: the page shows the result
+          window.location.reload();
+        })
+        .catch(function () {
+          failures += 1;
+          if (failures > 20) { show('The connection is lost. Reload the page to go on.'); return; }
+          show('The connection was lost; trying again ...');
+          again(Math.min(15000, 1000 * failures));
+        });
+    };
+    again(200);
+  }
 
   // <form data-confirm="Delete this backup?"> asks first
   document.addEventListener('submit', function (event) {

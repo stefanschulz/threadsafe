@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace ThreadSafe\Cli;
 
+use ThreadSafe\App\BackupService;
 use ThreadSafe\Backup\BackupName;
 use ThreadSafe\Backup\BackupRun;
 use ThreadSafe\Core\ExitCode;
@@ -193,7 +194,7 @@ final class BackupsCommand implements Command
         if ($run->task !== 'backup') {
             throw new UsageError("Run \"$runId\" is not a backup.");
         }
-        if ($run->status === RunStatus::Running && !$runs->isInterrupted($run)) {
+        if ($run->status === RunStatus::Running && (new BackupService($profiles, $this->plugins ?? PluginRegistry::load(), $runs, $this->dataDirectory))->state($run) === 'active') {
             throw new UsageError("Run \"$runId\" is still being executed by a process.");
         }
         if (!$input->has('yes')) {

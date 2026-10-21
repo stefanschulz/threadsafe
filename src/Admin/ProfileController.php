@@ -90,7 +90,9 @@ final class ProfileController
             . View::form($context, "/profiles/$id/test", '<button type="submit">Test the connection</button>', 'inline')
             . ' <a class="button danger" href="' . Html::e($context->urls->to("/profiles/$id/delete")) . '">Remove</a></div>';
 
-        return View::page($context, $profile->name, $actions . $table, '/profiles');
+        $backups = new BackupController($this->services);
+
+        return View::page($context, $profile->name, $actions . $backups->runsBox($context, $id) . '<h2>Back up</h2>' . $backups->startForm($context, $id) . '<h2>Settings</h2>' . $table, '/profiles');
     }
 
     /**

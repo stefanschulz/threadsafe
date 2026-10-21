@@ -11,4 +11,11 @@ use RuntimeException;
  */
 final class EngineException extends RuntimeException
 {
+    /** The code of the exception for a run that another process is working on right now. */
+    public const int BUSY = 1;
+
+    public function isBusy(): bool
+    {
+        return $this->getCode() === self::BUSY;
+    }
 }

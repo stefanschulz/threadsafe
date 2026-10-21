@@ -53,7 +53,7 @@ final class Executor
     {
         $lock = Lock::tryAcquire($this->store->lockPath($id), 'run ' . $id);
         if ($lock === null) {
-            throw new EngineException("Run \"$id\" is being executed by another process (" . (Lock::holder($this->store->lockPath($id)) ?? 'holder unknown') . ').');
+            throw new EngineException("Run \"$id\" is being executed by another process (" . (Lock::holder($this->store->lockPath($id)) ?? 'holder unknown') . ').', EngineException::BUSY);
         }
 
         $ticks = 0;

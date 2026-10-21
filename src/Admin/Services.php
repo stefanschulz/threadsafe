@@ -26,13 +26,18 @@ final readonly class Services
     /** @var Closure(): int */
     public Closure $clock;
 
+    /** @var (Closure(): \ThreadSafe\Engine\Budget)|null the budget of a tick; null = a share of the request time limit */
+    public ?Closure $budgets;
+
     /**
-     * @param Closure(): int|null $clock for tests: the time in seconds
+     * @param Closure(): int|null                               $clock   for tests: the time in seconds
+     * @param (Closure(): \ThreadSafe\Engine\Budget)|null           $budgets for tests: the budget of a tick
      *
      * @throws ConfigException the configuration file is damaged
      */
-    public function __construct(public string $data, ?Closure $clock = null)
+    public function __construct(public string $data, ?Closure $clock = null, ?Closure $budgets = null)
     {
+        $this->budgets = $budgets;
         $this->clock = $clock ?? static fn (): int => time();
         $this->config = Config::load($data . '/config.json');
         $this->admin = new AdminStore($data . '/admin.json');

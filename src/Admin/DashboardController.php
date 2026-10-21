@@ -37,7 +37,7 @@ final class DashboardController
         }
 
         $link = '<a href="' . Html::e($context->urls->to($profiles === 0 ? '/new-profile' : '/profiles')) . '">' . ($profiles === 0 ? 'Create one' : 'Manage them') . '</a>';
-        $body = '<p class="summary"><strong>' . $profiles . '</strong> site ' . ($profiles === 1 ? 'profile' : 'profiles') . '. ' . $link . '.</p>'
+        $body = (new BackupController($this->services))->runsBox($context) . '<p class="summary"><strong>' . $profiles . '</strong> site ' . ($profiles === 1 ? 'profile' : 'profiles') . '. ' . $link . '.</p>'
             . '<h2>Recent activity</h2>'
             . ($rows === '' ? '<p class="hint">Nothing yet.</p>' : '<div class="scroll"><table><thead><tr><th>Time (UTC)</th><th>Event</th><th>User</th><th>Details</th></tr></thead><tbody>' . $rows . '</tbody></table></div>');
 

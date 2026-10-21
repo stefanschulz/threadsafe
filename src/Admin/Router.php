@@ -6,7 +6,7 @@ namespace ThreadSafe\Admin;
 
 /**
  * Maps a method and a route to a handler. A pattern is a path in which `{id}` stands for a profile id (a slug), `{name}` for a
- * backup or part name, `{hex}` for a token; nothing else is accepted in those places, so a handler never sees `..` or a slash
+ * backup or part name, `{hex}` for a token, `{run}` for the id of a run; nothing else is accepted in those places, so a handler never sees `..` or a slash
  * from the request, and an address that does not fit is simply not found.
  */
 final class Router
@@ -15,6 +15,7 @@ final class Router
         'id' => '[a-z0-9][a-z0-9_-]{0,39}',
         'name' => '[A-Za-z0-9][A-Za-z0-9._-]{0,127}',
         'hex' => '[0-9a-f]{16,128}',
+        'run' => '[a-z][a-z0-9-]{0,40}-\\d{8}-\\d{6}-[0-9a-f]{8}',
     ];
 
     /** @var list<array{method: string, regex: string, handler: callable(Context, array<string, string>): \ThreadSafe\Web\Response, public: bool}> */

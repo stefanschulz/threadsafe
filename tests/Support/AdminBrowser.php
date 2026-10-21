@@ -24,7 +24,10 @@ final class AdminBrowser
 
     public string $csrf = '';
 
-    public function __construct(public readonly string $data, private readonly string $base = '')
+    /**
+     * @param (\Closure(): \ThreadSafe\Engine\Budget)|null $budgets the budget of a tick (default: the share of the request time limit, which is none in a test)
+     */
+    public function __construct(public readonly string $data, private readonly string $base = '', private readonly ?\Closure $budgets = null)
     {
     }
 
@@ -67,7 +70,7 @@ final class AdminBrowser
     public function send(string $method, string $route, array $fields = [], array $headers = [], string $address = '127.0.0.1'): Response
     {
         $request = new Request($method, [], $fields, $this->cookie === '' ? [] : ['threadsafe_session' => $this->cookie], false, $address, $this->base . $route, $headers + ['host' => 'ts.example']);
-        $response = (new Kernel($this->data, $this->base, fn (): int => $this->now))->handle($request);
+        $response = (new Kernel($this->data, $this->base, fn (): int => $this->now, $this->budgets))->handle($request);
 
         foreach ($response->headers('Set-Cookie') as $line) {
             if (preg_match('/^threadsafe_session=([^;]*)/', $line, $m) === 1) {

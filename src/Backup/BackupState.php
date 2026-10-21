@@ -27,6 +27,12 @@ final class BackupState
     /** At most this many warnings are kept; the rest is only counted. */
     public const int MAX_WARNINGS = 200;
 
+    /**
+     * The run was started by the web interface, i.e. one process per tick: between two ticks nothing holds its lock, so it is
+     * "active" while its last tick is recent (docs/PHASE4.md 3.4). A run of the command line is active while its process lives.
+     */
+    public bool $web = false;
+
     public string $phase = self::INIT;
 
     /** The base name of the backup; empty until the run has started. */
@@ -99,6 +105,7 @@ final class BackupState
             'profileId' => $this->profileId,
             'force' => $this->force,
             'snapshot' => $this->snapshot,
+            'web' => $this->web,
             'partSize' => $this->partSize,
             'compression' => $this->compression,
             'phase' => $this->phase,
@@ -145,6 +152,7 @@ final class BackupState
         if (!in_array($phase, [self::INIT, self::SCAN, self::DUMP, self::PACK, self::FINALE, self::DONE], true)) {
             throw $invalid('phase');
         }
+        $state->web = (($data['web'] ?? false) === true);
         $state->phase = $phase;
         $state->backup = $string('backup');
         $state->profileHash = $string('profileHash');
