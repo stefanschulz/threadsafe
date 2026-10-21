@@ -94,6 +94,18 @@ foreach (array('zlib', 'hash', 'json', 'mbstring', 'pdo_mysql', 'mysqli', 'token
     probe_line($extension, extension_loaded($extension) ? 'loaded' : 'not loaded');
 }
 
+echo "\nPassword hashing (phase 4, the login of the web interface)\n";
+if (function_exists('password_algos')) {
+    probe_line('password_algos', implode(', ', password_algos()));
+    if (defined('PASSWORD_ARGON2ID')) {
+        $started = microtime(true);
+        $hash = password_hash('probe', PASSWORD_ARGON2ID);
+        probe_line('argon2id hash', sprintf('%.0f ms, verify %s', (microtime(true) - $started) * 1000, password_verify('probe', $hash) ? 'ok' : 'FAILS'));
+    }
+} else {
+    probe_line('password_algos', 'not available');
+}
+
 echo "\nFunctions\n";
 foreach (array('exec', 'proc_open', 'shell_exec', 'passthru', 'popen', 'system', 'set_time_limit', 'ini_set', 'symlink', 'chmod', 'touch', 'fsync', 'inflate_init', 'gzinflate', 'password_hash', 'random_bytes', 'mail') as $function) {
     probe_line($function, probe_function($function));
