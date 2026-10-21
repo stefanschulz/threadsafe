@@ -11,7 +11,9 @@
  *
  *   command line:  php host-probe.php [--db-host=H --db-name=N --db-user=U --db-password-file=FILE] [--busy=SECONDS]
  *   web:           put the file in the document root, set $WEB_TOKEN below, open  host-probe.php?token=...  [&busy=SECONDS]
- *                  and DELETE THE FILE afterwards.
+ *                  and DELETE THE FILE afterwards. For the database test open  host-probe.php?token=...&form=1  and type the
+ *                  settings into the form: they travel in one POST request, are used once and are neither stored nor printed
+ *                  (no settings file is read, so there is nothing on the server for anyone to find).
  */
 
 $WEB_TOKEN = '';   // web mode refuses to run while this is empty
@@ -22,6 +24,15 @@ if (!$cli) {
     if ($WEB_TOKEN === '' || !isset($_GET['token']) || $_GET['token'] !== $WEB_TOKEN) {
         header('HTTP/1.1 403 Forbidden');
         echo "Set \$WEB_TOKEN in this file and call it with ?token=...\n";
+        exit;
+    }
+    if (isset($_GET['form'])) {
+        // a form for the database test: the answer is the probe's output; nothing typed here is stored or printed
+        header('Content-Type: text/html; charset=utf-8');
+        echo '<!doctype html><meta charset="utf-8"><title>Host probe</title><h1>Database test</h1>';
+        echo '<form method="post" action="?token=' . htmlspecialchars(rawurlencode($WEB_TOKEN)) . '" autocomplete="off">';
+        echo '<p>Host <input name="db_host" value="localhost"><p>Database <input name="db_name"><p>User <input name="db_user">';
+        echo '<p>Password <input name="db_password" type="password"><p><button>Run the probe</button></form>';
         exit;
     }
 }
@@ -234,17 +245,13 @@ if ($cli) {
     }
 }
 $password = '';
-$settingsFile = dirname(__FILE__) . '/host-probe-db.php';
-if ($host === null && is_file($settingsFile)) {
-    // <?php return array('host' => '...', 'name' => '...', 'user' => '...', 'password' => '...');
-    $settings = include $settingsFile;
-    if (is_array($settings) && isset($settings['host'], $settings['name'], $settings['user'])) {
-        $host = $settings['host'];
-        $name = $settings['name'];
-        $user = $settings['user'];
-        $password = isset($settings['password']) ? (string) $settings['password'] : '';
-        $file = '';
-    }
+if (!$cli && isset($_POST['db_host'], $_POST['db_name'], $_POST['db_user'])) {
+    // settings typed into the form: used for this request only, never stored, never printed
+    $host = (string) $_POST['db_host'];
+    $name = (string) $_POST['db_name'];
+    $user = (string) $_POST['db_user'];
+    $password = isset($_POST['db_password']) ? (string) $_POST['db_password'] : '';
+    $file = '';
 }
 if ($host !== null && $name !== null && $user !== null && $file !== null) {
     echo "\nDatabase\n";
@@ -282,7 +289,7 @@ if ($host !== null && $name !== null && $user !== null && $file !== null) {
         probe_line('connection', 'FAILED: ' . preg_replace('/password[^,]*/i', 'password ***', $e->getMessage()));
     }
 } else {
-    echo "\n(to test the database put a file host-probe-db.php next to this one:\n   <?php return array('host' => 'localhost', 'name' => '...', 'user' => '...', 'password' => '...');\n or, on the command line, use --db-host=H --db-name=N --db-user=U --db-password-file=FILE)\n";
+    echo "\n(to test the database through the web server open this page with &form=1 and fill in the form;\n on the command line use --db-host=H --db-name=N --db-user=U --db-password-file=FILE)\n";
 }
 
-echo "\nDelete this file - and host-probe-db.php - when you are done.\n";
+echo "\nDelete this file when you are done.\n";

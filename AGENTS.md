@@ -121,4 +121,4 @@ phase 1. Open questions the plan must settle with the owner are listed in `docs/
 Open questions for the owner (not blocking): the live host runs PHP 8.4 only for the web server (30 s per request, 512 MB,
 `exec` allowed); its SSH shell has PHP 4 (probe run of 2026-10-21, `docs/PHASE3.md` section 8). Still unknown are the
 database server there and whether a proxy cuts requests before 30 s - run `tools/spikes/host-probe.php` through the web
-server with `&busy=40` and the database test (password from a file next to it, never pasted) - see CONCEPT section 10.
+server with `&busy=40` and the database test (`&form=1`: typed into a form, never stored or pasted) - see CONCEPT section 10.
