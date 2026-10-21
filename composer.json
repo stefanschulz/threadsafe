@@ -38,10 +38,15 @@
         "stan": "phpstan analyse --memory-limit=512M",
         "test": "phpunit --testsuite unit",
         "test:integration": "phpunit --testsuite integration",
+        "test:bundle": [
+            "php tools/build-restore.php --bundle=build/bundle.php",
+            "php -d auto_prepend_file=tools/prepend-bundle.php vendor/bin/phpunit --testsuite unit"
+        ],
         "check": [
             "@lint",
             "@stan",
-            "@test"
+            "@test",
+            "@test:bundle"
         ]
     },
     "scripts-descriptions": {
@@ -49,6 +54,7 @@
         "stan": "Static analysis (PHPStan)",
         "test": "Unit tests (no database needed)",
         "test:integration": "Integration tests (need the Docker stacks, see tests/stack/run.sh)",
-        "check": "Lint, static analysis and unit tests"
+        "test:bundle": "The unit tests again, against the bundled code that restore.php is made of",
+        "check": "Lint, static analysis, unit tests, unit tests against the bundle"
     }
 }

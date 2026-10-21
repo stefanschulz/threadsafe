@@ -33,3 +33,6 @@ jobs:
 
       - name: Unit tests
         run: composer test
+
+      - name: Unit tests against the bundle of restore.php
+        run: composer test:bundle

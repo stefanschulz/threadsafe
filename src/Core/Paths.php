@@ -9,10 +9,14 @@ namespace ThreadSafe\Core;
  */
 final class Paths
 {
-    /** The program directory: the one with `src/`, `plugins/` and `bin/`. */
+    /**
+     * The program directory: the one with `src/`, `plugins/` and `bin/`. The single-file restore tool (docs/PHASE3.md 3.1) has no
+     * such tree: it unpacks the plugins and their data files into a directory of its own and names it in the constant
+     * THREADSAFE_PROGRAM_DIR before the code runs.
+     */
     public static function program(): string
     {
-        return dirname(__DIR__, 2);
+        return defined('THREADSAFE_PROGRAM_DIR') ? rtrim((string) constant('THREADSAFE_PROGRAM_DIR'), '/\\') : dirname(__DIR__, 2);
     }
 
     /** The directory with the website type plugins. */

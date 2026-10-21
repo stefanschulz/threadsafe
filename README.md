@@ -52,8 +52,22 @@ php bin/threadsafe restore --resume=<run id>                                    
 Without `--yes` it only shows what the backup is and every requirement it checked (free space, empty target, database reachable
 and empty, collations, table prefix). With `--yes` it unpacks the files and the SQL files, imports the dump in plain PHP (no
 `mysql` client needed; `--prefix=` changes the table prefix), and adapts the site to its new place like `migrate` does (the
-options of `migrate` are accepted). It works in saved steps, so a run that stops continues where it was. The single-file
-`restore.php` with a wizard for hosts without ThreadSafe is the rest of phase 3 and not there yet.
+options of `migrate` are accepted). It works in saved steps, so a run that stops continues where it was.
+
+**On a host where ThreadSafe is not installed** - the usual case when a site has to be rebuilt in a hurry - use the single file
+`restore.php` (about 200 KB, built once, the same for every backup and website type; keep a copy with your backups):
+
+```bash
+php tools/build-restore.php            # writes dist/restore.php
+php tools/build-restore.php --key      # prints a random key and the line for restore-key.php
+```
+
+Upload `restore.php`, a `restore-key.php` (`<?php return 'the key';` - it does nothing without), and all parts of the backup into
+the (empty) directory of the site, an empty database ready, and open `restore.php` in the browser: the wizard asks for the key,
+the backup, the database and the new address, and restores in steps that fit the time limit of the host (tested with
+`max_execution_time=5`). At the end it deletes itself, the key and its state; the backup stays. In a shell the same file is the
+command: `php restore.php restore <archive> --root=DIR ...` (no key needed). PHP 8.4 with `zlib`, `mbstring` and `pdo_mysql` or
+`mysqli` is all it needs; on an older PHP it says so and stops.
 
 ## Usage: migrate a restored PrestaShop 9 copy
 

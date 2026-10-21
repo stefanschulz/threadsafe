@@ -16,7 +16,7 @@ application automatically. First target: **PrestaShop 9.x**; MariaDB and MySQL; 
 |---|---|---|
 | 1, 1b | Restore core: `threadsafe migrate <type>`, dev mode, module rules, self-test; database drivers; website type plugins | done |
 | 2 | Site profiles and backup engine (CLI) | done (work packages in [docs/PHASE2.md](docs/PHASE2.md) section 5; user documentation [docs/BACKUP.md](docs/BACKUP.md)) |
-| 3 | `restore.php` (extractor and wizard) | **in progress**: plan [docs/PHASE3.md](docs/PHASE3.md); work packages 1-6 done (milestone A: `threadsafe restore` from the command line; the wizard works behind a web server), 7-9 open |
+| 3 | `restore.php` (extractor and wizard) | **in progress**: plan [docs/PHASE3.md](docs/PHASE3.md); work packages 1-7 done (milestone A: `threadsafe restore`; milestone B: the single file `dist/restore.php` with the wizard), 8-9 open |
 | 4 | Web interface (dashboard, download) | not started |
 | 5 | One trigger cron, retention, encryption | not started |
 
@@ -83,7 +83,7 @@ Oracles are real tools where possible: `unzip -t`, the `mariadb` client, `CHECKS
 | `src/Archive` | Phase 2: streaming ZIP writer and reader (ZIP64, resumable, byte-identical regardless of tick cuts) |
 | `src/Backup` | Phase 2: `Scanner`, `Filters`, `FileList`, `Dumper` and its helpers (`SqlWriter`, `SchemaReader`, `DumpState` ...); `BackupRun` (the task), `ArchivePacker` |
 | `src/Restore` | Phase 3: `RestoreRun` (the task: preflight, extract, import, adapt, finalize) with `BackupSource`, `Preflight`; `Extractor` (resumable extraction of the archive parts); `SqlSplitter`, `PrefixRewriter`, `Importer` (resumable SQL import in plain PHP, optional table prefix change) |
-| `src/Web` | Phase 3: the restore wizard (`Wizard`, `AccessKey`, `Sessions`, `Cleanup` ...); `tools/restore-web.php` is its development entry |
+| `src/Web`, `src/Build` | Phase 3: the restore wizard (`Wizard`, `AccessKey`, `Sessions`, `Cleanup`, `Entry` ...); the build of the single file `restore.php` (`Bundler`, `RestoreBuilder`, `RestoreStub`; `php tools/build-restore.php`). `tools/restore-web.php` is the wizard's development entry |
 | `src/Profile` | Phase 2: `SiteProfile`, `ProfileStore`, `ProfileResolver`, `ConnectionTest` |
 | `src/Storage`, `src/Backup/Manifest*` | Phase 2: `LocalStorage` (protection files, sidecar, listing), `BackupCatalog` (listing, sidecar rebuild), `SpaceCheck`, `Postproc`; `BackupName`, `Manifest`, `Sidecar`, `Verifier` |
 | `tests/Unit`, `tests/Integration`, `tests/Support`, `tests/stack` | Tests, helpers, Docker stack scripts |
@@ -116,8 +116,8 @@ integration tests (the backup round trip of the seeded shop, SIGKILL and resume,
 `docs/PHASE2.md` 4.2); the reference is `docs/BACKUP.md`. Next is **phase 3, `restore.php`**: `docs/PHASE3.md` is the plan (decisions 1-4 and 6 settled with the owner, 5 and 7-9
 proposed), its work package 1 (spikes, `tools/spikes/bundle.php`, `sql-import.php`, `inflate-speed.php`, `host-probe.php`) is
 done and its findings are in section 8. Work packages 2-5 (extractor, SQL importer and `RestoreRun` in `src/Restore`, the resumable migration with
-`TickedRunner`, the CLI `restore`) are done - milestone A - and so is the wizard (6, `src/Web`); continue with 7 (the build of the
-single file `restore.php`: bundler, PHP 5-compatible stub, the `Paths::program()` override), 8 and 9, each tested and
+`TickedRunner`, the CLI `restore`) are done - milestone A - and so are the wizard (6, `src/Web`) and the build of the single file `restore.php` (7, `src/Build`, milestone B); continue with 8
+(the integration tests of the whole: disaster recovery, interruption, cross-server) and 9 (`docs/RESTORE.md`), each tested and
 committed on request. The
 restore must read these archives with `ZipReader` (or a stand-alone extractor of its own, since `restore.php` runs on a host
 that has no ThreadSafe installed), import the SQL with plain PHP (including `DELIMITER` blocks and large `INSERT`s under a
