@@ -117,17 +117,26 @@ final class ZipReader
     /**
      * All entries in central directory order.
      *
+     * A walk can be resumed: with the number and the {@see Entry::$nextRecord} of the last entry seen, the next call starts at
+     * the following record without reading the ones before.
+     *
+     * @param int $from     index of the first record
+     * @param int $position where that record begins, counted from the start of the central directory
+     *
      * @return Generator<int, Entry>
      *
-     * @throws ZipException a record is damaged
+     * @throws ZipException a record is damaged, or the position is not inside the directory
      */
-    public function entries(): Generator
+    public function entries(int $from = 0, int $position = 0): Generator
     {
+        if ($from < 0 || $position < 0 || $position > $this->directorySize || ($from === 0 && $position !== 0)) {
+            throw new ZipException("\"{$this->path}\": cannot continue the walk through the central directory there.");
+        }
         $directory = self::openFile($this->path);
         try {
-            fseek($directory, $this->directoryOffset);
-            $consumed = 0;
-            for ($index = 0; $index < $this->entryCount; ++$index) {
+            fseek($directory, $this->directoryOffset + $position);
+            $consumed = $position;
+            for ($index = $from; $index < $this->entryCount; ++$index) {
                 $fixed = (string) fread($directory, 46);
                 $r = strlen($fixed) === 46 ? unpack('Vsig/vmadeBy/vneeded/vflags/vmethod/vtime/vdate/Vcrc/Vcompressed/Vsize/vnameLength/vextraLength/vcommentLength/vdisk/vinternal/Vexternal/Voffset', $fixed) : false;
                 if ($r === false || $r['sig'] !== ZipFormat::CENTRAL_HEADER) {
@@ -143,7 +152,7 @@ final class ZipReader
                     throw new ZipException("\"{$this->path}\": central directory record " . ($index + 1) . ' is cut off.');
                 }
 
-                yield $index => $this->entryFrom($r, substr($rest, 0, $r['nameLength']), substr($rest, $r['nameLength'], $r['extraLength']));
+                yield $index => $this->entryFrom($r, substr($rest, 0, $r['nameLength']), substr($rest, $r['nameLength'], $r['extraLength']), $consumed);
             }
         } finally {
             fclose($directory);
@@ -164,22 +173,32 @@ final class ZipReader
     /**
      * Streams the content of an entry to $sink in chunks, checking sizes and CRC32 on the way.
      *
-     * @param callable(string): void $sink
+     * The sink may return `false` to stop after the chunk it just got (anything else, including nothing, goes on). A stored entry
+     * can then be continued later by passing the number of bytes already delivered as $from; the CRC32 is not checked for such a
+     * partial read (the caller checks the whole content), the size still is.
+     *
+     * @param callable(string): mixed $sink
+     * @param int                     $from bytes of a stored entry to skip; must be 0 for a deflated one
+     *
+     * @return bool true if the whole entry was delivered and checked, false if the sink stopped it
      *
      * @throws ZipException the entry is damaged, unsafe, unsupported, or expands beyond its declared size
      */
-    public function extract(Entry $entry, callable $sink): void
+    public function extract(Entry $entry, callable $sink, int $from = 0): bool
     {
         $this->assertReadable($entry);
         if ($entry->isDirectory) {
-            return;
+            return true;
+        }
+        if ($from < 0 || $from > $entry->size || ($from > 0 && $entry->method !== ZipFormat::METHOD_STORE)) {
+            throw new ZipException("\"{$entry->name}\": cannot continue at byte $from.");
         }
 
         $dataOffset = $this->dataOffset($entry);
-        fseek($this->handle, $dataOffset);
+        fseek($this->handle, $dataOffset + $from);
         $crc = hash_init('crc32b');
-        $produced = 0;
-        $remaining = $entry->compressedSize;
+        $produced = $from;
+        $remaining = $entry->compressedSize - $from;
         $inflater = $entry->method === ZipFormat::METHOD_DEFLATE ? inflate_init(ZLIB_ENCODING_RAW) : false;
         if ($entry->method === ZipFormat::METHOD_DEFLATE && $inflater === false) {
             throw new ZipException('Cannot start decompression.');
@@ -205,7 +224,9 @@ final class ZipReader
             }
             if ($out !== '') {
                 hash_update($crc, $out);
-                $sink($out);
+                if ($sink($out) === false) {
+                    return false;
+                }
             }
         }
         if ($inflater !== false && inflate_get_status($inflater) !== ZLIB_STREAM_END) {
@@ -214,9 +235,11 @@ final class ZipReader
         if ($produced !== $entry->size) {
             throw new ZipException("\"{$entry->name}\": the data has $produced bytes, the directory says {$entry->size}.");
         }
-        if ((int) hexdec(hash_final($crc)) !== $entry->crc32) {
+        if ($from === 0 && (int) hexdec(hash_final($crc)) !== $entry->crc32) {
             throw new ZipException("\"{$entry->name}\": the CRC32 does not match (the data is damaged).");
         }
+
+        return true;
     }
 
     /**
@@ -287,7 +310,7 @@ final class ZipReader
     /**
      * @param array<string, int> $r
      */
-    private function entryFrom(array $r, string $name, string $extra): Entry
+    private function entryFrom(array $r, string $name, string $extra, int $nextRecord): Entry
     {
         $fields = ZipFormat::parseExtra($extra);
         $size = $r['size'];
@@ -333,6 +356,7 @@ final class ZipReader
             $mtime,
             $mode,
             str_ends_with($name, '/') || ($r['external'] & 0x10) !== 0,
+            $nextRecord,
         );
     }
 

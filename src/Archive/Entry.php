@@ -14,6 +14,8 @@ final readonly class Entry
      * @param int      $localOffset    where the local header starts in the part
      * @param int      $mtime          Unix time (UTC)
      * @param int|null $mode           Unix mode (type and permissions) if the archive says it, otherwise null
+     * @param int      $nextRecord     for an entry read from a central directory: where the next record begins, counted from the
+     *                                 start of the directory (a walk can continue there, see {@see ZipReader::entries()})
      */
     public function __construct(
         public string $name,
@@ -26,6 +28,7 @@ final readonly class Entry
         public int $mtime,
         public ?int $mode,
         public bool $isDirectory,
+        public int $nextRecord = 0,
     ) {
     }
 

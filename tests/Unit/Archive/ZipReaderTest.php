@@ -296,4 +296,86 @@ final class ZipReaderTest extends TestCase
         self::assertSame(1, $reader->count());
         self::assertTrue($reader->verify()->ok());
     }
+
+    public function testAWalkThroughTheDirectoryContinuesWhereItStopped(): void
+    {
+        $reader = $this->open(RawZip::build([
+            ['name' => 'one.txt', 'data' => '1'],
+            ['name' => 'two/two.txt', 'data' => '22'],
+            ['name' => 'three.txt', 'data' => '333'],
+            ['name' => 'four.txt', 'data' => '4444'],
+        ]));
+        $all = iterator_to_array($reader->entries());
+
+        foreach ($all as $index => $entry) {
+            $rest = iterator_to_array($reader->entries($index + 1, $entry->nextRecord));
+            self::assertSame(array_slice(array_map(static fn ($e): string => $e->name, $all), $index + 1), array_values(array_map(static fn ($e): string => $e->name, $rest)));
+            self::assertSame(array_slice(array_keys($all), $index + 1), array_keys($rest), 'the keys are the indexes of the records');
+        }
+        self::assertSame([], iterator_to_array($reader->entries(4, $all[3]->nextRecord)));
+    }
+
+    public function testAWalkCannotStartInTheMiddleOfNowhere(): void
+    {
+        $reader = $this->open(RawZip::build([['name' => 'a.txt', 'data' => 'x']]));
+
+        $this->expectException(ZipException::class);
+        iterator_to_array($reader->entries(0, 5));
+    }
+
+    public function testAWalkCannotStartBeyondTheDirectory(): void
+    {
+        $reader = $this->open(RawZip::build([['name' => 'a.txt', 'data' => 'x']]));
+
+        $this->expectException(ZipException::class);
+        iterator_to_array($reader->entries(1, 100000));
+    }
+
+    public function testASinkCanStopAStoredEntryAndItContinuesLater(): void
+    {
+        $content = random_bytes(100000);
+        $reader = $this->open(RawZip::build([['name' => 'big.bin', 'data' => $content, 'method' => 0]]));
+        $entry = $reader->find('big.bin');
+        self::assertNotNull($entry);
+
+        $got = '';
+        $complete = $reader->extract($entry, static function (string $chunk) use (&$got): bool {
+            $got .= $chunk;
+
+            return strlen($got) < 40000;
+        });
+        self::assertFalse($complete);
+        self::assertGreaterThanOrEqual(40000, strlen($got));
+        self::assertLessThan(100000, strlen($got));
+
+        $from = strlen($got);
+        self::assertTrue($reader->extract($entry, static function (string $chunk) use (&$got): void {
+            $got .= $chunk;
+        }, $from));
+        self::assertSame($content, $got);
+    }
+
+    public function testADeflatedEntryCannotBeContinued(): void
+    {
+        $reader = $this->open(RawZip::build([['name' => 'a.txt', 'data' => str_repeat('abc', 1000)]]));
+        $entry = $reader->find('a.txt');
+        self::assertNotNull($entry);
+
+        $this->expectException(ZipException::class);
+        $reader->extract($entry, static function (string $chunk): void {
+        }, 10);
+    }
+
+    public function testASinkThatReturnsNothingReadsToTheEnd(): void
+    {
+        $reader = $this->open(RawZip::build([['name' => 'a.txt', 'data' => str_repeat('abc', 10000)]]));
+        $entry = $reader->find('a.txt');
+        self::assertNotNull($entry);
+
+        $length = 0;
+        self::assertTrue($reader->extract($entry, static function (string $chunk) use (&$length): void {
+            $length += strlen($chunk);
+        }));
+        self::assertSame(30000, $length);
+    }
 }
