@@ -102,7 +102,10 @@ Oracles are real tools where possible: `unzip -t`, the `mariadb` client, `CHECKS
 - **Application knowledge lives in plugins and in data files** (`plugins/<type>/resources/*.json`), not in the core.
 - **The file system is the source of truth** for backups (archive plus sidecar `.json`); an index is only a cache.
 - Do not rely on `exec` / `proc_open` (often disabled on shared hosting); the code must work in plain PHP with the limits of a
-  web request.
+  web request. Where a child process is started anyway, **its standard input must be `/dev/null`**: a PHP that runs as FastCGI
+  passes its listening socket on to children, and a child PHP CGI binary then waits for requests forever (seen on the live
+  host, `docs/PHASE3.md` section 8, finding 6). The limits of a request (`max_execution_time`, `memory_limit`) differ per virtual
+  host: read them at run time.
 
 ## Next steps
 

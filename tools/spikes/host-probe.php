@@ -16,7 +16,7 @@
  *                  (no settings file is read, so there is nothing on the server for anyone to find).
  */
 
-$WEB_TOKEN = '';   // web mode refuses to run while this is empty
+$WEB_TOKEN = 'e5e32f63-e342-48f7-9b43-5e907a9026cf';   // web mode refuses to run while this is empty
 
 $cli = (PHP_SAPI === 'cli');
 if (!$cli) {
@@ -171,7 +171,7 @@ if ($cli || probe_function('exec') === 'available') {
     $out = array();
     $code = -1;
     if (probe_function('exec') === 'available') {
-        @exec('echo ok 2>&1', $out, $code);
+        @exec('echo ok 2>&1 < /dev/null', $out, $code);
     }
     probe_line('exec("echo")', $code === 0 ? 'works' : 'does not work');
 }
@@ -179,31 +179,9 @@ $binary = defined('PHP_BINARY') && PHP_BINARY !== '' ? PHP_BINARY : '(unknown)';
 probe_line('PHP binary', $binary);
 $which = array();
 if (probe_function('exec') === 'available') {
-    @exec('command -v php 2>/dev/null', $which);
+    @exec('command -v php 2>/dev/null < /dev/null', $which);
 }
 probe_line('php in PATH', isset($which[0]) && trim($which[0]) !== '' ? trim($which[0]) : 'not found, or exec unavailable');
-if (probe_function('exec') === 'available') {
-    // which PHP binaries exist, and what does each say? (a shell may run PHP 4 while the web server runs PHP 8)
-    $candidates = array();
-    if ($binary !== '(unknown)') {
-        $candidates[] = $binary;
-    }
-    if (isset($which[0]) && trim($which[0]) !== '') {
-        $candidates[] = trim($which[0]);
-    }
-    foreach (array('php', 'php8.4', 'php84', 'php8', 'php-cli') as $candidateName) {
-        foreach (array('/usr/bin/', '/usr/local/bin/', '/bin/', '/usr/lib/cgi-bin/', '/opt/php84/bin/', '/opt/php-8.4/bin/', '/opt/plesk/php/8.4/bin/', '/opt/alt/php84/usr/bin/', '/usr/local/php84/bin/') as $dir) {
-            if (@is_file($dir . $candidateName) && @is_executable($dir . $candidateName)) {
-                $candidates[] = $dir . $candidateName;
-            }
-        }
-    }
-    foreach (array_unique($candidates) as $candidate) {
-        $first = array();
-        @exec(escapeshellarg($candidate) . ' -v 2>&1', $first);
-        probe_line('  ' . $candidate, isset($first[0]) ? substr(trim($first[0]), 0, 60) : '(no answer)');
-    }
-}
 
 $busy = 0;
 if ($cli) {
@@ -290,6 +268,33 @@ if ($host !== null && $name !== null && $user !== null && $file !== null) {
     }
 } else {
     echo "\n(to test the database through the web server open this page with &form=1 and fill in the form;\n on the command line use --db-host=H --db-name=N --db-user=U --db-password-file=FILE)\n";
+}
+
+// Last, because it is the one step that has hung on a real host: a PHP started from a PHP that runs as FastCGI inherits the
+// FastCGI socket as its standard input and, if that is the CGI binary, waits for requests instead of answering `-v` - until
+// the time limit kills the whole page. Everything above is printed already. Standard input is therefore always /dev/null.
+if (probe_function('exec') === 'available') {
+    echo "\nPHP binaries (which ones exist, what each says for -v)\n";
+    $candidates = array();
+    if ($binary !== '(unknown)') {
+        $candidates[] = $binary;
+    }
+    if (isset($which[0]) && trim($which[0]) !== '') {
+        $candidates[] = trim($which[0]);
+    }
+    foreach (array('php', 'php8.4', 'php84', 'php8', 'php-cli') as $candidateName) {
+        foreach (array('/usr/bin/', '/usr/local/bin/', '/bin/', '/usr/lib/cgi-bin/', '/opt/php84/bin/', '/opt/php-8.4/bin/', '/opt/plesk/php/8.4/bin/', '/opt/alt/php84/usr/bin/', '/usr/local/php84/bin/') as $dir) {
+            if (@is_file($dir . $candidateName) && @is_executable($dir . $candidateName)) {
+                $candidates[] = $dir . $candidateName;
+            }
+        }
+    }
+    foreach (array_unique($candidates) as $candidate) {
+        $first = array();
+        $quoted = escapeshellarg($candidate);
+        @exec('if command -v timeout >/dev/null 2>&1; then timeout 5 ' . $quoted . ' -v; else ' . $quoted . ' -v; fi < /dev/null 2>&1', $first);
+        probe_line('  ' . $candidate, isset($first[0]) ? substr(trim($first[0]), 0, 60) : '(no answer)');
+    }
 }
 
 echo "\nDelete this file when you are done.\n";
