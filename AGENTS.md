@@ -15,8 +15,8 @@ application automatically. First target: **PrestaShop 9.x**; MariaDB and MySQL; 
 | Phase | Content | State |
 |---|---|---|
 | 1, 1b | Restore core: `threadsafe migrate <type>`, dev mode, module rules, self-test; database drivers; website type plugins | done |
-| 2 | Site profiles and backup engine (CLI) | **in progress**: work packages 1-10 done, 11 open (table in [docs/PHASE2.md](docs/PHASE2.md) section 5) |
-| 3 | `restore.php` (extractor and wizard) | not started |
+| 2 | Site profiles and backup engine (CLI) | done (work packages in [docs/PHASE2.md](docs/PHASE2.md) section 5; user documentation [docs/BACKUP.md](docs/BACKUP.md)) |
+| 3 | `restore.php` (extractor and wizard) | **next**: plan first (`docs/PHASE3.md`) |
 | 4 | Web interface (dashboard, download) | not started |
 | 5 | One trigger cron, retention, encryption | not started |
 
@@ -86,7 +86,7 @@ Oracles are real tools where possible: `unzip -t`, the `mariadb` client, `CHECKS
 | `src/Storage`, `src/Backup/Manifest*` | Phase 2: `LocalStorage` (protection files, sidecar, listing), `BackupCatalog` (listing, sidecar rebuild), `SpaceCheck`, `Postproc`; `BackupName`, `Manifest`, `Sidecar`, `Verifier` |
 | `tests/Unit`, `tests/Integration`, `tests/Support`, `tests/stack` | Tests, helpers, Docker stack scripts |
 | `tools/spikes` | Throw-away scripts behind the findings in PHASE2.md section 8 (kept for reference) |
-| `docs` | Concept, phase plans, `MIGRATE.md` (reference of the `migrate` command) |
+| `docs` | Concept, phase plans, `MIGRATE.md` (reference of the `migrate` command), `BACKUP.md` (reference of the backup commands and the archive) |
 
 ## Design rules that are easy to break
 
@@ -106,12 +106,15 @@ Oracles are real tools where possible: `unzip -t`, the `mariadb` client, `CHECKS
 
 ## Next steps
 
-`threadsafe profile`, `backup`, `backups` and `verify` work end to end and are proven by the integration tests (the
-backup round trip of the seeded shop, SIGKILL and resume, low limits, damaged archives; `docs/PHASE2.md` 4.2). Phase 2, work
-package 11 is next: `docs/BACKUP.md` - the profile file, the archive layout, the manifest and sidecar, the commands and
-exit codes, how to take a backup apart with plain tools in an emergency (`unzip`, the `mysql` client, `threadsafe migrate`),
-the private real-shop test procedure - and the final status updates (README, CONCEPT). Then phase 3 (`restore.php`) can be
-planned the way phase 2 was: `docs/PHASE3.md` first, decisions with the owner, spikes for the risky parts.
+Phase 2 is finished: `threadsafe profile`, `backup`, `backups` and `verify` work end to end and are proven by the
+integration tests (the backup round trip of the seeded shop, SIGKILL and resume, low limits, damaged archives;
+`docs/PHASE2.md` 4.2); the reference is `docs/BACKUP.md`. Next is **phase 3, `restore.php`**: plan it the way phase 2 was
+planned - `docs/PHASE3.md` first (goal and scope, design, test strategy, work packages, risks, decisions to take with the
+owner), then spikes for the risky parts, then the work packages one at a time, each tested and committed on request. The
+restore must read these archives with `ZipReader` (or a stand-alone extractor of its own, since `restore.php` runs on a host
+that has no ThreadSafe installed), import the SQL with plain PHP (including `DELIMITER` blocks and large `INSERT`s under a
+time limit, in ticks), rename the table prefix, restore over an existing installation, and hand over to the migration of
+phase 1. Open questions the plan must settle with the owner are listed in `docs/CONCEPT.md` section 10.
 
 Open questions for the owner (not blocking): which database server and which PHP functions (`exec`, CLI cron) the production
 host offers - see CONCEPT section 10.

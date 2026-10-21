@@ -361,7 +361,7 @@ Phase 1 deliberately comes before the engine: it solves the actual problem (the 
 **Open**
 - Which database does the live host use (MariaDB or MySQL)? Check with `SELECT VERSION()` on the live system. Both are supported now; the answer decides which one the private reality check runs against.
 
-Next step: phase 2 (profiles and backup engine; plan: [PHASE2.md](PHASE2.md), decisions settled) is in progress - work packages 1-10 are done, the status is at the top of that document. Phases 1 and 1b are done. How to continue the work: [AGENTS.md](../AGENTS.md).
+Next step: phase 2 (profiles and backup engine; plan: [PHASE2.md](PHASE2.md), decisions settled) is in progress - all work packages are done, the status is at the top of that document. Phases 1 and 1b are done. How to continue the work: [AGENTS.md](../AGENTS.md).
 
 ## Sources
 - Akeeba Solo Core 9.2.0 (local): `composer.json`, `vendor/akeeba/engine/CLAUDE.md`, `engine/Core/scripting.json`, `Solo/Pythia/**`, `Solo/assets/installers/**` (JPA packages unpacked and inspected), [Solo documentation](https://akeeba.com/documentation/solo.html), [ANGIE installers](https://akeeba.com/documentation/solo/angie-installers.html)
