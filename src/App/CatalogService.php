@@ -74,6 +74,41 @@ final class CatalogService
     }
 
     /**
+     * One part of a backup, for a download: where it is, how big it is and its SHA-256 as recorded. Only a file the record of the
+     * backup names can be asked for.
+     *
+     * @return array{path: string, size: int, sha256: string}
+     *
+     * @throws ProfileException|StorageException there is no such profile, backup or part, or the file is not there
+     */
+    public function part(string $profileId, string $backup, string $file): array
+    {
+        $entry = $this->find($profileId, $backup);
+        foreach ($entry->sidecar->parts ?? [] as $part) {
+            if ($part->file === $file) {
+                $path = $this->storage($profileId)->directory() . '/' . $part->file;
+                if (!is_file($path)) {
+                    throw new StorageException("The part \"$file\" is not in the storage directory.");
+                }
+
+                return ['path' => $path, 'size' => (int) filesize($path), 'sha256' => $part->sha256];
+            }
+        }
+
+        throw new StorageException("\"$file\" is not a part of the backup \"$backup\".");
+    }
+
+    /**
+     * The storage directory of a profile, as the person sees it on the server (for the advice to fetch large files by SFTP).
+     *
+     * @throws ProfileException there is no such profile
+     */
+    public function storageDirectory(string $profileId): string
+    {
+        return $this->storage($profileId)->directory();
+    }
+
+    /**
      * Deletes a backup: its parts, its sidecar file and any work directory.
      *
      * @throws GuardFailed a run is writing or checking that backup

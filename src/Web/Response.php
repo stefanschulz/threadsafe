@@ -7,14 +7,16 @@ namespace ThreadSafe\Web;
 use JsonException;
 
 /**
- * An HTTP response as data: status, headers, body. {@see send()} puts it on the wire.
+ * An HTTP response as data: status, headers, body. {@see send()} puts it on the wire. A response that is a large file has no body
+ * but a stream: a function that writes the content to the output in pieces when the response is sent.
  */
 final readonly class Response
 {
     /**
-     * @param list<string> $headers complete header lines, e.g. "Content-Type: text/html"
+     * @param list<string>        $headers complete header lines, e.g. "Content-Type: text/html"
+     * @param (\Closure(): void)|null $stream writes the content instead of {@see $body} when the response is sent
      */
-    public function __construct(public int $status, public array $headers, public string $body)
+    public function __construct(public int $status, public array $headers, public string $body, public ?\Closure $stream = null)
     {
     }
 
@@ -44,7 +46,7 @@ final readonly class Response
 
     public function withHeader(string $line): self
     {
-        return new self($this->status, [...$this->headers, $line], $this->body);
+        return new self($this->status, [...$this->headers, $line], $this->body, $this->stream);
     }
 
     /** The value of the first header of this name, or null. */
@@ -81,6 +83,11 @@ final readonly class Response
         http_response_code($this->status);
         foreach ($this->headers as $line) {
             header($line, false);
+        }
+        if ($this->stream !== null) {
+            ($this->stream)();
+
+            return;
         }
         echo $this->body;
     }

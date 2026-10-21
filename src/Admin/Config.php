@@ -24,6 +24,7 @@ final class Config
         'web.sessionIdleMinutes' => ['int', 120, 5, 1440],
         'download.warnAbove' => ['int', 524288000, 1048576, null],
         'download.accel' => ['enum', 'none', null, ['none', 'sendfile', 'nginx']],
+        'download.accelPrefix' => ['prefix', '', null, null],
         'dashboard.warnAfterDays' => ['int', 7, 1, 3650],
         'audit.maxBytes' => ['int', 5242880, 65536, 1073741824],
     ];
@@ -97,6 +98,21 @@ final class Config
     public function sessionIdleSeconds(): int
     {
         return (int) $this->get('web.sessionIdleMinutes') * 60;
+    }
+
+    public function downloadWarnAbove(): int
+    {
+        return (int) $this->get('download.warnAbove');
+    }
+
+    public function downloadAccel(): string
+    {
+        return (string) $this->get('download.accel');
+    }
+
+    public function downloadAccelPrefix(): string
+    {
+        return (string) $this->get('download.accelPrefix');
     }
 
     public function auditMaxBytes(): int
@@ -186,6 +202,14 @@ final class Config
             }
             if (!is_int($value) || $value < (int) $minimum || (is_int($limit) && $value > $limit)) {
                 throw new ConfigException("\"$key\" must be a whole number from $minimum" . (is_int($limit) ? " to $limit" : ' up') . '.');
+            }
+
+            return $value;
+        }
+        if ($type === 'prefix') {
+            // the internal location of the web server that serves the files (nginx: X-Accel-Redirect), e.g. "/ts-files/"
+            if (!is_string($value) || ($value !== '' && preg_match('~^/[A-Za-z0-9._/-]*/$~', $value) !== 1)) {
+                throw new ConfigException("\"$key\" must be empty or a path that starts and ends with a slash, e.g. /ts-files/.");
             }
 
             return $value;

@@ -96,6 +96,7 @@ final class Kernel
         $profiles = new ProfileController($services);
         $backups = new BackupController($services);
         $catalog = new CatalogController($services);
+        $download = new DownloadController($services);
         $router = new Router();
         $router->add('GET', '/login', $auth->loginPage(...), public: true);
         $router->add('POST', '/login', $auth->login(...), public: true);
@@ -115,6 +116,9 @@ final class Kernel
         $router->add('POST', '/profiles/{id}/backups/{name}/verify', $catalog->startCheck(...));
         $router->add('GET', '/profiles/{id}/backups/{name}/delete', $catalog->confirmDelete(...));
         $router->add('POST', '/profiles/{id}/backups/{name}/delete', $catalog->delete(...));
+        $router->add('GET', '/profiles/{id}/backups/{name}/download', $download->dialog(...));
+        $router->add('POST', '/profiles/{id}/backups/{name}/download', $download->issue(...));
+        $router->add('GET', '/download/{hex}/{name}', $download->file(...));
         $router->add('GET', '/checks/{run}', $catalog->showCheck(...));
         $router->add('POST', '/checks/{run}/tick', $catalog->tickCheck(...));
         $router->add('POST', '/checks/{run}/continue', $catalog->nextCheck(...));
@@ -195,6 +199,6 @@ final class Kernel
     private function secure(Response $response): Response
     {
         return new Response($response->status, [...$response->headers, 'X-Content-Type-Options: nosniff', 'X-Frame-Options: DENY', 'Referrer-Policy: same-origin',
-            'Cache-Control: no-store', 'Content-Security-Policy: ' . self::CSP], $response->body);
+            'Content-Security-Policy: ' . self::CSP, ...($response->header('Cache-Control') === null ? ['Cache-Control: no-store'] : [])], $response->body, $response->stream);
     }
 }
