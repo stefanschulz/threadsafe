@@ -26,6 +26,16 @@ final readonly class Notice
         return new self(NoticeLevel::Warning, $message, $target);
     }
 
+    /**
+     * The inverse of {@see toArray()}.
+     *
+     * @param array<string, mixed> $data
+     */
+    public static function fromArray(array $data): self
+    {
+        return new self(NoticeLevel::from((string) $data['level']), (string) $data['message'], isset($data['target']) ? (string) $data['target'] : null);
+    }
+
     /** @return array<string, string|null> */
     public function toArray(): array
     {

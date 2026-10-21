@@ -6,6 +6,7 @@ namespace ThreadSafe\PrestaShop9\Steps;
 
 use ThreadSafe\Core\Context;
 use ThreadSafe\Core\Exception\GuardFailed;
+use ThreadSafe\Core\HasFindings;
 use ThreadSafe\Core\Notice;
 use ThreadSafe\Core\Plan;
 use ThreadSafe\Core\Step;
@@ -24,7 +25,7 @@ use ThreadSafe\PrestaShop9\State;
  * if this is not what the request expects: no PrestaShop 9, database not reachable or not MariaDB, no shop URL,
  * or the domain to replace is not the shop's domain. Changes nothing.
  */
-final class ReadSourceState implements Step
+final class ReadSourceState implements Step, HasFindings
 {
     public function id(): string
     {
@@ -96,6 +97,17 @@ final class ReadSourceState implements Step
     public function apply(Context $context, Plan $plan): StepResult
     {
         return new StepResult(0);
+    }
+
+    public function exportFindings(Context $context): array
+    {
+        return State::source($context)->toArray();
+    }
+
+    public function importFindings(Context $context, array $findings): void
+    {
+        $source = SourceState::fromArray($findings);
+        State::store($context, $source, Connection::open($source->database));
     }
 
     private function detectVersion(string $root): string

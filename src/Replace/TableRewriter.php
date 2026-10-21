@@ -7,6 +7,7 @@ namespace ThreadSafe\Replace;
 use ThreadSafe\Core\Journal;
 use ThreadSafe\Database\Connection;
 use ThreadSafe\Database\TableInfo;
+use ThreadSafe\Engine\Budget;
 
 /**
  * Replaces domains in all text columns of a table, in chunks of rows ordered by primary key.
@@ -39,8 +40,11 @@ final class TableRewriter
      * @param bool   $replaceBare    also replace bare domain names
      * @param bool   $apply          write the changes
      * @param array<string, ColumnTreatment> $treatments what is known about single columns (by column name): the format they hold, bare host names
+     * @param Budget|null                    $budget     when given, the rewriting stops after a chunk once the budget is used up (at least one chunk is done);
+     *                                                   the result then has {@see TableRewriteResult::$stoppedAfter}
+     * @param list<scalar|null>|null         $after      continue after the row with this primary key (the $stoppedAfter of an earlier call)
      */
-    public function rewrite(TableInfo $table, string $rowFilter, bool $replaceBare, bool $apply, Journal $journal, array $treatments = []): TableRewriteResult
+    public function rewrite(TableInfo $table, string $rowFilter, bool $replaceBare, bool $apply, Journal $journal, array $treatments = [], ?Budget $budget = null, ?array $after = null): TableRewriteResult
     {
         $result = new TableRewriteResult($table->name);
         $columns = array_values(array_diff($table->textColumns, $table->primaryKey));
@@ -66,7 +70,7 @@ final class TableRewriter
         $keyMarks = '(' . implode(', ', array_fill(0, count($quotedKey), '?')) . ')';
 
         /** @var list<scalar|null>|null $last */
-        $last = null;
+        $last = $after;
         while (true) {
             $sql = "SELECT $select FROM " . $this->db->quote($table->name) . " WHERE ($candidateSql)"
                 . ($last === null ? '' : " AND $keyTuple > $keyMarks")
@@ -122,6 +126,12 @@ final class TableRewriter
                         }
                     }
                 });
+            }
+
+            if ($budget !== null && count($rows) >= $this->chunkSize && $budget->exhausted()) {
+                $result->stoppedAfter = $last;
+
+                return $result;
             }
         }
 

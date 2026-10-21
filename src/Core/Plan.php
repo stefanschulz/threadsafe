@@ -54,6 +54,24 @@ final class Plan
         return array_sum(array_map(static fn (Change $c): int => $c->count, $this->changes));
     }
 
+    /**
+     * The inverse of {@see toArray()}.
+     *
+     * @param array<string, mixed> $data
+     */
+    public static function fromArray(array $data): self
+    {
+        $plan = new self();
+        foreach ((array) ($data['changes'] ?? []) as $change) {
+            $plan->add(Change::fromArray((array) $change));
+        }
+        foreach ((array) ($data['notices'] ?? []) as $notice) {
+            $plan->notice(Notice::fromArray((array) $notice));
+        }
+
+        return $plan;
+    }
+
     /** @return array<string, mixed> */
     public function toArray(): array
     {

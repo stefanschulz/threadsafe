@@ -10,8 +10,11 @@ use ThreadSafe\Core\Notice;
 use ThreadSafe\Core\NullJournal;
 use ThreadSafe\Core\Plan;
 use ThreadSafe\Core\Resources;
-use ThreadSafe\Core\Step;
+use ThreadSafe\Core\ResumableStep;
 use ThreadSafe\Core\StepResult;
+use ThreadSafe\Core\StepTick;
+use ThreadSafe\Engine\Budget;
+use ThreadSafe\Migration\ContentRewriteRun;
 use ThreadSafe\Database\SchemaInspector;
 use ThreadSafe\Migration\ContentReport;
 use ThreadSafe\Database\TableInfo;
@@ -35,7 +38,7 @@ use ThreadSafe\Replace\ValueRewriter;
  * single columns, configuration keys to keep or to treat as bare domains. A table outside a clean installation that
  * mentions the domain and that no rule knows is reported as "no rule" - the hint to write one.
  */
-final class ReplaceContentDomains implements Step
+final class ReplaceContentDomains implements ResumableStep
 {
     public function id(): string
     {
@@ -55,30 +58,107 @@ final class ReplaceContentDomains implements Step
             return $plan->notice(Notice::info('No domain mapping given: nothing to replace in the content.'));
         }
 
-        $results = $this->run($context, apply: false);
+        $this->describe($context, $this->run($context), $plan);
+
+        return $plan;
+    }
+
+    public function planBrief(Context $context): Plan
+    {
+        $plan = new Plan();
+        if (State::request($context)->urlMatcher() === null) {
+            return $plan->notice(Notice::info('No domain mapping given: nothing to replace in the content.'));
+        }
+
+        return $plan->add(Change::update('db content', 'replace the old domain in the text columns of the database (the details come when it is done)'));
+    }
+
+    public function apply(Context $context, Plan $plan): StepResult
+    {
+        $state = [];
+        do {
+            $tick = $this->applyTick($context, Budget::unlimited(), $state);
+            $state = $tick->state;
+        } while (!$tick->finished);
+
+        return $tick->result ?? new StepResult(0);
+    }
+
+    public function applyTick(Context $context, Budget $budget, array $state): StepTick
+    {
+        $request = State::request($context);
+        $matcher = $request->urlMatcher();
+        if ($matcher === null) {
+            return new StepTick([], true, new StepResult(0));
+        }
+        $db = State::connection($context);
+        $tables = (new SchemaInspector($db))->tables();
+        $skip = $this->skippedTables($context);
+        $rules = State::moduleRules($context);
+        $configuration = $db->table('configuration');
+        $bareKeys = $rules->configurationKeys('replace-bare');
+
+        if ($state === []) {
+            $jobs = [];
+            foreach (array_keys($tables) as $name) {
+                if (isset($skip[$name])) {
+                    continue;
+                }
+                $jobs[] = [$name, 'content'];
+                if ($name === $configuration && $bareKeys !== []) {
+                    $jobs[] = [$name, 'bare'];
+                }
+            }
+            $state = ContentRewriteRun::initialState($jobs);
+        }
+
+        $rewriter = new TableRewriter($db, $matcher, new ValueRewriter($matcher), $request->chunkSize);
+        [$state, $finished] = ContentRewriteRun::tick($state, $budget, function (string $name, string $kind, ?array $after) use ($context, $request, $rewriter, $tables, $rules, $db, $bareKeys, $budget): TableRewriteResult {
+            $table = $tables[$name] ?? null;
+            if (!$table instanceof TableInfo) {
+                return new TableRewriteResult($name);      // dropped in the meantime
+            }
+            if ($kind === 'bare') {
+                // Settings a module rule says hold a bare domain name.
+                $filter = $db->quote('name') . ' IN (' . implode(', ', array_map($db->quotedString(...), $bareKeys)) . ')';
+
+                return $rewriter->rewrite($table, $filter, true, true, $context->journal, [], $budget, $after);
+            }
+            $treatments = [];
+            foreach ($rules->columnsOf($db->unprefixed($name)) as $column => $rule) {
+                $treatments[$column] = new ColumnTreatment($rule->form, $rule->bare);
+            }
+
+            return $rewriter->rewrite($table, $this->rowFilter($context, $name), $request->replaceBare, true, $context->journal, $treatments, $budget, $after);
+        });
+
+        if (!$finished) {
+            return new StepTick($state, false, null, null, sprintf('replacing the old domain in the database (table %d of %d)', min((int) $state['job'] + 1, count($state['jobs'])), count($state['jobs'])));
+        }
+        $plan = new Plan();
+        $this->describe($context, ContentRewriteRun::results($state), $plan);
+
+        return new StepTick($state, true, new StepResult((int) $state['rows']), $plan);
+    }
+
+    /**
+     * @param list<TableRewriteResult> $results
+     */
+    private function describe(Context $context, array $results, Plan $plan): void
+    {
         foreach ($results as $result) {
             ContentReport::describe($result, $plan);
         }
         $this->describeTablesWithoutRule($context, $results, $plan);
         $this->describeSkippedTables($context, $plan);
-
-        return $plan;
-    }
-
-    public function apply(Context $context, Plan $plan): StepResult
-    {
-        $rows = 0;
-        foreach ($this->run($context, apply: true) as $result) {
-            $rows += $result->rowsChanged;
-        }
-
-        return new StepResult($rows);
     }
 
     /**
+     * A dry run over the whole database: what would be changed.
+     *
      * @return list<TableRewriteResult> only tables in which something was found
      */
-    private function run(Context $context, bool $apply): array
+    private function run(Context $context): array
     {
         $request = State::request($context);
         $matcher = $request->urlMatcher();
@@ -88,7 +168,7 @@ final class ReplaceContentDomains implements Step
         $db = State::connection($context);
         $rewriter = new TableRewriter($db, $matcher, new ValueRewriter($matcher), $request->chunkSize);
         $skip = $this->skippedTables($context);
-        $journal = $apply ? $context->journal : new NullJournal();
+        $journal = new NullJournal();
         $rules = State::moduleRules($context);
         $configuration = $db->table('configuration');
         $bareKeys = $rules->configurationKeys('replace-bare');
@@ -102,14 +182,14 @@ final class ReplaceContentDomains implements Step
             foreach ($rules->columnsOf($db->unprefixed($name)) as $column => $rule) {
                 $treatments[$column] = new ColumnTreatment($rule->form, $rule->bare);
             }
-            $result = $rewriter->rewrite($table, $this->rowFilter($context, $name), $request->replaceBare, $apply, $journal, $treatments);
+            $result = $rewriter->rewrite($table, $this->rowFilter($context, $name), $request->replaceBare, false, $journal, $treatments);
             if ($result->columns !== [] || $result->candidatesWithoutKey !== null && $result->candidatesWithoutKey > 0) {
                 $results[] = $result;
             }
             if ($name === $configuration && $bareKeys !== []) {
                 // Settings a module rule says hold a bare domain name.
                 $filter = $db->quote('name') . ' IN (' . implode(', ', array_map($db->quotedString(...), $bareKeys)) . ')';
-                $result = $rewriter->rewrite($table, $filter, true, $apply, $journal);
+                $result = $rewriter->rewrite($table, $filter, true, false, $journal);
                 if ($result->columns !== []) {
                     $results[] = $result;
                 }

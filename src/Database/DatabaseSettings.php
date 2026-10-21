@@ -38,4 +38,30 @@ final readonly class DatabaseSettings
             throw new InvalidArgumentException('The database driver must be ' . implode(', ', self::DRIVERS) . '.');
         }
     }
+
+    /**
+     * All values, the password included: only for a state file that is protected like the settings are.
+     *
+     * @return array<string, scalar>
+     */
+    public function toArray(): array
+    {
+        return ['host' => $this->host, 'port' => $this->port, 'name' => $this->name, 'user' => $this->user, 'password' => $this->password, 'prefix' => $this->prefix, 'driver' => $this->driver];
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    public static function fromArray(array $data): self
+    {
+        return new self(
+            (string) $data['host'],
+            (int) $data['port'],
+            (string) $data['name'],
+            (string) $data['user'],
+            (string) $data['password'],
+            (string) $data['prefix'],
+            (string) ($data['driver'] ?? self::AUTO),
+        );
+    }
 }

@@ -29,12 +29,32 @@ final class FileJournal implements Journal
 
     private ?string $currentStep = null;
 
-    public function __construct(string $directory, ?DateTimeImmutable $now = null)
+    /**
+     * @param string|null $resume the journal file of an earlier process of the same run: it is continued instead of a new one
+     *                            being made (a run in ticks has one journal, not one per tick)
+     */
+    public function __construct(string $directory, ?DateTimeImmutable $now = null, ?string $resume = null)
     {
         $now ??= new DateTimeImmutable('now', new DateTimeZone('UTC'));
 
         $this->directory = rtrim($directory, '/\\');
         self::createDirectory($this->directory);
+
+        if ($resume !== null) {
+            if (dirname($resume) !== $this->directory || !is_file($resume)) {
+                throw new RuntimeException("The journal file \"$resume\" to continue is not in \"{$this->directory}\".");
+            }
+            $this->path = $resume;
+            $handle = fopen($this->path, 'ab');
+            if ($handle === false) {
+                throw new RuntimeException("Cannot open the journal file \"{$this->path}\".");
+            }
+            $this->handle = $handle;
+            $this->backups = count(glob($this->directory . '/files/*.orig') ?: []);
+            $this->write(['type' => 'note', 'step' => null, 'message' => 'journal continued in another process', 'context' => []]);
+
+            return;
+        }
 
         // The random suffix keeps two journals created in the same second apart; 'x' never overwrites.
         $this->path = $this->directory . '/threadsafe-journal-' . $now->format('Ymd-His') . '-' . bin2hex(random_bytes(2)) . '.jsonl';

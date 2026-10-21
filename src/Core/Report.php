@@ -57,6 +57,22 @@ final readonly class Report
         return false;
     }
 
+    /**
+     * The inverse of {@see toArray()} (the totals are computed from the steps).
+     *
+     * @param array<string, mixed> $data
+     */
+    public static function fromArray(array $data): self
+    {
+        return new self(
+            (bool) $data['dryRun'],
+            array_map(static fn (mixed $s): StepReport => StepReport::fromArray((array) $s), array_values((array) $data['steps'])),
+            new DateTimeImmutable((string) $data['startedAt']),
+            new DateTimeImmutable((string) $data['finishedAt']),
+            isset($data['journal']) ? (string) $data['journal'] : null,
+        );
+    }
+
     /** @return array<string, mixed> */
     public function toArray(): array
     {

@@ -145,4 +145,35 @@ final class FileJournalTest extends TestCase
 
         $journal->note('too late');
     }
+
+    public function testAnotherProcessContinuesTheSameJournalAndItsBackupNumbers(): void
+    {
+        $directory = $this->tempDirectory() . '/journal';
+        $file = $this->tempDirectory() . '/config.php';
+        file_put_contents($file, 'original');
+
+        $first = new FileJournal($directory);
+        $first->step('one');
+        $first->database('ps_x', ['id' => 1], 'text', 'old', 'new');
+        $first->file($file, 'update', $first->backupFile($file));
+        $path = $first->path();
+        $first->close();
+
+        $second = new FileJournal($directory, null, $path);
+        $second->step('two');
+        $copy = $second->backupFile($file);
+        $second->close();
+
+        self::assertSame($path, $second->path());
+        self::assertSame('files/0002-config.php.orig', $copy, 'the numbering goes on, no copy is overwritten');
+        self::assertCount(1, glob($directory . '/*.jsonl') ?: []);
+        $types = array_map(static fn (string $l): string => (string) (json_decode($l, true)['type'] ?? ''), file($path, FILE_IGNORE_NEW_LINES) ?: []);
+        self::assertSame(['header', 'step', 'db', 'file', 'note', 'step'], $types);
+    }
+
+    public function testOnlyAJournalOfTheSameDirectoryCanBeContinued(): void
+    {
+        $this->expectException(RuntimeException::class);
+        new FileJournal($this->tempDirectory() . '/journal', null, $this->tempDirectory() . '/elsewhere.jsonl');
+    }
 }

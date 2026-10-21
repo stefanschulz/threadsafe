@@ -16,7 +16,7 @@ application automatically. First target: **PrestaShop 9.x**; MariaDB and MySQL; 
 |---|---|---|
 | 1, 1b | Restore core: `threadsafe migrate <type>`, dev mode, module rules, self-test; database drivers; website type plugins | done |
 | 2 | Site profiles and backup engine (CLI) | done (work packages in [docs/PHASE2.md](docs/PHASE2.md) section 5; user documentation [docs/BACKUP.md](docs/BACKUP.md)) |
-| 3 | `restore.php` (extractor and wizard) | **in progress**: plan [docs/PHASE3.md](docs/PHASE3.md); work packages 1 (spikes), 2 (extractor) and 3 (SQL import) done, 4-9 open |
+| 3 | `restore.php` (extractor and wizard) | **in progress**: plan [docs/PHASE3.md](docs/PHASE3.md); work packages 1 (spikes), 2 (extractor), 3 (SQL import) and 4 (resumable migration) done, 5-9 open |
 | 4 | Web interface (dashboard, download) | not started |
 | 5 | One trigger cron, retention, encryption | not started |
 
@@ -74,7 +74,7 @@ Oracles are real tools where possible: `unzip -t`, the `mariadb` client, `CHECKS
 
 | Path | What |
 |---|---|
-| `src/Core`, `src/Migration`, `src/Replace` | Phase 1: steps, runner, report, journal; the migration request; domain replacement in files and database |
+| `src/Core`, `src/Migration`, `src/Replace` | Phase 1: steps, runner, report, journal; the migration request; domain replacement in files and database. Phase 3: `TickedRunner` (the runner for a run in several processes), `ResumableStep`, `HasFindings` |
 | `src/Cli` | Command line (`bin/threadsafe`): `Application`, `Command`, `Input`; commands `migrate`, `profile`, `backup` |
 | `src/Database` | `Connection` facade over `PdoDriver` / `MysqliDriver`; `ServerInfo`; `stream()` and snapshot support |
 | `src/Plugin` | `WebsiteType` (migration) and `Backupable` (backup) capabilities, `PluginRegistry` |
@@ -114,8 +114,8 @@ Phase 2 is finished: `threadsafe profile`, `backup`, `backups` and `verify` work
 integration tests (the backup round trip of the seeded shop, SIGKILL and resume, low limits, damaged archives;
 `docs/PHASE2.md` 4.2); the reference is `docs/BACKUP.md`. Next is **phase 3, `restore.php`**: `docs/PHASE3.md` is the plan (decisions 1-4 and 6 settled with the owner, 5 and 7-9
 proposed), its work package 1 (spikes, `tools/spikes/bundle.php`, `sql-import.php`, `inflate-speed.php`, `host-probe.php`) is
-done and its findings are in section 8. Work packages 2 and 3 (extractor and SQL importer, `src/Restore`) are done; continue with 4 (resumable
-migration), then 5 (the `RestoreRun` task and the CLI `restore`), each tested and
+done and its findings are in section 8. Work packages 2, 3 and 4 (extractor and SQL importer in `src/Restore`, the resumable migration with
+`TickedRunner`) are done; continue with 5 (the `RestoreRun` task and the CLI `restore`), each tested and
 committed on request. The
 restore must read these archives with `ZipReader` (or a stand-alone extractor of its own, since `restore.php` runs on a host
 that has no ThreadSafe installed), import the SQL with plain PHP (including `DELIMITER` blocks and large `INSERT`s under a

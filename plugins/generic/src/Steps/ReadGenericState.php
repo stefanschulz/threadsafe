@@ -6,6 +6,7 @@ namespace ThreadSafe\Generic\Steps;
 
 use ThreadSafe\Core\Context;
 use ThreadSafe\Core\Exception\GuardFailed;
+use ThreadSafe\Core\HasFindings;
 use ThreadSafe\Core\Notice;
 use ThreadSafe\Core\Plan;
 use ThreadSafe\Core\Step;
@@ -18,7 +19,7 @@ use ThreadSafe\Generic\State;
  * Looks at the site before anything is planned: the database, if one was given, must be reachable and a supported
  * server. A generic site has no application to recognise, so there is nothing else to check. Changes nothing.
  */
-final class ReadGenericState implements Step
+final class ReadGenericState implements Step, HasFindings
 {
     public function id(): string
     {
@@ -66,5 +67,15 @@ final class ReadGenericState implements Step
     public function apply(Context $context, Plan $plan): StepResult
     {
         return new StepResult(0);
+    }
+
+    public function exportFindings(Context $context): array
+    {
+        return [];     // the connection comes from the request
+    }
+
+    public function importFindings(Context $context, array $findings): void
+    {
+        State::store($context, State::request($context)->database === null ? null : Connection::open(State::request($context)->database));
     }
 }

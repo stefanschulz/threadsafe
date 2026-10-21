@@ -39,6 +39,23 @@ final readonly class Change
         return new self(ChangeKind::Delete, $target, $description, $before, null, $count, $secret);
     }
 
+    /**
+     * The inverse of {@see toArray()}; a secret value stays masked, as it was written.
+     *
+     * @param array<string, mixed> $data
+     */
+    public static function fromArray(array $data): self
+    {
+        return new self(
+            ChangeKind::from((string) $data['kind']),
+            (string) $data['target'],
+            (string) $data['description'],
+            isset($data['before']) ? (string) $data['before'] : null,
+            isset($data['after']) ? (string) $data['after'] : null,
+            (int) $data['count'],
+        );
+    }
+
     /** @return array<string, mixed> */
     public function toArray(): array
     {

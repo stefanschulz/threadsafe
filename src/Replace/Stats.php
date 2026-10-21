@@ -33,6 +33,27 @@ final class Stats
         $this->unparseable += $other->unparseable;
     }
 
+    /** @return array<string, int> */
+    public function toArray(): array
+    {
+        return ['urlsReplaced' => $this->urlsReplaced, 'bareFound' => $this->bareFound, 'bareReplaced' => $this->bareReplaced, 'emailsSkipped' => $this->emailsSkipped, 'unparseable' => $this->unparseable];
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    public static function fromArray(array $data): self
+    {
+        $stats = new self();
+        $stats->urlsReplaced = (int) ($data['urlsReplaced'] ?? 0);
+        $stats->bareFound = (int) ($data['bareFound'] ?? 0);
+        $stats->bareReplaced = (int) ($data['bareReplaced'] ?? 0);
+        $stats->emailsSkipped = (int) ($data['emailsSkipped'] ?? 0);
+        $stats->unparseable = (int) ($data['unparseable'] ?? 0);
+
+        return $stats;
+    }
+
     /** Whether anything was found that a human may want to look at. */
     public function hasFindings(): bool
     {
