@@ -16,7 +16,7 @@ application automatically. First target: **PrestaShop 9.x**; MariaDB and MySQL; 
 |---|---|---|
 | 1, 1b | Restore core: `threadsafe migrate <type>`, dev mode, module rules, self-test; database drivers; website type plugins | done |
 | 2 | Site profiles and backup engine (CLI) | done (work packages in [docs/PHASE2.md](docs/PHASE2.md) section 5; user documentation [docs/BACKUP.md](docs/BACKUP.md)) |
-| 3 | `restore.php` (extractor and wizard) | **planned**: [docs/PHASE3.md](docs/PHASE3.md) is a draft; its decisions (section 7) wait for the owner, then spikes (work package 1) |
+| 3 | `restore.php` (extractor and wizard) | **in progress**: plan [docs/PHASE3.md](docs/PHASE3.md); work package 1 (spikes) done, 2-9 open |
 | 4 | Web interface (dashboard, download) | not started |
 | 5 | One trigger cron, retention, encryption | not started |
 
@@ -108,9 +108,11 @@ Oracles are real tools where possible: `unzip -t`, the `mariadb` client, `CHECKS
 
 Phase 2 is finished: `threadsafe profile`, `backup`, `backups` and `verify` work end to end and are proven by the
 integration tests (the backup round trip of the seeded shop, SIGKILL and resume, low limits, damaged archives;
-`docs/PHASE2.md` 4.2); the reference is `docs/BACKUP.md`. Next is **phase 3, `restore.php`**: `docs/PHASE3.md` is drafted (goal and scope, design, test strategy, work packages,
-risks, decisions to take with the owner). Settle the decisions of its section 7 first, then do the spikes (work package 1),
-then the work packages one at a time, each tested and committed on request. The
+`docs/PHASE2.md` 4.2); the reference is `docs/BACKUP.md`. Next is **phase 3, `restore.php`**: `docs/PHASE3.md` is the plan (decisions 1-4 and 6 settled with the owner, 5 and 7-9
+proposed), its work package 1 (spikes, `tools/spikes/bundle.php`, `sql-import.php`, `inflate-speed.php`, `host-probe.php`) is
+done and its findings are in section 8. Continue with work packages 2, 3 and 4 (extractor, SQL importer, resumable
+migration), which are independent of each other, then 5 (the `RestoreRun` task and the CLI `restore`), each tested and
+committed on request. The
 restore must read these archives with `ZipReader` (or a stand-alone extractor of its own, since `restore.php` runs on a host
 that has no ThreadSafe installed), import the SQL with plain PHP (including `DELIMITER` blocks and large `INSERT`s under a
 time limit, in ticks), rename the table prefix, restore over an existing installation, and hand over to the migration of
