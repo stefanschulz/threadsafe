@@ -236,7 +236,7 @@ A backup must be restorable where it came from: after a failure of the original 
 | Dev mode | **off**; mode is `production` | the live shop must keep mail, payments and cloud links |
 | Self-test | always | proves the restored shop actually serves |
 
-Because cookie keys and `secret` are kept, sessions and password hashes keep working. The same core is therefore used for three situations: moving to a new domain/path, restoring in place, and cloning to dev. Restoring **over an existing installation** (rollback) additionally needs cleanup of leftovers (tables with the prefix that are not in the backup, files that are not in the backup); that belongs to the `restore.php` wizard (phase 3), not to the migration core.
+Because cookie keys and `secret` are kept, sessions and password hashes keep working. The same core is therefore used for three situations: moving to a new domain/path, restoring in place, and cloning to dev. Restoring **over an existing installation** (rollback) additionally needs cleanup of leftovers (tables with the prefix that are not in the backup, files that are not in the backup); that belongs to a restore tool, not to the migration core, and is **not part of phase 3** (decided 2026-10-21: phase 3 restores onto an empty target and refuses a non-empty one, see [PHASE3.md](PHASE3.md) 3.8).
 
 ### 4.7 Module rules (per-module knowledge)
 
@@ -301,7 +301,7 @@ Downloading in the web interface is a **convenience, not a reliable transport fo
 - Backup archives contain DB credentials, cookie keys and customer data: storage outside the web root or blocked, random file names, restrictive file permissions; no clear-text logging of passwords.
 - Never back up cache directories (`appParameters.php` contains the DB password).
 - Web UI: password login (Argon2id), brute-force protection, CSRF protection; cron URL only with a long secret. Primarily operated via CLI; the UI can be switched off.
-- `restore.php` deletes itself after completion; access only with a one-time password stored in the archive; path validation against Zip Slip.
+- `restore.php` deletes itself after completion; access only with a key file the person puts next to it (proposal in [PHASE3.md](PHASE3.md) 3.2, replacing the earlier idea of a one-time password in the archive); path validation against Zip Slip.
 - GDPR notice for staging copies (customer data); anonymisation later.
 - **Multi-site increases the damage of a compromise:** the instance can read files and databases of *all* profiles. Countermeasures: instance outside the web root or behind additional web server authentication, prefer the CLI, data folder mode 0600, do not duplicate DB credentials (read them from the application's configuration), audit log for download/delete/profile changes, download only with a single-use token.
 - Hosting limits are checked and reported when a profile is created (`open_basedir`, file permissions, foreign account), not circumvented.
