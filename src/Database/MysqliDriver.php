@@ -51,7 +51,7 @@ final class MysqliDriver implements Driver
 
     public function select(string $sql, array $parameters): array
     {
-        $statement = $this->run($sql, $parameters);
+        $statement = $this->prepared($sql, $parameters);
         try {
             $result = $statement->get_result();
 
@@ -65,7 +65,7 @@ final class MysqliDriver implements Driver
 
     public function scalar(string $sql, array $parameters): mixed
     {
-        $statement = $this->run($sql, $parameters);
+        $statement = $this->prepared($sql, $parameters);
         try {
             $result = $statement->get_result();
             $row = $result === false ? null : $result->fetch_row();
@@ -80,7 +80,7 @@ final class MysqliDriver implements Driver
 
     public function execute(string $sql, array $parameters): int
     {
-        $statement = $this->run($sql, $parameters);
+        $statement = $this->prepared($sql, $parameters);
         try {
             $rows = $statement->affected_rows;
 
@@ -92,7 +92,7 @@ final class MysqliDriver implements Driver
 
     public function stream(string $sql, array $parameters): \Generator
     {
-        $statement = $this->run($sql, $parameters);
+        $statement = $this->prepared($sql, $parameters);
         try {
             $meta = $statement->result_metadata();
             if ($meta === false) {
@@ -117,6 +117,21 @@ final class MysqliDriver implements Driver
             throw new DatabaseError($e->getMessage(), 0, $e);
         } finally {
             $statement->close();
+        }
+    }
+
+    public function run(string $sql): void
+    {
+        try {
+            $this->mysqli->real_query($sql);
+            if ($this->mysqli->field_count > 0) {
+                $result = $this->mysqli->use_result();
+                if ($result !== false) {
+                    $result->free();
+                }
+            }
+        } catch (mysqli_sql_exception $e) {
+            throw new DatabaseError($e->getMessage(), 0, $e);
         }
     }
 
@@ -188,7 +203,7 @@ final class MysqliDriver implements Driver
      *
      * @param list<scalar|null> $parameters
      */
-    private function run(string $sql, array $parameters): mysqli_stmt
+    private function prepared(string $sql, array $parameters): mysqli_stmt
     {
         try {
             $statement = $this->mysqli->prepare($sql);

@@ -54,19 +54,19 @@ final class PdoDriver implements Driver
 
     public function select(string $sql, array $parameters): array
     {
-        return array_values($this->run($sql, $parameters)->fetchAll());
+        return array_values($this->prepared($sql, $parameters)->fetchAll());
     }
 
     public function scalar(string $sql, array $parameters): mixed
     {
-        $value = $this->run($sql, $parameters)->fetchColumn();
+        $value = $this->prepared($sql, $parameters)->fetchColumn();
 
         return $value === false ? null : $value;
     }
 
     public function execute(string $sql, array $parameters): int
     {
-        return $this->run($sql, $parameters)->rowCount();
+        return $this->prepared($sql, $parameters)->rowCount();
     }
 
     public function stream(string $sql, array $parameters): \Generator
@@ -74,7 +74,7 @@ final class PdoDriver implements Driver
         $this->pdo->setAttribute(PDO::MYSQL_ATTR_USE_BUFFERED_QUERY, false);
         $statement = null;
         try {
-            $statement = $this->run($sql, $parameters);
+            $statement = $this->prepared($sql, $parameters);
             while (($row = $statement->fetch()) !== false) {
                 yield $row;
             }
@@ -83,6 +83,15 @@ final class PdoDriver implements Driver
         } finally {
             $statement?->closeCursor();
             $this->pdo->setAttribute(PDO::MYSQL_ATTR_USE_BUFFERED_QUERY, true);
+        }
+    }
+
+    public function run(string $sql): void
+    {
+        try {
+            $this->pdo->exec($sql);
+        } catch (PDOException $e) {
+            throw new DatabaseError($e->getMessage(), 0, $e);
         }
     }
 
@@ -149,7 +158,7 @@ final class PdoDriver implements Driver
     /**
      * @param list<scalar|null> $parameters
      */
-    private function run(string $sql, array $parameters): PDOStatement
+    private function prepared(string $sql, array $parameters): PDOStatement
     {
         try {
             $statement = $this->pdo->prepare($sql);

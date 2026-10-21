@@ -52,6 +52,14 @@ interface Driver
      */
     public function stream(string $sql, array $parameters): \Generator;
 
+    /**
+     * Runs one statement as it is, without preparing it and without parameters (text protocol): for SQL that comes from a
+     * dump, which can hold statements that cannot be prepared (triggers ...). Results, if any, are discarded.
+     *
+     * @throws DatabaseError
+     */
+    public function run(string $sql): void;
+
     public function lastInsertId(): int;
 
     /**

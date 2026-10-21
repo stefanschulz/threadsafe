@@ -81,8 +81,16 @@ final class SqlWriter
     /** The first lines of every dump file. */
     public static function header(string $what): string
     {
-        return '-- ThreadSafe dump, ' . str_replace(["\r", "\n"], '?', $what) . ', format ' . self::FORMAT . "\n"
-            . "SET NAMES utf8mb4;\n"
+        return '-- ThreadSafe dump, ' . str_replace(["\r", "\n"], '?', $what) . ', format ' . self::FORMAT . "\n" . self::session();
+    }
+
+    /**
+     * The session settings every dump file starts with (after the comment line). An import that continues in the middle of a
+     * file runs them first, since it skips the file's own header.
+     */
+    public static function session(): string
+    {
+        return "SET NAMES utf8mb4;\n"
             . "SET time_zone = '+00:00';\n"
             . "SET FOREIGN_KEY_CHECKS = 0;\n"
             . "SET UNIQUE_CHECKS = 0;\n"
