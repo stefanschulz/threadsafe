@@ -121,7 +121,8 @@ that has no ThreadSafe installed), import the SQL with plain PHP (including `DEL
 time limit, in ticks), rename the table prefix, restore over an existing installation, and hand over to the migration of
 phase 1. Open questions the plan must settle with the owner are listed in `docs/CONCEPT.md` section 10.
 
-Open questions for the owner (not blocking): the live host runs PHP 8.4 only for the web server (30 s per request, 512 MB,
-`exec` allowed); its SSH shell has PHP 4 (probe run of 2026-10-21, `docs/PHASE3.md` section 8). Still unknown are the
-database server there and whether a proxy cuts requests before 30 s - run `tools/spikes/host-probe.php` through the web
-server with `&busy=40` and the database test (`&form=1`: typed into a form, never stored or pasted) - see CONCEPT section 10.
+Open questions for the owner (not blocking): the live host has PHP 8.4 only as CGI builds (web: 30 s per request, 512 MB,
+`exec` allowed, no cut-off up to 40 s); its SSH shell has PHP 4 (probe runs of 2026-10-21, `docs/PHASE3.md` section 8).
+`bin/threadsafe` runs with the CGI binary (`php8.4 -q bin/threadsafe …`). Still unknown is the database server there: run
+`tools/spikes/host-probe.php?token=…&form=1` and enter the host as the shop's `parameters.php` has it (not `localhost` if
+that fails on the socket); the form stores nothing - see CONCEPT section 10.

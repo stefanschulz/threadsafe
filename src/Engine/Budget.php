@@ -51,12 +51,26 @@ final class Budget
     }
 
     /**
+     * Whether this process was started from a shell rather than by a web server: the command line version of PHP, or the CGI
+     * binary run without a request (cron jobs on hosts that offer only that binary for PHP 8).
+     *
+     * @param array<string, mixed>|null $server $_SERVER (for tests)
+     */
+    public static function isCommandLine(?string $sapi = null, ?array $server = null): bool
+    {
+        $sapi ??= PHP_SAPI;
+        $server ??= $_SERVER;
+
+        return $sapi === 'cli' || $sapi === 'phpdbg' || (str_starts_with($sapi, 'cgi') && !isset($server['REQUEST_METHOD']));
+    }
+
+    /**
      * The budget this process can afford: unlimited in the CLI, otherwise a share of `max_execution_time` (or a fallback
      * when PHP has no limit but a web server may).
      */
     public static function forThisProcess(float $fraction = 0.6, float $fallbackSeconds = 20.0): self
     {
-        if (PHP_SAPI === 'cli') {
+        if (self::isCommandLine()) {
             return self::unlimited();
         }
         $limit = (float) ini_get('max_execution_time');

@@ -91,4 +91,24 @@ final class BudgetTest extends TestCase
         yield 'with B' => ['64MB', 67108864];
         yield 'nonsense' => ['lots', null];
     }
+    /** @return iterable<string, array{string, array<string, mixed>, bool}> */
+    public static function processKinds(): iterable
+    {
+        yield 'command line' => ['cli', [], true];
+        yield 'debugger' => ['phpdbg', [], true];
+        yield 'CGI binary run from a shell' => ['cgi-fcgi', [], true];
+        yield 'plain CGI run from a shell' => ['cgi', ['argv' => ['x']], true];
+        yield 'FastCGI request' => ['cgi-fcgi', ['REQUEST_METHOD' => 'GET'], false];
+        yield 'PHP-FPM request' => ['fpm-fcgi', ['REQUEST_METHOD' => 'POST'], false];
+        yield 'Apache module' => ['apache2handler', ['REQUEST_METHOD' => 'GET'], false];
+    }
+
+    /**
+     * @param array<string, mixed> $server
+     */
+    #[\PHPUnit\Framework\Attributes\DataProvider('processKinds')]
+    public function testCommandLineMeansStartedFromAShell(string $sapi, array $server, bool $expected): void
+    {
+        self::assertSame($expected, Budget::isCommandLine($sapi, $server));
+    }
 }

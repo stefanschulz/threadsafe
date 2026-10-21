@@ -24,7 +24,21 @@ final class StreamOutput implements Output
     /** Output to the real standard streams. */
     public static function standard(bool $verbose = false, bool $quiet = false): self
     {
-        return new self(STDOUT, STDERR, $verbose, $quiet);
+        // the PHP CGI binary has no STDOUT / STDERR constants
+        return new self(
+            defined('STDOUT') ? STDOUT : self::open('php://stdout'),
+            defined('STDERR') ? STDERR : self::open('php://stderr'),
+            $verbose,
+            $quiet,
+        );
+    }
+
+    /**
+     * @return resource
+     */
+    private static function open(string $url)
+    {
+        return fopen($url, 'wb') ?: throw new \RuntimeException("Cannot open $url.");
     }
 
     public function withMode(bool $verbose, bool $quiet): self

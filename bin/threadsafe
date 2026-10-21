@@ -11,14 +11,21 @@ use ThreadSafe\Cli\ProfileCommand;
 use ThreadSafe\Cli\StreamOutput;
 use ThreadSafe\Cli\VerifyCommand;
 
+// The PHP CGI binary ("php-cgi", often the only PHP 8 on shared hosting) runs scripts from a shell too, but defines no STDERR
+// constant, has a time limit of its own and prints HTML errors: make it behave like the command line version.
+if (PHP_SAPI !== 'cli') {
+    @set_time_limit(0);
+    @ini_set('html_errors', '0');
+}
+
 if (PHP_VERSION_ID < 80400) {
-    fwrite(STDERR, "ThreadSafe needs PHP 8.4 or newer (this is " . PHP_VERSION . ").\n");
+    fwrite(defined('STDERR') ? STDERR : fopen('php://stderr', 'wb'), "ThreadSafe needs PHP 8.4 or newer (this is " . PHP_VERSION . ").\n");
     exit(1);
 }
 
 $autoload = dirname(__DIR__) . '/vendor/autoload.php';
 if (!is_file($autoload)) {
-    fwrite(STDERR, "Dependencies are missing: run \"composer install\".\n");
+    fwrite(defined('STDERR') ? STDERR : fopen('php://stderr', 'wb'), "Dependencies are missing: run \"composer install\".\n");
     exit(1);
 }
 require $autoload;
