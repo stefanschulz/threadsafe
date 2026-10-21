@@ -60,6 +60,16 @@ interface Driver
      */
     public function run(string $sql): void;
 
+    /**
+     * The warnings the server gave for the last statement run with {@see run()} (`SHOW WARNINGS`, which MySQL cannot prepare and
+     * which therefore does not go through {@see select()}).
+     *
+     * @return list<array{level: string, code: int, message: string}>
+     *
+     * @throws DatabaseError
+     */
+    public function warnings(): array;
+
     public function lastInsertId(): int;
 
     /**

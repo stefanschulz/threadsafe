@@ -221,7 +221,8 @@ final class BackupRunTest extends IntegrationTestCase
         self::assertSame(0, $code, $stdout . $stderr);
         self::assertStringContainsString('is intact (full check', $stdout);
 
-        $archive = glob($this->storage . '/shop_*.zip')[0] ?? null;
+        // the first backup, the one in one piece (both were made within a second, so the order of the names is not the order of the backups)
+        $archive = array_values(array_filter(glob($this->storage . '/shop_*.zip') ?: [], static fn (string $f): bool => preg_match('/-p[0-9]+\.zip$/', $f) !== 1))[0] ?? null;
         self::assertNotNull($archive);
         $bytes = (string) file_get_contents($archive);
         file_put_contents($archive, substr_replace($bytes, chr(ord($bytes[1000]) ^ 1), 1000, 1));

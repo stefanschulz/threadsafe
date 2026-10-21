@@ -8,6 +8,7 @@ use Closure;
 use ThreadSafe\Core\AlwaysRuns;
 use ThreadSafe\Core\Context;
 use ThreadSafe\Core\Notice;
+use ThreadSafe\Core\PhpBinary;
 use ThreadSafe\Core\Plan;
 use ThreadSafe\Core\Resources;
 use ThreadSafe\Core\StepResult;
@@ -69,7 +70,12 @@ final class Finalize implements AlwaysRuns
             'regenerate' => $request->physicalUri !== null,
             'robots' => !$request->isDevMode(),
         ], JSON_THROW_ON_ERROR);
-        $command = [PHP_BINARY, Resources::path('prestashop9/finalize.php'), $options];
+        $php = $this->runner !== null ? PHP_BINARY : PhpBinary::cli();
+        if ($php === null) {
+            // typical for a shared host: PHP runs inside the web server (mod_php, FPM), and there is no program to start PrestaShop with
+            return new StepResult(0, [Notice::warning('No PHP command line program was found to start PrestaShop with (this PHP runs as ' . PHP_SAPI . ', or may not start processes). The migration stays valid; PrestaShop rebuilds its caches on the first visit' . ($request->physicalUri !== null ? ', but .htaccess and robots.txt were not regenerated for the new base path' : '') . '.', 'finalize')]);
+        }
+        $command = [$php, Resources::path('prestashop9/finalize.php'), $options];
 
         [$code, $stdout, $stderr] = ($this->runner ?? $this->run(...))($command, $root);
 
@@ -102,7 +108,7 @@ final class Finalize implements AlwaysRuns
     {
         $process = proc_open($command, [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes, $directory);
         if (!is_resource($process)) {
-            return [1, '', 'Cannot start ' . PHP_BINARY . '.'];
+            return [1, '', 'Cannot start ' . $command[0] . '.'];
         }
         stream_set_blocking($pipes[1], false);
         stream_set_blocking($pipes[2], false);

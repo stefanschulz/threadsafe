@@ -25,11 +25,15 @@ use ThreadSafe\Engine\TickOutcome;
  * `DROP TABLE IF EXISTS`, so that is safe). Same after an error.
  *
  * State: `directory`, `files` (names), `sizes`, `file` (index of the file in progress), `offset`, `delimiter`, `statements`,
- * `restarts`, `prefixFrom`, `prefixTo` (null: no change), `bytes` and `total` (for progress).
+ * `restarts`, `prefixFrom`, `prefixTo` (null: no change), `firstTable` and `lastTable` (the first and the most recent table created, or
+ * null: a resumed import looks for them, see {@see tick()}), `bytes` and `total` (for progress).
  */
 final class Importer
 {
     public const string MARKER = '.import-inflight';
+
+    /** Warnings of the server that mean a value was changed or lost: packet overflow, truncation, out of range, incorrect value, too long, NULL for NOT NULL. */
+    private const array DATA_LOSS_CODES = [1301, 1265, 1292, 1264, 1366, 1406, 1263];
 
     public function __construct(private readonly Connection $db)
     {
@@ -71,6 +75,8 @@ final class Importer
             'delimiter' => ';',
             'statements' => 0,
             'restarts' => 0,
+            'firstTable' => null,
+            'lastTable' => null,
             'prefixFrom' => $from,
             'prefixTo' => $to,
             'bytes' => 0,
@@ -149,6 +155,19 @@ final class Importer
         $done = array_sum(array_slice($sizes, 0, $file));
         $rewriter = $state['prefixFrom'] === null ? null : new PrefixRewriter((string) $state['prefixFrom'], (string) $state['prefixTo']);
 
+        $firstTable = $state['firstTable'] ?? null;
+        $lastTable = $state['lastTable'] ?? null;
+        if ($file > 0 && $file < count($files) && !$this->tablesExist($firstTable, $lastTable)) {
+            // The tables made so far are not there: the database was emptied or replaced while the restore waited (the person fixed the
+            // cause of a failure by starting with a fresh database). Every file begins with DROP TABLE IF EXISTS, so doing it all again is safe.
+            $file = 0;
+            $offset = 0;
+            $delimiter = ';';
+            $done = 0;
+            $firstTable = $lastTable = null;
+            ++$restarts;
+        }
+
         $marker = $directory . '/' . self::MARKER;
         if (is_file($marker)) {
             // the previous tick did not end in order: whatever of the current file ran is unknown, so it starts over
@@ -169,7 +188,11 @@ final class Importer
                 $splitter = new SqlSplitter($directory . '/' . $files[$file], $offset, $delimiter);
                 try {
                     while (($statement = $splitter->next()) !== null) {
-                        $this->execute($statement, $rewriter, $files[$file], $offset);
+                        $created = $this->execute($statement, $rewriter, $files[$file], $offset);
+                        if ($created !== null) {
+                            $firstTable ??= $created;
+                            $lastTable = $created;
+                        }
                         $offset = $statement->end;
                         $delimiter = $statement->delimiter;
                         ++$statements;
@@ -201,11 +224,28 @@ final class Importer
         $state['delimiter'] = $delimiter;
         $state['statements'] = $statements;
         $state['restarts'] = $restarts;
+        $state['firstTable'] = $firstTable;
+        $state['lastTable'] = $lastTable;
         $state['bytes'] = $finished ? (int) $state['total'] : $done + $offset;
 
         return new TickOutcome($state, $finished, $finished
             ? sprintf('imported %d statements from %d files', $statements, count($files))
             : sprintf('importing %s (file %d of %d, %d%%)', $files[$file], $file + 1, count($files), (int) floor(100 * $state['bytes'] / max(1, (int) $state['total']))));
+    }
+
+    /** Whether the first and the latest table this import made are in the database (nothing to look for: yes). */
+    private function tablesExist(?string $first, ?string $last): bool
+    {
+        $names = array_values(array_unique(array_filter([$first, $last], 'is_string')));
+        if ($names === []) {
+            return true;
+        }
+        $found = $this->db->select(
+            "SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_TYPE = 'BASE TABLE' AND TABLE_NAME IN (" . implode(', ', array_fill(0, count($names), '?')) . ')',
+            $names,
+        );
+
+        return count($found) === count($names);
     }
 
     private function runSession(): void
@@ -218,11 +258,23 @@ final class Importer
     /**
      * @throws ImportException
      */
-    private function execute(SqlStatement $statement, ?PrefixRewriter $rewriter, string $file, int $offset): void
+    /**
+     * Runs one statement.
+     *
+     * @return string|null the name of the table, if the statement made one
+     *
+     * @throws ImportException
+     */
+    private function execute(SqlStatement $statement, ?PrefixRewriter $rewriter, string $file, int $offset): ?string
     {
         $sql = $rewriter === null ? $statement->text : $rewriter->rewrite($statement->text);
         try {
             $this->db->run($sql);
+            if (preg_match('~\A(?:\s|--[^\n]*\n|#[^\n]*\n|/\*(?!!).*?\*/)*(?:INSERT|UPDATE)\b~is', $sql) === 1) {
+                $this->assertNothingLost($sql, $file, $offset);
+            }
+
+            return preg_match('~\A(?:\s|--[^\n]*\n|#[^\n]*\n|/\*(?!!).*?\*/)*CREATE TABLE `((?:[^`]|``)*)`~is', $sql, $m) === 1 ? str_replace('``', '`', $m[1]) : null;
         } catch (DatabaseError $e) {
             throw new ImportException(sprintf(
                 'Importing "%s" failed at byte %d (%s): %s',
@@ -231,6 +283,34 @@ final class Importer
                 PrefixRewriter::describe($sql),
                 $e->getMessage(),
             ), 0, $e);
+        }
+    }
+
+    /**
+     * The dump sets a sql_mode that is not strict, so a server that cannot take a value does not refuse the statement: it changes the
+     * value and says so in a warning. A cell larger than max_allowed_packet becomes NULL (or the piece that fits) in the
+     * `UPDATE ... CONCAT(...)` that appends its pieces; a value too long for its column is cut. That would be a restore with
+     * silently damaged data, so these warnings stop the import.
+     *
+     * @throws ImportException
+     * @throws DatabaseError
+     */
+    private function assertNothingLost(string $sql, string $file, int $offset): void
+    {
+        foreach ($this->db->warnings() as $warning) {
+            $code = $warning['code'];
+            if (!in_array($code, self::DATA_LOSS_CODES, true) || strtolower($warning['level']) === 'note') {
+                continue;
+            }
+            throw new ImportException(sprintf(
+                'Importing "%s" damaged data at byte %d (%s): %s (code %d).%s',
+                $file,
+                $offset,
+                PrefixRewriter::describe($sql),
+                $warning['message'],
+                $code,
+                $code === 1301 ? ' The max_allowed_packet of this database server is smaller than a cell of the backup; raise it (SET GLOBAL max_allowed_packet = ..., or my.cnf) and run the restore again.' : ' The table in the database does not take the value the backup holds.',
+            ));
         }
     }
 }

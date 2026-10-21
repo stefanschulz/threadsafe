@@ -244,9 +244,12 @@ final class LocalStorage
     }
 
     /**
+     * The files that keep a web server from serving a backup directory, with their content (a restore recognises them next to an
+     * uploaded backup and does not count them as leftovers).
+     *
      * @return array<string, string> file name => content
      */
-    private static function protectionFiles(): array
+    public static function protectionFiles(): array
     {
         return [
             '.htaccess' => "# ThreadSafe: backups are never served to the web.\n<IfModule mod_authz_core.c>\n    Require all denied\n</IfModule>\n<IfModule !mod_authz_core.c>\n    Order deny,allow\n    Deny from all\n</IfModule>\n",

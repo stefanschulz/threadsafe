@@ -166,6 +166,31 @@ final class RestoreRunTest extends TestCase
         self::assertSame('<?php echo 1;', file_get_contents($root . '/index.php'));
     }
 
+    public function testTheProtectionFilesOfAnUploadedBackupDirectoryAreNotInTheWay(): void
+    {
+        $archive = $this->archive();
+        $root = $this->base . '/restored';
+        mkdir($root);
+        foreach (\ThreadSafe\Storage\LocalStorage::protectionFiles() as $name => $content) {
+            file_put_contents($root . '/' . $name, $content);
+        }
+        $executor = $this->executor();
+
+        $run = $executor->start($this->parameters($archive, $root));
+        $executor->execute($run->id);
+
+        self::assertSame('<?php echo 1;', file_get_contents($root . '/index.php'), 'the file of the backup replaces the protection file');
+
+        // but a file of that name with other content is somebody else's
+        $other = $this->base . '/other';
+        mkdir($other);
+        file_put_contents($other . '/index.php', '<?php // my own page');
+        $run = $executor->start($this->parameters($archive, $other));
+        $this->expectException(RestoreException::class);
+        $this->expectExceptionMessage('is not empty: index.php');
+        $executor->execute($run->id);
+    }
+
     public function testTheArchiveItselfInTheTargetIsNotInTheWay(): void
     {
         $archive = $this->archive();

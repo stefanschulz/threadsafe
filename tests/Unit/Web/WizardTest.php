@@ -340,6 +340,32 @@ final class WizardTest extends TestCase
         }
     }
 
+    public function testAnUnfinishedRestoreGoesOnWhenThePageIsOpenedAgain(): void
+    {
+        $this->upload();
+        $this->key();
+        $root = $this->base . '/restored';
+        $first = $this->loggedIn();
+        $first->post(['action' => 'choose-backup', 'choice' => basename($this->parts[0]), 'path' => '']);
+        $first->post(['action' => 'save-target', 'root' => $root]);
+        $first->post(['action' => 'start']);
+        $begun = json_decode($first->post(['action' => 'tick', 'format' => 'json'])->body, true);
+        self::assertSame('running', $begun['status']);
+
+        // the browser is closed: a new one logs in with the key and finds the restore where it stopped
+        $second = new WizardClient($this->wizard());
+        $second->get();
+        $page = $second->post(['action' => 'login', 'key' => self::KEY], [], true, false);
+
+        self::assertStringContainsString('Keep this page open', $page->body);
+        do {
+            $answer = json_decode($second->post(['action' => 'tick', 'format' => 'json'])->body, true);
+        } while ($answer['status'] === 'running');
+        self::assertSame('finished', $answer['status']);
+        self::assertSame('<?php echo 1;', file_get_contents($root . '/index.php'));
+        self::assertStringContainsString('The backup is restored', $second->get(['step' => 'done'])->body);
+    }
+
     public function testTheBackupFilesAreDeletedOnRequest(): void
     {
         $this->upload();

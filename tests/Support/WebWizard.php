@@ -24,13 +24,19 @@ final class WebWizard
      * @param string                $router   the script the server runs for every request (restore.php, or tools/restore-web.php)
      * @param array<string, string> $settings php.ini settings for the server, e.g. ['max_execution_time' => '5']
      * @param array<string, string> $env      environment of the server process
+     * @param string|null           $baseUrl  a web server that is running already (the target stack's Apache, `http://target-prestashop`); then
+     *                                        nothing is started and the tool is at $scriptPath
+     * @param string                $scriptPath the path of the tool on that server, e.g. `/restore.php`
      */
-    public function __construct(private readonly string $router, private readonly array $settings = [], private readonly array $env = [])
+    public function __construct(private readonly string $router = '', private readonly array $settings = [], private readonly array $env = [], private readonly ?string $baseUrl = null, private readonly string $scriptPath = '')
     {
     }
 
     public function start(): void
     {
+        if ($this->baseUrl !== null) {
+            return;
+        }
         $probe = stream_socket_server('tcp://127.0.0.1:0', $errno, $error);
         if ($probe === false) {
             throw new RuntimeException("No free port: $error");
@@ -97,7 +103,10 @@ final class WebWizard
             $headers[] = 'Content-Type: application/x-www-form-urlencoded';
         }
         $context = stream_context_create(['http' => ['method' => $method, 'header' => implode("\r\n", $headers), 'content' => $content, 'ignore_errors' => true, 'follow_location' => 0, 'timeout' => 120]]);
-        $body = @file_get_contents('http://127.0.0.1:' . $this->port . $path, false, $context);
+        if ($this->scriptPath !== '') {
+            $path = $path === '/' ? $this->scriptPath : $this->scriptPath . substr($path, 1);
+        }
+        $body = @file_get_contents(($this->baseUrl ?? 'http://127.0.0.1:' . $this->port) . $path, false, $context);
         $lines = $http_response_header;
         if ($body === false) {
             throw new RuntimeException('The web server gave no answer.');

@@ -13,3 +13,12 @@ parameters:
         - tests/stack/oracle
     # tools/ holds throw-away phase 0 scripts (syntax-checked by `composer lint`, not analysed).
     tmpDir: .cache/phpstan
+    ignoreErrors:
+        # The integration tests open their PDO connections with ERRMODE_EXCEPTION, so query() never returns false there; a
+        # `->query(...)?->fetchColumn()` chain is how they read one value.
+        -
+            identifier: nullsafe.neverNull
+            path: tests/*
+        -
+            message: '#Cannot call method (fetchColumn|fetch|fetchAll)\(\) on PDOStatement\|false#'
+            path: tests/*

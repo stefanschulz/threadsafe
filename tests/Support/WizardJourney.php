@@ -22,7 +22,8 @@ final class WizardJourney
         $page = $wizard->request('GET', '/');
         Assert::assertSame(200, $page['status']);
         Assert::assertStringContainsString('name="key"', $page['body']);
-        $login = $wizard->request('POST', '/', ['action' => 'login', 'key' => $key]);
+        // over plain http from another machine the wizard wants the person to accept that the key crosses the network in clear text
+        $login = $wizard->request('POST', '/', ['action' => 'login', 'key' => $key] + (str_contains($page['body'], 'name="plain"') ? ['plain' => '1'] : []));
         Assert::assertSame(303, $login['status'], $login['body']);
         Assert::assertTrue($wizard->hasCookie());
         Assert::assertStringContainsString('HttpOnly', (string) $login['headers']['set-cookie']);
@@ -42,8 +43,9 @@ final class WizardJourney
         }
         $wizard->follow($wizard->request('POST', '/', ['action' => 'save-target', 'csrf' => $wizard->csrf()] + $target));
         $summary = $wizard->request('GET', '/?step=summary');
-        Assert::assertStringContainsString('Restore now', $summary['body'], $summary['body']);
-        if (isset($target['db_password']) && $target['db_password'] !== '') {
+        preg_match_all('~<li class="error">(.*?)</li>~s', $summary['body'], $problems);
+        Assert::assertStringContainsString('Restore now', $summary['body'], 'The summary lists problems: ' . html_entity_decode(strip_tags(implode(' | ', $problems[1]))));
+        if (strlen($target['db_password'] ?? '') >= 8) {   // a short password like "target" is a word of the page itself
             Assert::assertStringNotContainsString($target['db_password'], $summary['body'], 'the password is never shown again');
         }
 

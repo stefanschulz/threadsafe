@@ -66,7 +66,8 @@ services:
   # the way a restored copy is.
   target-db:
     profiles: ["target"]
-    image: ${DB_IMAGE:-mariadb:10.11}
+    # the same server as the source, unless TARGET_DB_IMAGE says otherwise (tests/stack/cross.sh: a backup from MySQL onto MariaDB and back)
+    image: ${TARGET_DB_IMAGE:-${DB_IMAGE:-mariadb:10.11}}
     environment:
       MYSQL_DATABASE: prestashop_target
       MYSQL_USER: target
@@ -92,6 +93,8 @@ services:
       - "${TARGET_PORT:-8290}:80"
     volumes:
       - target_ps_data:/var/www/html
+      # tight limits for restore.php only, see the file
+      - ./target-restore-limits.conf:/etc/apache2/conf-enabled/threadsafe-restore-limits.conf:ro
     networks: [target]
 
   # Development tools (PHP 8.4 CLI + pdo_mysql + Composer). Not started by `up`; use:
@@ -126,5 +129,5 @@ volumes:
   target_ps_data:
     name: threadsafe-dev_target_ps_data${VOLUME_SUFFIX:-}
   target_db_data:
-    name: threadsafe-dev_target_db_data${VOLUME_SUFFIX:-}
+    name: threadsafe-dev_target_db_data${TARGET_DB_SUFFIX:-${VOLUME_SUFFIX:-}}
   composer_cache:

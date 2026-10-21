@@ -143,9 +143,15 @@ final class Wizard
         }
         [$token, $data] = $this->sessions->create();
         $data['plain'] = $this->plainHttp($request);
+        // a restore that was started and not finished (the browser was closed, the connection lost, a step failed) goes on where it was:
+        // starting again would meet its own half-restored files
+        $unfinished = $this->unfinishedRun();
+        if ($unfinished !== null) {
+            $data['runId'] = $unfinished->id;
+        }
         $this->sessions->save($token, $data);
 
-        return Response::redirect('?step=backup')->withHeader($this->cookie($token, $request));
+        return Response::redirect($unfinished !== null ? '?step=run' : '?step=backup')->withHeader($this->cookie($token, $request));
     }
 
     private function logout(string $token): Response
@@ -568,6 +574,18 @@ final class Wizard
     private function executor(): Executor
     {
         return new Executor($this->store(), new RestoreRun($this->plugins), $this->budgets ?? Budget::forThisProcess(...));
+    }
+
+    /** The newest restore run that is neither finished nor gone: running (or interrupted) or failed. */
+    private function unfinishedRun(): ?Run
+    {
+        foreach ($this->store()->all('restore') as $run) {
+            if ($run->status !== RunStatus::Finished) {
+                return $run;
+            }
+        }
+
+        return null;
     }
 
     /**

@@ -15,7 +15,11 @@ and before the migration it is broken in exactly the way a restored copy is (HTT
 
 ```bash
 tests/stack/run.sh            # seed → clone → PHPUnit phase 1 (incl. the migration of the clone) → oracle → phase 2 → phase 3 (dev mode) → phase 4
-                              # (the backup round trip: back up the source shop, restore it into the wiped target, migrate; a few minutes)
+                              # (the backup round trip: back up the source shop, restore it into the wiped target with the plain tools and with
+                              # `threadsafe restore`, also into another database with another table prefix) → phase 5 (disaster recovery: the
+                              # target's containers and volumes are destroyed and made again empty; restore.php, served by the target's own
+                              # Apache under limits of 5 seconds and 64 MB, brings the shop back)
+tests/stack/cross.sh          # backups across the two kinds of database server (MySQL 8.4 -> MariaDB and back), needs the source seeded on both
 ```
 
 ## Database servers: MariaDB and MySQL
@@ -37,6 +41,7 @@ Single steps:
 |---|---|
 | `seed.sh` | Idempotent. Installs the fixture module `threadsafe_fixture`, loads `tests/fixtures/seed-problem-cases.sql` (CMS text in many URL notations, a foreign domain, a cache table entry, 200,000 log rows) and writes a `php.ini` and a sitemap with host-bound values |
 | `clone.sh` | Wipes the target, copies files (without `var/cache` and `cache/smarty`, like a backup) and the database from the source, checks isolation |
+| `cross.sh` | Runs the group `cross-server` twice, with the source stack on one kind of database server and the target's database on the other (`TARGET_DB_IMAGE`, `TARGET_DB_SUFFIX` of the compose file): the shop is backed up, restored with `threadsafe restore`, compared table by table; a MySQL 8 collation is refused on MariaDB |
 | `oracle.sh <source\|target>` | Saves the current `.htaccess` and the one PrestaShop itself would generate (`oracle/htaccess-oracle.php`, `Tools::generateHtaccess`) to `.cache/oracle/` |
 
 The scripts need Docker and Bash (Git Bash on Windows works). The PHPUnit tests run inside the `tools` container,

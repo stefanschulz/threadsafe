@@ -135,6 +135,24 @@ final class MysqliDriver implements Driver
         }
     }
 
+    public function warnings(): array
+    {
+        try {
+            $result = $this->mysqli->query('SHOW WARNINGS');
+            $warnings = [];
+            if ($result instanceof \mysqli_result) {
+                foreach ($result->fetch_all(MYSQLI_ASSOC) as $row) {
+                    $warnings[] = ['level' => (string) ($row['Level'] ?? ''), 'code' => (int) ($row['Code'] ?? 0), 'message' => (string) ($row['Message'] ?? '')];
+                }
+                $result->free();
+            }
+
+            return $warnings;
+        } catch (mysqli_sql_exception $e) {
+            throw new DatabaseError($e->getMessage(), 0, $e);
+        }
+    }
+
     public function lastInsertId(): int
     {
         return (int) $this->mysqli->insert_id;

@@ -207,6 +207,12 @@ final class Extractor
         $from = $stored ? (int) ($run->current ?? 0) : 0;
         if (file_exists($target) && !is_writable($target)) {
             @chmod($target, 0644);
+            clearstatcache(true, $target);
+            if (!is_writable($target)) {
+                // a file of somebody else (a placeholder the host or an upload left, owned by another user) cannot be opened, but it can be
+                // replaced: whoever owns the directory may delete what is in it
+                @unlink($target);
+            }
         }
         $handle = @fopen($target, 'cb');
         if ($handle === false) {

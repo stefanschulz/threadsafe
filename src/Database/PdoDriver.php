@@ -95,6 +95,26 @@ final class PdoDriver implements Driver
         }
     }
 
+    public function warnings(): array
+    {
+        // MySQL refuses to prepare SHOW WARNINGS, and the attempt wipes the very warnings that are asked for: send it as text
+        $emulated = $this->pdo->getAttribute(PDO::ATTR_EMULATE_PREPARES);
+        try {
+            $this->pdo->setAttribute(PDO::ATTR_EMULATE_PREPARES, true);
+            $statement = $this->pdo->query('SHOW WARNINGS');
+            $warnings = [];
+            foreach ($statement === false ? [] : $statement->fetchAll() as $row) {
+                $warnings[] = ['level' => (string) ($row['Level'] ?? ''), 'code' => (int) ($row['Code'] ?? 0), 'message' => (string) ($row['Message'] ?? '')];
+            }
+
+            return $warnings;
+        } catch (PDOException $e) {
+            throw new DatabaseError($e->getMessage(), 0, $e);
+        } finally {
+            $this->pdo->setAttribute(PDO::ATTR_EMULATE_PREPARES, $emulated);
+        }
+    }
+
     public function lastInsertId(): int
     {
         return (int) $this->pdo->lastInsertId();

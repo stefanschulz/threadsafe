@@ -16,7 +16,7 @@ application automatically. First target: **PrestaShop 9.x**; MariaDB and MySQL; 
 |---|---|---|
 | 1, 1b | Restore core: `threadsafe migrate <type>`, dev mode, module rules, self-test; database drivers; website type plugins | done |
 | 2 | Site profiles and backup engine (CLI) | done (work packages in [docs/PHASE2.md](docs/PHASE2.md) section 5; user documentation [docs/BACKUP.md](docs/BACKUP.md)) |
-| 3 | `restore.php` (extractor and wizard) | **in progress**: plan [docs/PHASE3.md](docs/PHASE3.md); work packages 1-7 done (milestone A: `threadsafe restore`; milestone B: the single file `dist/restore.php` with the wizard), 8-9 open |
+| 3 | `restore.php` (extractor and wizard) | **in progress**: plan [docs/PHASE3.md](docs/PHASE3.md); work packages 1-8 done (milestone A: `threadsafe restore`; milestone B: the single file `dist/restore.php` with the wizard; disaster recovery proven on the Docker stack), 9 open |
 | 4 | Web interface (dashboard, download) | not started |
 | 5 | One trigger cron, retention, encryption | not started |
 
@@ -116,8 +116,8 @@ integration tests (the backup round trip of the seeded shop, SIGKILL and resume,
 `docs/PHASE2.md` 4.2); the reference is `docs/BACKUP.md`. Next is **phase 3, `restore.php`**: `docs/PHASE3.md` is the plan (decisions 1-4 and 6 settled with the owner, 5 and 7-9
 proposed), its work package 1 (spikes, `tools/spikes/bundle.php`, `sql-import.php`, `inflate-speed.php`, `host-probe.php`) is
 done and its findings are in section 8. Work packages 2-5 (extractor, SQL importer and `RestoreRun` in `src/Restore`, the resumable migration with
-`TickedRunner`, the CLI `restore`) are done - milestone A - and so are the wizard (6, `src/Web`) and the build of the single file `restore.php` (7, `src/Build`, milestone B); continue with 8
-(the integration tests of the whole: disaster recovery, interruption, cross-server) and 9 (`docs/RESTORE.md`), each tested and
+`TickedRunner`, the CLI `restore`) are done - milestone A - and so are the wizard (6, `src/Web`) and the build of the single file `restore.php` (7, `src/Build`, milestone B); continue with 9
+(`docs/RESTORE.md`, the user documentation; README and CONCEPT status), each tested and
 committed on request. The
 restore must read these archives with `ZipReader` (or a stand-alone extractor of its own, since `restore.php` runs on a host
 that has no ThreadSafe installed), import the SQL with plain PHP (including `DELIMITER` blocks and large `INSERT`s under a

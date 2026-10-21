@@ -13,6 +13,7 @@ use ThreadSafe\Database\ConnectionFailed;
 use ThreadSafe\Database\DatabaseError;
 use ThreadSafe\Database\DatabaseSettings;
 use ThreadSafe\Plugin\Restorable;
+use ThreadSafe\Storage\LocalStorage;
 use ThreadSafe\Storage\SpaceCheck;
 
 /**
@@ -105,6 +106,12 @@ final class Preflight
         }
 
         $own = array_flip($ownNames);
+        // a person who uploads the whole backup directory brings the protection files of ThreadSafe's storage along
+        foreach (LocalStorage::protectionFiles() as $name => $content) {
+            if (is_file($root . '/' . $name) && @file_get_contents($root . '/' . $name) === $content) {
+                $own[$name] = true;
+            }
+        }
         $placeholders = $allowLeftovers ? array_flip(self::PLACEHOLDERS) : [];
         $inTheWay = [];
         foreach (scandir($root) ?: [] as $name) {
@@ -182,7 +189,13 @@ final class Preflight
                 $checks[] = Check::warning("The default character set of the database is \"$charset\", not utf8mb4. The tables are created with their own character set, so this does not matter for them.");
             }
             $packet = (int) $db->scalar('SELECT @@max_allowed_packet');
-            if ($packet > 0 && $packet < 4 * 1048576) {
+            $largest = self::largestCell($manifest);
+            if ($packet > 0 && $largest > $packet) {
+                $checks[] = Check::error(
+                    sprintf('The backup holds a cell of %s; the database server takes no more than %s (max_allowed_packet), so that cell would be lost.', SpaceCheck::format($largest), SpaceCheck::format($packet)),
+                    'Raise max_allowed_packet of the database server (SET GLOBAL max_allowed_packet = ..., or my.cnf) above the size of the cell, then try again.',
+                );
+            } elseif ($packet > 0 && $packet < 4 * 1048576) {
                 $checks[] = Check::warning(sprintf('max_allowed_packet of the database server is only %s; statements of about 1 MB are normal, a cell larger than that cannot be restored.', SpaceCheck::format($packet)));
             }
         } catch (DatabaseError $e) {
@@ -213,6 +226,22 @@ final class Preflight
         }
 
         return $checks;
+    }
+
+    /**
+     * The size of the largest cell the backup itself reported (it warns about cells above the packet limit of the server it was made
+     * on, in the words of {@see \ThreadSafe\Backup\Dumper}); 0 if there is none.
+     */
+    private static function largestCell(Manifest $manifest): int
+    {
+        $largest = 0.0;
+        foreach ($manifest->warnings as $warning) {
+            if (preg_match('/holds a cell of ([0-9.]+) (KB|MB|GB)/', $warning, $m) === 1) {
+                $largest = max($largest, (float) $m[1] * ['KB' => 1024, 'MB' => 1048576, 'GB' => 1073741824][$m[2]]);
+            }
+        }
+
+        return (int) $largest;
     }
 
     /** Views and triggers name tables, so the prefix cannot be rewritten without understanding SQL (docs/PHASE3.md 3.5). */

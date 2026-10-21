@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace ThreadSafe\Profile;
 
 use ThreadSafe\Backup\SchemaReader;
+use ThreadSafe\Core\PhpBinary;
 use ThreadSafe\Database\Connection;
 use ThreadSafe\Database\ConnectionFailed;
 use ThreadSafe\Database\DatabaseError;
@@ -202,26 +203,12 @@ final class ConnectionTest
             ? Check::info('Processes', 'exec and proc_open are allowed')
             : Check::info('Processes', 'disabled by the host: ' . implode(', ', $blocked) . '. The web interface cannot start a command line job; backups run in ticks, or from a cron job that calls the command line.');
 
-        $cli = self::phpBinary();
+        $cli = PhpBinary::cli();
         $checks[] = $cli !== null
             ? Check::info('PHP command line', "found: $cli (a cron job can run backups in one consistent snapshot)")
             : Check::info('PHP command line', 'no PHP command line binary found; backups from cron then go through the web interface');
 
         return $checks;
-    }
-
-    private static function phpBinary(): ?string
-    {
-        if (PHP_SAPI === 'cli') {
-            return PHP_BINARY;
-        }
-        foreach ([PHP_BINDIR . '/php', PHP_BINDIR . '/php.exe'] as $candidate) {
-            if (@is_executable($candidate)) {
-                return $candidate;
-            }
-        }
-
-        return null;
     }
 
     private static function megabytes(int $bytes): string
