@@ -10,6 +10,8 @@ use ThreadSafe\Plugin\PluginRegistry;
 use ThreadSafe\Profile\ProfileException;
 use ThreadSafe\Profile\ProfileStore;
 use ThreadSafe\Profile\SiteProfile;
+use ThreadSafe\Schedule\ScheduleState;
+use ThreadSafe\Schedule\ScheduleStore;
 use ThreadSafe\Tests\Support\TempDirectory;
 
 /**
@@ -39,6 +41,45 @@ final class ProfileServiceTest extends TestCase
     private function profile(string $id = 'blog', ?string $storage = null): SiteProfile
     {
         return SiteProfile::fromArray(['id' => $id, 'type' => 'generic', 'path' => $this->base . '/site', 'storage' => $storage ?? $this->base . '/storage/' . $id]);
+    }
+
+    private function states(): ScheduleStore
+    {
+        return new ScheduleStore($this->base . '/data/schedule');
+    }
+
+    public function testASchedulePutsTheStateOfTheSchedulerAtNowAndAChangeMovesItAndRemovalClearsIt(): void
+    {
+        self::assertTrue($this->service->store($this->profile()->with(['schedule' => ['cron' => '0 3 * * *']]), test: false)->stored);
+        $first = $this->states()->load('blog');
+        self::assertNotNull($first, 'a profile with a schedule has a state');
+        self::assertEqualsWithDelta(time(), $first->since, 5, 'its schedule counts from now');
+
+        // the same expression again (any other edit): the state stays as the scheduler left it
+        $this->states()->save('blog', new ScheduleState(1000, 2000, ScheduleState::DONE, 1));
+        $this->service->store($this->profile()->with(['schedule' => ['cron' => '0 3 * * *'], 'note' => 'changed']), test: false);
+        self::assertEquals(new ScheduleState(1000, 2000, ScheduleState::DONE, 1), $this->states()->load('blog'));
+
+        // another expression: instants before the change do not count
+        $this->service->store($this->profile()->with(['schedule' => ['cron' => '0 4 * * *']]), test: false);
+        self::assertEqualsWithDelta(time(), $this->states()->load('blog')?->since, 5);
+        self::assertNull($this->states()->load('blog')?->instant);
+
+        // no schedule any more
+        $this->service->store($this->profile(), test: false);
+        self::assertNull($this->states()->load('blog'));
+
+        $this->service->store($this->profile()->with(['schedule' => ['cron' => '0 3 * * *']]), test: false);
+        self::assertNotNull($this->states()->load('blog'));
+        $this->service->remove('blog');
+        self::assertNull($this->states()->load('blog'), 'a removed profile leaves no state');
+    }
+
+    public function testAProfileWithoutAScheduleLeavesNoStateFile(): void
+    {
+        $this->service->store($this->profile(), test: false);
+
+        self::assertDirectoryDoesNotExist($this->base . '/data/schedule');
     }
 
     public function testTheTypesThatCanBeBackedUpAreListedWithTheirTitles(): void

@@ -93,6 +93,10 @@ final class ProfileForm
         if ($data['name'] === '') {
             $data['name'] = $data['id'];
         }
+        if ($current !== null) {
+            // what the form does not show stays as it is: editing a profile in the browser must not drop its schedule, retention or encryption
+            $data += array_intersect_key($current->toArray(), array_flip(['schedule', 'retention', 'encryption']));
+        }
 
         $compression = trim($values['compression'] ?? '');
         if (preg_match('/^\d$/', $compression) !== 1) {

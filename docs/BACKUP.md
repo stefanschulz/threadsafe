@@ -46,7 +46,10 @@ The backup is a standard ZIP archive and a small `.json` file next to it in the 
     "useDefaultFilters": true,
     "compression": 6,
     "partSize": null,
-    "note": "live, shared hosting"
+    "note": "live, shared hosting",
+    "schedule": {"cron": "30 3 * * *"},
+    "retention": {"keep": 14, "maxAgeDays": 90, "maxBytes": 21474836480},
+    "encryption": {"recipients": ["age1ql3z7hjy54pw3hyww5ayyfg7zqgvc7w3j2elw8zmrj2kg5sfn9aqmcac8p"]}
 }
 ```
 
@@ -63,6 +66,9 @@ The backup is a standard ZIP archive and a small `.json` file next to it in the 
 | `compression` | Deflate level 1-9; 0 stores everything uncompressed. Files that are compressed already (images, archives, PDFs ...) are always stored. |
 | `partSize` | Bytes per archive part (at least 1 MiB), or `null` for one archive. |
 | `note` | Free text. |
+| `schedule` | Optional (`null` or absent: no schedule). `{"cron": "30 3 * * *"}`: a cron expression of five fields (minute hour day-of-month month day-of-week; lists, ranges, steps, names of months and days, `@hourly` `@daily` `@weekly` `@monthly`), read in the time zone of the installation (setting `schedule.timezone`, see [WEB.md](WEB.md); UTC where nobody set one). A time that does not exist on the day the clock jumps forward runs at the first instant after the gap; a time that exists twice runs once. **The profile only records the schedule so far: the trigger that acts on it is work package 3 of [PHASE5.md](PHASE5.md).** |
+| `retention` | Optional. `{"keep": N, "maxAgeDays": D, "maxBytes": B}`, every rule optional: at most N backups, none older than D days, together at most B bytes (at least 1 MiB). Recorded only so far; the retention that applies it is work package 4 of [PHASE5.md](PHASE5.md). |
+| `encryption` | Optional. `{"recipients": ["age1...", ...]}`: public keys of the `age` format that new backups will be encrypted for. Only the shape of a key is checked now. Recorded only so far (work package 6 of [PHASE5.md](PHASE5.md)). |
 
 Unknown fields are refused. **Defaults of `prestashop9`** (`plugins/prestashop9/resources/backup-defaults.json`): `var/cache`, `var/logs`, `var/sessions`, `cache/smarty/cache`, `cache/smarty/compile`, `cache/cachefs`, `img/tmp`, any `.git`, and `<back office folder>/autoupgrade/{backup,download,tmp,logs}`; of the tables `connections`, `connections_source`, `connections_page`, `guest`, `log`, `pagenotfound`, `page_viewed`, `statssearch`, `psgdpr_log`, `employee_session`, `customer_session`, `smarty_cache` and `smarty_lazy_cache` only the structure. `generic` has no defaults.
 
@@ -80,7 +86,7 @@ Exit codes of all four: **0** ok (also with warnings), **1** usage error (wrong 
 | `profile test <id> [--json]` | Looks at everything a backup depends on and changes nothing (below). Exit code 2 if a backup would fail. |
 | `profile remove <id> --yes` | Removes the profile file. Its backups stay where they are. |
 
-Options of `add` and `edit`: `--name`, `--note`, `--db-host`, `--db-port`, `--db-name`, `--db-user`, `--db-password-file=FILE` (or the environment variable `THREADSAFE_DB_PASSWORD`; **a password is never an option value**), `--db-driver`, `--prefix`, `--exclude=PATTERN` and `--structure-only=TABLE` (repeatable), `--no-default-filters`, `--compression=LEVEL`, `--part-size=SIZE` (`500M`, `2G`).
+Options of `add` and `edit`: `--name`, `--note`, `--db-host`, `--db-port`, `--db-name`, `--db-user`, `--db-password-file=FILE` (or the environment variable `THREADSAFE_DB_PASSWORD`; **a password is never an option value**), `--db-driver`, `--prefix`, `--exclude=PATTERN` and `--structure-only=TABLE` (repeatable), `--no-default-filters`, `--compression=LEVEL`, `--part-size=SIZE` (`500M`, `2G`), `--schedule="30 3 * * *"` / `--no-schedule`, `--keep=N`, `--max-age-days=DAYS`, `--max-bytes=SIZE` / `--no-retention` (a rule that is not named stays as it is), `--recipient=age1...` (repeatable; `edit` replaces the list) / `--no-encryption`. `profile show` prints the schedule with the time zone and the next run, the retention rules, and the public keys in short form.
 
 **The connection test** (also run at the start of every backup) reports as *ok*, *info*, *WARNING* or *FAILED*: the site is there and the website type recognises it (PrestaShop: version 9, back office folder); the database is reachable and a supported server (MariaDB from 10.2, MySQL from 5.7), the user has `SELECT` (missing: FAILED) and `SHOW VIEW` and `TRIGGER` (missing: WARNING, views and triggers cannot be dumped), a consistent snapshot can be started, the size of the database, stored routines/events that will not be backed up, `max_allowed_packet`; the storage exists and is writable or can be created, free space, a warning if it lies inside the site; PHP version and limits, `zlib`, a database extension, `open_basedir`, whether `exec`/`proc_open` are disabled, whether a PHP command line binary is found. Failures stop a backup, warnings do not (they are copied into the backup's warnings).
 

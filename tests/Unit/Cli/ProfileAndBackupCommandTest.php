@@ -111,6 +111,75 @@ final class ProfileAndBackupCommandTest extends TestCase
         self::assertFalse((new ProfileStore($this->data . '/profiles'))->exists('blog'));
     }
 
+    private const string KEY = 'age1ql3z7hjy54pw3hyww5ayyfg7zqgvc7w3j2elw8zmrj2kg5sfn9aqmcac8p';
+
+    public function testScheduleRetentionAndEncryptionAreSetShownAndChanged(): void
+    {
+        mkdir($this->data, 0777, true);
+        file_put_contents($this->data . '/config.json', '{"schedule": {"timezone": "Europe/Berlin"}}');
+
+        [$code, $stdout, $stderr] = $this->cli(['profile', 'add', 'blog', '--type=generic', '--path=' . $this->site, '--storage=' . $this->storage, '--schedule=30 3 * * *', '--keep=14', '--max-age-days=90', '--recipient=' . self::KEY]);
+        self::assertSame(0, $code, $stdout . $stderr);
+        $profile = (new ProfileStore($this->data . '/profiles'))->load('blog');
+        self::assertSame('30 3 * * *', $profile->schedule?->cron);
+        self::assertSame([14, 90, null], [$profile->retention?->keep, $profile->retention?->maxAgeDays, $profile->retention?->maxBytes]);
+        self::assertSame([self::KEY], $profile->encryption?->recipients);
+
+        [, $stdout] = $this->cli(['profile', 'show', 'blog']);
+        self::assertStringContainsString('schedule:   30 3 * * * (time zone Europe/Berlin, next run ', $stdout);
+        self::assertMatchesRegularExpression('/next run \d{4}-\d\d-\d\d 03:30 (CET|CEST)\)/', $stdout);
+        self::assertStringContainsString('retention:  keep 14, 90 days at most', $stdout);
+        self::assertStringContainsString('encrypted for 1 public key: age1ql3z7hjy...mcac8p', $stdout);
+        self::assertStringNotContainsString(self::KEY, $stdout, 'the key is shortened for the eye');
+
+        [, $json] = $this->cli(['profile', 'show', 'blog', '--json']);
+        $data = json_decode($json, true);
+        self::assertIsArray($data);
+        self::assertSame(['cron' => '30 3 * * *'], $data['schedule']);
+        self::assertSame(['keep' => 14, 'maxAgeDays' => 90], $data['retention']);
+        self::assertSame(['recipients' => [self::KEY]], $data['encryption']);
+
+        // a rule that is not named stays; the others are replaced
+        [$code] = $this->cli(['profile', 'edit', 'blog', '--keep=7', '--max-bytes=20G']);
+        self::assertSame(0, $code);
+        $profile = (new ProfileStore($this->data . '/profiles'))->load('blog');
+        self::assertSame([7, 90, 21474836480], [$profile->retention?->keep, $profile->retention?->maxAgeDays, $profile->retention?->maxBytes]);
+        self::assertSame('30 3 * * *', $profile->schedule?->cron, 'what is not mentioned stays');
+
+        [$code] = $this->cli(['profile', 'edit', 'blog', '--no-retention', '--no-schedule', '--no-encryption']);
+        self::assertSame(0, $code);
+        $profile = (new ProfileStore($this->data . '/profiles'))->load('blog');
+        self::assertNull($profile->schedule);
+        self::assertNull($profile->retention);
+        self::assertNull($profile->encryption);
+        $stored = json_decode((string) file_get_contents($this->data . '/profiles/blog.json'), true);
+        self::assertIsArray($stored);
+        self::assertArrayNotHasKey('schedule', $stored);
+    }
+
+    public function testMistakesInTheSchedulingOptionsAreUsageErrors(): void
+    {
+        $this->add();
+
+        foreach ([
+            [['--schedule=61 3 * * *'], 'out of range'],
+            [['--schedule=nonsense'], 'five fields'],
+            [['--schedule=0 3 * * *', '--no-schedule'], 'contradict'],
+            [['--keep=0'], '"retention.keep"'],
+            [['--keep=ten'], 'whole number'],
+            [['--max-bytes=lots'], 'size'],
+            [['--max-bytes=1000'], '"retention.maxBytes"'],
+            [['--keep=5', '--no-retention'], 'contradicts'],
+            [['--recipient=not-a-key'], 'not a public key'],
+            [['--recipient=' . self::KEY, '--no-encryption'], 'contradict'],
+        ] as [$options, $message]) {
+            [$code, , $stderr] = $this->cli(['profile', 'edit', 'blog', ...$options]);
+            self::assertSame(1, $code, implode(' ', $options));
+            self::assertStringContainsString($message, $stderr, implode(' ', $options));
+        }
+        self::assertNull((new ProfileStore($this->data . '/profiles'))->load('blog')->schedule, 'nothing was stored');
+    }
+
     public function testShowAndListAsJsonNeverContainThePassword(): void
     {
         $password = $this->tempDirectory() . '/pw';

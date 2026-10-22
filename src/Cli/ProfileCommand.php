@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace ThreadSafe\Cli;
 
 use ThreadSafe\App\ProfileService;
+use DateTimeImmutable;
+use ThreadSafe\Admin\Config;
+use ThreadSafe\Admin\ConfigException;
 use ThreadSafe\Core\Exception\GuardFailed;
 use ThreadSafe\Core\ExitCode;
 use ThreadSafe\Core\Paths;
@@ -17,6 +20,7 @@ use ThreadSafe\Profile\ProfileException;
 use ThreadSafe\Profile\ProfileStore;
 use ThreadSafe\Profile\SiteProfile;
 use ThreadSafe\Profile\TestReport;
+use ThreadSafe\Schedule\ScheduleException;
 
 /**
  * `threadsafe profile add|edit|show|list|test|remove`: manages the site profiles in `data/profiles/`. A profile says which
@@ -73,6 +77,14 @@ final class ProfileCommand implements Command
             new OptionSpec('compression', 'Deflate level 0 (store) to 9, default 6', takesValue: true, valueName: 'LEVEL'),
             new OptionSpec('part-size', 'Split archives into parts of this size, e.g. 2G or 500M (at least 1M)', takesValue: true, valueName: 'SIZE'),
             new OptionSpec('no-part-size', 'edit: do not split archives'),
+            new OptionSpec('schedule', 'Back up by itself: a cron expression such as "30 3 * * *" (minute hour day-of-month month day-of-week), read in the time zone of the installation', takesValue: true, valueName: 'CRON'),
+            new OptionSpec('no-schedule', 'edit: no scheduled backups any more'),
+            new OptionSpec('keep', 'Retention: keep at most this many backups', takesValue: true, valueName: 'N'),
+            new OptionSpec('max-age-days', 'Retention: remove backups older than this many days', takesValue: true, valueName: 'DAYS'),
+            new OptionSpec('max-bytes', 'Retention: remove the oldest backups until the rest is below this size, e.g. 20G', takesValue: true, valueName: 'SIZE'),
+            new OptionSpec('no-retention', 'edit: no retention rules any more'),
+            new OptionSpec('recipient', 'Encrypt backups for this public key (age1..., repeatable; edit replaces the list)', takesValue: true, valueName: 'KEY', repeatable: true),
+            new OptionSpec('no-encryption', 'edit: do not encrypt new backups'),
             new OptionSpec('no-test', 'add, edit: store the profile without testing it first'),
             new OptionSpec('json', 'show, list, test: output as JSON'),
             new OptionSpec('yes', 'remove: really remove the profile (its backups stay)'),
@@ -227,6 +239,63 @@ final class ProfileCommand implements Command
             $data['database'] = $database;
         }
 
+        return $data + $this->schedulingFields($input, $current);
+    }
+
+    /**
+     * The schedule, retention and encryption the options ask for.
+     *
+     * @return array<string, mixed>
+     */
+    private function schedulingFields(Input $input, ?SiteProfile $current): array
+    {
+        $data = [];
+        if ($input->has('schedule') && $input->has('no-schedule')) {
+            throw new UsageError('--schedule and --no-schedule contradict each other.');
+        }
+        if ($input->has('schedule')) {
+            $data['schedule'] = ['cron' => (string) $input->value('schedule')];
+        } elseif ($input->has('no-schedule')) {
+            $data['schedule'] = null;
+        }
+
+        $rules = array_values(array_filter(['keep', 'max-age-days', 'max-bytes'], $input->has(...)));
+        if ($rules !== [] && $input->has('no-retention')) {
+            throw new UsageError('--no-retention contradicts --' . implode(', --', $rules) . '.');
+        }
+        if ($input->has('no-retention')) {
+            $data['retention'] = null;
+        } elseif ($rules !== []) {
+            // a rule that is not named stays as it is: "--keep=10" does not forget the age limit
+            $retention = $current?->retention?->toArray() ?? [];
+            foreach (['keep' => 'keep', 'max-age-days' => 'maxAgeDays'] as $option => $key) {
+                if ($input->has($option)) {
+                    $value = $input->value($option);
+                    if ($value === null || preg_match('/^\d{1,6}$/', $value) !== 1) {
+                        throw new UsageError("--$option is a whole number.");
+                    }
+                    $retention[$key] = (int) $value;
+                }
+            }
+            if ($input->has('max-bytes')) {
+                $bytes = Budget::parseBytes((string) $input->value('max-bytes'));
+                if ($bytes === null) {
+                    throw new UsageError('--max-bytes is a size such as 500M or 20G.');
+                }
+                $retention['maxBytes'] = $bytes;
+            }
+            $data['retention'] = $retention;
+        }
+
+        if ($input->has('recipient') && $input->has('no-encryption')) {
+            throw new UsageError('--recipient and --no-encryption contradict each other.');
+        }
+        if ($input->has('recipient')) {
+            $data['encryption'] = ['recipients' => $input->values('recipient')];
+        } elseif ($input->has('no-encryption')) {
+            $data['encryption'] = null;
+        }
+
         return $data;
     }
 
@@ -306,11 +375,39 @@ final class ProfileCommand implements Command
             $output->writeln('  structure only: ' . implode(', ', $profile->structureOnlyTables));
         }
         $output->writeln("  compression: {$profile->compression}" . ($profile->partSize === null ? ', one archive' : ', parts of ' . round($profile->partSize / 1048576) . ' MB'));
+        $this->showScheduling($profile, $output);
         if ($profile->note !== '') {
             $output->writeln("  note:       {$profile->note}");
         }
 
         return ExitCode::Ok;
+    }
+
+    private function showScheduling(SiteProfile $profile, Output $output): void
+    {
+        if ($profile->schedule !== null) {
+            $text = "  schedule:   {$profile->schedule->cron}";
+            try {
+                $zone = Config::load(($this->dataDirectory ?? Paths::data()) . '/config.json')->scheduleZone();
+                $next = $profile->schedule->expression()->next(new DateTimeImmutable('now', $zone));
+                $text .= ' (time zone ' . $zone->getName() . ', next run ' . $next->format('Y-m-d H:i T') . ')';
+            } catch (ConfigException|ScheduleException $e) {
+                $text .= ' (' . $e->getMessage() . ')';
+            }
+            $output->writeln($text);
+        }
+        if ($profile->retention !== null) {
+            $rules = [
+                $profile->retention->keep === null ? null : 'keep ' . $profile->retention->keep,
+                $profile->retention->maxAgeDays === null ? null : $profile->retention->maxAgeDays . ' days at most',
+                $profile->retention->maxBytes === null ? null : round($profile->retention->maxBytes / 1048576) . ' MB at most',
+            ];
+            $output->writeln('  retention:  ' . implode(', ', array_filter($rules)));
+        }
+        if ($profile->encryption !== null) {
+            $keys = array_map(static fn (string $key): string => substr($key, 0, 12) . '...' . substr($key, -6), $profile->encryption->recipients);
+            $output->writeln('  encrypted for ' . count($keys) . ' public key' . (count($keys) === 1 ? '' : 's') . ': ' . implode(', ', $keys));
+        }
     }
 
     private function list(ProfileStore $store, Input $input, Output $output): ExitCode

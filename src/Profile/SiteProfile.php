@@ -24,20 +24,24 @@ use ThreadSafe\Database\DatabaseSettings;
  *     "useDefaultFilters": true,
  *     "compression": 6,
  *     "partSize": null,
- *     "note": "live, shared hosting"
+ *     "note": "live, shared hosting",
+ *     "schedule": {"cron": "30 3 * * *"},
+ *     "retention": {"keep": 14, "maxAgeDays": 90, "maxBytes": 21474836480},
+ *     "encryption": {"recipients": ["age1..."]}
  * }
  * ```
  *
  * `database: null` means: read the credentials from the application's own configuration (PrestaShop: `parameters.php`),
  * so that no second copy of the password exists; a type without such a configuration (`generic`) needs the block
- * `{"host", "port", "name", "user", "password", "prefix", "driver"}`, or `null` for a site without a database. Schedule,
- * retention and encryption are added by later phases.
+ * `{"host", "port", "name", "user", "password", "prefix", "driver"}`, or `null` for a site without a database.
+ * `schedule`, `retention` and `encryption` are optional (`null` or absent: no schedule, no retention rule, no encryption; a stored
+ * profile without them reads as before, and one without them is written without them).
  */
 final readonly class SiteProfile
 {
     public const string ID_PATTERN = '/^[a-z0-9][a-z0-9_-]{0,39}$/';
 
-    private const array KEYS = ['id', 'name', 'type', 'path', 'database', 'storage', 'excludePaths', 'structureOnlyTables', 'useDefaultFilters', 'compression', 'partSize', 'note'];
+    private const array KEYS = ['id', 'name', 'type', 'path', 'database', 'storage', 'excludePaths', 'structureOnlyTables', 'useDefaultFilters', 'compression', 'partSize', 'note', 'schedule', 'retention', 'encryption'];
 
     private const array DATABASE_KEYS = ['host', 'port', 'name', 'user', 'password', 'prefix', 'driver'];
 
@@ -62,6 +66,9 @@ final readonly class SiteProfile
         public int $compression = 6,
         public ?int $partSize = null,
         public string $note = '',
+        public ?ScheduleSettings $schedule = null,
+        public ?RetentionSettings $retention = null,
+        public ?EncryptionSettings $encryption = null,
     ) {
     }
 
@@ -137,6 +144,9 @@ final readonly class SiteProfile
             $compression,
             $partSize,
             $note,
+            ScheduleSettings::fromArray($data['schedule'] ?? null),
+            RetentionSettings::fromArray($data['retention'] ?? null),
+            EncryptionSettings::fromArray($data['encryption'] ?? null),
         );
     }
 
@@ -148,6 +158,11 @@ final readonly class SiteProfile
      */
     public function toArray(bool $withPassword = true): array
     {
+        $optional = array_filter(
+            ['schedule' => $this->schedule?->toArray(), 'retention' => $this->retention?->toArray(), 'encryption' => $this->encryption?->toArray()],
+            static fn (?array $value): bool => $value !== null,
+        );
+
         return [
             'id' => $this->id,
             'name' => $this->name,
@@ -169,6 +184,7 @@ final readonly class SiteProfile
             'compression' => $this->compression,
             'partSize' => $this->partSize,
             'note' => $this->note,
+            ...$optional,
         ];
     }
 

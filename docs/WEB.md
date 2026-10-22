@@ -188,6 +188,12 @@ On the System page, or in `data/config.json` (only what differs from the default
 | `download.accel` | `none` | `none`, `sendfile` or `nginx` |
 | `download.accelPrefix` | empty | for `nginx`: the internal location, e.g. `/ts-files/` |
 | `audit.maxBytes` | 5 MB | the audit log is rotated at this size, two older files are kept |
+| `schedule.timezone` | empty | the time zone in which the cron expressions of the profiles are read, e.g. `Europe/Berlin`; empty = the time zone of PHP |
+| `schedule.graceMinutes` | 360 | how late a scheduled backup may still be made up (1 to 10080); an older scheduled time is given up |
+| `schedule.expectedIntervalMinutes` | 15 | how often the trigger is meant to come (1 to 1440); the warning about a trigger that stays away is derived from it |
+| `cron.mode` | `auto` | `auto`, `worker` or `ticks`: how the address of the trigger does its work |
+
+The four rows from `schedule.timezone` on are for the scheduled backups of [PHASE5.md](PHASE5.md); they are not on the System page yet. Change them with `php bin/threadsafe admin set KEY VALUE` (for example `admin set schedule.timezone Europe/Berlin`; an empty value is written as `""`) or in `data/config.json`; `admin status` lists all settings.
 
 ### The audit log
 

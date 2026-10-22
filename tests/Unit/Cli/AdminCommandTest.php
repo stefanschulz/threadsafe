@@ -157,5 +157,44 @@ final class AdminCommandTest extends TestCase
         self::assertSame(1, $this->cli([])[0]);
         self::assertSame(1, $this->cli(['frobnicate'])[0]);
         self::assertSame(1, $this->cli(['status', 'extra'])[0]);
+        self::assertSame(1, $this->cli(['set'])[0]);
+        self::assertSame(1, $this->cli(['set', 'schedule.timezone'])[0]);
+        self::assertSame(1, $this->cli(['set', 'schedule.timezone', 'UTC', 'extra'])[0]);
+    }
+
+    public function testSettingsAreChangedAndListedAndTheChangeIsAudited(): void
+    {
+        [$code, $out] = $this->cli(['set', 'schedule.timezone', 'Europe/Berlin']);
+        self::assertSame(0, $code, $out);
+        self::assertStringContainsString("schedule.timezone is now 'Europe/Berlin'", $out);
+        [$code] = $this->cli(['set', 'cron.mode', 'ticks']);
+        self::assertSame(0, $code);
+        [$code] = $this->cli(['set', 'schedule.graceMinutes', '120']);
+        self::assertSame(0, $code);
+
+        $config = Config::load($this->data . '/config.json');
+        self::assertSame('Europe/Berlin', $config->scheduleZone()->getName());
+        self::assertSame('ticks', $config->cronMode());
+        self::assertSame(120, $config->scheduleGraceMinutes());
+        self::assertSame(15, $config->expectedIntervalMinutes(), 'what was not set has its default');
+
+        [, $out] = $this->cli(['status']);
+        self::assertStringContainsString('schedule.timezone', $out);
+        self::assertStringContainsString('Europe/Berlin', $out);
+        self::assertStringContainsString('cron.mode', $out);
+        self::assertStringContainsString('settings.changed', (string) file_get_contents($this->data . '/audit.log'));
+
+        [$code] = $this->cli(['set', 'schedule.timezone', '']);
+        self::assertSame(0, $code, 'an empty value means the time zone of PHP');
+        self::assertSame(date_default_timezone_get(), Config::load($this->data . '/config.json')->scheduleZone()->getName());
+    }
+
+    public function testASettingThatDoesNotExistOrIsOutOfRangeIsRefusedAndNothingIsWritten(): void
+    {
+        foreach ([['nonsense.key', '1'], ['schedule.timezone', 'Mars/Olympus'], ['cron.mode', 'sometimes'], ['schedule.graceMinutes', '0'], ['schedule.expectedIntervalMinutes', '2000']] as [$key, $value]) {
+            [$code, , $err] = $this->cli(['set', $key, $value]);
+            self::assertSame(2, $code, "$key $value: $err");
+        }
+        self::assertFileDoesNotExist($this->data . '/config.json');
     }
 }

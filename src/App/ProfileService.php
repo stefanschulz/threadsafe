@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace ThreadSafe\App;
 
+use DateTimeImmutable;
+use ThreadSafe\Core\Paths;
 use ThreadSafe\Plugin\PluginError;
 use ThreadSafe\Plugin\PluginRegistry;
 use ThreadSafe\Profile\ConnectionTest;
@@ -11,6 +13,9 @@ use ThreadSafe\Profile\ProfileException;
 use ThreadSafe\Profile\ProfileStore;
 use ThreadSafe\Profile\SiteProfile;
 use ThreadSafe\Profile\TestReport;
+use ThreadSafe\Schedule\ScheduleException;
+use ThreadSafe\Schedule\ScheduleState;
+use ThreadSafe\Schedule\ScheduleStore;
 
 /**
  * What can be done with the site profiles, for both front ends: the command `profile` and the pages of the web interface call this
@@ -131,10 +136,16 @@ final class ProfileService
             }
         }
         try {
+            $previous = $this->store->exists($profile->id) ? $this->store->load($profile->id) : null;
+        } catch (ProfileException) {
+            $previous = null;   // a damaged file is replaced
+        }
+        try {
             $this->store->save($profile);
         } catch (ProfileException $e) {
             return new StoreResult($profile, $report, false, $e->getMessage());
         }
+        $this->followSchedule($profile, $previous);
 
         return new StoreResult($profile, $report, true);
     }
@@ -148,5 +159,28 @@ final class ProfileService
     {
         $this->store->load($id);
         $this->store->delete($id);
+        $this->scheduleStates()->delete($id);
+    }
+
+    /**
+     * The state of the scheduler follows the schedule of the profile: a new or changed schedule counts from now (instants before the
+     * change are not made up), a removed one leaves no state (docs/PHASE5.md 3.2). Losing this is harmless, so a failure is ignored.
+     */
+    private function followSchedule(SiteProfile $profile, ?SiteProfile $previous): void
+    {
+        try {
+            if ($profile->schedule === null) {
+                $this->scheduleStates()->delete($profile->id);
+            } elseif ($previous?->schedule?->cron !== $profile->schedule->cron) {
+                $this->scheduleStates()->save($profile->id, new ScheduleState((new DateTimeImmutable())->getTimestamp()));
+            }
+        } catch (ScheduleException) {
+            return;
+        }
+    }
+
+    private function scheduleStates(): ScheduleStore
+    {
+        return new ScheduleStore(($this->dataDirectory ?? Paths::data()) . '/schedule');
     }
 }

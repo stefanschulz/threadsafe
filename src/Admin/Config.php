@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace ThreadSafe\Admin;
 
+use DateTimeZone;
 use JsonException;
 
 /**
@@ -27,6 +28,10 @@ final class Config
         'download.accelPrefix' => ['prefix', '', null, null],
         'dashboard.warnAfterDays' => ['int', 7, 1, 3650],
         'audit.maxBytes' => ['int', 5242880, 65536, 1073741824],
+        'schedule.timezone' => ['timezone', '', null, null],
+        'schedule.graceMinutes' => ['int', 360, 1, 10080],
+        'schedule.expectedIntervalMinutes' => ['int', 15, 1, 1440],
+        'cron.mode' => ['enum', 'auto', null, ['auto', 'worker', 'ticks']],
     ];
 
     /**
@@ -120,6 +125,31 @@ final class Config
         return (int) $this->get('audit.maxBytes');
     }
 
+    /** The time zone in which cron expressions are read: the setting, or the time zone of PHP (UTC where nobody set one). */
+    public function scheduleZone(): DateTimeZone
+    {
+        $name = (string) $this->get('schedule.timezone');
+
+        return new DateTimeZone($name !== '' ? $name : date_default_timezone_get());
+    }
+
+    public function scheduleGraceMinutes(): int
+    {
+        return (int) $this->get('schedule.graceMinutes');
+    }
+
+    /** How often the trigger is meant to come; the warning about a trigger that stays away is derived from it. */
+    public function expectedIntervalMinutes(): int
+    {
+        return (int) $this->get('schedule.expectedIntervalMinutes');
+    }
+
+    /** `auto`, `worker` or `ticks`: how the address of the trigger does its work (docs/PHASE5.md 3.3). */
+    public function cronMode(): string
+    {
+        return (string) $this->get('cron.mode');
+    }
+
     /**
      * A copy with one setting changed. The value may be given as text (from a form or the command line).
      *
@@ -202,6 +232,14 @@ final class Config
             }
             if (!is_int($value) || $value < (int) $minimum || (is_int($limit) && $value > $limit)) {
                 throw new ConfigException("\"$key\" must be a whole number from $minimum" . (is_int($limit) ? " to $limit" : ' up') . '.');
+            }
+
+            return $value;
+        }
+        if ($type === 'timezone') {
+            // empty = the time zone of PHP
+            if (!is_string($value) || ($value !== '' && !in_array($value, DateTimeZone::listIdentifiers(), true))) {
+                throw new ConfigException("\"$key\" must be empty or a time zone such as Europe/Berlin.");
             }
 
             return $value;

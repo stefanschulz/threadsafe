@@ -18,7 +18,7 @@ application automatically. First target: **PrestaShop 9.x**; MariaDB and MySQL; 
 | 2 | Site profiles and backup engine (CLI) | done (work packages in [docs/PHASE2.md](docs/PHASE2.md) section 5; user documentation [docs/BACKUP.md](docs/BACKUP.md)) |
 | 3 | `restore.php` (extractor and wizard) | done (plan and "As built" in [docs/PHASE3.md](docs/PHASE3.md); user documentation [docs/RESTORE.md](docs/RESTORE.md)); milestone A: `threadsafe restore`, milestone B: the single file `dist/restore.php` with the wizard; disaster recovery proven on the Docker stack |
 | 4 | Web interface (dashboard, download) | done (plan and "As built" in [docs/PHASE4.md](docs/PHASE4.md); user documentation [docs/WEB.md](docs/WEB.md)); login and setup, profiles, backups in steps with progress, check, delete, download, dashboard and System page, restore help; proven against a real Apache with 5 s / 64 MB limits on all three database servers (phase 4b of `run.sh`) |
-| 5 | One trigger cron, retention, encryption | **planned**: [docs/PHASE5.md](docs/PHASE5.md) (decisions settled with the owner on 2026-10-22); work package 1 (spikes, findings in section 8) done, 2 (schedule core) is next |
+| 5 | One trigger cron, retention, encryption | **planned**: [docs/PHASE5.md](docs/PHASE5.md) (decisions settled with the owner on 2026-10-22); work packages 1 (spikes, findings in section 8) and 2 (schedule core, "As built" in section 9) done, 3 (the trigger) and 4 (retention) are next |
 
 Each finished work package has an **"As built"** paragraph in `docs/PHASE2.md` (what exists, where it differs from the plan,
 what is known to be missing). `docs/PHASE2.md` section 8 holds the findings of the spikes (`tools/spikes/`); they changed the
@@ -86,7 +86,8 @@ Oracles are real tools where possible: `unzip -t`, the `mariadb` client, `CHECKS
 | `src/Web`, `src/Build` | Phase 3: the restore wizard (`Wizard`, `AccessKey`, `Sessions`, `Cleanup`, `Entry` ...); the build of the single file `restore.php` (`Bundler`, `RestoreBuilder`, `RestoreStub`; `php tools/build-restore.php`). `tools/restore-web.php` is the wizard's development entry |
 | `src/Admin`, `public/` | Phase 4: the web interface (`Kernel`, `Router`, `AuthController`, `View` ...; not part of `restore.php`); `public/index.php` is its only entry point, `public/app.css`/`app.js` its static files |
 | `src/App` | Phase 4: services that the commands and the web pages share (`ProfileService`, `BackupService`, `CatalogService`, `Overview`) |
-| `src/Profile` | Phase 2: `SiteProfile`, `ProfileStore`, `ProfileResolver`, `ConnectionTest` |
+| `src/Profile` | Phase 2: `SiteProfile`, `ProfileStore`, `ProfileResolver`, `ConnectionTest`; phase 5: `ScheduleSettings`, `RetentionSettings`, `EncryptionSettings` (the optional profile fields) |
+| `src/Schedule` | Phase 5: `CronExpression` (next/previous instant, daylight saving time by our own rule), `Scheduler` (due, grace, retries, queue), `ScheduleState`/`ScheduleStore` (`data/schedule/`) |
 | `src/Storage`, `src/Backup/Manifest*` | Phase 2: `LocalStorage` (protection files, sidecar, listing), `BackupCatalog` (listing, sidecar rebuild), `SpaceCheck`, `Postproc`; `BackupName`, `Manifest`, `Sidecar`, `Verifier` |
 | `tests/Unit`, `tests/Integration`, `tests/Support`, `tests/stack` | Tests, helpers, Docker stack scripts |
 | `tools/spikes` | Throw-away scripts behind the findings in PHASE2.md section 8 (kept for reference) |
@@ -129,7 +130,8 @@ work package 1, the spikes, is done: the format of `age` works in PHP and agrees
 recipient at scrypt N=2^15, the cron rule for daylight saving time is our own, an idle trigger call is cheap, and on the customer's host
 (cron = one HTTP GET a day) the address starts a detached worker that lives on - with a clean environment (`env -i`), see the trap in
 section 8, finding 9; read section 8 before
-writing `src/Crypto` or `CronExpression`; work package 2 is next). Building blocks that are there: `BackupService` (a run in ticks, the rule for active and
+writing `src/Crypto`; work package 2, the schedule core, is built - `src/Schedule`, the profile fields, `admin set`, see "As built" in
+section 9 - and the trigger (work package 3) and the retention (4) come next). Building blocks that are there: `BackupService` (a run in ticks, the rule for active and
 interrupted runs: a web run is active while its last tick is recent), `Executor`/`RunStore`/`Lock`, `Overview` (where "next run" and the
 heartbeat of the trigger would show), `Config` and the System page (where its settings would go), `Postproc` (for remote storage).
 

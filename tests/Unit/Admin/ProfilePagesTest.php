@@ -229,6 +229,23 @@ final class ProfilePagesTest extends TestCase
         self::assertStringNotContainsString('S3cret', $log);
     }
 
+    public function testEditingInTheBrowserKeepsScheduleRetentionAndEncryption(): void
+    {
+        $this->create();
+        $key = 'age1ql3z7hjy54pw3hyww5ayyfg7zqgvc7w3j2elw8zmrj2kg5sfn9aqmcac8p';
+        $this->store()->save($this->store()->load('blog')->with([
+            'schedule' => ['cron' => '30 3 * * *'], 'retention' => ['keep' => 7], 'encryption' => ['recipients' => [$key]],
+        ]));
+
+        $this->browser->post('/profiles/blog', $this->fields(['note' => 'changed in the browser', 'skip_test' => '1']));
+
+        $profile = $this->store()->load('blog');
+        self::assertSame('changed in the browser', $profile->note);
+        self::assertSame('30 3 * * *', $profile->schedule?->cron);
+        self::assertSame(7, $profile->retention?->keep);
+        self::assertSame([$key], $profile->encryption?->recipients);
+    }
+
     public function testTheIdOfAStoredProfileCannotBeChangedByTheForm(): void
     {
         $this->create();

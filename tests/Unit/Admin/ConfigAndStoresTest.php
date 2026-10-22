@@ -45,6 +45,29 @@ final class ConfigAndStoresTest extends TestCase
         self::assertCount(count(Config::SCHEMA), $config->all());
     }
 
+    public function testTheScheduleSettingsHaveDefaultsAndAreChecked(): void
+    {
+        $config = Config::defaults();
+
+        self::assertSame(date_default_timezone_get(), $config->scheduleZone()->getName(), 'without a setting the time zone of PHP');
+        self::assertSame(360, $config->scheduleGraceMinutes());
+        self::assertSame(15, $config->expectedIntervalMinutes());
+        self::assertSame('auto', $config->cronMode());
+
+        $berlin = $config->with('schedule.timezone', 'Europe/Berlin');
+        self::assertSame('Europe/Berlin', $berlin->scheduleZone()->getName());
+        self::assertSame('UTC', $berlin->with('schedule.timezone', 'UTC')->scheduleZone()->getName());
+
+        foreach ([['schedule.timezone', 'Berlin'], ['schedule.timezone', 5], ['schedule.graceMinutes', 0], ['schedule.graceMinutes', 10081], ['schedule.expectedIntervalMinutes', 0], ['schedule.expectedIntervalMinutes', '1441'], ['cron.mode', 'daemon']] as [$key, $value]) {
+            try {
+                $config->with($key, $value);
+                self::fail("$key = " . var_export($value, true) . ' should be refused');
+            } catch (ConfigException) {
+                $this->addToAssertionCount(1);
+            }
+        }
+    }
+
     public function testASettingIsSavedAndReadBackAndOnlyTheChangedOnesAreInTheFile(): void
     {
         $file = $this->directory . '/config.json';

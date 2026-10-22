@@ -34,12 +34,12 @@ final class AdminCommand implements Command
 
     public function summary(): string
     {
-        return 'The web interface: set the administrator password, switch the interface on or off, show its state';
+        return 'The web interface and the installation: set the administrator password, switch the interface on or off, show or change the settings';
     }
 
     public function usage(): string
     {
-        return 'admin password [--password-file=FILE] | enable | disable | status';
+        return 'admin password [--password-file=FILE] | enable | disable | status | set KEY VALUE';
     }
 
     public function options(): array
@@ -52,9 +52,10 @@ final class AdminCommand implements Command
 
     public function run(Input $input, Output $output): ExitCode
     {
-        $action = $input->argument(0) ?? throw new UsageError('Say what to do: password, enable, disable or status.');
-        if (count($input->arguments()) > 1) {
-            throw new UsageError('Unexpected argument "' . $input->arguments()[1] . '".');
+        $action = $input->argument(0) ?? throw new UsageError('Say what to do: password, enable, disable, status or set.');
+        $allowed = $action === 'set' ? 3 : 1;
+        if (count($input->arguments()) > $allowed) {
+            throw new UsageError('Unexpected argument "' . $input->arguments()[$allowed] . '".');
         }
         $data = $this->dataDirectory ?? Paths::data();
 
@@ -64,7 +65,8 @@ final class AdminCommand implements Command
                 'enable' => $this->enable($data, true, $output),
                 'disable' => $this->enable($data, false, $output),
                 'status' => $this->status($data, $input, $output),
-                default => throw new UsageError("Unknown action \"$action\" (password, enable, disable, status)."),
+                'set' => $this->set($data, $input->argument(1) ?? throw new UsageError('admin set needs a setting and a value, e.g. schedule.timezone Europe/Berlin ("admin status" lists the settings).'), $input->argument(2) ?? throw new UsageError('admin set needs a value after the setting (an empty one is written as "").'), $output),
+                default => throw new UsageError("Unknown action \"$action\" (password, enable, disable, status, set)."),
             };
         } catch (ConfigException $e) {
             throw new GuardFailed($e->getMessage(), 0, $e);
@@ -98,6 +100,17 @@ final class AdminCommand implements Command
         $config->with('web.enabled', $enabled)->save($data . '/config.json');
         (new AuditLog($data . '/audit.log', $config->auditMaxBytes()))->record($enabled ? 'web.enabled' : 'web.disabled', '-', '', ['source' => 'command line']);
         $output->writeln($enabled ? 'The web interface is switched on.' : 'The web interface is switched off.');
+
+        return ExitCode::Ok;
+    }
+
+    private function set(string $data, string $key, string $value, Output $output): ExitCode
+    {
+        StateDirectory::prepare($data);
+        $config = Config::load($data . '/config.json')->with($key, $value);
+        $config->save($data . '/config.json');
+        (new AuditLog($data . '/audit.log', $config->auditMaxBytes()))->record('settings.changed', '-', '', ['source' => 'command line', 'setting' => $key]);
+        $output->writeln("$key is now " . var_export($config->get($key), true) . '.');
 
         return ExitCode::Ok;
     }

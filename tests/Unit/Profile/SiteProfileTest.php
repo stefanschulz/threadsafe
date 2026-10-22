@@ -55,6 +55,96 @@ final class SiteProfileTest extends TestCase
         self::assertSame('mysqli', $profile->database?->driver);
     }
 
+    private const string KEY = 'age1ql3z7hjy54pw3hyww5ayyfg7zqgvc7w3j2elw8zmrj2kg5sfn9aqmcac8p';
+
+    public function testScheduleRetentionAndEncryptionRoundTrip(): void
+    {
+        $data = [
+            ...self::minimal(),
+            'name' => 'shop',
+            'schedule' => ['cron' => '30 3 * * *'],
+            'retention' => ['keep' => 14, 'maxAgeDays' => 90, 'maxBytes' => 21474836480],
+            'encryption' => ['recipients' => [self::KEY]],
+        ];
+
+        $profile = SiteProfile::fromArray($data);
+
+        self::assertSame('30 3 * * *', $profile->schedule?->cron);
+        self::assertSame([14, 90, 21474836480], [$profile->retention?->keep, $profile->retention?->maxAgeDays, $profile->retention?->maxBytes]);
+        self::assertSame([self::KEY], $profile->encryption?->recipients);
+        self::assertSame(['schedule', 'retention', 'encryption'], array_slice(array_keys($profile->toArray()), -3));
+        self::assertSame($profile->toArray(), SiteProfile::fromArray(json_decode((string) json_encode($profile->toArray()), true))->toArray());
+        self::assertSame('0 4 * * *', $profile->with(['schedule' => ['cron' => '0 4 * * *']])->schedule?->cron);
+        self::assertSame([self::KEY], $profile->with(['note' => 'x'])->encryption?->recipients, 'with() keeps what it is not asked to change');
+    }
+
+    public function testAProfileWithoutThemIsWrittenWithoutThem(): void
+    {
+        $profile = SiteProfile::fromArray(self::minimal());
+
+        self::assertNull($profile->schedule);
+        self::assertNull($profile->retention);
+        self::assertNull($profile->encryption);
+        self::assertArrayNotHasKey('schedule', $profile->toArray());
+        self::assertArrayNotHasKey('retention', $profile->toArray());
+        self::assertArrayNotHasKey('encryption', $profile->toArray());
+    }
+
+    public function testNothingToApplyMeansNoRule(): void
+    {
+        $profile = SiteProfile::fromArray([...self::minimal(), 'schedule' => ['cron' => null], 'retention' => [], 'encryption' => ['recipients' => []]]);
+        $other = SiteProfile::fromArray([...self::minimal(), 'schedule' => null, 'retention' => ['keep' => null], 'encryption' => null]);
+
+        foreach ([$profile, $other] as $each) {
+            self::assertNull($each->schedule);
+            self::assertNull($each->retention);
+            self::assertNull($each->encryption);
+        }
+    }
+
+    public function testTheExpressionIsStoredTrimmed(): void
+    {
+        self::assertSame('0 3 * * *', SiteProfile::fromArray([...self::minimal(), 'schedule' => ['cron' => '  0 3 * * * ']])->schedule?->cron);
+    }
+
+    /** @return iterable<string, array{array<string, mixed>, string}> */
+    public static function invalidOptionalFields(): iterable
+    {
+        yield 'a schedule that is a string' => [['schedule' => '30 3 * * *'], '"schedule" must be'];
+        yield 'a schedule that is a list' => [['schedule' => ['30 3 * * *']], '"schedule" must be'];
+        yield 'an unknown schedule field' => [['schedule' => ['cron' => '0 3 * * *', 'zone' => 'UTC']], 'Unknown field "zone" in "schedule"'];
+        yield 'a cron expression that is a number' => [['schedule' => ['cron' => 3]], '"schedule.cron" must be'];
+        yield 'a cron expression that is wrong' => [['schedule' => ['cron' => '61 3 * * *']], '"schedule.cron": '];
+        yield 'a cron expression that never matches' => [['schedule' => ['cron' => '0 0 31 2 *']], 'never matches'];
+        yield 'keep zero' => [['retention' => ['keep' => 0]], '"retention.keep" must be a whole number from 1'];
+        yield 'keep as text' => [['retention' => ['keep' => '5']], '"retention.keep"'];
+        yield 'an age of a century and more' => [['retention' => ['maxAgeDays' => 40000]], '"retention.maxAgeDays"'];
+        yield 'a size below a megabyte' => [['retention' => ['maxBytes' => 1000]], '"retention.maxBytes"'];
+        yield 'an unknown retention field' => [['retention' => ['keepAll' => true]], 'Unknown field "keepAll" in "retention"'];
+        yield 'encryption that is a list' => [['encryption' => [self::KEY]], '"encryption" must be'];
+        yield 'an unknown encryption field' => [['encryption' => ['passphrase' => 'x']], 'Unknown field "passphrase" in "encryption"'];
+        yield 'recipients that are not a list' => [['encryption' => ['recipients' => self::KEY]], 'must be a list of public keys'];
+        yield 'a recipient that is a secret key' => [['encryption' => ['recipients' => ['AGE-SECRET-KEY-1QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ']]], 'not a public key'];
+        yield 'a recipient with a wrong letter' => [['encryption' => ['recipients' => ['age1bl3z7hjy54pw3hyww5ayyfg7zqgvc7w3j2elw8zmrj2kg5sfn9aqmcac8p']]], 'not a public key'];
+        yield 'a recipient that is too short' => [['encryption' => ['recipients' => ['age1ql3z7hjy54pw']]], 'not a public key'];
+    }
+
+    /** @param array<string, mixed> $field */
+    #[DataProvider('invalidOptionalFields')]
+    public function testInvalidOptionalFieldsAreRefused(array $field, string $message): void
+    {
+        $this->expectException(ProfileException::class);
+        $this->expectExceptionMessage($message);
+
+        SiteProfile::fromArray([...self::minimal(), ...$field]);
+    }
+
+    public function testTheKeyOfTheExampleHasTheShapeOfARecipient(): void
+    {
+        self::assertTrue(\ThreadSafe\Profile\EncryptionSettings::isRecipient(self::KEY));
+        self::assertFalse(\ThreadSafe\Profile\EncryptionSettings::isRecipient(self::KEY . 'q'));
+    }
+
     public function testThePasswordIsHiddenOnRequest(): void
     {
         $profile = SiteProfile::fromArray([...self::minimal(), 'database' => ['name' => 'shop', 'user' => 'u', 'password' => 'secret']]);
