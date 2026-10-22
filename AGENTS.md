@@ -2,7 +2,7 @@
 
 For anyone - person or coding agent - who continues work on this project without having followed its history. Read this
 first, then [docs/CONCEPT.md](docs/CONCEPT.md) (what and why) and the plan of the last finished phase
-([docs/PHASE4.md](docs/PHASE4.md)); phase 5 has no plan yet.
+([docs/PHASE4.md](docs/PHASE4.md)); phase 5 is planned in [docs/PHASE5.md](docs/PHASE5.md).
 
 ## What this is
 
@@ -18,7 +18,7 @@ application automatically. First target: **PrestaShop 9.x**; MariaDB and MySQL; 
 | 2 | Site profiles and backup engine (CLI) | done (work packages in [docs/PHASE2.md](docs/PHASE2.md) section 5; user documentation [docs/BACKUP.md](docs/BACKUP.md)) |
 | 3 | `restore.php` (extractor and wizard) | done (plan and "As built" in [docs/PHASE3.md](docs/PHASE3.md); user documentation [docs/RESTORE.md](docs/RESTORE.md)); milestone A: `threadsafe restore`, milestone B: the single file `dist/restore.php` with the wizard; disaster recovery proven on the Docker stack |
 | 4 | Web interface (dashboard, download) | done (plan and "As built" in [docs/PHASE4.md](docs/PHASE4.md); user documentation [docs/WEB.md](docs/WEB.md)); login and setup, profiles, backups in steps with progress, check, delete, download, dashboard and System page, restore help; proven against a real Apache with 5 s / 64 MB limits on all three database servers (phase 4b of `run.sh`) |
-| 5 | One trigger cron, retention, encryption | not started |
+| 5 | One trigger cron, retention, encryption | **planned**: [docs/PHASE5.md](docs/PHASE5.md) (decisions settled with the owner on 2026-10-22); work package 1 (spikes) is next |
 
 Each finished work package has an **"As built"** paragraph in `docs/PHASE2.md` (what exists, where it differs from the plan,
 what is known to be missing). `docs/PHASE2.md` section 8 holds the findings of the spikes (`tools/spikes/`); they changed the
@@ -122,9 +122,9 @@ destroys the target stack and brings the shop back through the wizard); `tests/s
 8.4 and MariaDB 11.8, `tests/stack/cross.sh` between the two kinds of server. The references are `docs/BACKUP.md`, `docs/RESTORE.md`,
 `docs/WEB.md` and `docs/MIGRATE.md`.
 
-**Phase 5** (one trigger cron job with the schedule inside, retention, archive encryption - `docs/CONCEPT.md` sections 5.6 and 8) comes
-next and needs a plan first, `docs/PHASE5.md`, the way phases 2 to 4 had one: decisions with the owner, spikes for the risky parts, work
-packages with "As built" paragraphs. Building blocks that are there: `BackupService` (a run in ticks, the rule for active and
+**Phase 5** (one trigger cron job with the schedule inside, retention, archive encryption in the format of `age` - `docs/CONCEPT.md`
+sections 5.6 and 8) comes next. The plan is `docs/PHASE5.md` (all twelve decisions settled with the owner on 2026-10-22;
+work package 1 is the spikes). Building blocks that are there: `BackupService` (a run in ticks, the rule for active and
 interrupted runs: a web run is active while its last tick is recent), `Executor`/`RunStore`/`Lock`, `Overview` (where "next run" and the
 heartbeat of the trigger would show), `Config` and the System page (where its settings would go), `Postproc` (for remote storage).
 
