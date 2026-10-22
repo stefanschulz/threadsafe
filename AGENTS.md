@@ -108,7 +108,8 @@ Oracles are real tools where possible: `unzip -t`, the `mariadb` client, `CHECKS
 - Do not rely on `exec` / `proc_open` (often disabled on shared hosting); the code must work in plain PHP with the limits of a
   web request. Where a child process is started anyway, **its standard input must be `/dev/null`**: a PHP that runs as FastCGI
   passes its listening socket on to children, and a child PHP CGI binary then waits for requests forever (seen on the live
-  host, `docs/PHASE3.md` section 8, finding 6). The limits of a request (`max_execution_time`, `memory_limit`) differ per virtual
+  host, `docs/PHASE3.md` section 8, finding 6), **and its environment must be cleaned** (`env -i PATH=...`): a CGI binary that
+  inherits `REQUEST_METHOD` or `QUERY_STRING` runs the child as another web request (`docs/PHASE5.md` section 8, finding 9). The limits of a request (`max_execution_time`, `memory_limit`) differ per virtual
   host: read them at run time.
 
 ## Next steps
@@ -125,15 +126,15 @@ destroys the target stack and brings the shop back through the wizard); `tests/s
 **Phase 5** (one trigger cron job with the schedule inside, retention, archive encryption in the format of `age` - `docs/CONCEPT.md`
 sections 5.6 and 8) comes next. The plan is `docs/PHASE5.md` (all twelve decisions settled with the owner on 2026-10-22;
 work package 1, the spikes, is done: the format of `age` works in PHP and agrees with the real tool, the passphrase is the native `age`
-recipient at scrypt N=2^15, the cron rule for daylight saving time is our own, an idle trigger call is cheap; read section 8 before
+recipient at scrypt N=2^15, the cron rule for daylight saving time is our own, an idle trigger call is cheap, and on the customer's host
+(cron = one HTTP GET a day) the address starts a detached worker that lives on - with a clean environment (`env -i`), see the trap in
+section 8, finding 9; read section 8 before
 writing `src/Crypto` or `CronExpression`; work package 2 is next). Building blocks that are there: `BackupService` (a run in ticks, the rule for active and
 interrupted runs: a web run is active while its last tick is recent), `Executor`/`RunStore`/`Lock`, `Overview` (where "next run" and the
 heartbeat of the trigger would show), `Config` and the System page (where its settings would go), `Postproc` (for remote storage).
 
-Open items for the owner (not blocking): the runs on the **live host** that the spikes could not do - `tools/spikes/host-probe.php`
-(now with sodium and the trigger) and `tools/spikes/cron-lifetime.php` as a cron job (PHASE5.md section 8, "Left with the owner"); the download of a few hundred MB
-through its FastCGI (`tools/spikes/web-download.php`, PHASE4.md section 8, finding 1) and `tools/spikes/host-probe.php` for the password
-hashing there; a **private test with a real backup** of the live shop (`docs/BACKUP.md` section 10); the web-server modes `X-Sendfile` /
+Open items for the owner (not blocking): the download of a few hundred MB
+through the live host's FastCGI (`tools/spikes/web-download.php`, PHASE4.md section 8, finding 1); a **private test with a real backup** of the live shop (`docs/BACKUP.md` section 10); the web-server modes `X-Sendfile` /
 `X-Accel-Redirect` and the nginx rule in `docs/WEB.md` have never met a web server. Small gaps of the interface: the sidecar keeps no
 date of the last check, the list has no column for the kind of backup, the key and the command of the download page have no "copy"
 button, and the language is English only.
