@@ -26,6 +26,11 @@ if (!$cli) {
         echo "Set \$WEB_TOKEN in this file and call it with ?token=...\n";
         exit;
     }
+    if (isset($_GET['ping'])) {
+        // the answer to the probe's own request to its own address (see "Trigger" below)
+        echo "pong\n";
+        exit;
+    }
     if (isset($_GET['form'])) {
         // a form for the database test: the answer is the probe's output; nothing typed here is stored or printed
         header('Content-Type: text/html; charset=utf-8');
@@ -104,6 +109,62 @@ if (function_exists('password_algos')) {
     }
 } else {
     probe_line('password_algos', 'not available');
+}
+
+echo "\nEncryption (phase 5, backups in the age format)\n";
+if (extension_loaded('sodium') && function_exists('sodium_crypto_aead_chacha20poly1305_ietf_encrypt')) {
+    $key = str_repeat('k', 32);
+    $nonce = str_repeat("\0", 12);
+    $cipher = sodium_crypto_aead_chacha20poly1305_ietf_encrypt('probe', '', $nonce, $key);
+    $plain = sodium_crypto_aead_chacha20poly1305_ietf_decrypt($cipher, '', $nonce, $key);
+    probe_line('sodium', 'loaded, library ' . (defined('SODIUM_LIBRARY_VERSION') ? SODIUM_LIBRARY_VERSION : '?'));
+    probe_line('ChaCha20-Poly1305 (IETF)', $plain === 'probe' ? 'works' : 'FAILS');
+    probe_line('X25519', function_exists('sodium_crypto_scalarmult') ? 'available' : 'missing');
+    $started = microtime(true);
+    $data = str_repeat('x', 8 * 1048576);
+    $nonce = str_repeat("\1", 12);
+    $chunks = 0;
+    for ($offset = 0; $offset < strlen($data); $offset += 65536) {
+        sodium_crypto_aead_chacha20poly1305_ietf_encrypt(substr($data, $offset, 65536), '', $nonce, $key);
+        ++$chunks;
+    }
+    probe_line('encrypt 8 MB in 64 KiB chunks', sprintf('%.0f ms (%.0f MB/s)', (microtime(true) - $started) * 1000, 8 / max(0.001, microtime(true) - $started)));
+} else {
+    probe_line('sodium', 'NOT LOADED - an encrypted backup could not be restored by restore.php on this host');
+}
+probe_line('hash_hkdf / hash_hmac', function_exists('hash_hkdf') && function_exists('hash_hmac') ? 'available' : 'missing');
+
+echo "\nTrigger (phase 5, a cron job or an external service calls ThreadSafe)\n";
+probe_line('date.timezone / default', @date_default_timezone_get());
+probe_line('curl extension', extension_loaded('curl') ? 'loaded' : 'not loaded');
+probe_line('allow_url_fopen', probe_ini('allow_url_fopen') . (extension_loaded('openssl') ? ', openssl loaded (https possible)' : ', openssl NOT loaded (no https)'));
+if (probe_function('exec') === 'available') {
+    foreach (array('curl', 'wget', 'timeout', 'flock', 'crontab') as $tool) {
+        $found = array();
+        @exec('command -v ' . $tool . ' 2>/dev/null < /dev/null', $found);
+        probe_line('command ' . $tool, isset($found[0]) && trim($found[0]) !== '' ? trim($found[0]) : 'not found');
+    }
+}
+// can this host fetch a page from itself? (a cron job that calls the web address needs the host name to resolve from the host)
+if (!$cli && !empty($_SERVER['HTTP_HOST'])) {
+    $self = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' ? 'https://' : 'http://') . $_SERVER['HTTP_HOST'] . strtok($_SERVER['REQUEST_URI'], '?') . '?token=' . rawurlencode($WEB_TOKEN) . '&ping=1';
+    $started = microtime(true);
+    $answer = false;
+    if (probe_ini('allow_url_fopen') !== '0' && probe_ini('allow_url_fopen') !== '(not set)' && probe_ini('allow_url_fopen') !== 'Off') {
+        $context = stream_context_create(array('http' => array('timeout' => 10, 'ignore_errors' => true)));
+        $answer = @file_get_contents($self, false, $context);
+    }
+    probe_line('fetch own address (fopen)', $answer === false ? 'not possible (disabled, blocked or does not resolve)' : sprintf('%s in %.0f ms', trim(substr($answer, 0, 20)), (microtime(true) - $started) * 1000));
+    if (function_exists('curl_init')) {
+        $started = microtime(true);
+        $handle = curl_init($self);
+        curl_setopt($handle, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($handle, CURLOPT_TIMEOUT, 10);
+        $answer = curl_exec($handle);
+        $error = curl_error($handle);
+        curl_close($handle);
+        probe_line('fetch own address (curl)', $answer === false ? 'failed: ' . $error : sprintf('%s in %.0f ms', trim(substr($answer, 0, 20)), (microtime(true) - $started) * 1000));
+    }
 }
 
 echo "\nFunctions\n";

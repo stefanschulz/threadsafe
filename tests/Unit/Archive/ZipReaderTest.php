@@ -8,6 +8,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use ThreadSafe\Archive\ZipException;
 use ThreadSafe\Archive\ZipReader;
+use ThreadSafe\Tests\Support\ChunkedStream;
 use ThreadSafe\Tests\Support\RawZip;
 use ThreadSafe\Tests\Support\TempDirectory;
 
@@ -377,5 +378,21 @@ final class ZipReaderTest extends TestCase
             $length += strlen($chunk);
         }));
         self::assertSame(30000, $length);
+    }
+
+    public function testAnArchiveCanBeReadThroughAStreamWrapper(): void
+    {
+        // a wrapper (an encrypted part is read through one) hands out one read chunk of 8 KiB per fread(); the reader asks for the whole
+        // tail of the archive in one piece and must still find the end record
+        $bytes = RawZip::build([['name' => 'a.bin', 'data' => random_bytes(40000), 'method' => 0], ['name' => 'b.txt', 'data' => 'hello']]);
+        try {
+            $reader = ZipReader::open(ChunkedStream::serve($bytes));
+
+            self::assertSame(2, $reader->count());
+            self::assertTrue($reader->verify()->ok());
+            self::assertSame('hello', $reader->contents($reader->find('b.txt') ?? throw new \LogicException()));
+        } finally {
+            ChunkedStream::forget();
+        }
     }
 }

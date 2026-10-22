@@ -18,7 +18,7 @@ application automatically. First target: **PrestaShop 9.x**; MariaDB and MySQL; 
 | 2 | Site profiles and backup engine (CLI) | done (work packages in [docs/PHASE2.md](docs/PHASE2.md) section 5; user documentation [docs/BACKUP.md](docs/BACKUP.md)) |
 | 3 | `restore.php` (extractor and wizard) | done (plan and "As built" in [docs/PHASE3.md](docs/PHASE3.md); user documentation [docs/RESTORE.md](docs/RESTORE.md)); milestone A: `threadsafe restore`, milestone B: the single file `dist/restore.php` with the wizard; disaster recovery proven on the Docker stack |
 | 4 | Web interface (dashboard, download) | done (plan and "As built" in [docs/PHASE4.md](docs/PHASE4.md); user documentation [docs/WEB.md](docs/WEB.md)); login and setup, profiles, backups in steps with progress, check, delete, download, dashboard and System page, restore help; proven against a real Apache with 5 s / 64 MB limits on all three database servers (phase 4b of `run.sh`) |
-| 5 | One trigger cron, retention, encryption | **planned**: [docs/PHASE5.md](docs/PHASE5.md) (decisions settled with the owner on 2026-10-22); work package 1 (spikes) is next |
+| 5 | One trigger cron, retention, encryption | **planned**: [docs/PHASE5.md](docs/PHASE5.md) (decisions settled with the owner on 2026-10-22); work package 1 (spikes, findings in section 8) done, 2 (schedule core) is next |
 
 Each finished work package has an **"As built"** paragraph in `docs/PHASE2.md` (what exists, where it differs from the plan,
 what is known to be missing). `docs/PHASE2.md` section 8 holds the findings of the spikes (`tools/spikes/`); they changed the
@@ -124,11 +124,14 @@ destroys the target stack and brings the shop back through the wizard); `tests/s
 
 **Phase 5** (one trigger cron job with the schedule inside, retention, archive encryption in the format of `age` - `docs/CONCEPT.md`
 sections 5.6 and 8) comes next. The plan is `docs/PHASE5.md` (all twelve decisions settled with the owner on 2026-10-22;
-work package 1 is the spikes). Building blocks that are there: `BackupService` (a run in ticks, the rule for active and
+work package 1, the spikes, is done: the format of `age` works in PHP and agrees with the real tool, the passphrase is the native `age`
+recipient at scrypt N=2^15, the cron rule for daylight saving time is our own, an idle trigger call is cheap; read section 8 before
+writing `src/Crypto` or `CronExpression`; work package 2 is next). Building blocks that are there: `BackupService` (a run in ticks, the rule for active and
 interrupted runs: a web run is active while its last tick is recent), `Executor`/`RunStore`/`Lock`, `Overview` (where "next run" and the
 heartbeat of the trigger would show), `Config` and the System page (where its settings would go), `Postproc` (for remote storage).
 
-Open items for the owner (not blocking): the two runs on the **live host** that the spikes could not do - the download of a few hundred MB
+Open items for the owner (not blocking): the runs on the **live host** that the spikes could not do - `tools/spikes/host-probe.php`
+(now with sodium and the trigger) and `tools/spikes/cron-lifetime.php` as a cron job (PHASE5.md section 8, "Left with the owner"); the download of a few hundred MB
 through its FastCGI (`tools/spikes/web-download.php`, PHASE4.md section 8, finding 1) and `tools/spikes/host-probe.php` for the password
 hashing there; a **private test with a real backup** of the live shop (`docs/BACKUP.md` section 10); the web-server modes `X-Sendfile` /
 `X-Accel-Redirect` and the nginx rule in `docs/WEB.md` have never met a web server. Small gaps of the interface: the sidecar keeps no

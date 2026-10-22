@@ -422,6 +422,11 @@ final class ZipReader
         if ($handle === false) {
             throw new ZipException("Cannot open \"$path\".");
         }
+        if (stream_get_meta_data($handle)['wrapper_type'] !== 'plainfile') {
+            // a stream of a wrapper (an encrypted part read through its decrypting stream) hands out at most one chunk, 8 KiB by default,
+            // per fread(); the tail of an archive is read in one piece
+            stream_set_chunk_size($handle, 1048576);
+        }
 
         return $handle;
     }
