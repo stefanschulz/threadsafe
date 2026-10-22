@@ -2,7 +2,7 @@
 
 For anyone - person or coding agent - who continues work on this project without having followed its history. Read this
 first, then [docs/CONCEPT.md](docs/CONCEPT.md) (what and why) and the plan of the last finished phase
-([docs/PHASE4.md](docs/PHASE4.md)); phase 5 is planned in [docs/PHASE5.md](docs/PHASE5.md).
+([docs/PHASE5.md](docs/PHASE5.md); its section 9 "As built" tells what differs from the plan).
 
 ## What this is
 
@@ -18,7 +18,7 @@ application automatically. First target: **PrestaShop 9.x**; MariaDB and MySQL; 
 | 2 | Site profiles and backup engine (CLI) | done (work packages in [docs/PHASE2.md](docs/PHASE2.md) section 5; user documentation [docs/BACKUP.md](docs/BACKUP.md)) |
 | 3 | `restore.php` (extractor and wizard) | done (plan and "As built" in [docs/PHASE3.md](docs/PHASE3.md); user documentation [docs/RESTORE.md](docs/RESTORE.md)); milestone A: `threadsafe restore`, milestone B: the single file `dist/restore.php` with the wizard; disaster recovery proven on the Docker stack |
 | 4 | Web interface (dashboard, download) | done (plan and "As built" in [docs/PHASE4.md](docs/PHASE4.md); user documentation [docs/WEB.md](docs/WEB.md)); login and setup, profiles, backups in steps with progress, check, delete, download, dashboard and System page, restore help; proven against a real Apache with 5 s / 64 MB limits on all three database servers (phase 4b of `run.sh`) |
-| 5 | One trigger cron, retention, encryption | **planned**: [docs/PHASE5.md](docs/PHASE5.md) (decisions settled with the owner on 2026-10-22); work packages 1 (spikes, findings in section 8) 2 (schedule core) and 3 (the trigger: `threadsafe cron`, the address `/cron/<secret>`, "As built" in section 9) 4 (retention: `threadsafe retention`, pinned backups, the go-ahead for rules not yet seen) and 5 (the `age` core in `src/Crypto`, `threadsafe keys`), 6 (encryption in the backup: the `close`/`seal` stages, `.zip.age` parts, the minimal sidecar, `verify` with a key, the key pair page and the passphrase of one backup) and 7 (encryption in the restore: `restore --identity-file/--passphrase-file`, the wizard field, `Crypto\Unlock`, `Restore\Parts`) and 8 (integration: phases 4c and 4d of `run.sh`, groups `trigger` and `encryption`, the matrix on the three servers, the browser walk-through) done, 9 (documentation: `docs/SCHEDULE.md`, `docs/ENCRYPTION.md`) is next |
+| 5 | One trigger cron, retention, encryption | done (plan and "As built" in [docs/PHASE5.md](docs/PHASE5.md); user documentation [docs/SCHEDULE.md](docs/SCHEDULE.md) and [docs/ENCRYPTION.md](docs/ENCRYPTION.md)); the schedule in the profile and `threadsafe cron` / the address `/cron/<secret>` (detached worker or ticks), retention with pinned backups and a go-ahead, backups encrypted in the format of `age` (public keys of the profile, or a passphrase for one backup), restore with the key; proven on all three database servers (phases 4c and 4d of `run.sh`) |
 
 Each finished work package has an **"As built"** paragraph in `docs/PHASE2.md` (what exists, where it differs from the plan,
 what is known to be missing). `docs/PHASE2.md` section 8 holds the findings of the spikes (`tools/spikes/`); they changed the
@@ -93,7 +93,7 @@ Oracles are real tools where possible: `unzip -t`, the `mariadb` client, `CHECKS
 | `src/Storage`, `src/Backup/Manifest*` | Phase 2: `LocalStorage` (protection files, sidecar, listing), `BackupCatalog` (listing, sidecar rebuild), `SpaceCheck`, `Postproc`; `BackupName`, `Manifest`, `Sidecar`, `Verifier` |
 | `tests/Unit`, `tests/Integration`, `tests/Support`, `tests/stack` | Tests, helpers, Docker stack scripts |
 | `tools/spikes` | Throw-away scripts behind the findings in PHASE2.md section 8 (kept for reference) |
-| `docs` | Concept, phase plans, `MIGRATE.md` (reference of the `migrate` command), `BACKUP.md` (reference of the backup commands and the archive), `RESTORE.md` (reference of the restore: wizard, command, checks, limits) |
+| `docs` | Concept, phase plans, `MIGRATE.md` (reference of the `migrate` command), `BACKUP.md` (reference of the backup commands and the archive), `RESTORE.md` (reference of the restore: wizard, command, checks, limits, encrypted backups), `WEB.md` (the web interface), `SCHEDULE.md` (schedules, the trigger, retention), `ENCRYPTION.md` (keys, passphrases, what is protected) |
 
 ## Design rules that are easy to break
 
@@ -117,30 +117,28 @@ Oracles are real tools where possible: `unzip -t`, the `mariadb` client, `CHECKS
 
 ## Next steps
 
-Phases 1, 1b, 2, 3 and 4 are done and proven: `threadsafe migrate`, `profile`, `backup`, `backups`, `verify`, `restore` and `admin` work end to
-end, the single file `restore.php` (`php tools/build-restore.php`) restores a backup behind a web server on a host where nothing
-else is installed, and the web interface (`public/`, switched on with `admin enable`) does profiles, backups in steps, checks,
-downloads and the restore help in a browser. `tests/stack/run.sh` is the whole proof: baseline and migration, dev mode, the backup
-round trip, the web interface behind a real Apache with limits of 5 s and 64 MB (phase 4b), and the disaster recovery (phase 5, which
-destroys the target stack and brings the shop back through the wizard); `tests/stack/matrix.sh` does all of it on MariaDB 10.11, MySQL
-8.4 and MariaDB 11.8, `tests/stack/cross.sh` between the two kinds of server. The references are `docs/BACKUP.md`, `docs/RESTORE.md`,
-`docs/WEB.md` and `docs/MIGRATE.md`.
+Phases 1, 1b, 2, 3, 4 and 5 are done and proven: `threadsafe migrate`, `profile`, `backup`, `backups`, `verify`, `restore`, `retention`, `keys`,
+`cron` and `admin` work end to end, the single file `restore.php` (`php tools/build-restore.php`) restores a backup (also an encrypted one) behind a web
+server on a host where nothing else is installed, and the web interface (`public/`, switched on with `admin enable`) does profiles, schedules, backups
+in steps, checks, downloads, keys and the restore help in a browser. `tests/stack/run.sh` is the whole proof: baseline and migration, dev mode, the backup
+round trip, the web interface behind a real Apache with limits of 5 s and 64 MB (phase 4b), the trigger and retention on real backups (4c), encrypted
+backups opened by the real `age` tool and restored by the command and the wizard (4d), and the disaster recovery (phase 5, which destroys the target
+stack and brings the shop back through the wizard); `tests/stack/matrix.sh` does all of it on MariaDB 10.11, MySQL 8.4 and MariaDB 11.8,
+`tests/stack/cross.sh` between the two kinds of server. The references are `docs/BACKUP.md`, `docs/RESTORE.md`, `docs/WEB.md`, `docs/SCHEDULE.md`,
+`docs/ENCRYPTION.md` and `docs/MIGRATE.md`.
 
-**Phase 5** (one trigger cron job with the schedule inside, retention, archive encryption in the format of `age` - `docs/CONCEPT.md`
-sections 5.6 and 8) comes next. The plan is `docs/PHASE5.md` (all twelve decisions settled with the owner on 2026-10-22;
-work package 1, the spikes, is done: the format of `age` works in PHP and agrees with the real tool, the passphrase is the native `age`
-recipient at scrypt N=2^15, the cron rule for daylight saving time is our own, an idle trigger call is cheap, and on the customer's host
-(cron = one HTTP GET a day) the address starts a detached worker that lives on - with a clean environment (`env -i`), see the trap in
-section 8, finding 9; read section 8 before touching the format of `age` or the worker);
-work packages 2 to 4 are built - the schedule core (`src/Schedule`, the profile fields, `admin set`), the
-trigger (`threadsafe cron`, the address `/cron/<secret>` with a detached worker or ticks, the heartbeat, `admin cron-secret`, the
-dashboard and System page parts) and the retention (`src/Retention`, `App/RetentionService`, the sidecar marks `pinned` and `source`), see
-"As built" in section 9 - and the `age` core (5: `src/Crypto`, `threadsafe keys`; read its "As built" for the rule that a passphrase and keys cannot share a file)
-is built too, and so is the encryption in the backup (6: `BackupRun` phases `CLOSE` and `SEAL`, `PartSealer`, `Sidecar::$encryption`, `Manifest::minimal()`, `VerifyRun` with identities, `Cli/KeyOptions`, `Admin/KeysController`; the plain parts wait in the work directory, never in the storage; a passphrase backup is for the passphrase only; the web interface checks an encrypted backup only quickly, it holds no key; the sidecar of an encrypted backup cannot be made again); the restore of encrypted backups (7) is built too: the parts are read through the decrypting stream (`Restore\Parts`, an address must live as long as its `ZipReader`: call `Parts::releaseAll()` when the readers are done), the key is kept in the state of the run (mode 0600) and blanked when the extraction ends; `restore.php` carries `src/Crypto` without any change of the build. Work package 8 is done too (`tests/Integration/TriggerStackTest.php` and `EncryptionStackTest.php`; read its "As built" for what the stack found: a stream read chunk that made the full check of an encrypted backup fifty times slower, and a killed run that left an orphan work directory because the first tick now has to name the backup). Next is the documentation package 9 (`docs/SCHEDULE.md`, `docs/ENCRYPTION.md`, status in CONCEPT.md).
-Building blocks that are there: `TriggerService` (the one class behind both doors of the trigger), `BackupService` (a run in ticks, the rule
-for active and interrupted runs: a web run is active while its last tick is recent), `Executor`/`RunStore`/`Lock`, `Overview`, `Config`
-and the System page, `Postproc` (for remote storage).
+**Phase 5 - what to know before touching it** (the details are in `docs/PHASE5.md` section 9): a **passphrase** and public keys cannot share an `age` file, so
+a passphrase backup is for the passphrase only; the **plain parts of an encrypted backup wait in the work directory**, never in the storage; the **web
+interface holds no secret key** (it checks an encrypted backup only quickly), and the sidecar file of an encrypted backup is minimal and cannot be made again;
+`Restore\Parts` addresses must live as long as their `ZipReader` (call `Parts::releaseAll()` when the readers are done) and **a `ZipReader` on a stream of a
+wrapper must not get a large read chunk** (every seek would decrypt it: `ZipReader::readFully()` asks again instead); the **first tick of a backup only names
+it** and prepares the work directory, so that a killed run is continued into the same backup; on the customer's host (cron = one HTTP GET a day) the address
+starts a **detached worker with a clean environment** (`env -i`, `docs/PHASE5.md` section 8, finding 9); the cron rule for daylight saving time is our own, not PHP's.
+Building blocks: `TriggerService` (the one class behind both doors of the trigger), `BackupService` (a run in ticks, the rule for active and interrupted runs: a
+web run is active while its last tick is recent), `Executor`/`RunStore`/`Lock`, `Overview`, `Config` and the System page, `Postproc` (for remote storage).
 
+What is not planned in detail: **remote storage** (SFTP/S3; the `transfers` list of the sidecar file is reserved, `Postproc` is the hook), further website types
+(WordPress, Joomla), restoring over an existing installation.
 Open items for the owner (not blocking): the download of a few hundred MB
 through the live host's FastCGI (`tools/spikes/web-download.php`, PHASE4.md section 8, finding 1); a **private test with a real backup** of the live shop (`docs/BACKUP.md` section 10); the web-server modes `X-Sendfile` /
 `X-Accel-Redirect` and the nginx rule in `docs/WEB.md` have never met a web server. Small gaps of the interface: the sidecar keeps no
