@@ -312,6 +312,17 @@ final class BackupRunTest extends TestCase
         $executor->execute($run->id);
     }
 
+    public function testChangingTheScheduleOrTheRetentionDuringTheRunDoesNotStopIt(): void
+    {
+        $executor = new Executor($this->runs, $this->task(), static fn (): Budget => new Budget(0.0));
+        $run = $executor->execute($executor->start(['profile' => 'blog'])->id, 1);
+
+        $this->profiles->save($this->profiles->load('blog')->with(['schedule' => ['cron' => '0 3 * * *'], 'retention' => ['keep' => 3]]));
+
+        $finished = (new Executor($this->runs, $this->task(), static fn (): Budget => Budget::unlimited()))->execute($run->id);
+        self::assertSame(RunStatus::Finished, $finished->status, 'when a backup is made, and what is kept afterwards, is none of the run\'s business');
+    }
+
     public function testAbandonRemovesWhatTheRunLeftBehind(): void
     {
         $task = $this->task();

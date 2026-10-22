@@ -6,9 +6,13 @@ namespace ThreadSafe\Admin;
 
 use ThreadSafe\App\BackupService;
 use ThreadSafe\App\Overview;
+use ThreadSafe\App\TriggerStatus;
 use ThreadSafe\Engine\RunStore;
 use ThreadSafe\Plugin\PluginRegistry;
 use ThreadSafe\Profile\ProfileStore;
+use ThreadSafe\Schedule\Heartbeat;
+use ThreadSafe\Schedule\Scheduler;
+use ThreadSafe\Schedule\ScheduleStore;
 use ThreadSafe\Storage\SpaceCheck;
 use ThreadSafe\Web\Html;
 use ThreadSafe\Web\Response;
@@ -34,8 +38,10 @@ final class DashboardController
         $backups = new BackupService($profiles, PluginRegistry::load(), $runs, $data, $this->services->budgets, $this->services->clock);
         $overview = (new Overview($profiles, $runs, $backups, (int) $this->services->config->get('dashboard.warnAfterDays'), $this->services->clock))->build();
         $totals = $overview['totals'];
+        $config = $this->services->config;
+        $trigger = (new TriggerStatus(new Scheduler(new ScheduleStore($data . '/schedule'), $config->scheduleZone(), $config->scheduleGraceMinutes()), new Heartbeat($data . '/heartbeat.json'), $config->expectedIntervalMinutes(), $this->services->clock))->build($profiles->all());
 
-        $header = '<p class="summary"><strong>' . $totals['profiles'] . '</strong> ' . ($totals['profiles'] === 1 ? 'site' : 'sites') . ' &middot; <strong>' . $totals['backups'] . '</strong> '
+        $header = ($trigger['warning'] === null ? '' : '<p class="flash warning" role="alert">' . Html::e($trigger['warning']) . ' <a href="' . Html::e($context->urls->to('/system')) . '">System</a></p>') . '<p class="summary"><strong>' . $totals['profiles'] . '</strong> ' . ($totals['profiles'] === 1 ? 'site' : 'sites') . ' &middot; <strong>' . $totals['backups'] . '</strong> '
             . ($totals['backups'] === 1 ? 'backup' : 'backups') . ' &middot; <strong>' . Html::e(SpaceCheck::format($totals['bytes'])) . '</strong> in storage'
             . ($totals['running'] > 0 ? ' &middot; <strong>' . $totals['running'] . '</strong> running' : '') . '</p>';
 
@@ -45,7 +51,7 @@ final class DashboardController
         } else {
             $cards = '<div class="cards">';
             foreach ($overview['cards'] as $card) {
-                $cards .= $this->card($context, $card);
+                $cards .= $this->card($context, $card, $trigger['next'][$card['profile']->id] ?? null);
             }
             $cards .= '</div><p><a href="' . Html::e($context->urls->to('/new-profile')) . '">New profile</a></p>';
         }
@@ -60,7 +66,7 @@ final class DashboardController
     /**
      * @param array<string, mixed> $card
      */
-    private function card(Context $context, array $card): string
+    private function card(Context $context, array $card, ?\DateTimeImmutable $next = null): string
     {
         /** @var \ThreadSafe\Profile\SiteProfile $profile */
         $profile = $card['profile'];
@@ -90,6 +96,10 @@ final class DashboardController
                 . '<p class="hint">' . $card['backups'] . ' ' . ($card['backups'] === 1 ? 'backup' : 'backups') . ', ' . Html::e(SpaceCheck::format((int) $card['bytes'])) . '</p>';
         } else {
             $html .= '<p>No backup yet.</p>';
+        }
+
+        if ($next !== null) {
+            $html .= '<p class="hint">Next scheduled backup: <time datetime="' . Html::e($next->format('c')) . '">' . Html::e($next->format('Y-m-d H:i T')) . '</time> (' . Html::e($profile->schedule !== null ? $profile->schedule->cron : '') . ')</p>';
         }
 
         if ($card['warnings'] !== []) {

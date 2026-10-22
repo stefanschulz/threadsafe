@@ -6,6 +6,7 @@ declare(strict_types=1);
 use ThreadSafe\Cli\AdminCommand;
 use ThreadSafe\Cli\Application;
 use ThreadSafe\Cli\BackupCommand;
+use ThreadSafe\Cli\CronCommand;
 use ThreadSafe\Cli\BackupsCommand;
 use ThreadSafe\Cli\MigrateCommand;
 use ThreadSafe\Cli\ProfileCommand;
@@ -32,6 +33,6 @@ if (!is_file($autoload)) {
 }
 require $autoload;
 
-$application = new Application([new MigrateCommand(), new ProfileCommand(), new BackupCommand(), new BackupsCommand(), new VerifyCommand(), new RestoreCommand(), new AdminCommand()]);
+$application = new Application([new MigrateCommand(), new ProfileCommand(), new BackupCommand(), new BackupsCommand(), new VerifyCommand(), new RestoreCommand(), new CronCommand(), new AdminCommand()]);
 
 exit($application->run($argv, StreamOutput::standard()));

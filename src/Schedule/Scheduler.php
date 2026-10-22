@@ -77,12 +77,34 @@ final class Scheduler
         return $profile->schedule?->expression()->next($now->setTimezone($this->zone));
     }
 
-    /** A run for the scheduled instant has begun. */
-    public function started(string $profileId, DateTimeImmutable $instant, DateTimeImmutable $now): void
+    /** A run for the scheduled instant has begun; $runId is the backup run that was made for it. */
+    public function started(string $profileId, DateTimeImmutable $instant, DateTimeImmutable $now, ?string $runId = null): void
     {
         $state = $this->store->load($profileId);
         $same = $state?->instant === $instant->getTimestamp();
-        $this->store->save($profileId, new ScheduleState($state->since ?? $now->getTimestamp(), $instant->getTimestamp(), ScheduleState::RUNNING, ($same ? $state->attempts : 0) + 1));
+        $this->store->save($profileId, new ScheduleState($state->since ?? $now->getTimestamp(), $instant->getTimestamp(), ScheduleState::RUNNING, ($same ? $state->attempts : 0) + 1, null, $runId));
+    }
+
+    /**
+     * The scheduled instant a backup run was started for, if the run belongs to the schedule of the profile and has not ended.
+     * Null for a run that somebody started by hand.
+     */
+    public function instantOfRun(string $profileId, string $runId): ?DateTimeImmutable
+    {
+        $state = $this->store->load($profileId);
+        if ($state === null || $state->status !== ScheduleState::RUNNING || $state->runId !== $runId || $state->instant === null) {
+            return null;
+        }
+
+        return (new DateTimeImmutable('@' . $state->instant))->setTimezone($this->zone);
+    }
+
+    /** The backup run that is going for the profile's schedule, if any. */
+    public function runOf(string $profileId): ?string
+    {
+        $state = $this->store->load($profileId);
+
+        return $state !== null && $state->status === ScheduleState::RUNNING ? $state->runId : null;
     }
 
     /** The run for the scheduled instant ended well (a backup that is complete, with or without warnings). */

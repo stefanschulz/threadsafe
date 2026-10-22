@@ -6,9 +6,12 @@ namespace ThreadSafe\Admin;
 
 use Closure;
 use Throwable;
+use ThreadSafe\App\TriggerService;
+use ThreadSafe\Schedule\CronSecret;
 use ThreadSafe\Web\Request;
 use ThreadSafe\Web\Response;
 use ThreadSafe\Web\StateDirectory;
+use ThreadSafe\Web\Throttle;
 
 /**
  * The web interface as a function from a request to a response (docs/PHASE4.md 3): decides whether the interface exists at all,
@@ -60,6 +63,14 @@ final class Kernel
         $route = $urls->route($request);
         $method = $request->method === 'HEAD' ? 'GET' : $request->method;
 
+        if (str_starts_with($route, '/cron/')) {
+            // the address of the trigger exists whether or not the interface is switched on, and only while it has a secret
+            $answer = $this->trigger($services, $request, $method, substr($route, strlen('/cron/')));
+            if ($answer !== null) {
+                return $answer;
+            }
+        }
+
         $auth = new AuthController($services);
         if (!$services->admin->exists()) {
             if (is_file($services->setupKeyFile())) {
@@ -88,6 +99,38 @@ final class Kernel
         $context = new Context($request, $urls, $session, $session === null ? null : $token);
 
         return $this->run($this->router($services, $auth), $method, $route, $context, $services);
+    }
+
+    /**
+     * `GET /cron/<secret>` (docs/PHASE5.md 3.3): the trigger. A wrong secret gets the same answer as any address that does not exist and
+     * is slowed down like a wrong password; nothing is revealed about whether there is a secret at all.
+     *
+     * @return Response|null null: there is no secret, so there is no such address and the request is handled like any other
+     */
+    private function trigger(Services $services, Request $request, string $method, string $candidate): ?Response
+    {
+        $secret = new CronSecret($services->data . '/cron-secret');
+        if (!$secret->exists()) {
+            return null;
+        }
+        if ($method !== 'GET') {
+            return $this->notFound();
+        }
+        StateDirectory::prepare($this->data);
+        $throttle = new Throttle($services->throttleDirectory() . '/cron.json', null, $services->clock);
+        if ($throttle->waitSeconds() > 0) {
+            return $this->notFound();
+        }
+        if (!$secret->matches($candidate)) {
+            $throttle->fail($request->remoteAddress, 'wrong trigger secret');
+
+            return $this->notFound();
+        }
+        $throttle->reset();
+
+        $answer = TriggerService::create($this->data, $this->clock, $this->budgets)->call();
+
+        return new Response(200, ['Content-Type: text/plain; charset=utf-8', 'Cache-Control: no-store'], $answer['status'] . "\n" . implode("\n", $answer['lines']) . ($answer['lines'] === [] ? '' : "\n"));
     }
 
     private function router(Services $services, AuthController $auth): Router
@@ -126,6 +169,7 @@ final class Kernel
         $router->add('POST', '/restore-key', $restore->key(...));
         $router->add('GET', '/system', $system->index(...));
         $router->add('POST', '/system/settings', $system->save(...));
+        $router->add('POST', '/system/cron-secret', $system->cronSecret(...));
         $router->add('GET', '/checks/{run}', $catalog->showCheck(...));
         $router->add('POST', '/checks/{run}/tick', $catalog->tickCheck(...));
         $router->add('POST', '/checks/{run}/continue', $catalog->nextCheck(...));

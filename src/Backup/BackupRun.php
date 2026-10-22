@@ -135,7 +135,7 @@ final class BackupRun implements Task
     {
         try {
             $profile = $this->profiles->load($s->profileId);
-            if ($s->profileHash !== '' && $s->profileHash !== self::hash($profile->toArray())) {
+            if ($s->profileHash !== '' && $s->profileHash !== self::hash($profile->toArray())) {   // (the schedule and the retention are no part of it)
                 throw new GuardFailed('The profile was changed while the backup was running; start a new backup.');
             }
             $resolved = (new ProfileResolver($this->plugins, $this->dataDirectory))->resolve($profile);
@@ -157,6 +157,9 @@ final class BackupRun implements Task
      */
     private static function hash(array $profile): string
     {
+        // changing when the profile is backed up, or what is kept afterwards, must not fail a run that is going
+        unset($profile['schedule'], $profile['retention']);
+
         return hash('sha256', (string) json_encode($profile));
     }
 

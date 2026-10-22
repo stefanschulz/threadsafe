@@ -4,6 +4,15 @@ declare(strict_types=1);
 
 namespace ThreadSafe\Admin;
 
+use ThreadSafe\App\TriggerHelp;
+use ThreadSafe\App\TriggerStatus;
+use ThreadSafe\App\WorkerLauncher;
+use ThreadSafe\Profile\ProfileStore;
+use ThreadSafe\Schedule\CronSecret;
+use ThreadSafe\Schedule\Heartbeat;
+use ThreadSafe\Schedule\Scheduler;
+use ThreadSafe\Schedule\ScheduleException;
+use ThreadSafe\Schedule\ScheduleStore;
 use ThreadSafe\Web\Html;
 use ThreadSafe\Web\Response;
 
@@ -63,6 +72,13 @@ final class SystemController
         if ($audit !== null) {
             $set('audit.maxBytes', $audit);
         }
+        // the settings of the trigger are on the page since phase 5; a form that does not send them leaves them alone
+        foreach (['tz' => 'schedule.timezone', 'grace' => 'schedule.graceMinutes', 'interval' => 'schedule.expectedIntervalMinutes', 'cron_mode' => 'cron.mode'] as $field => $key) {
+            if ($request->post($field) !== null) {
+                $values[$field] = trim((string) $request->post($field));
+                $set($key, $values[$field]);
+            }
+        }
 
         if ($errors !== []) {
             return $this->page($context, array_values(array_unique($errors)), $values, 400);
@@ -100,11 +116,75 @@ final class SystemController
         $probeWritten = $checks->writeProbe();
 
         $body = '<h2>Installation check</h2>' . View::checks($checks->run($request->https, $request->isLocal()))
+            . '<h2>Trigger</h2>' . $this->trigger($context)
             . '<h2>Can the data directory be fetched from outside?</h2>' . $this->probe($context, $probeWritten)
             . '<h2>Settings</h2>' . $this->settings($context, $errors, $values)
             . '<h2>Recent activity</h2>' . View::audit($this->services->audit->recent(50));
 
         return View::page($context, 'System', $body, '/system', $status);
+    }
+
+    /**
+     * Makes a new secret for the trigger address, or removes it.
+     *
+     * @param array<string, string> $params
+     */
+    public function cronSecret(Context $context, array $params = []): Response
+    {
+        $secret = new CronSecret($this->services->data . '/cron-secret');
+        try {
+            if ($context->request->post('action') === 'remove') {
+                $secret->remove();
+                $this->services->audit->record('cron.secret.removed', $context->user() ?? '-', $context->request->remoteAddress);
+                $context->flash('ok', 'The secret is removed; the trigger address no longer exists.');
+            } else {
+                $secret->make();
+                $this->services->audit->record('cron.secret.made', $context->user() ?? '-', $context->request->remoteAddress);
+                $context->flash('ok', 'A new secret was made; an older one no longer works.');
+            }
+        } catch (ScheduleException $e) {
+            $context->flash('error', $e->getMessage());
+        }
+
+        return Response::redirect($context->urls->to('/system'));
+    }
+
+    /** The trigger: the last call, the command, the address with its secret. */
+    private function trigger(Context $context): string
+    {
+        $services = $this->services;
+        $config = $services->config;
+        $profiles = (new ProfileStore($services->data . '/profiles'))->all();
+        $status = (new TriggerStatus(new Scheduler(new ScheduleStore($services->data . '/schedule'), $config->scheduleZone(), $config->scheduleGraceMinutes()), new Heartbeat($services->data . '/heartbeat.json'), $config->expectedIntervalMinutes(), $services->clock))->build($profiles);
+
+        $html = '<p class="hint">Scheduled backups happen only when something calls the trigger: a cron job that runs <code>threadsafe cron</code>, or one that fetches the address below. Either is enough; one call a day is enough for a daily schedule.</p>';
+        if ($status['last'] === null) {
+            $html .= '<p>The trigger has not called yet.</p>';
+        } else {
+            $html .= '<p>The trigger called ' . Html::e(View::age($status['last']['age'])) . ' (' . ($status['last']['via'] === 'web' ? 'by the address' : 'by the command') . '): ' . Html::e($status['last']['note']) . '</p>';
+        }
+        if ($status['warning'] !== null) {
+            $html .= '<p class="flash warning">' . Html::e($status['warning']) . '</p>';
+        }
+        $html .= '<p class="hint">' . $status['scheduled'] . ' of ' . count($profiles) . ' profiles have a schedule. Time zone of the schedules: ' . Html::e($config->scheduleZone()->getName()) . '. This host '
+            . (WorkerLauncher::available() ? 'can start a worker process, so a call of the address can run the backup outside the request' : 'cannot start a worker process, so a call of the address does one tick of work') . '.</p>';
+
+        $secret = (new CronSecret($services->data . '/cron-secret'))->get();
+        $html .= '<h3>The command</h3><p><code>' . Html::e(TriggerHelp::commandLine()) . '</code></p><p class="hint">The line for a crontab. The command ends at once if another trigger is working, and ends with an error code when a backup failed.</p>';
+        $html .= '<h3>The address</h3>';
+        if ($secret === null) {
+            $html .= '<p>There is no secret, so there is no address. Make one if the cron of the host can only fetch an address.</p>'
+                . View::form($context, '/system/cron-secret', '<input type="hidden" name="action" value="make"><button type="submit">Make the secret</button>', 'inline');
+        } else {
+            $request = $context->request;
+            $address = ($request->https ? 'https' : 'http') . '://' . ($request->header('host') ?? 'YOUR-HOST') . $context->urls->to(TriggerHelp::path($secret));
+            $html .= '<p><code>' . Html::e($address) . '</code></p><p><code>' . Html::e(TriggerHelp::addressLine($address)) . '</code></p>'
+                . '<p class="hint">The address works while the interface is switched off. The secret is in every access log of the web server that sees the address; it starts backups and nothing else, and a new one replaces it.</p>'
+                . View::form($context, '/system/cron-secret', '<input type="hidden" name="action" value="make"><button type="submit">Make a new secret</button>', 'inline') . ' '
+                . View::form($context, '/system/cron-secret', '<input type="hidden" name="action" value="remove"><button type="submit">Remove the secret</button>', 'inline');
+        }
+
+        return $html;
     }
 
     private function probe(Context $context, bool $written): string
@@ -138,6 +218,8 @@ final class SystemController
             'prefix' => $config->downloadAccelPrefix(),
             'audit_mb' => self::trim((int) $config->get('audit.maxBytes') / 1048576),
         ];
+        // the form as it was sent has the trigger's settings only if the page that sent it had them
+        $values += ['tz' => (string) $config->get('schedule.timezone'), 'grace' => (string) $config->get('schedule.graceMinutes'), 'interval' => (string) $config->get('schedule.expectedIntervalMinutes'), 'cron_mode' => $config->cronMode()];
 
         $inner = '';
         foreach ($errors as $error) {
@@ -149,6 +231,10 @@ final class SystemController
             . View::select('accel', 'Let the web server send downloads', ['none' => 'No, PHP sends them', 'sendfile' => 'X-Sendfile (Apache mod_xsendfile)', 'nginx' => 'X-Accel-Redirect (nginx)'], $values['accel'], 'Only if the web server is set up for it; test with a small file.')
             . View::field('prefix', 'Internal location for X-Accel-Redirect', 'text', $values['prefix'], ['spellcheck' => 'false', 'placeholder' => '/ts-files/'], 'nginx: location /ts-files/ { internal; alias /; }')
             . View::field('audit_mb', 'Rotate the audit log at this size (MB)', 'text', $values['audit_mb'], ['inputmode' => 'decimal'])
+            . View::field('tz', 'Time zone of the schedules', 'text', $values['tz'], ['spellcheck' => 'false', 'placeholder' => date_default_timezone_get()], 'For example Europe/Berlin. Empty: the time zone of PHP (' . date_default_timezone_get() . ').')
+            . View::field('grace', 'How late a scheduled backup may still be made up (minutes)', 'text', $values['grace'], ['inputmode' => 'numeric'], '1 to 10080. A scheduled time older than this is given up.')
+            . View::field('interval', 'The trigger is meant to come every (minutes)', 'text', $values['interval'], ['inputmode' => 'numeric'], '1 to 1440; 1440 for a cron job that runs once a day. The warning on the dashboard comes when it stays away twice as long.')
+            . View::select('cron_mode', 'How the trigger address works', ['auto' => 'Automatic (a worker process where the host allows it, otherwise one tick per call)', 'worker' => 'Start a worker process (the backup runs outside the request)', 'ticks' => 'One tick of work per call'], $values['cron_mode'], 'Only the address is affected; the command line trigger always works in one process.')
             . View::checkbox('pretty', 'Use plain addresses (/profiles/shop)', $values['pretty'] === '1', 'Needs the rewrite rule of public/.htaccess (or the equivalent for nginx). If pages stop working after changing this, set "web.prettyUrls" to false in data/config.json.')
             . '<button type="submit">Save the settings</button>';
 

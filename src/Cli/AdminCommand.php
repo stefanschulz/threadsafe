@@ -8,9 +8,12 @@ use ThreadSafe\Admin\AdminStore;
 use ThreadSafe\Admin\AuditLog;
 use ThreadSafe\Admin\Config;
 use ThreadSafe\Admin\ConfigException;
+use ThreadSafe\App\TriggerHelp;
 use ThreadSafe\Core\Exception\GuardFailed;
 use ThreadSafe\Core\ExitCode;
 use ThreadSafe\Core\Paths;
+use ThreadSafe\Schedule\CronSecret;
+use ThreadSafe\Schedule\ScheduleException;
 use ThreadSafe\Web\StateDirectory;
 
 /**
@@ -39,7 +42,7 @@ final class AdminCommand implements Command
 
     public function usage(): string
     {
-        return 'admin password [--password-file=FILE] | enable | disable | status | set KEY VALUE';
+        return 'admin password [--password-file=FILE] | enable | disable | status | set KEY VALUE | cron-secret [--show | --remove]';
     }
 
     public function options(): array
@@ -47,6 +50,8 @@ final class AdminCommand implements Command
         return [
             new OptionSpec('password-file', 'password: file holding the new password (- = standard input; or set THREADSAFE_ADMIN_PASSWORD)', takesValue: true, valueName: 'FILE'),
             new OptionSpec('json', 'status: output as JSON'),
+            new OptionSpec('show', 'cron-secret: show the secret of the trigger address again, make none'),
+            new OptionSpec('remove', 'cron-secret: remove the secret, so that the trigger address no longer exists'),
         ];
     }
 
@@ -65,6 +70,7 @@ final class AdminCommand implements Command
                 'enable' => $this->enable($data, true, $output),
                 'disable' => $this->enable($data, false, $output),
                 'status' => $this->status($data, $input, $output),
+                'cron-secret' => $this->cronSecret($data, $input, $output),
                 'set' => $this->set($data, $input->argument(1) ?? throw new UsageError('admin set needs a setting and a value, e.g. schedule.timezone Europe/Berlin ("admin status" lists the settings).'), $input->argument(2) ?? throw new UsageError('admin set needs a value after the setting (an empty one is written as "").'), $output),
                 default => throw new UsageError("Unknown action \"$action\" (password, enable, disable, status, set)."),
             };
@@ -100,6 +106,48 @@ final class AdminCommand implements Command
         $config->with('web.enabled', $enabled)->save($data . '/config.json');
         (new AuditLog($data . '/audit.log', $config->auditMaxBytes()))->record($enabled ? 'web.enabled' : 'web.disabled', '-', '', ['source' => 'command line']);
         $output->writeln($enabled ? 'The web interface is switched on.' : 'The web interface is switched off.');
+
+        return ExitCode::Ok;
+    }
+
+    /**
+     * Makes, shows or removes the secret of the trigger address (docs/PHASE5.md 3.3). Making a new one replaces the old one, so the
+     * old address stops working. The secret is printed here and on the System page, and nowhere else (no log, no audit entry).
+     */
+    private function cronSecret(string $data, Input $input, Output $output): ExitCode
+    {
+        if ($input->has('show') && $input->has('remove')) {
+            throw new UsageError('--show and --remove contradict each other.');
+        }
+        $store = new CronSecret($data . '/cron-secret');
+        $audit = new AuditLog($data . '/audit.log', Config::load($data . '/config.json')->auditMaxBytes());
+        if ($input->has('remove')) {
+            $store->remove();
+            $audit->record('cron.secret.removed', '-', '', ['source' => 'command line']);
+            $output->writeln('The secret is removed; the trigger address no longer exists.');
+
+            return ExitCode::Ok;
+        }
+        if ($input->has('show')) {
+            $secret = $store->get() ?? throw new GuardFailed('There is no secret yet: run "admin cron-secret" to make one.');
+        } else {
+            StateDirectory::prepare($data);
+            try {
+                $secret = $store->make();
+            } catch (ScheduleException $e) {
+                throw new GuardFailed($e->getMessage(), 0, $e);
+            }
+            $audit->record('cron.secret.made', '-', '', ['source' => 'command line']);
+            $output->writeln('A new secret was made; an older one no longer works.');
+        }
+        $output->writeln('');
+        $output->writeln('Address (below the directory that holds index.php; works while the interface is switched off):');
+        $output->writeln('  ' . TriggerHelp::path($secret));
+        $output->writeln('A crontab line that calls the command (preferred where cron can start a program):');
+        $output->writeln('  ' . TriggerHelp::commandLine());
+        $output->writeln('A crontab line that fetches the address (where cron can only fetch one; use your own host and path):');
+        $output->writeln('  ' . TriggerHelp::addressLine('https://YOUR-HOST/PATH-TO-PUBLIC' . TriggerHelp::path($secret)));
+        $output->writeln('The secret is in every access log that sees the address. It starts backups and nothing else; make a new one to replace it.');
 
         return ExitCode::Ok;
     }

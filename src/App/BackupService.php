@@ -156,13 +156,32 @@ final class BackupService
      */
     public function startWeb(string $profileId, bool $force = false): Run
     {
+        return $this->start($profileId, $force, snapshot: false, web: true);
+    }
+
+    /**
+     * Starts a backup run for the trigger (docs/PHASE5.md 3.3): in the command line process of `threadsafe cron`, which holds the
+     * lock of the run for as long as it lives and reads the database in one snapshot, or as a run of ticks, one per call of the address.
+     *
+     * @throws GuardFailed another backup is active, or there is no such profile
+     */
+    public function startScheduled(string $profileId, bool $snapshot): Run
+    {
+        return $this->start($profileId, false, $snapshot, web: !$snapshot);
+    }
+
+    /**
+     * @throws GuardFailed another backup is active, or there is no such profile
+     */
+    private function start(string $profileId, bool $force, bool $snapshot, bool $web): Run
+    {
         if (!ProfileStore::validId($profileId) || !$this->profiles->exists($profileId)) {
             throw new GuardFailed("There is no profile \"$profileId\".");
         }
         $this->assertNoActiveRun();
         $this->prune();
 
-        return $this->executor()->start(['profile' => $profileId, 'force' => $force, 'snapshot' => false, 'web' => true]);
+        return $this->executor()->start(['profile' => $profileId, 'force' => $force, 'snapshot' => $snapshot, 'web' => $web]);
     }
 
     /**
@@ -178,6 +197,28 @@ final class BackupService
 
         try {
             return $this->executor()->execute($runId, 1);
+        } catch (EngineException $e) {
+            throw $e;
+        } catch (Throwable $e) {
+            $this->cleanUp($runId);
+
+            throw $e;
+        }
+    }
+
+    /**
+     * Works on a run until it ends (the command line, the worker of the trigger: no time limit). A run that fails leaves nothing
+     * behind but its record, as with {@see tick()}.
+     *
+     * @throws EngineException the run is being worked on by another process right now, or is not a run that can be worked on
+     * @throws Throwable       what the work threw
+     */
+    public function complete(string $runId): Run
+    {
+        $this->find($runId);
+
+        try {
+            return $this->executor()->execute($runId);
         } catch (EngineException $e) {
             throw $e;
         } catch (Throwable $e) {

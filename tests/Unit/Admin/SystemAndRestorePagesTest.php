@@ -10,6 +10,7 @@ use ThreadSafe\Admin\Config;
 use ThreadSafe\Admin\RestoreKit;
 use ThreadSafe\Admin\SystemChecks;
 use ThreadSafe\Backup\BackupName;
+use ThreadSafe\Schedule\Heartbeat;
 use ThreadSafe\Tests\Support\AdminBrowser;
 use ThreadSafe\Tests\Support\BackupFixture;
 use ThreadSafe\Tests\Support\TempDirectory;
@@ -175,6 +176,91 @@ final class SystemAndRestorePagesTest extends TestCase
         $this->browser->post('/system/settings', $fields);
         self::assertStringContainsString('Nothing was changed.', $this->browser->get('/system')->body);
         self::assertSame('settings.changed', (new AuditLog($this->fixture->data . '/audit.log'))->recent(1)[0]['event']);
+    }
+
+    public function testTheTriggerSettingsAreOnThePageAndChecked(): void
+    {
+        $page = $this->browser->get('/system');
+        self::assertStringContainsString('name="grace" type="text" value="360"', $page->body);
+        self::assertStringContainsString('name="interval" type="text" value="15"', $page->body);
+
+        $fields = ['idle' => '120', 'days' => '7', 'warn_mb' => '500', 'accel' => 'none', 'prefix' => '', 'audit_mb' => '5', 'pretty' => '1', 'tz' => 'Europe/Berlin', 'grace' => '120', 'interval' => '1440', 'cron_mode' => 'ticks'];
+        self::assertSame(303, $this->browser->post('/system/settings', $fields)->status);
+        $config = Config::load($this->fixture->data . '/config.json');
+        self::assertSame('Europe/Berlin', $config->scheduleZone()->getName());
+        self::assertSame([120, 1440, 'ticks'], [$config->scheduleGraceMinutes(), $config->expectedIntervalMinutes(), $config->cronMode()]);
+
+        $wrong = $this->browser->post('/system/settings', ['tz' => 'Mars/Olympus', 'grace' => '0', 'interval' => '2000', 'cron_mode' => 'daemon'] + $fields);
+        self::assertSame(400, $wrong->status);
+        self::assertStringContainsString('time zone', $wrong->body);
+        self::assertSame('Europe/Berlin', Config::load($this->fixture->data . '/config.json')->scheduleZone()->getName(), 'nothing was saved');
+    }
+
+    public function testTheTriggerSectionShowsTheCommandAndTheSecretIsMadeReplacedAndRemoved(): void
+    {
+        $page = $this->browser->get('/system');
+        self::assertStringContainsString('<h2>Trigger</h2>', $page->body);
+        self::assertStringContainsString('The trigger has not called yet.', $page->body);
+        self::assertStringContainsString('threadsafe cron -q', $page->body);
+        self::assertStringContainsString('There is no secret, so there is no address.', $page->body);
+        self::assertStringContainsString('Make the secret', $page->body);
+
+        self::assertSame(303, $this->browser->post('/system/cron-secret', ['action' => 'make'])->status);
+        $secret = trim((string) file_get_contents($this->fixture->data . '/cron-secret'));
+        self::assertMatchesRegularExpression('/^[0-9a-f]{64}$/', $secret);
+        $page = $this->browser->get('/system');
+        self::assertStringContainsString('http://ts.example/cron/' . $secret, $page->body);
+        self::assertStringContainsString('curl -fsS', $page->body);
+        self::assertStringContainsString('A new secret was made', $page->body);
+
+        $this->browser->post('/system/cron-secret', ['action' => 'make']);
+        self::assertNotSame($secret, trim((string) file_get_contents($this->fixture->data . '/cron-secret')));
+
+        $this->browser->post('/system/cron-secret', ['action' => 'remove']);
+        self::assertFileDoesNotExist($this->fixture->data . '/cron-secret');
+        $audit = (string) file_get_contents($this->fixture->data . '/audit.log');
+        self::assertStringContainsString('cron.secret.made', $audit);
+        self::assertStringContainsString('cron.secret.removed', $audit);
+        self::assertStringNotContainsString($secret, $audit);
+    }
+
+    public function testTheSecretNeedsThePostAndTheToken(): void
+    {
+        self::assertSame(405, $this->browser->get('/system/cron-secret')->status);
+        self::assertSame(403, $this->browser->send('POST', '/system/cron-secret', ['action' => 'make'])->status);
+        self::assertFileDoesNotExist($this->fixture->data . '/cron-secret');
+    }
+
+    public function testTheDashboardShowsTheNextRunAndWarnsWhenTheTriggerStaysAway(): void
+    {
+        $this->fixture->profiles->save($this->fixture->profiles->load('blog')->with(['schedule' => ['cron' => '30 3 * * *']]));
+        $now = $this->browser->now;
+
+        $page = $this->browser->get('/');
+        self::assertStringContainsString('Next scheduled backup:', $page->body);
+        self::assertStringContainsString('(30 3 * * *)', $page->body);
+        self::assertStringContainsString('No trigger has called yet', $page->body);
+
+        $heartbeat = new Heartbeat($this->fixture->data . '/heartbeat.json');
+        $heartbeat->record('cli', 'nothing to do', $now - 5 * 60);
+        self::assertStringNotContainsString('trigger', strtolower(strip_tags(explode('<div class="cards">', $this->browser->get('/')->body)[0])), 'a trigger that called five minutes ago is fine');
+
+        $heartbeat->record('cli', 'nothing to do', $now - 3 * 3600);
+        $late = $this->browser->get('/')->body;
+        self::assertStringContainsString('The trigger last called 3 hours ago', $late);
+        self::assertStringContainsString('every 15 minutes', $late);
+
+        $config = Config::load($this->fixture->data . '/config.json')->with('schedule.expectedIntervalMinutes', 1440);
+        $config->save($this->fixture->data . '/config.json');
+        self::assertStringNotContainsString('The trigger last called', $this->browser->get('/')->body, 'for a trigger meant to come once a day, three hours is nothing');
+    }
+
+    public function testTheDashboardSaysNothingAboutTheTriggerWithoutAnySchedule(): void
+    {
+        $page = $this->browser->get('/');
+
+        self::assertStringNotContainsString('No trigger has called yet', $page->body);
+        self::assertStringNotContainsString('Next scheduled backup', $page->body);
     }
 
     public function testMistakesInTheSettingsComeBackWithTheFormAndNothingIsSaved(): void

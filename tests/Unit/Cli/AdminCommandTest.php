@@ -189,6 +189,38 @@ final class AdminCommandTest extends TestCase
         self::assertSame(date_default_timezone_get(), Config::load($this->data . '/config.json')->scheduleZone()->getName());
     }
 
+    public function testTheSecretOfTheTriggerIsMadeShownReplacedAndRemoved(): void
+    {
+        [$code, $out] = $this->cli(['cron-secret']);
+
+        self::assertSame(0, $code, $out);
+        $secret = trim((string) file_get_contents($this->data . '/cron-secret'));
+        self::assertMatchesRegularExpression('/^[0-9a-f]{64}$/', $secret);
+        self::assertStringContainsString('/cron/' . $secret, $out);
+        self::assertStringContainsString('threadsafe cron -q', $out, 'the crontab line for the command');
+        self::assertStringContainsString('curl -fsS', $out, 'and the one for the address');
+        if (DIRECTORY_SEPARATOR === '/') {
+            self::assertSame(0600, fileperms($this->data . '/cron-secret') & 0777);
+        }
+        $audit = (string) file_get_contents($this->data . '/audit.log');
+        self::assertStringContainsString('cron.secret.made', $audit);
+        self::assertStringNotContainsString($secret, $audit, 'the secret is in no log');
+
+        [, $shown] = $this->cli(['cron-secret', '--show']);
+        self::assertStringContainsString($secret, $shown);
+        self::assertSame($secret, trim((string) file_get_contents($this->data . '/cron-secret')), '--show makes none');
+
+        [, $again] = $this->cli(['cron-secret']);
+        self::assertStringContainsString('an older one no longer works', $again);
+        self::assertNotSame($secret, trim((string) file_get_contents($this->data . '/cron-secret')));
+
+        [$code] = $this->cli(['cron-secret', '--remove']);
+        self::assertSame(0, $code);
+        self::assertFileDoesNotExist($this->data . '/cron-secret');
+        self::assertSame(2, $this->cli(['cron-secret', '--show'])[0], 'nothing to show');
+        self::assertSame(1, $this->cli(['cron-secret', '--show', '--remove'])[0]);
+    }
+
     public function testASettingThatDoesNotExistOrIsOutOfRangeIsRefusedAndNothingIsWritten(): void
     {
         foreach ([['nonsense.key', '1'], ['schedule.timezone', 'Mars/Olympus'], ['cron.mode', 'sometimes'], ['schedule.graceMinutes', '0'], ['schedule.expectedIntervalMinutes', '2000']] as [$key, $value]) {

@@ -172,6 +172,7 @@ What `restore.php` then does, what it checks and refuses, and how to read its me
 
 - **Installation check:** the PHP version and the length of one step, the extensions, whether a PHP command line binary is found, https, running as root, the data directory (writable, permissions, closed), and for every profile the site directory, **left-over `restore.php`, `restore-key.php` or `.threadsafe-restore` in it**, and the storage (writable, protection files, free space). A left-over restore tool on a web server is a risk; remove it.
 - **Can the data directory be fetched?** The page writes a small file into `data/` and your browser asks for it at the addresses where `data/` would be served if the program lay below the web root. "Not reachable" is what you want. If it says **REACHABLE FROM OUTSIDE**, anyone can fetch your profiles and sessions: close it at once (make `public/` the document root, or move the data directory out with `THREADSAFE_DATA`). With `public/` as the document root nothing in `data/` is served at all, and the test says so.
+- **Trigger:** when the trigger (the cron job that makes the scheduled backups happen) called last, and a warning when it stays away; the command line for a crontab; the address with its secret for a cron that can only fetch an address, with buttons to make, replace or remove the secret. See [BACKUP.md](BACKUP.md) 4.5.
 - **Settings** (below) and the **recent activity** (the audit log).
 
 ### Settings
@@ -193,7 +194,7 @@ On the System page, or in `data/config.json` (only what differs from the default
 | `schedule.expectedIntervalMinutes` | 15 | how often the trigger is meant to come (1 to 1440); the warning about a trigger that stays away is derived from it |
 | `cron.mode` | `auto` | `auto`, `worker` or `ticks`: how the address of the trigger does its work |
 
-The four rows from `schedule.timezone` on are for the scheduled backups of [PHASE5.md](PHASE5.md); they are not on the System page yet. Change them with `php bin/threadsafe admin set KEY VALUE` (for example `admin set schedule.timezone Europe/Berlin`; an empty value is written as `""`) or in `data/config.json`; `admin status` lists all settings.
+The four rows from `schedule.timezone` on are for the scheduled backups ([BACKUP.md](BACKUP.md) 4.5); they are on the System page too. On the command line: `php bin/threadsafe admin set KEY VALUE` (for example `admin set schedule.timezone Europe/Berlin`; an empty value is written as `""`); `admin status` lists all settings. The secret of the trigger address is not a setting (this file is shown on the page): it is in `data/cron-secret`.
 
 ### The audit log
 

@@ -22,7 +22,8 @@ final class PhpBinary
         if (PHP_SAPI === 'cli') {
             return PHP_BINARY;
         }
-        foreach ([PHP_BINDIR . '/php', PHP_BINDIR . '/php' . PHP_MAJOR_VERSION . '.' . PHP_MINOR_VERSION, PHP_BINDIR . '/php.exe'] as $candidate) {
+        // the program named for this version first: on a host with several PHP versions `php` may be another one
+        foreach ([PHP_BINDIR . '/php' . PHP_MAJOR_VERSION . '.' . PHP_MINOR_VERSION, PHP_BINDIR . '/php', PHP_BINDIR . '/php.exe'] as $candidate) {
             if (@is_file($candidate) && @is_executable($candidate)) {
                 return $candidate;
             }

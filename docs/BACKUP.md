@@ -66,7 +66,7 @@ The backup is a standard ZIP archive and a small `.json` file next to it in the 
 | `compression` | Deflate level 1-9; 0 stores everything uncompressed. Files that are compressed already (images, archives, PDFs ...) are always stored. |
 | `partSize` | Bytes per archive part (at least 1 MiB), or `null` for one archive. |
 | `note` | Free text. |
-| `schedule` | Optional (`null` or absent: no schedule). `{"cron": "30 3 * * *"}`: a cron expression of five fields (minute hour day-of-month month day-of-week; lists, ranges, steps, names of months and days, `@hourly` `@daily` `@weekly` `@monthly`), read in the time zone of the installation (setting `schedule.timezone`, see [WEB.md](WEB.md); UTC where nobody set one). A time that does not exist on the day the clock jumps forward runs at the first instant after the gap; a time that exists twice runs once. **The profile only records the schedule so far: the trigger that acts on it is work package 3 of [PHASE5.md](PHASE5.md).** |
+| `schedule` | Optional (`null` or absent: no schedule). `{"cron": "30 3 * * *"}`: a cron expression of five fields (minute hour day-of-month month day-of-week; lists, ranges, steps, names of months and days, `@hourly` `@daily` `@weekly` `@monthly`), read in the time zone of the installation (setting `schedule.timezone`, see [WEB.md](WEB.md); UTC where nobody set one). A time that does not exist on the day the clock jumps forward runs at the first instant after the gap; a time that exists twice runs once. The backups are made by the trigger, see 4.5. |
 | `retention` | Optional. `{"keep": N, "maxAgeDays": D, "maxBytes": B}`, every rule optional: at most N backups, none older than D days, together at most B bytes (at least 1 MiB). Recorded only so far; the retention that applies it is work package 4 of [PHASE5.md](PHASE5.md). |
 | `encryption` | Optional. `{"recipients": ["age1...", ...]}`: public keys of the `age` format that new backups will be encrypted for. Only the shape of a key is checked now. Recorded only so far (work package 6 of [PHASE5.md](PHASE5.md)). |
 
@@ -127,6 +127,17 @@ php bin/threadsafe verify <profile> [<backup id>] [--quick] [--json]
 ```
 
 Checks the newest backup of the profile (or the one named); the web interface runs the same check in steps, so that even a very large backup can be checked within a request time limit. **Full** (default): every part exists with the recorded size and SHA-256; every part is read as a ZIP archive, every entry against its CRC32 and size; the entry counts, the part markers (which backup, which number), the manifest in the last part against the sidecar's, the part chain, and the manifest's counts of files, directories and tables against what the archive holds. **Quick** (`--quick`): only size and SHA-256 of the parts and that no unlisted part is in the directory. The result is written into the sidecar: damage makes the status `faulty` and the exit code 3; a clean full check sets `ok` or `ok-with-warnings`; a clean quick check does not clear `unverified` or `faulty`.
+
+### 4.5 `cron` (the trigger)
+
+```bash
+php bin/threadsafe cron          # run what the schedule says is due (in a crontab add -q: only problems are mailed)
+php bin/threadsafe admin cron-secret [--show | --remove]
+```
+
+A profile with a `schedule` is backed up by itself, but only when something calls the trigger. `cron` is that call: it writes the heartbeat (`data/heartbeat.json`), continues a backup that was interrupted, and runs every scheduled backup that is due, one after the other, each to its end with the database read in one snapshot. It ends at once if another trigger is working. A scheduled time that the trigger missed is made up if it is less than `schedule.graceMinutes` (six hours) old and given up otherwise, so a cron job that runs once a day is enough for a daily schedule if its time lies shortly after the scheduled one. A failed backup is tried again 15 minutes later, twice at most, if a later call comes in time. Exit codes: 0 ok, 2 something was refused (for instance a manual backup was running), 3 a backup failed. `admin cron-secret` and the System page show a crontab line with the real paths.
+
+For a host whose cron can only fetch an address, `admin cron-secret` makes the secret of `GET /cron/<secret>` (below `public/`, whether or not the web interface is switched on; without a secret there is no such address). A call starts `threadsafe cron` as a detached process and answers at once; on a host that does not allow that it does one step of work per call instead, so it must come often (the answer says `working` while there is more to do). The first word of the answer is `idle`, `started` or `working`. The secret is in the access log of the web server; it starts backups and nothing else, and a new one (`admin cron-secret`) replaces it. Details: [PHASE5.md](PHASE5.md) 3.3 and "As built".
 
 ## 5. What a backup consists of
 
