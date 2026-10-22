@@ -6,6 +6,7 @@ Integration tests run against two PrestaShop 9 stacks defined in `.docker/docker
 |---|---|---|
 | **source** | `db` (MariaDB 10.11, MySQL 8.4 or MariaDB 11.8), `prestashop`, `mailpit` | A freshly installed shop at `localhost:8190`, seeded with problem cases and with the live connections of a real shop (`seed-live-links.sql`) |
 | **target** | `target-db`, `target-prestashop` | Apache + PHP only, in an **isolated network**. Receives a clone of the source and is then migrated (`localhost:8290`) |
+| **web** | `web` (profile `web`) | The web interface of ThreadSafe itself: Apache + PHP 8.4 with limits of 5 seconds and 64 MB, the program directory read-only, the source shop read-only as a site to back up, its own data and storage volumes (the tools container mounts them at `/web-data` and `/web-storage`). Port 80 (`localhost:8390`) has the document root on `public/`; port 81 (`localhost:8391`) has the whole program directory below the web root, to test the `.htaccess` protection |
 
 The target has its own network on purpose: the cloned `parameters.php` still says "database host: `db`", and inside
 the target network `db` does not exist. A clone can therefore never read or write the source database by accident,
@@ -16,7 +17,9 @@ and before the migration it is broken in exactly the way a restored copy is (HTT
 ```bash
 tests/stack/run.sh            # seed → clone → PHPUnit phase 1 (incl. the migration of the clone) → oracle → phase 2 → phase 3 (dev mode) → phase 4
                               # (the backup round trip: back up the source shop, restore it into the wiped target with the plain tools and with
-                              # `threadsafe restore`, also into another database with another table prefix) → phase 5 (disaster recovery: the
+                              # `threadsafe restore`, also into another database with another table prefix) → phase 4b (the web interface, group `web-ui`: setup in the
+                              # browser, a backup through the pages in many steps, check, download with resume, a run that is continued, two requests at
+                              # once, security, the restore kit from the page restoring that backup onto the target) → phase 5 (disaster recovery: the
                               # target's containers and volumes are destroyed and made again empty; restore.php, served by the target's own
                               # Apache under limits of 5 seconds and 64 MB, brings the shop back)
 tests/stack/cross.sh          # backups across the two kinds of database server (MySQL 8.4 -> MariaDB and back), needs the source seeded on both

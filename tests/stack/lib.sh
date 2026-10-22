@@ -24,7 +24,7 @@ TARGET_PORT="${TARGET_PORT:-8290}"
 
 # dc <args>: docker compose with all profiles of the test environment
 dc() {
-    docker compose -f "$COMPOSE_FILE" --profile target --profile tools "$@"
+    docker compose -f "$COMPOSE_FILE" --profile target --profile tools --profile web "$@"
 }
 
 log() {

@@ -12,6 +12,9 @@
 #      backup with `threadsafe restore` (one command). Before it, phase 4a restores into another database with another table prefix (group
 #      "restore-variant"); that leaves the target shop on the other database, which is why the plain restore, and the disaster
 #      recovery after it, come later.
+#   6b. phase 4b: the web interface (group "web-ui", service `web`: Apache with the document root on public/, limits of 5 seconds and 64 MB): setup in the
+#      browser, a backup in many steps, check, download with resume, a run that is continued, two requests at once, security, and the restore
+#      kit from the page restoring the web backup onto the target through the wizard. It leaves the target restored, as phase 4 does.
 #   7. phase five: disaster recovery (groups "disaster-prepare" and "disaster-restore"): the working target shop is backed up, the
 #      target's containers and volumes are DESTROYED and made again empty on the same address, restore.php is uploaded into the
 #      empty web directory and the wizard (served by the target's own Apache, with limits of 5 seconds and 64 MB) brings the shop
@@ -29,7 +32,7 @@ phpunit() {
 }
 
 log "Integration tests, phase 1: baseline, steps, migration of the clone"
-phpunit --exclude-group after-migration --exclude-group dev-migration --exclude-group backup-roundtrip --exclude-group disaster-prepare --exclude-group disaster-restore --exclude-group cross-server --exclude-group restore-variant "$@"
+phpunit --exclude-group after-migration --exclude-group dev-migration --exclude-group backup-roundtrip --exclude-group disaster-prepare --exclude-group disaster-restore --exclude-group cross-server --exclude-group restore-variant --exclude-group web-ui "$@"
 
 "$STACK_DIR/oracle.sh" target
 
@@ -44,6 +47,11 @@ phpunit --group restore-variant "$@"
 
 log "Integration tests, phase 4: back up the source shop and restore the backup into the target"
 phpunit --group backup-roundtrip "$@"
+
+log "Integration tests, phase 4b: the web interface of ThreadSafe (Apache, 5 s / 64 MB), a backup through it restored with its own kit"
+dc up -d web >/dev/null
+wait_http "http://localhost:${WEB_PORT:-8390}/" "localhost" 120
+phpunit --group web-ui "$@"
 
 log "Integration tests, phase 5: disaster recovery"
 phpunit --group disaster-prepare "$@"

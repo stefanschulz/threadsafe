@@ -17,7 +17,7 @@ application automatically. First target: **PrestaShop 9.x**; MariaDB and MySQL; 
 | 1, 1b | Restore core: `threadsafe migrate <type>`, dev mode, module rules, self-test; database drivers; website type plugins | done |
 | 2 | Site profiles and backup engine (CLI) | done (work packages in [docs/PHASE2.md](docs/PHASE2.md) section 5; user documentation [docs/BACKUP.md](docs/BACKUP.md)) |
 | 3 | `restore.php` (extractor and wizard) | done (plan and "As built" in [docs/PHASE3.md](docs/PHASE3.md); user documentation [docs/RESTORE.md](docs/RESTORE.md)); milestone A: `threadsafe restore`, milestone B: the single file `dist/restore.php` with the wizard; disaster recovery proven on the Docker stack |
-| 4 | Web interface (dashboard, download) | **planned**: [docs/PHASE4.md](docs/PHASE4.md), decisions settled; work packages 1 (spikes), 2 (foundations: login, setup, `threadsafe admin`) and 3 (profile pages) and 4 (backup run in the browser, `BackupService`) and 5 (backup overview, check, delete: `CatalogService`, `VerifyRun`) and 6 (download) and 7 (dashboard cards, System page, restore help) done, 8 (integration tests of the whole interface) is next |
+| 4 | Web interface (dashboard, download) | **planned**: [docs/PHASE4.md](docs/PHASE4.md), decisions settled; work packages 1 (spikes), 2 (foundations: login, setup, `threadsafe admin`) and 3 (profile pages) and 4 (backup run in the browser, `BackupService`) and 5 (backup overview, check, delete: `CatalogService`, `VerifyRun`) and 6 (download) and 7 (dashboard cards, System page, restore help) and 8 (integration tests: service `web`, phase 4b of `run.sh`) done, 9 (documentation `docs/WEB.md`) is next |
 | 5 | One trigger cron, retention, encryption | not started |
 
 Each finished work package has an **"As built"** paragraph in `docs/PHASE2.md` (what exists, where it differs from the plan,
@@ -122,7 +122,7 @@ MariaDB 11.8, `tests/stack/cross.sh` between the two kinds of server. The refere
 
 **Phase 4, the web interface** (login, dashboard, profile management, backup overview, manual backup with progress, download -
 `docs/CONCEPT.md` section 5) comes next. The plan is `docs/PHASE4.md` (all twelve decisions settled with the owner on 2026-10-21; work packages 1
-(spikes, findings in section 8), 2 (foundations), 3 (profiles), 4 (backup run), 5 (overview, check, delete), 6 (download) and 7 (dashboard, system, restore help) are done, then 8 and 9). The engine (ticks, `RunStore`, `Executor`, `Lock`),
+(spikes, findings in section 8), 2 (foundations), 3 (profiles), 4 (backup run), 5 (overview, check, delete), 6 (download), 7 (dashboard, system, restore help) and 8 (integration tests) are done, then 9). The engine (ticks, `RunStore`, `Executor`, `Lock`),
 the wizard classes in `src/Web` (`Request`, `Response`, `Html`, sessions, CSRF, the key file) and `Budget::forThisProcess()` are
 there to build on.
 
