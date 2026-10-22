@@ -122,6 +122,22 @@ final class CatalogService
     }
 
     /**
+     * Pins a backup (retention must not delete it, and it does not count towards `keep`) or lets it go again. The mark lives in the
+     * sidecar file; a sidecar file that is made again from the archive has lost it.
+     *
+     * @throws GuardFailed the backup has no usable sidecar file to carry the mark
+     * @throws ProfileException|StorageException there is no such profile or backup
+     */
+    public function pin(string $profileId, string $backup, bool $pinned): void
+    {
+        $entry = $this->find($profileId, $backup);
+        if ($entry->sidecar === null) {
+            throw new GuardFailed('This backup has no usable sidecar file, so it cannot be pinned.');
+        }
+        $this->storage($profileId)->writeSidecar($entry->name, $entry->sidecar->withPinned($pinned));
+    }
+
+    /**
      * Deletes every backup of a profile (the option of removing a profile together with its backups).
      *
      * @return int how many backups were deleted

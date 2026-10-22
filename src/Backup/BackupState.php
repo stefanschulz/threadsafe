@@ -33,6 +33,9 @@ final class BackupState
      */
     public bool $web = false;
 
+    /** Who asked for the backup: `manual` or `schedule` (the trigger); it goes into the sidecar file. */
+    public string $source = 'manual';
+
     public string $phase = self::INIT;
 
     /** The base name of the backup; empty until the run has started. */
@@ -106,6 +109,7 @@ final class BackupState
             'force' => $this->force,
             'snapshot' => $this->snapshot,
             'web' => $this->web,
+            'source' => $this->source,
             'partSize' => $this->partSize,
             'compression' => $this->compression,
             'phase' => $this->phase,
@@ -153,6 +157,7 @@ final class BackupState
             throw $invalid('phase');
         }
         $state->web = (($data['web'] ?? false) === true);
+        $state->source = ($data['source'] ?? 'manual') === 'schedule' ? 'schedule' : 'manual';
         $state->phase = $phase;
         $state->backup = $string('backup');
         $state->profileHash = $string('profileHash');

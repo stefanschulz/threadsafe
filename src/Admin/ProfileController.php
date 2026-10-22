@@ -96,7 +96,7 @@ final class ProfileController
         $catalog = new CatalogController($this->services);
 
         return View::page($context, $profile->name, $actions . $backups->runsBox($context, $id) . $catalog->checksBox($context, $id) . '<h2>Back up</h2>' . $backups->startForm($context, $id)
-            . '<h2>Backups</h2>' . $catalog->table($context, $id) . '<h2>Settings</h2>' . $table, '/profiles');
+            . '<h2>Backups</h2>' . $catalog->table($context, $id) . (new RetentionController($this->services))->box($context, $profile) . '<h2>Settings</h2>' . $table, '/profiles');
     }
 
     /**
@@ -335,6 +335,12 @@ final class ProfileController
             . View::checkbox('default_filters', 'Use the filters of the website type', $values['default_filters'] === '1', 'Caches, logs and the tables of statistics are left out; the type knows which.')
             . View::textarea('exclude', 'Leave out also', $values['exclude'], 4, 'Paths relative to the site directory, one per line.')
             . View::textarea('structure_only', 'Tables of which only the structure is kept', $values['structure_only'], 3, 'One per line, with or without the table prefix.')
+            . '<h2>Schedule</h2>'
+            . View::field('schedule', 'Back up by itself at', 'text', $values['schedule'] ?? '', ['spellcheck' => 'false', 'placeholder' => '30 3 * * *'], 'A cron expression: minute hour day-of-month month day-of-week, e.g. 30 3 * * * for 03:30 every day, or @daily. Read in the time zone ' . $this->services->config->scheduleZone()->getName() . ' (System page). Empty: no scheduled backups. Something must call the trigger, see the System page.')
+            . '<h2>Retention</h2><p class="hint">What is kept in the storage. The newest usable backup and pinned backups are never deleted. Every rule is optional.</p>'
+            . View::field('keep', 'Keep at most this many backups', 'text', $values['keep'] ?? '', ['inputmode' => 'numeric'])
+            . View::field('max_age_days', 'Delete backups older than this many days', 'text', $values['max_age_days'] ?? '', ['inputmode' => 'numeric'])
+            . View::field('max_size', 'Keep the backups under this size together', 'text', $values['max_size'] ?? '', ['spellcheck' => 'false'], 'For example 20G or 500M. The oldest ones are deleted first.')
             . '<h2>Note</h2>'
             . View::field('note', 'Note', 'text', $values['note'])
             . '<div class="field check"><label><input type="checkbox" name="skip_test" value="1"> Save without testing</label><p class="hint">A profile that fails its test is not stored, unless you tick this.</p></div>'

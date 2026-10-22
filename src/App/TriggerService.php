@@ -22,6 +22,7 @@ use ThreadSafe\Schedule\Heartbeat;
 use ThreadSafe\Schedule\SchedulePlan;
 use ThreadSafe\Schedule\Scheduler;
 use ThreadSafe\Schedule\ScheduleStore;
+use ThreadSafe\Storage\SpaceCheck;
 
 /**
  * What the trigger does when it is called (docs/PHASE5.md 3.3), for both ways of calling it:
@@ -67,6 +68,7 @@ final class TriggerService
         private readonly string $mode = 'auto',
         private readonly ?WorkerLauncher $launcher = null,
         ?Closure $clock = null,
+        private readonly ?RetentionService $retention = null,
     ) {
         $this->clock = $clock ?? time(...);
     }
@@ -97,6 +99,7 @@ final class TriggerService
             $config->cronMode(),
             $launcher ?? (WorkerLauncher::available() ? new WorkerLauncher($data, clock: $clock) : null),
             $clock,
+            RetentionService::create($data, $clock),
         );
     }
 
@@ -137,6 +140,7 @@ final class TriggerService
                 }
                 $exit = max($exit, $code);
             }
+            $this->hourlyRetention($say, $done);
             if ($done === []) {
                 $say('Nothing to do.', false);
             }
@@ -159,6 +163,15 @@ final class TriggerService
     {
         $this->heartbeat->record(Heartbeat::WEB, 'called', ($this->clock)());
         $answer = $this->answer();
+        if ($answer['status'] === self::IDLE) {
+            // nothing to back up: the moment for the hourly retention (a site that makes no backups any more still ages)
+            $lines = $answer['lines'];
+            $done = [];
+            $this->hourlyRetention(static function (string $line, bool $problem = false) use (&$lines): void {
+                $lines[] = $line;
+            }, $done);
+            $answer = ['status' => self::IDLE, 'lines' => $lines];
+        }
         $this->heartbeat->record(Heartbeat::WEB, $answer['status'] . ($answer['lines'] === [] ? '' : ': ' . $answer['lines'][0]), ($this->clock)());
 
         return $answer;
@@ -361,6 +374,7 @@ final class TriggerService
         if ($instant !== null) {
             $this->scheduler->succeeded($profileId, $instant);
         }
+        $this->retentionAfter($profileId, $say);
         $name = (string) ($result['backup'] ?? '?');
         $this->audit->record('backup.finished', self::USER, '', ['run' => $run->id, 'profile' => $profileId, 'backup' => $name, 'source' => $instant === null ? 'continued' : 'schedule']);
         $say(sprintf('Backup %s: %d file(s), status %s.', $name, (int) ($result['files'] ?? 0), (string) ($result['status'] ?? '?')), false);
@@ -381,6 +395,62 @@ final class TriggerService
         $done[] = 'failed "' . $profileId . '"';
 
         return $error instanceof GuardFailed ? 2 : 3;
+    }
+
+    /**
+     * Retention after a successful backup (docs/PHASE5.md 3.4). It must never fail the backup that has just been made.
+     */
+    private function retentionAfter(string $profileId, Closure $say): void
+    {
+        if ($this->retention === null) {
+            return;
+        }
+        try {
+            $profile = $this->profiles->load($profileId);
+            $plan = $this->retention->automatic($profile);
+            if ($plan !== null) {
+                $this->reportRetention($profileId, $plan, $say);
+            } elseif ($profile->retention !== null) {
+                $say('Retention of "' . $profileId . '" waits for your go-ahead: its rules would delete ' . ($this->retention->waiting($profile) ?? 0) . ' backups (run "threadsafe retention ' . $profileId . ' --dry-run" to see them, "threadsafe retention ' . $profileId . '" to go ahead).', true);
+            }
+        } catch (Throwable $e) {
+            $say('Retention of "' . $profileId . '" could not be applied: ' . $e->getMessage(), true);
+        }
+    }
+
+    /**
+     * Retention once an hour for every profile that has rules.
+     *
+     * @param list<string> $done
+     */
+    private function hourlyRetention(Closure $say, array &$done): void
+    {
+        if ($this->retention === null) {
+            return;
+        }
+        try {
+            foreach ($this->retention->hourly() as $profileId => $plan) {
+                $this->reportRetention($profileId, $plan, $say);
+                if ($plan->delete !== []) {
+                    $done[] = 'retention of "' . $profileId . '"';
+                }
+            }
+        } catch (Throwable $e) {
+            $say('Retention could not be applied: ' . $e->getMessage(), true);
+        }
+    }
+
+    private function reportRetention(string $profileId, \ThreadSafe\Retention\RetentionPlan $plan, Closure $say): void
+    {
+        if ($plan->blocked) {
+            $say('Retention of "' . $profileId . '": ' . implode(' ', $plan->notes), true);
+
+            return;
+        }
+        $count = count($plan->delete) + count($plan->leftovers);
+        if ($count > 0) {
+            $say(sprintf('Retention of "%s": %d backup%s deleted%s, %s freed.', $profileId, count($plan->delete), count($plan->delete) === 1 ? '' : 's', $plan->leftovers === [] ? '' : ' and ' . count($plan->leftovers) . ' leftover' . (count($plan->leftovers) === 1 ? '' : 's') . ' removed', SpaceCheck::format($plan->freed())), false);
+        }
     }
 
     /** The failed records of the profile's earlier attempts are no longer news once a backup has succeeded. */

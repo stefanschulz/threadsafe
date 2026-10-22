@@ -6,6 +6,7 @@ namespace ThreadSafe\Cli;
 
 use JsonException;
 use ThreadSafe\App\BackupService;
+use ThreadSafe\App\RetentionService;
 use ThreadSafe\Backup\BackupRun;
 use ThreadSafe\Core\Exception\GuardFailed;
 use ThreadSafe\Core\Exception\StepFailed;
@@ -215,9 +216,32 @@ final class BackupCommand implements Command
                 'compression' => $options['compression'],
             ]);
 
-            return $this->execute($executor, $task, $runs, $run->id, false, $output);
+            $report = $this->execute($executor, $task, $runs, $run->id, false, $output);
+            $this->retention($id, $data, $output);
+
+            return $report;
         } finally {
             $lock->release();
+        }
+    }
+
+    /**
+     * Retention after a successful backup (docs/PHASE5.md 3.4). A problem with it is told but never makes the backup fail.
+     */
+    private function retention(string $profileId, string $data, Output $output): void
+    {
+        try {
+            $profile = (new ProfileStore($data . '/profiles'))->load($profileId);
+            $plan = RetentionService::create($data)->automatic($profile);
+            if ($plan === null && $profile->retention !== null) {
+                $output->error('Retention of "' . $profileId . '" waits for your go-ahead: its rules would delete more than one backup (see "retention ' . $profileId . ' --dry-run", then "retention ' . $profileId . '").');
+            } elseif ($plan !== null && $plan->blocked) {
+                $output->error('Retention of "' . $profileId . '": ' . implode(' ', $plan->notes));
+            } elseif ($plan !== null && ($plan->delete !== [] || $plan->leftovers !== [])) {
+                $output->writeln(sprintf('Retention of "%s": %d backup%s deleted%s, %s freed.', $profileId, count($plan->delete), count($plan->delete) === 1 ? '' : 's', $plan->leftovers === [] ? '' : ' and ' . count($plan->leftovers) . ' leftover(s) removed', SpaceCheck::format($plan->freed())));
+            }
+        } catch (Throwable $e) {
+            $output->error('Retention of "' . $profileId . '" could not be applied: ' . $e->getMessage());
         }
     }
 

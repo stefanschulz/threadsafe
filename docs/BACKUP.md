@@ -67,7 +67,7 @@ The backup is a standard ZIP archive and a small `.json` file next to it in the 
 | `partSize` | Bytes per archive part (at least 1 MiB), or `null` for one archive. |
 | `note` | Free text. |
 | `schedule` | Optional (`null` or absent: no schedule). `{"cron": "30 3 * * *"}`: a cron expression of five fields (minute hour day-of-month month day-of-week; lists, ranges, steps, names of months and days, `@hourly` `@daily` `@weekly` `@monthly`), read in the time zone of the installation (setting `schedule.timezone`, see [WEB.md](WEB.md); UTC where nobody set one). A time that does not exist on the day the clock jumps forward runs at the first instant after the gap; a time that exists twice runs once. The backups are made by the trigger, see 4.5. |
-| `retention` | Optional. `{"keep": N, "maxAgeDays": D, "maxBytes": B}`, every rule optional: at most N backups, none older than D days, together at most B bytes (at least 1 MiB). Recorded only so far; the retention that applies it is work package 4 of [PHASE5.md](PHASE5.md). |
+| `retention` | Optional. `{"keep": N, "maxAgeDays": D, "maxBytes": B}`, every rule optional: at most N backups, none older than D days, together at most B bytes (at least 1 MiB). Applied after every successful backup and once an hour, see 4.6. |
 | `encryption` | Optional. `{"recipients": ["age1...", ...]}`: public keys of the `age` format that new backups will be encrypted for. Only the shape of a key is checked now. Recorded only so far (work package 6 of [PHASE5.md](PHASE5.md)). |
 
 Unknown fields are refused. **Defaults of `prestashop9`** (`plugins/prestashop9/resources/backup-defaults.json`): `var/cache`, `var/logs`, `var/sessions`, `cache/smarty/cache`, `cache/smarty/compile`, `cache/cachefs`, `img/tmp`, any `.git`, and `<back office folder>/autoupgrade/{backup,download,tmp,logs}`; of the tables `connections`, `connections_source`, `connections_page`, `guest`, `log`, `pagenotfound`, `page_viewed`, `statssearch`, `psgdpr_log`, `employee_session`, `customer_session`, `smarty_cache` and `smarty_lazy_cache` only the structure. `generic` has no defaults.
@@ -112,6 +112,7 @@ A run goes through: **init** (connection test, storage prepared, the backup name
 
 ```bash
 php bin/threadsafe backups [<profile>] [--json]
+php bin/threadsafe backups <profile> --pin=<backup id>      # retention never deletes it; --unpin lets it go
 php bin/threadsafe backups <profile> --delete=<backup id> --yes
 php bin/threadsafe backups --discard-run=<run id> --yes
 ```
@@ -138,6 +139,17 @@ php bin/threadsafe admin cron-secret [--show | --remove]
 A profile with a `schedule` is backed up by itself, but only when something calls the trigger. `cron` is that call: it writes the heartbeat (`data/heartbeat.json`), continues a backup that was interrupted, and runs every scheduled backup that is due, one after the other, each to its end with the database read in one snapshot. It ends at once if another trigger is working. A scheduled time that the trigger missed is made up if it is less than `schedule.graceMinutes` (six hours) old and given up otherwise, so a cron job that runs once a day is enough for a daily schedule if its time lies shortly after the scheduled one. A failed backup is tried again 15 minutes later, twice at most, if a later call comes in time. Exit codes: 0 ok, 2 something was refused (for instance a manual backup was running), 3 a backup failed. `admin cron-secret` and the System page show a crontab line with the real paths.
 
 For a host whose cron can only fetch an address, `admin cron-secret` makes the secret of `GET /cron/<secret>` (below `public/`, whether or not the web interface is switched on; without a secret there is no such address). A call starts `threadsafe cron` as a detached process and answers at once; on a host that does not allow that it does one step of work per call instead, so it must come often (the answer says `working` while there is more to do). The first word of the answer is `idle`, `started` or `working`. The secret is in the access log of the web server; it starts backups and nothing else, and a new one (`admin cron-secret`) replaces it. Details: [PHASE5.md](PHASE5.md) 3.3 and "As built".
+
+### 4.6 `retention`
+
+```bash
+php bin/threadsafe retention <profile> --dry-run    # what would be deleted, and why; nothing is deleted
+php bin/threadsafe retention <profile>              # delete it
+```
+
+The rules are those of the profile (`--keep`, `--max-age-days`, `--max-bytes`): **keep** at most N backups, **none older** than D days, **together** at most B bytes. Only complete, usable backups (`ok`, `ok-with-warnings`, `unverified`) count. **Never deleted:** the newest usable backup (a failing schedule or a rule set wrongly cannot leave the site without a backup), a **pinned** backup (it does not count towards `keep`, but its size counts towards the limit), a backup that a run is writing or a check is reading. A faulty or incomplete backup is left alone. Unfinished files of runs that died (work directories, `.part` files) that no run claims and that are older than a week are removed as well. The deletions come oldest first and the numbers behind each reason are recomputed after each one, so the dry run lists exactly what the real run does; every deletion is an entry `retention.deleted` in the audit log with the rule that caused it. When the storage directory cannot be read nothing is deleted (exit code 2).
+
+The same rules are applied **by themselves** after every successful backup (the command, the browser and the trigger) and, by the trigger or a call of its address, once an hour for every profile with rules, so that `maxAgeDays` works for a site that makes no backups any more; not for a profile whose last backup run failed. **A rule that has not been seen at work and would delete more than one backup waits for your go-ahead**: the backup says so, the profile page shows the list, and `retention <profile>` (or the button) goes ahead and confirms the rules; changing the rules asks again.
 
 ## 5. What a backup consists of
 
@@ -179,7 +191,7 @@ The statements use the **real table names** (with the prefix); rows come in `INS
 
 **The manifest** (`threadsafe.json`, format 1) says what the backup is: `backupId`, `toolVersion`, `profile {id, name}`, `type`, `application {name, version}`, `php`, `database {server, version, driver, name, prefix, charset, collations}` (empty without a database), `consistency` (`snapshot`, `table` or `none`), `extras` (from the website type; PrestaShop: back office folder, the shop URLs with their domains, the domain and SSL settings, the installed modules with versions), `filters` (the exclude patterns, structure-only tables and literal exclusions that applied), `counts` (files, directories, file bytes, tables, rows, database bytes), `parts` (name and number of entries), `started`, `finished` (UTC), `warnings` and `unsupportedObjects` (stored routines, events, sequences, which are not dumped). **It holds no secret and no absolute path of the server.**
 
-**The sidecar** (`<id>.json`) is the manifest plus what cannot be inside the part it describes: size, SHA-256 and entry count of every part, the status, and a list of transfers to other places (empty; later phases fill it). It is a convenience for listing; the archives are the truth.
+**The sidecar** (`<id>.json`) is the manifest plus what cannot be inside the part it describes: size, SHA-256 and entry count of every part, the status, a list of transfers to other places (empty; later phases fill it), and two optional marks: `"pinned": true` (retention never deletes the backup; set with `backups --pin`, lost when the sidecar is made again from the archive) and `"source": "manual"` or `"schedule"` (who asked for the backup; absent in backups made before phase 5). It is a convenience for listing; the archives are the truth.
 
 ## 6. The storage directory
 

@@ -9,7 +9,10 @@ use DateTimeZone;
 use PHPUnit\Framework\TestCase;
 use ThreadSafe\Admin\AuditLog;
 use ThreadSafe\App\BackupService;
+use ThreadSafe\App\RetentionService;
 use ThreadSafe\App\TriggerService;
+use ThreadSafe\Retention\RetentionStateStore;
+use ThreadSafe\Tests\Support\FakeBackups;
 use ThreadSafe\App\WorkerLauncher;
 use ThreadSafe\Engine\Budget;
 use ThreadSafe\Engine\Executor;
@@ -66,7 +69,10 @@ final class TriggerServiceTest extends TestCase
         $clock = fn (): int => $this->now;
         $backups = new BackupService($this->fixture->profiles, PluginRegistry::load(), $this->fixture->runs, $this->fixture->data, $budgets, $clock, 60);
 
-        return new TriggerService($this->fixture->data, $this->fixture->profiles, $backups, $this->scheduler(), new Heartbeat($this->fixture->data . '/heartbeat.json'), new AuditLog($this->fixture->data . '/audit.log', 5242880, $clock), $mode, $launcher, $clock);
+        $audit = new AuditLog($this->fixture->data . '/audit.log', 5242880, $clock);
+        $retention = new RetentionService($this->fixture->profiles, $this->fixture->runs, new RetentionStateStore($this->fixture->data . '/retention'), $audit, $clock);
+
+        return new TriggerService($this->fixture->data, $this->fixture->profiles, $backups, $this->scheduler(), new Heartbeat($this->fixture->data . '/heartbeat.json'), $audit, $mode, $launcher, $clock, $retention);
     }
 
     /** @return \Closure(): Budget a budget that ends every tick at once, so that a backup takes many ticks */
@@ -126,11 +132,76 @@ final class TriggerServiceTest extends TestCase
         self::assertStringContainsString('backed up "blog"', $beat['note']);
         self::assertStringContainsString('"event":"backup.started"', $this->audit());
         self::assertStringContainsString('"source":"schedule"', $this->audit());
+        self::assertSame('schedule', (new BackupCatalog($this->fixture->storage()))->entries('blog', false)[0]->sidecar?->source, 'the sidecar file says who asked for the backup');
 
         [$code, $lines] = $this->work();
         self::assertSame(0, $code);
         self::assertSame(['Nothing to do.'], $lines, 'a second call has nothing to do');
         self::assertSame(1, $this->backupCount());
+    }
+
+    public function testRetentionRunsAfterAScheduledBackupAndDeletesTheOneThatIsBeyondTheRules(): void
+    {
+        $fake = new FakeBackups($this->fixture);
+        $oldest = $fake->make('2026-10-19 03:00:00');
+        $older = $fake->make('2026-10-21 03:00:00');
+        $this->fixture->profiles->save($this->fixture->profiles->load('blog')->with(['retention' => ['keep' => 2]]));
+
+        [$code, $lines, $problems] = $this->work();
+
+        self::assertSame(0, $code, implode("\n", $problems));
+        self::assertStringContainsString('Retention of "blog": 1 backup deleted', implode("\n", $lines));
+        self::assertFalse($fake->exists($oldest));
+        self::assertTrue($fake->exists($older));
+        self::assertSame(2, $this->backupCount());
+        self::assertStringContainsString('"event":"retention.deleted"', $this->audit());
+    }
+
+    public function testRetentionThatWouldDeleteManyWaitsForTheGoAheadAndSaysSo(): void
+    {
+        $fake = new FakeBackups($this->fixture);
+        foreach (['2026-10-15', '2026-10-16', '2026-10-17', '2026-10-18'] as $day) {
+            $fake->make($day . ' 03:00:00');
+        }
+        $this->fixture->profiles->save($this->fixture->profiles->load('blog')->with(['retention' => ['keep' => 1]]));
+
+        [$code, , $problems] = $this->work();
+
+        self::assertSame(0, $code, 'the backup itself went well');
+        self::assertStringContainsString('waits for your go-ahead', implode("\n", $problems));
+        self::assertSame(5, $this->backupCount(), 'nothing was deleted');
+    }
+
+    public function testRetentionRunsOnceAnHourEvenWhenThereIsNothingToBackUp(): void
+    {
+        $fake = new FakeBackups($this->fixture);
+        $recent = $fake->make('2026-10-21 03:00:00');
+        $old = $fake->make('2026-07-01 03:00:00');
+        $this->fixture->profiles->save($this->fixture->profiles->load('blog')->with(['retention' => ['maxAgeDays' => 30]]));
+        $this->now = (new DateTimeImmutable('2026-10-22 02:00:00', new DateTimeZone('UTC')))->getTimestamp();   // the schedule's 03:00 has not come
+
+        [, $lines] = $this->work();
+        self::assertStringContainsString('Retention of "blog": 1 backup deleted', implode("\n", $lines));
+        self::assertFalse($fake->exists($old));
+        self::assertTrue($fake->exists($recent));
+
+        [, $again] = $this->work();
+        self::assertSame(['Nothing to do.'], $again, 'not again within the hour');
+    }
+
+    public function testTheAddressDoesTheHourlyRetentionWhenIdle(): void
+    {
+        $fake = new FakeBackups($this->fixture);
+        $fake->make('2026-10-21 03:00:00');
+        $old = $fake->make('2026-07-01 03:00:00');
+        $this->fixture->profiles->save($this->fixture->profiles->load('blog')->with(['retention' => ['maxAgeDays' => 30]]));
+        $this->now = (new DateTimeImmutable('2026-10-22 02:00:00', new DateTimeZone('UTC')))->getTimestamp();
+
+        $answer = $this->trigger('ticks', null, self::tiny())->call();
+
+        self::assertSame('idle', $answer['status']);
+        self::assertStringContainsString('Retention of "blog"', implode("\n", $answer['lines']));
+        self::assertFalse($fake->exists($old));
     }
 
     public function testAnotherTriggerThatIsWorkingMakesTheCallEndQuietly(): void

@@ -97,7 +97,7 @@ final class CatalogController
         $word = $entry->label();
         $text = ['ok' => 'ok', 'ok-with-warnings' => 'ok, with warnings', 'unverified' => 'not checked', 'faulty' => 'FAULTY', 'incomplete' => 'INCOMPLETE', 'unfinished' => 'unfinished', 'unknown' => 'unknown'][$word] ?? $word;
 
-        return '<strong>' . Html::e($text) . '</strong>' . ($entry->problem !== null ? '<br><span class="hint">' . Html::e($entry->problem) . '</span>' : '');
+        return '<strong>' . Html::e($text) . '</strong>' . ($entry->sidecar !== null && $entry->sidecar->pinned ? ' (pinned)' : '') . ($entry->problem !== null ? '<br><span class="hint">' . Html::e($entry->problem) . '</span>' : '');
     }
 
     private function rowActions(Context $context, string $profileId, BackupEntry $entry): string
@@ -133,6 +133,10 @@ final class CatalogController
                 . '<a class="button secondary" href="' . Html::e($context->urls->to("/profiles/$profileId/backups/$base/restore-help")) . '">How to restore it</a> '
                 . View::form($context, "/profiles/$profileId/backups/$base/verify", '<button type="submit">Check that it is intact</button>', 'inline');
         }
+        if ($entry->sidecar !== null) {
+            $pinned = $entry->sidecar->pinned;
+            $body .= ' ' . View::form($context, "/profiles/$profileId/backups/$base/pin", '<input type="hidden" name="pinned" value="' . ($pinned ? '0' : '1') . '"><button type="submit" class="secondary">' . ($pinned ? 'Unpin' : 'Pin it') . '</button>', 'inline');
+        }
         $body .= ' <a class="button danger" href="' . Html::e($context->urls->to("/profiles/$profileId/backups/$base/delete")) . '">Delete</a>'
             . ' <a href="' . Html::e($context->urls->to("/profiles/$profileId")) . '">Back to the profile</a></div>';
 
@@ -145,6 +149,8 @@ final class CatalogController
         }
         $m = $sidecar->manifest;
         $rows += [
+            'Kept' => $sidecar->pinned ? 'pinned: retention never deletes it' : 'by the retention rules of the profile (if it has any)',
+            'Asked for by' => ['manual' => 'a person (the command or the browser)', 'schedule' => 'the schedule'][$sidecar->source] ?? 'not recorded (made before this was noted)',
             'Made' => $m->started->setTimezone(new \DateTimeZone('UTC'))->format('Y-m-d H:i:s') . ' UTC, took ' . $m->duration() . ' s',
             'Application' => trim($m->application['name'] . ' ' . ($m->application['version'] ?? '')) . ' (website type ' . $m->type . ')',
             'Made with' => 'ThreadSafe ' . $m->toolVersion . ', PHP ' . $m->php,
@@ -248,6 +254,33 @@ final class CatalogController
             . View::form($context, "/profiles/$profileId/backups/$base/delete", '<button type="submit" class="danger">Delete the backup</button> <a href="' . Html::e($context->urls->to("/profiles/$profileId")) . '">Cancel</a>');
 
         return View::page($context, 'Delete ' . $base, $body, '/profiles');
+    }
+
+    /**
+     * Pins a backup or lets it go again (docs/PHASE5.md 3.4).
+     *
+     * @param array<string, string> $params
+     */
+    public function pin(Context $context, array $params): Response
+    {
+        $entry = $this->entry($params);
+        if ($entry === null) {
+            return $this->missing($context);
+        }
+        $profileId = $params['id'] ?? '';
+        $base = $entry->name->base();
+        $pinned = $context->request->post('pinned') === '1';
+        try {
+            $this->service()->pin($profileId, $base, $pinned);
+        } catch (GuardFailed | ProfileException | StorageException $e) {
+            $context->flash('error', $e->getMessage());
+
+            return Response::redirect($context->urls->to("/profiles/$profileId/backups/$base"));
+        }
+        $this->audit($context, $pinned ? 'backup.pinned' : 'backup.unpinned', ['profile' => $profileId, 'backup' => $base]);
+        $context->flash('ok', $pinned ? 'The backup is pinned: retention never deletes it.' : 'The backup is not pinned any more.');
+
+        return Response::redirect($context->urls->to("/profiles/$profileId/backups/$base"));
     }
 
     /**

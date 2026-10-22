@@ -156,7 +156,7 @@ final class BackupService
      */
     public function startWeb(string $profileId, bool $force = false): Run
     {
-        return $this->start($profileId, $force, snapshot: false, web: true);
+        return $this->start($profileId, $force, snapshot: false, web: true, source: 'manual');
     }
 
     /**
@@ -167,13 +167,13 @@ final class BackupService
      */
     public function startScheduled(string $profileId, bool $snapshot): Run
     {
-        return $this->start($profileId, false, $snapshot, web: !$snapshot);
+        return $this->start($profileId, false, $snapshot, web: !$snapshot, source: 'schedule');
     }
 
     /**
      * @throws GuardFailed another backup is active, or there is no such profile
      */
-    private function start(string $profileId, bool $force, bool $snapshot, bool $web): Run
+    private function start(string $profileId, bool $force, bool $snapshot, bool $web, string $source): Run
     {
         if (!ProfileStore::validId($profileId) || !$this->profiles->exists($profileId)) {
             throw new GuardFailed("There is no profile \"$profileId\".");
@@ -181,7 +181,7 @@ final class BackupService
         $this->assertNoActiveRun();
         $this->prune();
 
-        return $this->executor()->start(['profile' => $profileId, 'force' => $force, 'snapshot' => $snapshot, 'web' => $web]);
+        return $this->executor()->start(['profile' => $profileId, 'force' => $force, 'snapshot' => $snapshot, 'web' => $web, 'source' => $source]);
     }
 
     /**

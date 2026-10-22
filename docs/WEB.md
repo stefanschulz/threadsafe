@@ -115,6 +115,8 @@ A card is **OK**, **Needs a look** or **Problem**; the words are on the badge, t
 
 The database is read from the site's own configuration where the type can do that, so no second copy of the password exists. For other sites choose *Enter it here*; the password is stored in the profile file and is never shown again (an empty field on an existing profile keeps it).
 
+The form has a *Schedule* section (a cron expression such as `30 3 * * *`; the time zone is the one of the System page; something must call the trigger, see the System page) and a *Retention* section (keep at most N backups, delete after D days, stay under a size). On the profile page the **Retention** box shows the rules, **what they would delete now and why**, and when they last ran; *Apply the rules now* deletes those backups and also tells the trigger that you have seen the rules (a rule that would delete more than one backup waits for that). See [BACKUP.md](BACKUP.md) 4.6.
+
 *Remove* asks first. The profile goes; the site is not touched; the backups stay unless you tick *Also delete its backups*.
 
 ### Backing up
@@ -138,6 +140,8 @@ On the profile page, newest first: when it was made (your local time, the UTC ti
 | FAULTY | a check found damage |
 | INCOMPLETE | parts named in the record are missing or have another size |
 | unfinished | only leftovers of a run that did not end |
+
+**Pin it** (on the details page) keeps a backup out of reach of the retention rules; the table then says "(pinned)".
 
 **Details** shows the manifest: when and with what it was made, application, how many files and tables, how the database was read, what was left out, the parts with their SHA-256, the addresses of the shop, warnings.
 

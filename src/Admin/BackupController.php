@@ -6,6 +6,7 @@ namespace ThreadSafe\Admin;
 
 use Throwable;
 use ThreadSafe\App\BackupService;
+use ThreadSafe\App\RetentionService;
 use ThreadSafe\Core\Exception\GuardFailed;
 use ThreadSafe\Engine\EngineException;
 use ThreadSafe\Engine\Run;
@@ -126,6 +127,7 @@ final class BackupController
 
         if ($run->status === RunStatus::Finished && $before->status === RunStatus::Running) {
             $this->audit($context, 'backup.finished', ['run' => $id, 'profile' => (string) ($run->state['profileId'] ?? ''), 'backup' => (string) ($this->service()->result($run)['backup'] ?? '')]);
+            $this->retention((string) ($run->state['profileId'] ?? ''));
         }
         $progress = $this->service()->progress($run);
 
@@ -155,6 +157,7 @@ final class BackupController
             $run = $this->service()->tick($id);
             if ($run->status === RunStatus::Finished && $before->status === RunStatus::Running) {
                 $this->audit($context, 'backup.finished', ['run' => $id, 'profile' => (string) ($run->state['profileId'] ?? ''), 'backup' => (string) ($this->service()->result($run)['backup'] ?? '')]);
+                $this->retention((string) ($run->state['profileId'] ?? ''));
             }
         } catch (EngineException $e) {
             $context->flash('warning', $e->isBusy() ? 'Another request is working on the backup; try again in a moment.' : $e->getMessage());
@@ -309,6 +312,19 @@ final class BackupController
     private static function message(Throwable $e): string
     {
         return $e->getMessage() !== '' ? $e->getMessage() : $e::class;
+    }
+
+    /**
+     * Retention after a backup that has just finished (docs/PHASE5.md 3.4). It must never turn a good backup into an error page.
+     */
+    private function retention(string $profileId): void
+    {
+        try {
+            $profile = (new ProfileStore($this->services->data . '/profiles'))->load($profileId);
+            RetentionService::create($this->services->data, $this->services->clock)->automatic($profile);
+        } catch (Throwable) {
+            // a profile that is gone or rules that cannot be applied: the backup stands; the profile page shows the rest
+        }
     }
 
     /**

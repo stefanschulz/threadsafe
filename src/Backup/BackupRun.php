@@ -64,7 +64,8 @@ final class BackupRun implements Task
 
     /**
      * @param array<string, mixed> $parameters `profile` (id), `force`, `snapshot` (dump inside one consistent snapshot),
-     *                                         `web` (started by the web interface), `partSize` and `compression` (override the profile)
+     *                                         `web` (started by the web interface), `source` (`manual` or `schedule`), `partSize` and
+     *                                         `compression` (override the profile)
      */
     public function initialState(array $parameters): array
     {
@@ -80,6 +81,7 @@ final class BackupRun implements Task
 
         $state = new BackupState($profile, ($parameters['force'] ?? false) === true, ($parameters['snapshot'] ?? false) === true, $partSize, $compression);
         $state->web = ($parameters['web'] ?? false) === true;
+        $state->source = ($parameters['source'] ?? 'manual') === 'schedule' ? 'schedule' : 'manual';
 
         return $state->toArray();
     }
@@ -396,7 +398,7 @@ final class BackupRun implements Task
 
         $manifest = $base->withParts(array_map(static fn (PartRecord $p): array => ['file' => $p->file, 'entries' => $p->entries], $records));
         $status = $warnings === [] && $unsupported === [] ? BackupStatus::Ok : BackupStatus::OkWithWarnings;
-        $sidecar = new Sidecar($manifest, $records, $status);
+        $sidecar = new Sidecar($manifest, $records, $status, [], false, $s->source);
         $context->storage->writeSidecar($name, $sidecar);
 
         $transfer = (new LocalPostproc())->store($name, $sidecar, $context->storage);

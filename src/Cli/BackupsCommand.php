@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace ThreadSafe\Cli;
 
 use ThreadSafe\App\BackupService;
+use ThreadSafe\App\CatalogService;
+use ThreadSafe\Profile\ProfileException;
+use ThreadSafe\Storage\StorageException;
 use ThreadSafe\Backup\BackupName;
 use ThreadSafe\Backup\BackupRun;
 use ThreadSafe\Core\ExitCode;
@@ -47,13 +50,15 @@ final class BackupsCommand implements Command
 
     public function usage(): string
     {
-        return 'backups [<profile>] [--json] | backups <profile> --delete=BACKUP --yes | backups --discard-run=RUN --yes';
+        return 'backups [<profile>] [--json] | backups <profile> --pin=BACKUP | --unpin=BACKUP | backups <profile> --delete=BACKUP --yes | backups --discard-run=RUN --yes';
     }
 
     public function options(): array
     {
         return [
             new OptionSpec('json', 'Output as JSON'),
+            new OptionSpec('pin', 'Pin this backup: retention never deletes it (give the profile too)', takesValue: true, valueName: 'BACKUP'),
+            new OptionSpec('unpin', 'Let a pinned backup go again (give the profile too)', takesValue: true, valueName: 'BACKUP'),
             new OptionSpec('delete', 'Delete this backup (all its files; give the profile too)', takesValue: true, valueName: 'BACKUP'),
             new OptionSpec('discard-run', 'Give up an interrupted run and remove what it left in the storage', takesValue: true, valueName: 'RUN'),
             new OptionSpec('yes', 'Really delete'),
@@ -72,6 +77,14 @@ final class BackupsCommand implements Command
 
         if ($input->has('discard-run')) {
             return $this->discardRun((string) $input->value('discard-run'), $profiles, $runs, $input, $output);
+        }
+        if ($input->has('pin') || $input->has('unpin')) {
+            if ($input->has('pin') && $input->has('unpin')) {
+                throw new UsageError('--pin and --unpin contradict each other.');
+            }
+            $pinned = $input->has('pin');
+
+            return $this->pin($only ?? throw new UsageError('--pin and --unpin need the profile: backups <profile> --pin=BACKUP.'), (string) $input->value($pinned ? 'pin' : 'unpin'), $pinned, $profiles, $runs, $output);
         }
         if ($input->has('delete')) {
             return $this->delete($only ?? throw new UsageError('--delete needs the profile: backups <profile> --delete=BACKUP --yes.'), (string) $input->value('delete'), $profiles, $input, $output);
@@ -143,7 +156,7 @@ final class BackupsCommand implements Command
             $entry->name->time->format('Y-m-d H:i') . ' UTC',
             $sidecar === null ? '-' : SpaceCheck::format($sidecar->size()),
             $parts,
-            $entry->label(),
+            $entry->label() . ($sidecar?->pinned === true ? ' pinned' : ''),
             $application,
         );
     }
@@ -162,6 +175,21 @@ final class BackupsCommand implements Command
         }
 
         return $found;
+    }
+
+    private function pin(string $profileId, string $backup, bool $pinned, ProfileStore $profiles, RunStore $runs, Output $output): ExitCode
+    {
+        if (!ProfileStore::validId($profileId) || !$profiles->exists($profileId)) {
+            throw new UsageError("There is no profile \"$profileId\".");
+        }
+        try {
+            (new CatalogService($profiles, $runs))->pin($profileId, $backup, $pinned);
+        } catch (ProfileException|StorageException $e) {
+            throw new UsageError($e->getMessage(), 0, $e);
+        }
+        $output->writeln($pinned ? "Backup \"$backup\" is pinned: retention never deletes it." : "Backup \"$backup\" is not pinned any more.");
+
+        return ExitCode::Ok;
     }
 
     private function delete(string $profileId, string $backup, ProfileStore $profiles, Input $input, Output $output): ExitCode
