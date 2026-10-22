@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace ThreadSafe\Tests\Unit\Web;
 
 use PHPUnit\Framework\TestCase;
+use ThreadSafe\Crypto\AgeKeys;
 use ThreadSafe\Engine\Budget;
 use ThreadSafe\Plugin\PluginRegistry;
 use ThreadSafe\Storage\BackupCatalog;
@@ -46,10 +47,17 @@ final class WizardTest extends TestCase
         $this->cleanUpTempDirectories();
     }
 
-    /** A backup of a small site, uploaded next to the tool. */
-    private function upload(): void
+    /**
+     * A backup of a small site, uploaded next to the tool.
+     *
+     * @param string|null $recipient a public key: the backup is then encrypted for it
+     */
+    private function upload(?string $recipient = null): void
     {
         $fixture = new BackupFixture($this->base . '/fixture');
+        if ($recipient !== null) {
+            $fixture->profiles->save($fixture->profiles->load('blog')->with(['encryption' => ['recipients' => [$recipient]]]));
+        }
         foreach ((new BackupCatalog($fixture->storage()))->archiveParts($fixture->backup()) as $part) {
             copy($part, $this->web . '/' . basename($part));
             $this->parts[] = $this->web . '/' . basename($part);
@@ -448,5 +456,71 @@ final class WizardTest extends TestCase
         self::assertStringContainsString('Where to restore', $client->get(['step' => 'target'])->body);
         self::assertStringContainsString('Summary', $client->get(['step' => 'summary'])->body);
         self::assertSame(Response::class, $client->get(['step' => 'run'])::class, 'there is no run to show for a backup that was chosen anew');
+    }
+    // ----------------------------------------------------------------------------------------------- encrypted backups
+
+    public function testAnEncryptedBackupIsOfferedAsSuchAndAsksForItsKey(): void
+    {
+        $pair = AgeKeys::generate();
+        $this->upload($pair['public']);
+        $this->key();
+        $client = $this->loggedIn();
+
+        $page = $client->get(['step' => 'backup']);
+        self::assertStringContainsString('encrypted', $page->body);
+        self::assertStringContainsString('name="unlock"', $page->body);
+        self::assertStringContainsString('type="password"', $page->body);
+
+        $without = $client->post(['action' => 'choose-backup', 'choice' => basename($this->parts[0]), 'path' => '', 'unlock' => '']);
+        self::assertStringContainsString('is encrypted', $without->body);
+        self::assertStringContainsString('Choose the backup', $without->body, 'it stays on the first page');
+
+        $stranger = AgeKeys::generate();
+        $wrong = $client->post(['action' => 'choose-backup', 'choice' => basename($this->parts[0]), 'path' => '', 'unlock' => $stranger['secret']]);
+        self::assertStringContainsString('Choose the backup', $wrong->body);
+        self::assertStringNotContainsString($stranger['secret'], $wrong->body, 'what was typed is never shown again');
+
+        $typo = $client->post(['action' => 'choose-backup', 'choice' => basename($this->parts[0]), 'path' => '', 'unlock' => 'AGE-SECRET-KEY-1NOTAKEY']);
+        self::assertStringContainsString('Choose the backup', $typo->body);
+
+        $right = $client->post(['action' => 'choose-backup', 'choice' => basename($this->parts[0]), 'path' => '', 'unlock' => $pair['secret']]);
+        self::assertStringContainsString('Requirements', $right->body);
+        self::assertStringContainsString('4 files', $right->body);
+    }
+
+    public function testAnEncryptedSiteIsRestoredAndNeitherTheSessionNorTheRunKeepsTheKey(): void
+    {
+        $pair = AgeKeys::generate();
+        $this->upload($pair['public']);
+        $this->key();
+        $root = $this->base . '/restored';
+        $client = $this->loggedIn();
+        $client->post(['action' => 'choose-backup', 'choice' => basename($this->parts[0]), 'path' => '', 'unlock' => $pair['secret']]);
+        $client->post(['action' => 'save-target', 'root' => $root]);
+        self::assertStringContainsString('Restore now', $client->get(['step' => 'summary'])->body);
+
+        $client->post(['action' => 'start']);
+        for ($tick = 1; $tick <= 300; ++$tick) {
+            $answer = json_decode($client->post(['action' => 'tick', 'format' => 'json'])->body, true);
+            self::assertContains($answer['status'], ['running', 'finished'], (string) json_encode($answer));
+            if ($answer['status'] === 'finished') {
+                break;
+            }
+        }
+
+        self::assertSame('finished', $answer['status']);
+        self::assertSame('<?php echo 1;', file_get_contents($root . '/index.php'));
+        $files = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($this->web, \FilesystemIterator::SKIP_DOTS));
+        foreach ($files as $file) {
+            if ($file->isFile() && !str_ends_with($file->getFilename(), '.age')) {
+                self::assertStringNotContainsString($pair['secret'], (string) file_get_contents($file->getPathname()), 'the secret key is in no file of the tool: ' . $file->getPathname());
+            }
+        }
+
+        $client->post(['action' => 'cleanup', 'archives' => '1']);
+        foreach ($this->parts as $part) {
+            self::assertFileDoesNotExist($part, 'the encrypted parts are deleted on request, too');
+            self::assertFileDoesNotExist(preg_replace('/(-p\d+)?\.zip\.age$/', '.json', $part) ?? $part);
+        }
     }
 }

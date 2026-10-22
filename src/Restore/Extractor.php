@@ -8,6 +8,8 @@ use ThreadSafe\Archive\Entry;
 use ThreadSafe\Archive\ZipException;
 use ThreadSafe\Archive\ZipFormat;
 use ThreadSafe\Archive\ZipReader;
+use ThreadSafe\Crypto\CryptoException;
+use ThreadSafe\Crypto\Unlock;
 use ThreadSafe\Engine\Budget;
 use ThreadSafe\Engine\TickOutcome;
 
@@ -52,24 +54,32 @@ final class Extractor
         if ($parts === []) {
             throw new ExtractException('There is no archive part to extract.');
         }
+        try {
+            $unlock = Unlock::fromArray($parameters['unlock'] ?? null);
+        } catch (CryptoException $e) {
+            throw new ExtractException($e->getMessage(), 0, $e);
+        }
         $entries = 0;
         $total = 0;
         foreach ($parts as $path) {
             try {
-                $reader = ZipReader::open($path);
+                $reader = Parts::open($path, $unlock);
                 $entries += $reader->count();
                 foreach ($reader->entries() as $entry) {
                     if (!$entry->isDirectory && (str_starts_with($entry->name, 'files/') || str_starts_with($entry->name, 'db/'))) {
                         $total += $entry->size;
                     }
                 }
-            } catch (ZipException $e) {
+            } catch (ZipException | CryptoException $e) {
                 throw new ExtractException('Cannot read the archive part: ' . $e->getMessage(), 0, $e);
+            } finally {
+                Parts::releaseAll();
             }
         }
 
         return [
             'parts' => $parts,
+            'unlock' => $unlock?->toArray(),
             'root' => rtrim((string) ($parameters['root'] ?? ''), '/\\'),
             'database' => rtrim((string) ($parameters['database'] ?? ''), '/\\'),
             'protected' => array_values(array_map(static fn (mixed $p): string => trim((string) $p, '/'), (array) ($parameters['protected'] ?? []))),
@@ -98,11 +108,16 @@ final class Extractor
         /** @var list<string> $parts */
         $parts = $state['parts'];
         $run = new ExtractRun($state);
+        try {
+            $unlock = Unlock::fromArray($state['unlock'] ?? null);
+        } catch (CryptoException $e) {
+            throw new ExtractException($e->getMessage(), 0, $e);
+        }
 
         $work = 0;
         while ($run->part < count($parts) && ($work === 0 || !$budget->exhausted())) {
             try {
-                $reader = ZipReader::open($parts[$run->part]);
+                $reader = Parts::open($parts[$run->part], $unlock);
                 $finishedPart = true;
                 foreach ($reader->entries($run->index, $run->position) as $entry) {
                     if ($work > 0 && $budget->exhausted()) {
@@ -120,8 +135,10 @@ final class Extractor
                     ++$run->index;
                     $run->position = $entry->nextRecord;
                 }
-            } catch (ZipException $e) {
+            } catch (ZipException | CryptoException $e) {
                 throw new ExtractException($run->describe('Cannot extract') . ': ' . $e->getMessage() . ' The target is in a partial state.', 0, $e);
+            } finally {
+                Parts::releaseAll();
             }
             if ($finishedPart) {
                 ++$run->part;

@@ -40,7 +40,7 @@ If the host runs an older PHP, the tool says so (`This restore tool needs PHP 8.
 | Step | What you do | What the tool checks |
 |---|---|---|
 | **Key** | Type the key. | The key is compared in constant time. After three wrong keys within 15 minutes each further attempt has to wait 5 seconds, doubling up to 5 minutes; every failure is logged in `.threadsafe-restore/access.log`. Over plain `http` from another machine you must confirm that the key and later the database password cross the network unencrypted - use `https` where you can. A session ends after two idle hours. |
-| **Choose the backup** | Pick the backup found next to the tool, or give the path of any one of its parts. | All parts are there and belong together; the manifest is readable. A missing part is named. |
+| **Choose the backup** | Pick the backup found next to the tool, or give the path of any one of its parts. For an **encrypted** backup (`.zip.age`, listed as such) also enter its **secret key** (the line `AGE-SECRET-KEY-1...` of the key file) or the **passphrase** it was made for. | All parts are there and belong together; the manifest is readable. A missing part is named. For an encrypted backup the key must open the last part; if it does not, or PHP has no `sodium` extension, the page says so and stays here. |
 | **Requirements** | Read what the server offers. | PHP version and extensions, write permission, free space, `max_execution_time`, `memory_limit`, `open_basedir`. |
 | **Where to restore** | The directory (by default the one of the tool), host, port, name, user and password of the **empty** database, the table prefix (by default the one of the backup), and the fields of the website type: for PrestaShop the new domain (required), a new base path, SSL mode (none / login / all), production or dev mode and a mail catcher for dev mode; for `generic` an old and a new domain, both optional. "Test the connection" shows what the database holds. Two options: let placeholder files of the web server (`.htaccess`, `index.html` ...) stay in the directory; check the restored site over HTTP at the end (**off by default**: the new domain often does not reach this server yet). | Nothing yet. |
 | **Summary** | Read it. | Everything that can be checked before writing (section 6). Problems are listed with the way out and block the start. **Nothing has been written up to here.** |
@@ -56,7 +56,7 @@ php bin/threadsafe restore <the same> --yes                                     
 php bin/threadsafe restore --resume=restore-20261021-104511-1f2e3d4c                                   # after an interruption or a failure
 ```
 
-The archive is **any one part** of the backup. Without `--yes` the command shows what the backup is, what it would do and every check with its result, and changes nothing. The password never goes on the command line: `--db-password-file`, or the environment variable `THREADSAFE_DB_PASSWORD`.
+The archive is **any one part** of the backup (for an encrypted backup a `.zip.age` file; add `--identity-file=KEYFILE` or `--passphrase-file=FILE`, or set `THREADSAFE_PASSPHRASE`; see section 12). Without `--yes` the command shows what the backup is, what it would do and every check with its result, and changes nothing. The password never goes on the command line: `--db-password-file`, or the environment variable `THREADSAFE_DB_PASSWORD`.
 
 | Option | Meaning |
 |---|---|
@@ -135,7 +135,7 @@ The state of a run is a file in the data directory (`runs/`, mode 0600); it hold
 - Directory modification times are not restored; stored functions and procedures are not backed up; symbolic links are not backed up.
 - The self-test of the wizard cannot be told which address the web server answers on (`--self-test-url` exists only on the command line).
 - The state directory is closed by an `.htaccess`, which only Apache and compatible servers read. Where the web server is another one, the mode 0700 and the key protect it; add a rule to your server configuration (`location ~ /\.threadsafe-restore { deny all; }` for nginx).
-- No encryption of the backup yet (phase 5), no download or restore from the web interface (phase 4).
+- **Encrypted backups** are restored (section 12) but need `ext-sodium`, and a backup for a passphrase costs about three seconds of key derivation in each step of a restore, on a small host a noticeable share of a request. A backup that the real `age` tool sealed with its own, larger work factor for a passphrase may need more memory than the wizard has (the message names it): open it with `age -d` or on the command line with a higher `memory_limit`.
 
 ## 10. Without any tool
 
@@ -148,3 +148,13 @@ tests/stack/run.sh        # five phases incl. disaster recovery: the target stac
 tests/stack/cross.sh      # a backup from MySQL onto MariaDB (refused) and from MariaDB onto MySQL
 composer check            # lint, PHPStan, unit tests, and the unit tests again against the bundle that restore.php is made of
 ```
+
+## 12. Encrypted backups
+
+A backup that was made for public keys, or for a passphrase, consists of `<id>.zip.age` (or `<id>-p01.zip.age` ...) files: standard files of the [age](https://age-encryption.org/) format around the ZIP parts ([BACKUP.md](BACKUP.md) section 5). Only the **secret key** that belongs to one of the public keys, or the **passphrase**, opens them - the server that made the backup does not have it, and nobody can make it again.
+
+- **Command line:** `php restore.php restore shop_..._p01.zip.age --root=DIR --identity-file=key.txt ...` (the key file of `keys generate` or `age-keygen`), or `--passphrase-file=FILE` / `THREADSAFE_PASSPHRASE` for a passphrase. The key is never an option value. Without it the command says that the backup is encrypted and stops; with a key that does not fit it says so with the name of the part.
+- **Wizard:** the field *Secret key or passphrase* on the page where the backup is chosen. The wizard keeps it in its private session file for the one step, then in the state of the run (mode 0600, like the database password) **until the files are unpacked**, and blanks it there; the connection carries it, so the confirmation of plain `http` applies to it too.
+- **How it is read:** the parts are not decrypted to disk. The ZIP reader reads each part through a decrypting stream, one 64 KiB block at a time, every block authenticated: a part that was changed or cut stops the restore with a message instead of producing wrong files. So the free space needed is the same as for a plain backup.
+- **The target PHP needs `ext-sodium`** (part of PHP 8.4 builds; the message names the extension when it is missing). Without it, or for a very large passphrase work factor, decrypt the parts on another machine (`age -d -i key.txt -o part.zip part.zip.age`) and restore the `.zip` files.
+- A failed run keeps its state, including the key if the extraction had not finished; it is a file of mode 0600 in the state directory, removed by **Delete the tool now** (wizard) or by the command when the run succeeds. After a failure you do not want to continue, delete it (`.threadsafe-restore/`, or `<data>/runs/`).

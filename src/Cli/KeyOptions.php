@@ -8,6 +8,7 @@ use ThreadSafe\Crypto\AgeKeys;
 use ThreadSafe\Crypto\CryptoException;
 use ThreadSafe\Crypto\Identity;
 use ThreadSafe\Crypto\PassphraseIdentity;
+use ThreadSafe\Crypto\Unlock;
 use ThreadSafe\Crypto\X25519Identity;
 
 /**
@@ -48,6 +49,25 @@ final class KeyOptions
         $fromEnvironment = getenv('THREADSAFE_PASSPHRASE');
 
         return is_string($fromEnvironment) && $fromEnvironment !== '' ? [new PassphraseIdentity($fromEnvironment)] : null;
+    }
+
+    /**
+     * What opens an encrypted backup in a restore, as data that the run can keep: the secret keys of `--identity-file` or the passphrase.
+     *
+     * @throws UsageError both options are given, or a file cannot be read
+     * @throws CryptoException the file holds no key
+     */
+    public static function unlock(Input $input): ?Unlock
+    {
+        if ($input->has('identity-file') && $input->has('passphrase-file')) {
+            throw new UsageError('Give --identity-file or --passphrase-file, not both.');
+        }
+        if ($input->has('identity-file')) {
+            return Unlock::keys(AgeKeys::secretKeysIn(self::read((string) $input->value('identity-file'))));
+        }
+        $passphrase = self::passphrase($input);
+
+        return $passphrase === null ? null : Unlock::passphrase($passphrase);
     }
 
     /**

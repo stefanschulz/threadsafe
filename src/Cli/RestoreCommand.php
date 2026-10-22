@@ -10,6 +10,7 @@ use ThreadSafe\Core\ExitCode;
 use ThreadSafe\Core\Paths;
 use ThreadSafe\Core\Report;
 use ThreadSafe\Core\Step;
+use ThreadSafe\Crypto\CryptoException;
 use ThreadSafe\Engine\Budget;
 use ThreadSafe\Engine\EngineException;
 use ThreadSafe\Engine\Executor;
@@ -77,6 +78,7 @@ final class RestoreCommand implements Command
             new OptionSpec('db-port', 'Database port (default 3306)', takesValue: true, valueName: 'PORT'),
             new OptionSpec('db-name', 'Name of the empty database (it must exist)', takesValue: true, valueName: 'NAME'),
             new OptionSpec('db-user', 'Database user', takesValue: true, valueName: 'USER'),
+            ...KeyOptions::specs('restore'),
             new OptionSpec('db-password-file', 'File containing the database password (or set THREADSAFE_DB_PASSWORD)', takesValue: true, valueName: 'FILE'),
             new OptionSpec('db-driver', 'PHP interface to the database: auto (default), pdo or mysqli', takesValue: true, valueName: 'DRIVER'),
             new OptionSpec('prefix', 'Table prefix (default: the one of the backup)', takesValue: true, valueName: 'PREFIX'),
@@ -137,7 +139,12 @@ final class RestoreCommand implements Command
         }
         $root = $input->value('root') ?? throw new UsageError('Say where to restore to: --root=DIR.');
 
-        $source = BackupSource::open($archive);
+        try {
+            $unlock = KeyOptions::unlock($input);
+        } catch (CryptoException $e) {
+            throw new UsageError($e->getMessage(), 0, $e);
+        }
+        $source = BackupSource::open($archive, $unlock);
         $typeId = $input->value('type') ?? $source->manifest->type;
         try {
             $type = $this->plugins()->get($typeId);
@@ -147,6 +154,7 @@ final class RestoreCommand implements Command
 
         $parameters = [
             'archive' => $source->parts[0],
+            'unlock' => $unlock?->toArray(),
             'root' => self::absolute($root),
             'type' => $input->value('type'),
             'allowLeftovers' => $input->has('allow-leftovers'),

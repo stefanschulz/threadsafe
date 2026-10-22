@@ -21,6 +21,8 @@ use ThreadSafe\Engine\RunStore;
 use ThreadSafe\Plugin\PluginError;
 use ThreadSafe\Plugin\PluginRegistry;
 use ThreadSafe\Plugin\Restorable;
+use ThreadSafe\Crypto\CryptoException;
+use ThreadSafe\Crypto\Unlock;
 use ThreadSafe\Restore\BackupSource;
 use ThreadSafe\Restore\Check;
 use ThreadSafe\Restore\Field;
@@ -125,7 +127,7 @@ final class Wizard
     private function loginPage(Request $request, string $error = ''): Response
     {
         $warning = $this->plainHttp($request)
-            ? '<p class="box fail"><strong>This connection is not encrypted.</strong> The key, and later the database password, cross the network in clear text. Use https if the host offers it; otherwise confirm below that you accept this.</p><label><input type="checkbox" name="plain" value="1"> I understand and accept this.</label>'
+            ? '<p class="box fail"><strong>This connection is not encrypted.</strong> The key, and later the database password and the secret key or passphrase of an encrypted backup, cross the network in clear text. Use https if the host offers it; otherwise confirm below that you accept this.</p><label><input type="checkbox" name="plain" value="1"> I understand and accept this.</label>'
             : '';
 
         return $this->page('Access key', ($error !== '' ? '<p class="fail">' . Html::e($error) . '</p>' : '')
@@ -208,8 +210,8 @@ final class Wizard
             return null;
         }
         try {
-            return BackupSource::open($session['archive']);
-        } catch (RestoreException) {
+            return BackupSource::open($session['archive'], Unlock::fromArray($session['unlock'] ?? null));
+        } catch (RestoreException | CryptoException) {
             return null;
         }
     }
@@ -227,19 +229,21 @@ final class Wizard
         $found = [];
         foreach (scandir($this->baseDirectory) ?: [] as $file) {
             $info = BackupName::fromFile($file);
-            if ($info !== null && $info['extension'] === 'zip') {
+            if ($info !== null && in_array($info['extension'], ['zip', 'zip.age'], true)) {
                 $found[$info['name']->base()][] = $file;
             }
         }
         $list = '';
         foreach ($found as $base => $files) {
             sort($files);
-            $list .= '<label><input type="radio" name="choice" value="' . Html::e($files[0]) . '"> ' . Html::e($base) . ' <span class="help">(' . count($files) . ' file' . (count($files) === 1 ? '' : 's') . ')</span></label>';
+            $list .= '<label><input type="radio" name="choice" value="' . Html::e($files[0]) . '"> ' . Html::e($base) . ' <span class="help">(' . count($files) . ' file' . (count($files) === 1 ? '' : 's') . (str_ends_with($files[0], '.age') ? ', encrypted' : '') . ')</span></label>';
         }
         $body = ($error !== '' ? '<p class="fail">' . Html::e($error) . '</p>' : '')
-            . '<p>Which backup do you want to restore? Upload all its parts (<code>.zip</code> files) next to <code>' . Html::e($this->script) . '</code>, or name where they are.</p>'
+            . '<p>Which backup do you want to restore? Upload all its parts (<code>.zip</code> files, or <code>.zip.age</code> if it is encrypted) next to <code>' . Html::e($this->script) . '</code>, or name where they are.</p>'
             . ($list !== '' ? '<div class="box"><strong>Found next to the tool:</strong>' . $list . '</div>' : '<p class="help">No backup found next to the tool.</p>')
             . '<label for="path">Or the path of any part of the backup</label><input id="path" type="text" name="path" value="' . Html::e((string) ($session['archive'] ?? '')) . '">'
+            . '<label for="unlock">Secret key or passphrase (only for an encrypted backup)</label><input id="unlock" type="password" name="unlock" autocomplete="off">'
+            . '<p class="help">The line <code>AGE-SECRET-KEY-1...</code> of the key file, or the passphrase. It is kept in a private file of this tool until the files are unpacked, then blanked. Without it an encrypted backup cannot be opened by anyone.</p>'
             . '<button>Look at this backup</button>';
 
         return $this->page('Choose the backup', $this->form('<input type="hidden" name="action" value="choose-backup">' . $body, (string) $session['csrf']), 200, 'backup');
@@ -256,12 +260,15 @@ final class Wizard
         }
         $path = preg_match('~^(/|[A-Za-z]:[\\\\/])~', $given) === 1 ? $given : rtrim($this->baseDirectory, '/\\') . '/' . $given;
         try {
-            $source = BackupSource::open($path);
+            $typed = trim((string) $request->post('unlock'));
+            $unlock = $typed !== '' ? Unlock::fromText((string) $request->post('unlock')) : Unlock::fromArray($session['unlock'] ?? null);
+            $source = BackupSource::open($path, $unlock);
             $this->plugins->restorable($source->manifest->type);
-        } catch (RestoreException | PluginError $e) {
+        } catch (RestoreException | PluginError | CryptoException $e) {
             return $this->backupPage($session, $e->getMessage());
         }
         $session['archive'] = $source->parts[0];
+        $session['unlock'] = $source->unlock?->toArray();
         unset($session['values'], $session['runId']);
         $this->sessions->save($token, $session);
 
@@ -488,6 +495,7 @@ final class Wizard
 
         return [
             'archive' => $source->parts[0],
+            'unlock' => $source->unlock?->toArray(),
             'root' => rtrim($root, '/\\'),
             'work' => $this->stateDirectory,
             'journalDirectory' => $this->stateDirectory . '/journal',
@@ -559,6 +567,7 @@ final class Wizard
         }
         $run = $this->store()->create($task->id(), $state);
         $session['runId'] = $run->id;
+        unset($session['unlock']);   // the run has it now, until the files are unpacked
         $this->sessions->save($token, $session);
 
         return Response::redirect('?step=run');
@@ -745,7 +754,7 @@ JS;
             . ($warnings !== '' ? '<p>Please read:</p><ul>' . $warnings . '</ul>' : '')
             . ($steps !== '' ? '<details><summary>What the adaptation did</summary><table>' . $steps . '</table></details>' : '')
             . '<h3>Remove the tool</h3><p><strong>Do this now.</strong> This tool can unpack a backup into this directory for anyone who has the key. It deletes <code>' . Html::e($this->script) . '</code>, the key file and its own state (the journal, the run).</p>'
-            . $this->form('<label><input type="checkbox" name="archives" value="1">Also delete the backup files (<code>.zip</code>) next to the tool</label><button name="action" value="cleanup">Delete the tool now</button>', (string) $session['csrf']);
+            . $this->form('<label><input type="checkbox" name="archives" value="1">Also delete the backup files (<code>.zip</code> or <code>.zip.age</code>) next to the tool</label><button name="action" value="cleanup">Delete the tool now</button>', (string) $session['csrf']);
 
         return $this->page('Done', $body, 200, 'done');
     }
@@ -765,7 +774,7 @@ JS;
             foreach ((array) ($run->state['parts'] ?? []) as $part) {
                 if (is_string($part) && dirname($part) === $base) {
                     $files[] = $part;
-                    $sidecar = preg_replace('/(-p\d+)?\.zip$/', '.json', $part);
+                    $sidecar = preg_replace('/(-p\d+)?\.zip(\.age)?$/', '.json', $part);
                     if (is_string($sidecar)) {
                         $files[] = $sidecar;
                     }

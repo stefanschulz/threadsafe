@@ -6,8 +6,8 @@ namespace ThreadSafe\Restore;
 
 use Closure;
 use ThreadSafe\Archive\ZipException;
-use ThreadSafe\Archive\ZipReader;
 use ThreadSafe\Backup\Manifest;
+use ThreadSafe\Crypto\CryptoException;
 use ThreadSafe\Database\Connection;
 use ThreadSafe\Database\ConnectionFailed;
 use ThreadSafe\Database\DatabaseError;
@@ -249,14 +249,16 @@ final class Preflight
     {
         try {
             foreach ($source->parts as $part) {
-                foreach (ZipReader::open($part)->entries() as $entry) {
+                foreach (Parts::open($part, $source->unlock)->entries() as $entry) {
                     if ($entry->name === 'db/_views.sql' || $entry->name === 'db/_triggers.sql') {
                         return 'the backup contains views or triggers, which name tables';
                     }
                 }
             }
-        } catch (ZipException) {
+        } catch (ZipException | CryptoException) {
             return null;    // the extraction will say what is wrong with the part
+        } finally {
+            Parts::releaseAll();
         }
 
         return null;

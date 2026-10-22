@@ -63,14 +63,14 @@ final class RestoreController
             . '<li><strong>Get the tool and a key.</strong> ' . $this->tools($context) . '</li>'
             . '<li><strong>Upload</strong> <code>restore.php</code>, <code>restore-key.php</code> and ' . (count($entry->sidecar->parts) === 1 ? 'the archive' : 'all ' . count($entry->sidecar->parts) . ' parts of the backup') . ' into the (empty) directory of the new site on the target server.'
             . ' <a href="' . Html::e($context->urls->to("/profiles/$profileId/backups/$base/download")) . '">Download the backup</a>, or copy it from the storage directory by SFTP.</li>'
-            . '<li><strong>Open</strong> <code>restore.php</code> in the browser of the target server and enter the key.</li>'
+            . '<li><strong>Open</strong> <code>restore.php</code> in the browser of the target server and enter the key.' . ($entry->sidecar->encryption !== null ? ' The backup is <strong>encrypted</strong>: on the page where you choose the backup, enter its <strong>secret key</strong> (the line <code>AGE-SECRET-KEY-1...</code> of the key file)' . ($entry->sidecar->encryption['passphrase'] ? ' or the <strong>passphrase</strong> you gave when you made it' : '') . '. This server does not have it, and without it nobody can open the backup. The target PHP needs the <code>sodium</code> extension.' : '') . '</li>'
             . '<li><strong>Answer the questions</strong> (the new address, the new database) and let it run. It checks the target first and refuses to write into a directory or a database that is not empty.</li></ol>'
             . '<h2>The parts to upload</h2><div class="scroll"><table><thead><tr><th>File</th><th>Size</th><th>SHA-256</th></tr></thead><tbody>' . $parts . '</tbody></table></div>'
             . '<h2>What the target needs</h2><ul>'
             . '<li>PHP 8.4 or newer with <code>zlib</code>' . ($manifest->counts['tables'] > 0 ? ' and <code>pdo_mysql</code> or <code>mysqli</code>' : '') . '.</li>'
             . ($manifest->counts['tables'] > 0 ? '<li>An <strong>empty database</strong> and a user who may use it. The restore does not create it.</li>' : '')
             . '<li>An <strong>empty directory</strong> as the web root of the new site, with room for about ' . Html::e(SpaceCheck::format((int) ceil(($manifest->counts['fileBytes'] + $manifest->counts['databaseBytes']) * 1.1))) . '.</li></ul>'
-            . '<p class="hint">With shell access the same restore runs on the command line: <code>php restore.php restore ARCHIVE --root=DIR ...</code> (no key needed). See docs/RESTORE.md for everything it checks and what to do when it refuses.</p>'
+            . '<p class="hint">With shell access the same restore runs on the command line: <code>php restore.php restore ARCHIVE --root=DIR ...</code> (no key needed' . ($entry->sidecar->encryption !== null ? ' for the tool; the encrypted backup needs <code>--identity-file=KEYFILE</code> or <code>--passphrase-file=FILE</code>' : '') . '). See docs/RESTORE.md for everything it checks and what to do when it refuses.</p>'
             . '<p><a href="' . Html::e($context->urls->to("/profiles/$profileId/backups/$base")) . '">Back to the backup</a></p>';
 
         return View::page($context, 'Restore ' . $base, $body, '/profiles');

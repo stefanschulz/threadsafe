@@ -177,6 +177,8 @@ The page of a backup has **How to restore it**: the four steps (get the tool and
 - **Download restore.php**: the single-file tool, built from this installation (about 230 KB, the same for every backup and every website type; kept in `data/cache/` so that the second request is instant).
 - **Download restore-key.php with a new key** (or *Show a new key instead*): a PHP file that returns a new random key. The key is **not stored** on this server; keep it until the restore is done and delete the file afterwards. Without that file next to it, `restore.php` does nothing.
 
+For an **encrypted** backup the help says so: the wizard asks, on its first page, for the backup's **secret key** (or the passphrase it was made for), which this server does not have, and the target PHP needs the `sodium` extension. The size of `restore.php` is about 275 KB with the decryption in it.
+
 What `restore.php` then does, what it checks and refuses, and how to read its messages: [RESTORE.md](RESTORE.md).
 
 ### The System page

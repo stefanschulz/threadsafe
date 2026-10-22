@@ -13,6 +13,8 @@ use ThreadSafe\Core\FileJournal;
 use ThreadSafe\Core\NullLogger;
 use ThreadSafe\Core\Step;
 use ThreadSafe\Core\TickedRunner;
+use ThreadSafe\Crypto\CryptoException;
+use ThreadSafe\Crypto\Unlock;
 use ThreadSafe\Database\Connection;
 use ThreadSafe\Database\ConnectionFailed;
 use ThreadSafe\Database\DatabaseSettings;
@@ -37,10 +39,11 @@ use ThreadSafe\Web\StateDirectory;
  * Parameters ({@see initialState()}): `archive` (any part of the backup), `root` (target directory), `settings` (the request
  * settings of the website type, see {@see \ThreadSafe\Migration\RequestBuilder}, without `root`; `database` holds the target
  * database, the password included), `type` (override the website type of the backup), `allowLeftovers`, `work` (default
- * `<root>/.threadsafe-restore`), `journalDirectory` (default `<work>/journal`), `protected` (paths below the root that are
+ * `<root>/.threadsafe-restore`), `unlock` (what opens an encrypted backup: {@see Unlock::toArray()}), `journalDirectory` (default `<work>/journal`), `protected` (paths below the root that are
  * never written: default `restore.php`, `restore-key.php`, the work directory).
  *
- * The state holds the database password until the last tick, which blanks it: the file the {@see \ThreadSafe\Engine\RunStore} writes
+ * The state holds the secret key or passphrase of an encrypted backup until the extraction is done and the database password until the last
+ * tick, which blanks it: the file the {@see \ThreadSafe\Engine\RunStore} writes
  * is private (mode 0600) and the caller deletes it when the run is finished.
  */
 final class RestoreRun implements Task
@@ -76,11 +79,17 @@ final class RestoreRun implements Task
         if (isset($settings['database']) && is_array($settings['database'])) {
             $settings['database'] = self::resolvePassword($settings['database']);
         }
+        try {
+            $unlock = Unlock::fromArray($parameters['unlock'] ?? null);
+        } catch (CryptoException $e) {
+            throw new RestoreException($e->getMessage(), ExitCode::Usage, $e);
+        }
         $work = rtrim((string) ($parameters['work'] ?? $root . '/.threadsafe-restore'), '/\\');
 
         return [
             'phase' => 'preflight',
             'archive' => $archive,
+            'unlock' => $unlock?->toArray(),
             'root' => $root,
             'work' => $work,
             'journalDirectory' => rtrim((string) ($parameters['journalDirectory'] ?? $work . '/journal'), '/\\'),
@@ -110,7 +119,12 @@ final class RestoreRun implements Task
      */
     public function inspect(array $state): Inspection
     {
-        $source = BackupSource::open((string) $state['archive']);
+        try {
+            $unlock = Unlock::fromArray($state['unlock'] ?? null);
+        } catch (CryptoException $e) {
+            throw new RestoreException($e->getMessage(), ExitCode::GuardFailed, $e);
+        }
+        $source = BackupSource::open((string) $state['archive'], $unlock);
         $manifest = $source->manifest;
         $typeId = is_string($state['type'] ?? null) ? $state['type'] : $manifest->type;
         try {
@@ -202,6 +216,7 @@ final class RestoreRun implements Task
         try {
             $extract = (new Extractor())->initialState([
                 'parts' => $inspection->source->parts,
+                'unlock' => $state['unlock'] ?? null,
                 'root' => $state['root'],
                 'database' => $work . '/db',
                 'protected' => $inspection->protected,
@@ -244,6 +259,9 @@ final class RestoreRun implements Task
         foreach ((array) $outcome->state['warnings'] as $warning) {
             $state['warnings'][] = 'Extraction: ' . $warning;
         }
+        // the archive is read; nothing after this needs the key, so the state does not keep it
+        $state['unlock'] = null;
+        $state['extract']['unlock'] = null;
 
         $manifest = $state['manifest'];
         $hasDump = (int) ($manifest['counts']['tables'] ?? 0) > 0 && is_dir($state['work'] . '/db');
