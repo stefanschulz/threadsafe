@@ -322,7 +322,7 @@ final class ProfilePagesTest extends TestCase
         $this->create();
 
         $dashboard = $this->browser->get('/');
-        self::assertStringContainsString('<strong>1</strong> site profile', $dashboard->body);
+        self::assertStringContainsString('<strong>1</strong> site &middot;', $dashboard->body);
         self::assertStringContainsString('href="/profiles"', $dashboard->body);
     }
 }

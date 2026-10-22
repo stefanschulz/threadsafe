@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace ThreadSafe\Admin;
 
 use ThreadSafe\Core\Version;
+use ThreadSafe\Profile\Check;
 use ThreadSafe\Profile\TestReport;
 use ThreadSafe\Web\Html;
 use ThreadSafe\Web\Response;
@@ -18,7 +19,7 @@ use ThreadSafe\Web\Response;
 final class View
 {
     /** The entries of the navigation: route => label. Later work packages add theirs. */
-    private const array NAVIGATION = ['/' => 'Dashboard', '/profiles' => 'Profiles'];
+    private const array NAVIGATION = ['/' => 'Dashboard', '/profiles' => 'Profiles', '/system' => 'System'];
 
     /**
      * A page for a logged-in user.
@@ -111,14 +112,7 @@ final class View
      */
     public static function report(TestReport $report): string
     {
-        $labels = ['ok' => 'OK', 'info' => 'Info', 'warning' => 'Warning', 'failure' => 'Failed'];
-        $html = '<ul class="checks">';
-        foreach ($report->checks as $check) {
-            $html .= '<li class="' . Html::e($check->level->value) . '"><strong>' . Html::e($labels[$check->level->value]) . '</strong> '
-                . Html::e($check->subject) . ': ' . Html::e($check->message) . '</li>';
-        }
-
-        return $html . '</ul><p class="' . ($report->passed() ? 'flash ok' : 'flash error') . '">'
+        return self::checks($report->checks) . '<p class="' . ($report->passed() ? 'flash ok' : 'flash error') . '">'
             . ($report->passed() ? 'The profile can be backed up.' : 'The profile cannot be backed up as it is.') . '</p>';
     }
 
@@ -127,6 +121,62 @@ final class View
     {
         return new Response($status, ['Content-Type: text/html; charset=utf-8'], '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>' . Html::e($title) . ' - ThreadSafe</title>'
             . '<meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex"></head><body><h1>' . Html::e($title) . '</h1><p>' . Html::e($message) . '</p></body></html>');
+    }
+
+    /**
+     * A list of checks; the level is written out, not only coloured.
+     *
+     * @param list<Check> $checks
+     */
+    public static function checks(array $checks): string
+    {
+        $labels = ['ok' => 'OK', 'info' => 'Info', 'warning' => 'Warning', 'failure' => 'Failed'];
+        $html = '<ul class="checks">';
+        foreach ($checks as $check) {
+            $html .= '<li class="' . Html::e($check->level->value) . '"><strong>' . Html::e($labels[$check->level->value]) . '</strong> '
+                . Html::e($check->subject) . ': ' . Html::e($check->message) . '</li>';
+        }
+
+        return $html . '</ul>';
+    }
+
+    /**
+     * The entries of the audit log as a table.
+     *
+     * @param list<array<string, mixed>> $entries
+     */
+    public static function audit(array $entries): string
+    {
+        if ($entries === []) {
+            return '<p class="hint">Nothing yet.</p>';
+        }
+        $rows = '';
+        foreach ($entries as $entry) {
+            $detail = [];
+            foreach (array_diff_key($entry, ['time' => 1, 'event' => 1, 'user' => 1, 'address' => 1]) as $name => $value) {
+                $detail[] = $name . ': ' . (is_bool($value) ? ($value ? 'yes' : 'no') : (is_scalar($value) ? (string) $value : ''));
+            }
+            $time = Html::e((string) ($entry['time'] ?? ''));
+            $rows .= '<tr><td><time datetime="' . $time . '">' . $time . '</time></td><td>' . Html::e((string) ($entry['event'] ?? '')) . '</td><td>' . Html::e((string) ($entry['user'] ?? ''))
+                . '</td><td>' . Html::e(implode(', ', $detail)) . '</td></tr>';
+        }
+
+        return '<div class="scroll"><table><thead><tr><th>Time</th><th>Event</th><th>User</th><th>Details</th></tr></thead><tbody>' . $rows . '</tbody></table></div>';
+    }
+
+    /** "3 days ago", "5 minutes ago". */
+    public static function age(int $seconds): string
+    {
+        $seconds = max(0, $seconds);
+        foreach ([['day', 86400], ['hour', 3600], ['minute', 60]] as [$unit, $size]) {
+            if ($seconds >= $size) {
+                $n = intdiv($seconds, $size);
+
+                return $n . ' ' . $unit . ($n === 1 ? '' : 's') . ' ago';
+            }
+        }
+
+        return 'just now';
     }
 
     private static function hintText(string $hint): string

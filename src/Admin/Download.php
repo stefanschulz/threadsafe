@@ -26,8 +26,9 @@ final class Download
      * @param string                                           $accel       "none", "sendfile" (X-Sendfile) or "nginx" (X-Accel-Redirect)
      * @param string                                           $accelPrefix for "nginx": the internal location; the full path of the file is appended
      * @param Closure(string, array<string, scalar|null>): void $report      told when the sending starts and ends (event, details)
+     * @param string                                           $contentType the media type of the file
      */
-    public static function response(Request $request, string $path, string $filename, string $etag, string $accel = 'none', string $accelPrefix = '', ?Closure $report = null): Response
+    public static function response(Request $request, string $path, string $filename, string $etag, string $accel = 'none', string $accelPrefix = '', ?Closure $report = null, string $contentType = 'application/zip'): Response
     {
         $size = is_file($path) ? (int) filesize($path) : -1;
         if ($size < 0 || preg_match('/^[A-Za-z0-9._-]+$/', $filename) !== 1) {
@@ -36,7 +37,7 @@ final class Download
 
         $modified = gmdate('D, d M Y H:i:s', (int) filemtime($path)) . ' GMT';
         $headers = [
-            'Content-Type: application/zip',
+            'Content-Type: ' . $contentType,
             'Content-Disposition: attachment; filename="' . $filename . '"',
             'Accept-Ranges: bytes',
             'ETag: "' . $etag . '"',

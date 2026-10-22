@@ -146,3 +146,24 @@ progress { width: 100%; height: 1.25rem; accent-color: var(--accent); }
 ul.plain { margin: 0; padding-left: 1.1rem; }
 .box h2 { margin-top: 0; }
 .inline-check { display: inline-block; margin-left: 0.75rem; font-weight: 400; }
+/* dashboard cards and the system page */
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(19rem, 1fr)); gap: 1rem; margin: 1rem 0; }
+.card { padding: 0.8rem 1rem; background: var(--surface); border: 1px solid var(--border); border-left-width: 5px; border-radius: var(--radius); }
+.card.ok { border-left-color: var(--ok); }
+.card.warning { border-left-color: var(--warning); }
+.card.problem { border-left-color: var(--error); }
+.card header { display: flex; justify-content: space-between; align-items: baseline; gap: 0.5rem; }
+.card h3 { margin: 0; font-size: 1.1rem; }
+.card p { margin: 0.35rem 0; }
+.badge { padding: 0.1rem 0.5rem; font-size: 0.8rem; font-weight: 600; border: 1px solid currentColor; border-radius: 1rem; white-space: nowrap; }
+.badge.ok { color: var(--ok); }
+.badge.warning { color: var(--warning); }
+.badge.problem { color: var(--error); }
+ul.warnings { margin: 0.4rem 0; padding-left: 1.1rem; font-size: 0.92rem; }
+ul.warnings li.problem strong { color: var(--error); }
+ul.warnings li.warning strong { color: var(--warning); }
+.result.ok { color: var(--ok); }
+.result.bad { color: var(--error); font-weight: 700; }
+.result.warn { color: var(--warning); }
+ol.steps { padding-left: 1.3rem; }
+ol.steps li { margin: 0.6rem 0; }

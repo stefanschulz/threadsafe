@@ -106,6 +106,7 @@ final class CatalogController
         $actions = '<a href="' . Html::e($context->urls->to("/profiles/$profileId/backups/$base")) . '">Details</a>';
         if ($entry->condition !== BackupEntry::UNFINISHED && $entry->condition !== BackupEntry::UNKNOWN) {
             $actions .= ' <a href="' . Html::e($context->urls->to("/profiles/$profileId/backups/$base/download")) . '">Download</a>';
+            $actions .= ' <a href="' . Html::e($context->urls->to("/profiles/$profileId/backups/$base/restore-help")) . '">Restore</a>';
             $actions .= ' ' . View::form($context, "/profiles/$profileId/backups/$base/verify", '<button type="submit" class="link">Check</button>', 'inline');
         }
 
@@ -129,6 +130,7 @@ final class CatalogController
         $body = '<div class="actions">';
         if ($entry->condition !== BackupEntry::UNFINISHED && $entry->condition !== BackupEntry::UNKNOWN) {
             $body .= '<a class="button" href="' . Html::e($context->urls->to("/profiles/$profileId/backups/$base/download")) . '">Download</a> '
+                . '<a class="button secondary" href="' . Html::e($context->urls->to("/profiles/$profileId/backups/$base/restore-help")) . '">How to restore it</a> '
                 . View::form($context, "/profiles/$profileId/backups/$base/verify", '<button type="submit">Check that it is intact</button>', 'inline');
         }
         $body .= ' <a class="button danger" href="' . Html::e($context->urls->to("/profiles/$profileId/backups/$base/delete")) . '">Delete</a>'

@@ -97,6 +97,8 @@ final class Kernel
         $backups = new BackupController($services);
         $catalog = new CatalogController($services);
         $download = new DownloadController($services);
+        $restore = new RestoreController($services);
+        $system = new SystemController($services);
         $router = new Router();
         $router->add('GET', '/login', $auth->loginPage(...), public: true);
         $router->add('POST', '/login', $auth->login(...), public: true);
@@ -119,6 +121,11 @@ final class Kernel
         $router->add('GET', '/profiles/{id}/backups/{name}/download', $download->dialog(...));
         $router->add('POST', '/profiles/{id}/backups/{name}/download', $download->issue(...));
         $router->add('GET', '/download/{hex}/{name}', $download->file(...));
+        $router->add('GET', '/profiles/{id}/backups/{name}/restore-help', $restore->help(...));
+        $router->add('GET', '/restore-php', $restore->tool(...));
+        $router->add('POST', '/restore-key', $restore->key(...));
+        $router->add('GET', '/system', $system->index(...));
+        $router->add('POST', '/system/settings', $system->save(...));
         $router->add('GET', '/checks/{run}', $catalog->showCheck(...));
         $router->add('POST', '/checks/{run}/tick', $catalog->tickCheck(...));
         $router->add('POST', '/checks/{run}/continue', $catalog->nextCheck(...));

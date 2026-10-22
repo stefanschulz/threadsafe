@@ -64,6 +64,23 @@
     again(200);
   }
 
+  // The System page: is the data directory served by the web server? <li data-probe="/x/data/probe.txt" data-expect="..."> asks the
+  // browser for the file; the content coming back means that anyone could fetch it, a refusal or a 404 is what is wanted.
+  document.querySelectorAll('[data-probe]').forEach(function (item) {
+    var result = item.querySelector('.result');
+    var say = function (text, kind) { if (result) { result.textContent = text; result.className = 'result ' + kind; } };
+    fetch(item.getAttribute('data-probe'), { cache: 'no-store', credentials: 'omit' })
+      .then(function (response) {
+        if (!response.ok) { say('not reachable (HTTP ' + response.status + ')', 'ok'); return null; }
+        return response.text();
+      })
+      .then(function (text) {
+        if (text === null) { return; }
+        if (text.indexOf(item.getAttribute('data-expect')) !== -1) { say('REACHABLE FROM OUTSIDE: anyone can fetch the files in the data directory. Close it at once.', 'bad'); } else { say('answers, but not with the probe file (nothing of the data directory is served here)', 'ok'); }
+      })
+      .catch(function () { say('could not be tested', 'warn'); });
+  });
+
   // <form data-confirm="Delete this backup?"> asks first
   document.addEventListener('submit', function (event) {
     var form = event.target;
