@@ -1,6 +1,6 @@
 # Backups – reference
 
-How ThreadSafe backs up a site from the command line: the profile file, the commands, what a backup consists of, how to check it and how to take it apart with ordinary tools when nothing else is at hand. For the design and the reasons see [PHASE2.md](PHASE2.md); for what to do with a backup afterwards see [MIGRATE.md](MIGRATE.md) (`threadsafe migrate`). Restoring from the backup in one step (`restore.php`, `threadsafe restore`) is described in [RESTORE.md](RESTORE.md); the manual way is in section 8.
+How ThreadSafe backs up a site from the command line (the web interface, [WEB.md](WEB.md), runs the same engine and reads the same files): the profile file, the commands, what a backup consists of, how to check it and how to take it apart with ordinary tools when nothing else is at hand. For the design and the reasons see [PHASE2.md](PHASE2.md); for what to do with a backup afterwards see [MIGRATE.md](MIGRATE.md) (`threadsafe migrate`). Restoring from the backup in one step (`restore.php`, `threadsafe restore`) is described in [RESTORE.md](RESTORE.md); the manual way is in section 8.
 
 ## 1. Quick start
 

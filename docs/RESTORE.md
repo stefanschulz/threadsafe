@@ -13,6 +13,8 @@ What the host needs: **PHP 8.4 or newer** with `zlib`, `mbstring` and `json`, an
 
 ## 2. Quick start: on a host without ThreadSafe (`restore.php`)
 
+(If you run the web interface, the page of a backup has **How to restore it**: it builds `restore.php` from your installation and makes a new `restore-key.php` for you - [WEB.md](WEB.md). Otherwise build them as below.)
+
 You need three things next to each other in the (empty) web directory of the new site: the tool, a key file and the backup.
 
 ```bash

@@ -8,6 +8,7 @@ Status: phase 1 (the restore core) is implemented: `threadsafe migrate prestasho
 - Concept: [docs/CONCEPT.md](docs/CONCEPT.md)
 - Phase 1 plan (restore core): [docs/PHASE1.md](docs/PHASE1.md)
 - Backups: profile file, commands, archive layout, manifest, taking a backup apart with plain tools: [docs/BACKUP.md](docs/BACKUP.md)
+- The web interface (installing it, switching it on, using it, security, settings): [docs/WEB.md](docs/WEB.md); how it was built: [docs/PHASE4.md](docs/PHASE4.md)
 - Restoring a backup (`restore.php`, `threadsafe restore`): [docs/RESTORE.md](docs/RESTORE.md); the design and what was built: [docs/PHASE3.md](docs/PHASE3.md)
 - Phase 2 plan (site profiles and backup engine): [docs/PHASE2.md](docs/PHASE2.md)
 - Phase 1b (MariaDB and MySQL, selectable driver, website type plugins): [docs/PHASE1B.md](docs/PHASE1B.md)
@@ -69,6 +70,18 @@ the backup, the database and the new address, and restores in steps that fit the
 `max_execution_time=5`). At the end it deletes itself, the key and its state; the backup stays. In a shell the same file is the
 command: `php restore.php restore <archive> --root=DIR ...` (no key needed). PHP 8.4 with `zlib`, `mbstring` and `pdo_mysql` or
 `mysqli` is all it needs; on an older PHP it says so and stops.
+
+## Usage: the web interface
+
+The same things in a browser - all sites at a glance, profiles, backups with a progress bar, check, download, and the tools to restore - are in the web interface. It is **off until you switch it on**, and its document root is `public/`:
+
+```bash
+composer install --no-dev
+php bin/threadsafe admin password     # the one administrator
+php bin/threadsafe admin enable
+```
+
+Then point the web server at `public/` (Apache needs `mod_rewrite`; an nginx rule is in the documentation) and log in, over https. Where there is no shell: put a `data/setup-key.php` (`<?php return 'a secret';`) in place and set the password in the browser. A backup made in the browser is made in steps that fit the PHP time limit, can be continued after a closed page, and reads the database table by table; the command line stays the way for anything that must be exact and automated. Installing, every page, the settings, the security measures and what to do when something does not work: [docs/WEB.md](docs/WEB.md).
 
 ## Usage: migrate a restored PrestaShop 9 copy
 

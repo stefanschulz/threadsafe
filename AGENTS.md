@@ -2,7 +2,7 @@
 
 For anyone - person or coding agent - who continues work on this project without having followed its history. Read this
 first, then [docs/CONCEPT.md](docs/CONCEPT.md) (what and why) and the plan of the last finished phase
-([docs/PHASE3.md](docs/PHASE3.md)); the next phase is planned in [docs/PHASE4.md](docs/PHASE4.md).
+([docs/PHASE4.md](docs/PHASE4.md)); phase 5 has no plan yet.
 
 ## What this is
 
@@ -17,7 +17,7 @@ application automatically. First target: **PrestaShop 9.x**; MariaDB and MySQL; 
 | 1, 1b | Restore core: `threadsafe migrate <type>`, dev mode, module rules, self-test; database drivers; website type plugins | done |
 | 2 | Site profiles and backup engine (CLI) | done (work packages in [docs/PHASE2.md](docs/PHASE2.md) section 5; user documentation [docs/BACKUP.md](docs/BACKUP.md)) |
 | 3 | `restore.php` (extractor and wizard) | done (plan and "As built" in [docs/PHASE3.md](docs/PHASE3.md); user documentation [docs/RESTORE.md](docs/RESTORE.md)); milestone A: `threadsafe restore`, milestone B: the single file `dist/restore.php` with the wizard; disaster recovery proven on the Docker stack |
-| 4 | Web interface (dashboard, download) | **planned**: [docs/PHASE4.md](docs/PHASE4.md), decisions settled; work packages 1 (spikes), 2 (foundations: login, setup, `threadsafe admin`) and 3 (profile pages) and 4 (backup run in the browser, `BackupService`) and 5 (backup overview, check, delete: `CatalogService`, `VerifyRun`) and 6 (download) and 7 (dashboard cards, System page, restore help) and 8 (integration tests: service `web`, phase 4b of `run.sh`) done, 9 (documentation `docs/WEB.md`) is next |
+| 4 | Web interface (dashboard, download) | done (plan and "As built" in [docs/PHASE4.md](docs/PHASE4.md); user documentation [docs/WEB.md](docs/WEB.md)); login and setup, profiles, backups in steps with progress, check, delete, download, dashboard and System page, restore help; proven against a real Apache with 5 s / 64 MB limits on all three database servers (phase 4b of `run.sh`) |
 | 5 | One trigger cron, retention, encryption | not started |
 
 Each finished work package has an **"As built"** paragraph in `docs/PHASE2.md` (what exists, where it differs from the plan,
@@ -113,19 +113,27 @@ Oracles are real tools where possible: `unzip -t`, the `mariadb` client, `CHECKS
 
 ## Next steps
 
-Phases 1, 1b, 2 and 3 are done and proven: `threadsafe migrate`, `profile`, `backup`, `backups`, `verify` and `restore` work end to
-end, and the single file `restore.php` (`php tools/build-restore.php`) restores a backup behind a web server on a host where
-nothing else is installed. The disaster recovery test (`tests/stack/run.sh`, phase 5) destroys the target stack, makes it again
-empty and brings the shop back through the wizard; `tests/stack/matrix.sh` does all of it on MariaDB 10.11, MySQL 8.4 and
-MariaDB 11.8, `tests/stack/cross.sh` between the two kinds of server. The references are `docs/BACKUP.md`, `docs/RESTORE.md` and
-`docs/MIGRATE.md`.
+Phases 1, 1b, 2, 3 and 4 are done and proven: `threadsafe migrate`, `profile`, `backup`, `backups`, `verify`, `restore` and `admin` work end to
+end, the single file `restore.php` (`php tools/build-restore.php`) restores a backup behind a web server on a host where nothing
+else is installed, and the web interface (`public/`, switched on with `admin enable`) does profiles, backups in steps, checks,
+downloads and the restore help in a browser. `tests/stack/run.sh` is the whole proof: baseline and migration, dev mode, the backup
+round trip, the web interface behind a real Apache with limits of 5 s and 64 MB (phase 4b), and the disaster recovery (phase 5, which
+destroys the target stack and brings the shop back through the wizard); `tests/stack/matrix.sh` does all of it on MariaDB 10.11, MySQL
+8.4 and MariaDB 11.8, `tests/stack/cross.sh` between the two kinds of server. The references are `docs/BACKUP.md`, `docs/RESTORE.md`,
+`docs/WEB.md` and `docs/MIGRATE.md`.
 
-**Phase 4, the web interface** (login, dashboard, profile management, backup overview, manual backup with progress, download -
-`docs/CONCEPT.md` section 5) comes next. The plan is `docs/PHASE4.md` (all twelve decisions settled with the owner on 2026-10-21; work packages 1
-(spikes, findings in section 8), 2 (foundations), 3 (profiles), 4 (backup run), 5 (overview, check, delete), 6 (download), 7 (dashboard, system, restore help) and 8 (integration tests) are done, then 9). The engine (ticks, `RunStore`, `Executor`, `Lock`),
-the wizard classes in `src/Web` (`Request`, `Response`, `Html`, sessions, CSRF, the key file) and `Budget::forThisProcess()` are
-there to build on.
+**Phase 5** (one trigger cron job with the schedule inside, retention, archive encryption - `docs/CONCEPT.md` sections 5.6 and 8) comes
+next and needs a plan first, `docs/PHASE5.md`, the way phases 2 to 4 had one: decisions with the owner, spikes for the risky parts, work
+packages with "As built" paragraphs. Building blocks that are there: `BackupService` (a run in ticks, the rule for active and
+interrupted runs: a web run is active while its last tick is recent), `Executor`/`RunStore`/`Lock`, `Overview` (where "next run" and the
+heartbeat of the trigger would show), `Config` and the System page (where its settings would go), `Postproc` (for remote storage).
 
+Open items for the owner (not blocking): the two runs on the **live host** that the spikes could not do - the download of a few hundred MB
+through its FastCGI (`tools/spikes/web-download.php`, PHASE4.md section 8, finding 1) and `tools/spikes/host-probe.php` for the password
+hashing there; a **private test with a real backup** of the live shop (`docs/BACKUP.md` section 10); the web-server modes `X-Sendfile` /
+`X-Accel-Redirect` and the nginx rule in `docs/WEB.md` have never met a web server. Small gaps of the interface: the sidecar keeps no
+date of the last check, the list has no column for the kind of backup, the key and the command of the download page have no "copy"
+button, and the language is English only.
 Known gaps that the owner may want to turn into work (all listed in `docs/RESTORE.md` section 9): restoring **over** an existing
 installation with a rollback (left out of phase 3 on purpose); a MySQL 8 backup onto MariaDB (refused because of the collation
 `utf8mb4_0900_ai_ci`; mapping it while importing would be a feature); views and triggers whose `DEFINER` does not exist on the

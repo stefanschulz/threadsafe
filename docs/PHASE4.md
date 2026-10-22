@@ -1,6 +1,6 @@
 # Phase 4 – the web interface: manage sites and backups in a browser
 
-**Status:** **in progress** (2026-10-21): decisions settled, work packages 1-8 done, 9 (documentation `docs/WEB.md`, README, status) open. **Milestone C** (proven) is reached: the integration tests of work package 8 pass on MariaDB 10.11, MySQL 8.4 and MariaDB 11.8. Decisions 1-4 were settled with the owner on 2026-10-21 (only phase 4 in this plan; server-rendered HTML with a little script; one administrator with a password; a manual backup runs as ticks driven by the browser), decisions 5-12 were confirmed as proposed the same day (section 7). The findings of the spikes (work package 1, section 8) may still change the design; then the text is corrected together with the code.
+**Status:** **done** (2026-10-22): all nine work packages are built and tested; the user documentation is [WEB.md](WEB.md). Decisions settled with the owner on 2026-10-21. **Milestone C** (proven) is reached: the integration tests of work package 8 pass on MariaDB 10.11, MySQL 8.4 and MariaDB 11.8. Decisions 1-4 were settled with the owner on 2026-10-21 (only phase 4 in this plan; server-rendered HTML with a little script; one administrator with a password; a manual backup runs as ticks driven by the browser), decisions 5-12 were confirmed as proposed the same day (section 7). The findings of the spikes (work package 1, section 8) may still change the design; then the text is corrected together with the code.
 **Context:** [CONCEPT.md](CONCEPT.md) section 5 (profiles, dashboard, backup overview, download, backup run) and section 6 (security) are the requirements; [BACKUP.md](BACKUP.md) is the engine this phase puts a face on; [RESTORE.md](RESTORE.md) and [PHASE3.md](PHASE3.md) 3.9 are the web wizard whose patterns (key file, sessions, CSRF, CSP, ticks over HTTP) are reused. Facts about the code were read from the repository on 2026-10-21; items marked *(verify)* are what the first work package (spikes) has to confirm.
 
 ## 1. Goal and scope
@@ -227,7 +227,7 @@ Proof: `tests/stack/matrix.sh` - **phases 1 to 5 and the new phase 4b pass on Ma
 | 6 | **Done** (see "As built" in 3.6): **Download:** token, streaming with Range, warning dialog, multi-part, optional `X-Sendfile`/`X-Accel-Redirect` | 1a, 5 | M |
 | 7 | **Done** (see "As built" in 3.9): **Dashboard and system:** `Overview`, cards, warnings, totals, installation check, settings page, audit view, restore help and kit | 1d, 1f, 5, 6 | L |
 | 8 | **Done** (see "As built" in 4.2): **Integration:** the `web` service in the stack, the tests of 4.2 (journey, resume, concurrency, download, security, restore kit), matrix, the browser walk-through | 2-7 | L |
-| 9 | **Documentation:** `docs/WEB.md`, README, CONCEPT and AGENTS status, user hints in BACKUP.md and RESTORE.md | all | S |
+| 9 | **Done**: **Documentation:** `docs/WEB.md`, README, CONCEPT and AGENTS status, user hints in BACKUP.md and RESTORE.md | all | S |
 
 Suggested order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9. **Milestone A** (after 4): a backup can be started and followed in the browser. **Milestone B** (after 7): the interface is complete. **Milestone C** (after 8): proven and phase 4 is done. Work packages 3 and 4 touch the CLI commands; the CLI tests must stay green at the end of each.
 
