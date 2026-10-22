@@ -283,6 +283,6 @@ final class RetentionTest extends TestCase
 
         self::assertTrue($plan->blocked);
         self::assertSame([], $plan->delete);
-        self::assertStringContainsString('cannot be read', $plan->notes[0]);
+        self::assertStringContainsString('does not exist', $plan->notes[0]);
     }
 }

@@ -57,7 +57,11 @@ final class Retention
             return new RetentionPlan(notes: ['The profile has no retention rules.']);
         }
         $directory = $this->storage->directory();
-        if (!is_dir($directory) || !is_readable($directory) || @scandir($directory) === false) {
+        if (!is_dir($directory)) {
+            // a profile whose first backup has not been made, or a storage that is not mounted: either way nothing is deleted
+            return new RetentionPlan(notes: ['The storage directory does not exist (yet; the first backup makes it), so there is nothing to delete.'], blocked: true);
+        }
+        if (!is_readable($directory) || @scandir($directory) === false) {
             return new RetentionPlan(notes: ['The storage directory cannot be read, so nothing is deleted.'], blocked: true);
         }
 

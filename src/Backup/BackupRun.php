@@ -112,8 +112,12 @@ final class BackupRun implements Task
         $context = $this->context($s);
 
         if ($s->phase === BackupState::INIT) {
-            $context = $this->init($s, $context);
+            $this->init($s, $context);
             $s->phase = BackupState::SCAN;
+
+            // the tick ends here: the name of the backup and its work directory are in the saved state from now on, so a run that dies later
+            // (a host that kills a long process) is continued into the same backup, and abandon() finds what it left
+            return new TickOutcome($s->toArray(), false, $this->progress($s));
         }
         if ($s->phase === BackupState::SCAN && $this->scan($s, $context, $budget)) {
             $this->checkSpace($s, $context);
@@ -216,7 +220,7 @@ final class BackupRun implements Task
 
     // ---------------------------------------------------------------------------------------------- init
 
-    private function init(BackupState $s, BackupContext $context): BackupContext
+    private function init(BackupState $s, BackupContext $context): void
     {
         $profile = $context->resolved->profile;
         $report = (new ConnectionTest($this->plugins, $this->dataDirectory))->run($profile);
@@ -243,8 +247,6 @@ final class BackupRun implements Task
         if ($context->encrypted() && !is_dir($context->plainDirectory()) && !@mkdir($context->plainDirectory(), 0700)) {
             throw new StepFailed('Cannot create the work directory "' . $context->plainDirectory() . '".');
         }
-
-        return $context;
     }
 
     // ---------------------------------------------------------------------------------------------- scan

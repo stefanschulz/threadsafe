@@ -15,6 +15,10 @@
 #   6b. phase 4b: the web interface (group "web-ui", service `web`: Apache with the document root on public/, limits of 5 seconds and 64 MB): setup in the
 #      browser, a backup in many steps, check, download with resume, a run that is continued, two requests at once, security, and the restore
 #      kit from the page restoring the web backup onto the target through the wizard. It leaves the target restored, as phase 4 does.
+#   6c. phase 4c: the trigger on real backups (group "trigger"): `threadsafe cron` makes the due backup in one snapshot and a second call does nothing, the address /cron/<secret> of the
+#      service `web` makes it by ticks (5 s / 64 MB) or through a detached worker, a trigger killed in the middle is continued; retention on real backups (a pinned and a faulty one stay).
+#   6d. phase 4d: encrypted backups (group "encryption"): the seeded shop backed up for a key pair, opened by the real `age` tool, restored by `threadsafe restore --identity-file`
+#      and through the wizard under 5 s / 64 MB with the key typed in; a passphrase backup opens with `age`. It wipes the target stack, like phase 4.
 #   7. phase five: disaster recovery (groups "disaster-prepare" and "disaster-restore"): the working target shop is backed up, the
 #      target's containers and volumes are DESTROYED and made again empty on the same address, restore.php is uploaded into the
 #      empty web directory and the wizard (served by the target's own Apache, with limits of 5 seconds and 64 MB) brings the shop
@@ -32,7 +36,7 @@ phpunit() {
 }
 
 log "Integration tests, phase 1: baseline, steps, migration of the clone"
-phpunit --exclude-group after-migration --exclude-group dev-migration --exclude-group backup-roundtrip --exclude-group disaster-prepare --exclude-group disaster-restore --exclude-group cross-server --exclude-group restore-variant --exclude-group web-ui "$@"
+phpunit --exclude-group after-migration --exclude-group dev-migration --exclude-group backup-roundtrip --exclude-group disaster-prepare --exclude-group disaster-restore --exclude-group cross-server --exclude-group restore-variant --exclude-group web-ui --exclude-group trigger --exclude-group encryption "$@"
 
 "$STACK_DIR/oracle.sh" target
 
@@ -52,6 +56,12 @@ log "Integration tests, phase 4b: the web interface of ThreadSafe (Apache, 5 s /
 dc up -d web >/dev/null
 wait_http "http://localhost:${WEB_PORT:-8390}/" "localhost" 120
 phpunit --group web-ui "$@"
+
+log "Integration tests, phase 4c: the trigger (command, address by ticks and by a detached worker, a killed trigger) and retention on real backups"
+phpunit --group trigger "$@"
+
+log "Integration tests, phase 4d: encrypted backups opened by the real age tool, restored by the command and through the wizard (5 s / 64 MB)"
+phpunit --group encryption "$@"
 
 log "Integration tests, phase 5: disaster recovery"
 phpunit --group disaster-prepare "$@"

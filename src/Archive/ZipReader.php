@@ -54,7 +54,7 @@ final class ZipReader
 
         $tailLength = min($size, self::TAIL);
         fseek($handle, $size - $tailLength);
-        $tail = (string) fread($handle, $tailLength);
+        $tail = self::readFully($handle, $tailLength);
         $signature = pack('V', ZipFormat::END_RECORD);
         $position = false;
         for ($candidate = strlen($tail) - 22; $candidate >= 0; --$candidate) {
@@ -84,13 +84,13 @@ final class ZipReader
         if ($entries === ZipFormat::MAX_16 || $directorySize === ZipFormat::MAX_32 || $directoryOffset === ZipFormat::MAX_32) {
             $locatorAt = $size - $tailLength + $position - 20;
             fseek($handle, $locatorAt);
-            $locator = $locatorAt >= 0 ? unpack('Vsig/Vdisk/Poffset/Vdisks', (string) fread($handle, 20)) : false;
+            $locator = $locatorAt >= 0 ? unpack('Vsig/Vdisk/Poffset/Vdisks', self::readFully($handle, 20)) : false;
             if ($locator === false || $locator['sig'] !== ZipFormat::END_LOCATOR64 || $locator['offset'] < 0 || $locator['offset'] > $size - 56) {
                 fclose($handle);
                 throw new ZipException("\"$path\": the ZIP64 end record is missing or damaged.");
             }
             fseek($handle, $locator['offset']);
-            $end64 = unpack('Vsig/Psize/vmadeBy/vneeded/Vdisk/VcdDisk/PentriesDisk/Pentries/PcdSize/PcdOffset', (string) fread($handle, 56));
+            $end64 = unpack('Vsig/Psize/vmadeBy/vneeded/Vdisk/VcdDisk/PentriesDisk/Pentries/PcdSize/PcdOffset', self::readFully($handle, 56));
             if ($end64 === false || $end64['sig'] !== ZipFormat::END_RECORD64) {
                 fclose($handle);
                 throw new ZipException("\"$path\": the ZIP64 end record is damaged.");
@@ -137,7 +137,7 @@ final class ZipReader
             fseek($directory, $this->directoryOffset + $position);
             $consumed = $position;
             for ($index = $from; $index < $this->entryCount; ++$index) {
-                $fixed = (string) fread($directory, 46);
+                $fixed = self::readFully($directory, 46);
                 $r = strlen($fixed) === 46 ? unpack('Vsig/vmadeBy/vneeded/vflags/vmethod/vtime/vdate/Vcrc/Vcompressed/Vsize/vnameLength/vextraLength/vcommentLength/vdisk/vinternal/Vexternal/Voffset', $fixed) : false;
                 if ($r === false || $r['sig'] !== ZipFormat::CENTRAL_HEADER) {
                     throw new ZipException("\"{$this->path}\": central directory record " . ($index + 1) . ' is damaged.');
@@ -147,7 +147,7 @@ final class ZipReader
                 if ($consumed > $this->directorySize) {
                     throw new ZipException("\"{$this->path}\": the central directory is longer than its size says.");
                 }
-                $rest = $variable > 0 ? (string) fread($directory, $variable) : '';
+                $rest = $variable > 0 ? self::readFully($directory, $variable) : '';
                 if (strlen($rest) !== $variable) {
                     throw new ZipException("\"{$this->path}\": central directory record " . ($index + 1) . ' is cut off.');
                 }
@@ -397,12 +397,12 @@ final class ZipReader
     public function dataOffset(Entry $entry): int
     {
         fseek($this->handle, $entry->localOffset);
-        $header = (string) fread($this->handle, 30);
+        $header = self::readFully($this->handle, 30);
         $local = strlen($header) === 30 ? unpack('Vsig/vneeded/vflags/vmethod/vtime/vdate/Vcrc/Vcompressed/Vsize/vnameLength/vextraLength', $header) : false;
         if ($local === false || $local['sig'] !== ZipFormat::LOCAL_HEADER) {
             throw new ZipException("\"{$entry->name}\": its local header is missing or damaged.");
         }
-        if ((string) fread($this->handle, $local['nameLength']) !== $entry->name) {
+        if (self::readFully($this->handle, $local['nameLength']) !== $entry->name) {
             throw new ZipException("\"{$entry->name}\": the local header names another file.");
         }
         $offset = $entry->localOffset + 30 + $local['nameLength'] + $local['extraLength'];
@@ -422,13 +422,28 @@ final class ZipReader
         if ($handle === false) {
             throw new ZipException("Cannot open \"$path\".");
         }
-        if (stream_get_meta_data($handle)['wrapper_type'] !== 'plainfile') {
-            // a stream of a wrapper (an encrypted part read through its decrypting stream) hands out at most one chunk, 8 KiB by default,
-            // per fread(); the tail of an archive is read in one piece
-            stream_set_chunk_size($handle, 1048576);
+        return $handle;
+    }
+
+    /**
+     * Reads $length bytes, or as many as there are. A stream of a wrapper (an encrypted part read through its decrypting stream) hands out
+     * at most one chunk, 8 KiB by default, per fread(), so a read of a piece that must come whole asks again; the chunk size is left
+     * alone, because a larger one makes every seek followed by a small read fill the buffer with a megabyte (and decrypt it).
+     *
+     * @param resource $handle
+     */
+    private static function readFully($handle, int $length): string
+    {
+        $data = '';
+        while ($length > strlen($data)) {
+            $piece = fread($handle, max(1, $length - strlen($data)));
+            if ($piece === false || $piece === '') {
+                break;
+            }
+            $data .= $piece;
         }
 
-        return $handle;
+        return $data;
     }
 
     private static function printable(string $name): string

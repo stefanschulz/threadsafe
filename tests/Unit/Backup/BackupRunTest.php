@@ -114,7 +114,7 @@ final class BackupRunTest extends TestCase
         $run = $executor->execute($executor->start(['profile' => 'blog', 'snapshot' => true])->id);
 
         $result = $this->finishedResult($run);
-        self::assertSame(1, $run->ticks, 'An unlimited budget does everything in one tick.');
+        self::assertSame(2, $run->ticks, 'The first tick only names the backup and prepares its work directory; an unlimited budget does everything else in one tick.');
         self::assertSame('none', $result['consistency']);
         $hasLink = is_link($this->site . '/link.php');
         self::assertSame($hasLink ? BackupStatus::OkWithWarnings->value : BackupStatus::Ok->value, $result['status'], 'The symbolic link is a warning.');

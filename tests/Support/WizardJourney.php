@@ -14,10 +14,11 @@ final class WizardJourney
 {
     /**
      * @param array<string, string> $target the fields of the target form (root, db_...)
+     * @param string|null           $unlock the secret key or passphrase typed on the first page, for an encrypted backup
      *
      * @return array{done: array{status: int, headers: array<string, string>, body: string}, ticks: int}
      */
-    public static function restore(WebWizard $wizard, string $key, array $target): array
+    public static function restore(WebWizard $wizard, string $key, array $target, ?string $unlock = null): array
     {
         $page = $wizard->request('GET', '/');
         Assert::assertSame(200, $page['status']);
@@ -33,7 +34,7 @@ final class WizardJourney
         if (preg_match('/name="choice" value="([^"]+)"/', $backup['body'], $m) !== 1) {
             Assert::fail('The backup is not offered.');
         }
-        $requirements = $wizard->follow($wizard->request('POST', '/', ['action' => 'choose-backup', 'choice' => $m[1], 'path' => '', 'csrf' => $wizard->csrf()]));
+        $requirements = $wizard->follow($wizard->request('POST', '/', ['action' => 'choose-backup', 'choice' => $m[1], 'path' => '', 'csrf' => $wizard->csrf()] + ($unlock === null ? [] : ['unlock' => $unlock])));
         Assert::assertStringContainsString('What this server offers', $requirements['body']);
 
         if (isset($target['db_host'])) {

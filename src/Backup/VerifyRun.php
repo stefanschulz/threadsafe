@@ -127,7 +127,7 @@ final class VerifyRun implements Task
 
         if ($s->full && $sidecar->encryption !== null && $this->identities === null) {
             $s->full = false;
-            $s->notes[] = 'This backup is encrypted: a full check reads it through its key or passphrase, which are not given here, so only the sizes and SHA-256 sums of the parts were checked (verify <profile> --identity-file=FILE does the full check).';
+            $s->notes[] = 'This backup is encrypted: a full check reads it through its key or passphrase, which are not given here, so only the sizes and SHA-256 sums of the parts were checked (verify <profile> --identity-file=FILE, or --passphrase-file=FILE for a backup made for a passphrase, does the full check).';
         }
         $s->partCount = count($sidecar->parts);
         $s->total = 0;

@@ -101,7 +101,7 @@ final class CatalogController
         }
         $for = $e['recipients'] === [] ? '' : 'for ' . count($e['recipients']) . ' public key' . (count($e['recipients']) === 1 ? '' : 's') . ' (' . implode(', ', $e['recipients']) . ')';
 
-        return 'format age: ' . ($e['passphrase'] ? 'for a passphrase only' : $for) . '; only the key opens it, the server cannot';
+        return 'format age: ' . ($e['passphrase'] ? 'for a passphrase only; only the passphrase opens it' : $for . '; only the matching secret key opens it') . ', the server cannot';
     }
 
     private function statusWord(BackupEntry $entry): string

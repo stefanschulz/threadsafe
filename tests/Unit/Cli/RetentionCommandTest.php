@@ -124,14 +124,14 @@ final class RetentionCommandTest extends TestCase
         self::assertStringContainsString('has no retention rules', $err);
     }
 
-    public function testAStorageThatCannotBeReadIsRefused(): void
+    public function testAStorageThatIsNotThereIsRefused(): void
     {
         $this->fixture->profiles->save($this->fixture->profiles->load('blog')->with(['retention' => ['keep' => 1], 'storage' => $this->fixture->storageDirectory . '-gone']));
 
         [$code, , $err] = $this->cli(['retention', 'blog']);
 
         self::assertSame(2, $code);
-        self::assertStringContainsString('cannot be read', $err);
+        self::assertStringContainsString('does not exist', $err);
     }
 
     public function testAManualBackupAppliesTheRulesAfterwardsAndRecordsThatItWasManual(): void

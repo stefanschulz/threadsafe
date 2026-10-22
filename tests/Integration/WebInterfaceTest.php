@@ -359,7 +359,9 @@ final class WebInterfaceTest extends IntegrationTestCase
         self::assertSame("/runs/$run", $second['headers']['location'], 'the person is led to the running backup');
         self::assertStringContainsString('One backup at a time', $ui->get("/runs/$run")['body']);
 
-        // two ticks at the same moment: one works, the other is told to wait
+        // the first tick only names the backup and is over at once; the second does the work, and two of them at the same moment: one works, the other is told to wait
+        $first = $ui->tick("/runs/$run/tick");
+        self::assertSame('running', $first['status']);
         $answers = $ui->parallel([['POST', "/runs/$run/tick", [], ['X-CSRF-Token' => $ui->csrf]], ['POST', "/runs/$run/tick", [], ['X-CSRF-Token' => $ui->csrf]]], 0.2);
         $statuses = array_map(static fn (array $a): string => (string) (json_decode($a['body'], true)['status'] ?? $a['status']), $answers);
         sort($statuses);

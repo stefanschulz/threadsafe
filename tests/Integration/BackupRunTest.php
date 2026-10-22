@@ -210,6 +210,7 @@ final class BackupRunTest extends IntegrationTestCase
         self::assertInstanceOf(BackupName::class, $name);
         self::assertSame($name->base(), (new LocalStorage($this->storage))->readSidecar($name)->manifest->backupId);
 
+        sleep(1);   // a name has the time to the second: the split backup must be the newer one, whatever the random part says
         [$code, $stdout, $stderr] = $run(['backup', 'shop', '--tick-seconds=0', '--part-size=1M']);
         self::assertSame(0, $code, $stdout . $stderr);
         self::assertStringContainsString('table by table', $stdout);
@@ -221,7 +222,7 @@ final class BackupRunTest extends IntegrationTestCase
         self::assertSame(0, $code, $stdout . $stderr);
         self::assertStringContainsString('is intact (full check', $stdout);
 
-        // the first backup, the one in one piece (both were made within a second, so the order of the names is not the order of the backups)
+        // the first backup, the one in one piece
         $archive = array_values(array_filter(glob($this->storage . '/shop_*.zip') ?: [], static fn (string $f): bool => preg_match('/-p[0-9]+\.zip$/', $f) !== 1))[0] ?? null;
         self::assertNotNull($archive);
         $bytes = (string) file_get_contents($archive);
