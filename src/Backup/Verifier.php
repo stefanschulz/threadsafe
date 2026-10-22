@@ -24,13 +24,16 @@ use ThreadSafe\Storage\LocalStorage;
  */
 final class Verifier
 {
-    public function __construct(private readonly LocalStorage $storage)
+    /**
+     * @param list<\ThreadSafe\Crypto\Identity>|null $identities the keys or passphrases for a full check of an encrypted backup
+     */
+    public function __construct(private readonly LocalStorage $storage, private readonly ?array $identities = null)
     {
     }
 
     public function verify(BackupName $name, bool $full = true): VerificationReport
     {
-        $task = new VerifyRun(fn (): LocalStorage => $this->storage);
+        $task = new VerifyRun(fn (): LocalStorage => $this->storage, $this->identities);
         $state = $task->initialState(['profile' => $name->profile, 'backup' => $name->base(), 'full' => $full]);
         do {
             $outcome = $task->tick($state, Budget::unlimited());

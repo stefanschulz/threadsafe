@@ -40,8 +40,7 @@ final class KeysCommand implements Command
     {
         return [
             new OptionSpec('output', 'generate, passphrase: write to this file (mode 0600, it must not exist) instead of the screen', takesValue: true, valueName: 'FILE'),
-            new OptionSpec('identity-file', 'check: a key file (as age-keygen makes it)', takesValue: true, valueName: 'FILE'),
-            new OptionSpec('passphrase-file', 'check: a file holding the passphrase (or set THREADSAFE_PASSPHRASE)', takesValue: true, valueName: 'FILE'),
+            ...KeyOptions::specs('check'),
         ];
     }
 
@@ -123,33 +122,7 @@ final class KeysCommand implements Command
      */
     private function identities(Input $input): array
     {
-        if ($input->has('identity-file') && $input->has('passphrase-file')) {
-            throw new UsageError('Give --identity-file or --passphrase-file, not both.');
-        }
-        if ($input->has('identity-file')) {
-            $content = $this->read((string) $input->value('identity-file'));
-
-            return array_map(static fn (string $key): Identity => new X25519Identity($key), AgeKeys::secretKeysIn($content));
-        }
-        if ($input->has('passphrase-file')) {
-            return [new PassphraseIdentity(rtrim($this->read((string) $input->value('passphrase-file')), "\r\n"))];
-        }
-        $fromEnvironment = getenv('THREADSAFE_PASSPHRASE');
-        if (is_string($fromEnvironment) && $fromEnvironment !== '') {
-            return [new PassphraseIdentity($fromEnvironment)];
-        }
-
-        throw new UsageError('Say what opens the file: --identity-file=FILE (a key file), --passphrase-file=FILE, or the environment variable THREADSAFE_PASSPHRASE.');
-    }
-
-    private function read(string $file): string
-    {
-        $content = is_file($file) ? @file_get_contents($file) : false;
-        if ($content === false) {
-            throw new UsageError("Cannot read \"$file\".");
-        }
-
-        return $content;
+        return KeyOptions::identities($input) ?? throw new UsageError('Say what opens the file: --identity-file=FILE (a key file), --passphrase-file=FILE, or the environment variable THREADSAFE_PASSPHRASE.');
     }
 
     /**

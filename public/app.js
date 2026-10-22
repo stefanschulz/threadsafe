@@ -1,7 +1,7 @@
 // ThreadSafe web interface. One file, no framework, no inline code (the content security policy allows only this file).
 // What it does: local time next to the UTC time, a confirmation before a form that asks for one, and the tick loop of a running
 // backup (a page with a [data-tick-url] element asks for one tick after the other and shows how far the run is).
-// The download dialog is added here by a later work package.
+// Also: copy, save and print buttons for keys, and a suggestion for a passphrase.
 (function () {
   'use strict';
 
@@ -79,6 +79,80 @@
         if (text.indexOf(item.getAttribute('data-expect')) !== -1) { say('REACHABLE FROM OUTSIDE: anyone can fetch the files in the data directory. Close it at once.', 'bad'); } else { say('answers, but not with the probe file (nothing of the data directory is served here)', 'ok'); }
       })
       .catch(function () { say('could not be tested', 'warn'); });
+  });
+
+  // Keys and passphrases (docs/PHASE5.md 3.5). <button data-copy="#id"> copies the text of that element (or the value of that field),
+  // <button data-save="#id" data-filename="..."> offers it as a file, <button data-print> prints the page (the print style shows only
+  // the key), <button data-suggest="#field" data-alphabet="..."> writes a new passphrase of five groups of four characters into the
+  // field. The randomness comes from the browser (crypto.getRandomValues); nothing is sent anywhere.
+  var textOf = function (selector) {
+    var element = document.querySelector(selector);
+    if (!element) { return ''; }
+    return typeof element.value === 'string' ? element.value : element.textContent;
+  };
+  var copyText = function (text, button) {
+    var done = function (ok) {
+      var old = button.getAttribute('data-label') || button.textContent;
+      button.setAttribute('data-label', old);
+      button.textContent = ok ? 'Copied' : 'Select it and copy by hand';
+      window.setTimeout(function () { button.textContent = old; }, 2000);
+    };
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(text).then(function () { done(true); }, function () { done(false); });
+      return;
+    }
+    var area = document.createElement('textarea');
+    area.value = text;
+    area.setAttribute('readonly', '');
+    area.style.position = 'fixed';
+    area.style.opacity = '0';
+    document.body.appendChild(area);
+    area.select();
+    var ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    document.body.removeChild(area);
+    done(ok);
+  };
+  var randomBelow = function (limit) {
+    var range = Math.floor(0x100000000 / limit) * limit;
+    var buffer = new Uint32Array(1);
+    do { window.crypto.getRandomValues(buffer); } while (buffer[0] >= range);
+    return buffer[0] % limit;
+  };
+  document.addEventListener('click', function (event) {
+    var button = event.target.closest ? event.target.closest('button') : null;
+    if (!button) { return; }
+    if (button.hasAttribute('data-copy')) {
+      event.preventDefault();
+      copyText(textOf(button.getAttribute('data-copy')), button);
+    } else if (button.hasAttribute('data-save')) {
+      event.preventDefault();
+      var blob = new Blob([textOf(button.getAttribute('data-save'))], { type: 'text/plain' });
+      var link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = button.getAttribute('data-filename') || 'key.txt';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.setTimeout(function () { URL.revokeObjectURL(link.href); }, 1000);
+    } else if (button.hasAttribute('data-print')) {
+      event.preventDefault();
+      window.print();
+    } else if (button.hasAttribute('data-suggest')) {
+      event.preventDefault();
+      var alphabet = button.getAttribute('data-alphabet') || '';
+      var field = document.querySelector(button.getAttribute('data-suggest'));
+      if (!field || alphabet.length < 2 || !window.crypto || !window.crypto.getRandomValues) { return; }
+      var groups = [];
+      for (var g = 0; g < 5; g += 1) {
+        var group = '';
+        for (var i = 0; i < 4; i += 1) { group += alphabet.charAt(randomBelow(alphabet.length)); }
+        groups.push(group);
+      }
+      field.value = groups.join('-');
+      field.focus();
+      field.select();
+    }
   });
 
   // <form data-confirm="Delete this backup?"> asks first

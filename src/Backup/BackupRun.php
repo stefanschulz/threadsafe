@@ -10,6 +10,11 @@ use InvalidArgumentException;
 use ThreadSafe\Core\Exception\GuardFailed;
 use ThreadSafe\Core\Exception\StepFailed;
 use ThreadSafe\Core\Version;
+use ThreadSafe\Crypto\CryptoException;
+use ThreadSafe\Crypto\Passphrases;
+use ThreadSafe\Crypto\Recipient;
+use ThreadSafe\Crypto\ScryptRecipient;
+use ThreadSafe\Crypto\X25519Recipient;
 use ThreadSafe\Database\Connection;
 use ThreadSafe\Database\DatabaseError;
 use ThreadSafe\Engine\Budget;
@@ -21,6 +26,7 @@ use ThreadSafe\Profile\ConnectionTest;
 use ThreadSafe\Profile\ProfileException;
 use ThreadSafe\Profile\ProfileResolver;
 use ThreadSafe\Profile\ProfileStore;
+use ThreadSafe\Profile\SiteProfile;
 use ThreadSafe\Storage\LocalPostproc;
 use ThreadSafe\Storage\LocalStorage;
 use ThreadSafe\Storage\SpaceCheck;
@@ -34,8 +40,14 @@ use ThreadSafe\Storage\SpaceCheck;
  * not finished when the budget runs out continues in the next tick; with an unlimited budget (the command line) one tick
  * does everything, which is what lets the database dump run inside one consistent snapshot.
  *
- * The state holds no secret: the profile is loaded from its store in every tick and must not change while the run lasts.
- * A run that fails is cleaned up by {@see abandon()}; one whose process dies is continued from its saved state.
+ * **Encrypted backups** (the profile has public keys, or the run has a passphrase; docs/PHASE5.md 3.5) write each part into the work
+ * directory and seal it into the `age` format (`<part>.zip.age`) as soon as it is closed, in ticks ({@see PartSealer}); the last part
+ * is closed in the phase **close** (with the manifest) and sealed in **seal**; the sidecar file is the minimal one.
+ *
+ * The state holds no secret, except for an encrypted backup: its file key (while a part is being sealed) and a passphrase typed for
+ * this run, both in the 0600 file of the run, blanked when the run is done. The profile is loaded from its store in every tick and
+ * must not change while the run lasts. A run that fails is cleaned up by {@see abandon()}; one whose process dies is continued from its
+ * saved state.
  */
 final class BackupRun implements Task
 {
@@ -81,6 +93,14 @@ final class BackupRun implements Task
 
         $state = new BackupState($profile, ($parameters['force'] ?? false) === true, ($parameters['snapshot'] ?? false) === true, $partSize, $compression);
         $state->web = ($parameters['web'] ?? false) === true;
+        $passphrase = $parameters['passphrase'] ?? '';
+        if (!is_string($passphrase)) {
+            throw new InvalidArgumentException('The passphrase must be text.');
+        }
+        if ($passphrase !== '' && ($weak = Passphrases::weakness($passphrase)) !== null) {
+            throw new InvalidArgumentException($weak);
+        }
+        $state->passphrase = $passphrase;
         $state->source = ($parameters['source'] ?? 'manual') === 'schedule' ? 'schedule' : 'manual';
 
         return $state->toArray();
@@ -102,7 +122,14 @@ final class BackupRun implements Task
         if ($s->phase === BackupState::DUMP && $this->dump($s, $context, $budget)) {
             $s->phase = BackupState::PACK;
         }
-        if ($s->phase === BackupState::PACK && $this->pack($s, $context, $budget)) {
+        if ($s->phase === BackupState::PACK && $this->sealPending($s, $context, $budget) && $this->pack($s, $context, $budget)) {
+            $s->phase = $context->encrypted() ? BackupState::CLOSE : BackupState::FINALE;
+        }
+        if ($s->phase === BackupState::CLOSE) {
+            $this->close($s, $context);
+            $s->phase = BackupState::SEAL;
+        }
+        if ($s->phase === BackupState::SEAL && $this->sealPending($s, $context, $budget)) {
             $s->phase = BackupState::FINALE;
         }
         if ($s->phase === BackupState::FINALE) {
@@ -151,7 +178,29 @@ final class BackupRun implements Task
             BackupName::parse($s->backup),
             $s->partSize ?? $profile->partSize,
             $s->compression ?? $profile->compression,
+            $this->recipients($s, $profile),
         );
+    }
+
+    /**
+     * Whom the backup is encrypted for: the passphrase of this run if it has one (and then no one else: a file for a passphrase is for
+     * the passphrase only), otherwise the public keys of the profile, otherwise nobody.
+     *
+     * @return list<Recipient>
+     *
+     * @throws GuardFailed encryption is wanted and this host cannot do it
+     */
+    private function recipients(BackupState $s, SiteProfile $profile): array
+    {
+        try {
+            if ($s->passphrase !== '') {
+                return [new ScryptRecipient($s->passphrase)];
+            }
+
+            return array_map(static fn (string $key): Recipient => new X25519Recipient($key), $profile->encryption->recipients ?? []);
+        } catch (CryptoException $e) {
+            throw new GuardFailed($e->getMessage(), 0, $e);
+        }
     }
 
     /**
@@ -186,10 +235,13 @@ final class BackupRun implements Task
         $s->profileHash = self::hash($profile->toArray());
         $s->started = ($this->clock)();
 
-        $context = new BackupContext($context->resolved, $context->storage, $name, $context->partSize, $context->compression);
+        $context = new BackupContext($context->resolved, $context->storage, $name, $context->partSize, $context->compression, $context->recipients);
         $work = $context->workDirectory();
         if (!is_dir($work . '/db') && !@mkdir($work . '/db', 0700)) {
             throw new StepFailed("Cannot create the work directory \"$work/db\".");
+        }
+        if ($context->encrypted() && !is_dir($context->plainDirectory()) && !@mkdir($context->plainDirectory(), 0700)) {
+            throw new StepFailed('Cannot create the work directory "' . $context->plainDirectory() . '".');
         }
 
         return $context;
@@ -241,6 +293,10 @@ final class BackupRun implements Task
             }
         }
         $required = SpaceCheck::required($this->lastBackupSize($context), $s->scanBytes, $databaseBytes);
+        if ($context->encrypted()) {
+            // a plain part waits next to the sealed ones: one part, or the whole archive if it is not split
+            $required += $context->partSize ?? max(0, $required - $databaseBytes);
+        }
         $result = ($this->space ?? new SpaceCheck())->check($context->storage->directory(), $required, $s->force);
         if (!$result->allowed) {
             throw new GuardFailed($result->refusal());
@@ -322,7 +378,39 @@ final class BackupRun implements Task
             $context->workDirectory(),
             $context->compression,
             $context->partSize,
+            $context->encrypted() ? $context->plainDirectory() : null,
         );
+    }
+
+    /**
+     * Seals the parts that are closed and not yet sealed (encrypted backups; for the others there is nothing to do).
+     *
+     * @return bool every closed part is sealed (false: the budget ran out; the job is in the state)
+     */
+    private function sealPending(BackupState $s, BackupContext $context, Budget $budget): bool
+    {
+        if (!$context->encrypted()) {
+            return true;
+        }
+        $closed = PackState::fromArray($s->pack ?? (new PackState())->toArray())->closed;
+        $sealer = new PartSealer($context->storage, $context->plainDirectory(), $context->recipients);
+        try {
+            while (count($s->sealed) < count($closed)) {
+                $part = $closed[count($s->sealed)];
+                $record = $sealer->seal($part['file'], $part['entries'], $s->seal, $budget);
+                if ($record === null) {
+                    return false;
+                }
+                $s->sealed[] = ['file' => $record->file, 'size' => $record->size, 'sha256' => $record->sha256, 'entries' => $record->entries];
+                if ($budget->exhausted() && count($s->sealed) < count($closed)) {
+                    return false;
+                }
+            }
+        } catch (CryptoException $e) {
+            throw new StepFailed('The backup cannot be encrypted: ' . $e->getMessage(), 0, $e);
+        }
+
+        return true;
     }
 
     /**
@@ -337,28 +425,37 @@ final class BackupRun implements Task
         return $done;
     }
 
-    // --------------------------------------------------------------------------------------------- finale
+    // --------------------------------------------------------------------------------------------- close and finale
 
-    private function finale(BackupState $s, BackupContext $context): void
+    /**
+     * What the manifest is made of, from the state of the run. With `$absorb` the warnings of the packing and the dump are taken into the
+     * state (once: the first call of a run does it, a later call only reads).
+     *
+     * @return array{Manifest, BackupStatus, int, int, int, string, list<string>} the manifest without its parts, the status, the number of tables, rows, the bytes of the
+     *                                                                           database, the consistency of the dump and the warnings
+     */
+    private function manifestBase(BackupState $s, BackupContext $context, PackState $pack, bool $absorb): array
     {
-        $name = $context->backupName();
         $resolved = $context->resolved;
-        $pack = PackState::fromArray($s->pack ?? (new PackState())->toArray());
         $dump = $s->dump !== null ? DumpState::fromArray($s->dump) : null;
 
-        $s->warnAll($pack->warnings);
+        if ($absorb) {
+            $s->warnAll($pack->warnings);
+        }
         $unsupported = [];
         $consistency = 'none';
         $tables = $rows = $databaseBytes = 0;
         if ($dump !== null) {
-            $s->warnAll($dump->warnings);
+            if ($absorb) {
+                $s->warnAll($dump->warnings);
+            }
             $unsupported = $dump->unsupported;
             $consistency = $dump->consistency;
             $tables = count($dump->done);
             $rows = $dump->rows;
             $databaseBytes = $dump->bytes;
         }
-        $finished = new DateTimeImmutable('@' . ($this->clock)());
+        $finished = new DateTimeImmutable('@' . ($s->finished > 0 ? $s->finished : ($this->clock)()));
         $started = new DateTimeImmutable('@' . $s->started);
         $warnings = $s->warnings;
         if ($s->warningsDropped > 0) {
@@ -367,7 +464,7 @@ final class BackupRun implements Task
         $db = $context->db();
 
         $base = new Manifest(
-            $name->base(),
+            $context->backupName()->base(),
             Version::CURRENT,
             $resolved->profile->id,
             $resolved->profile->name,
@@ -393,12 +490,41 @@ final class BackupRun implements Task
             $unsupported,
         );
 
-        $records = $this->packer($context)->finish($pack, $base);
-        $s->pack = $pack->toArray();
+        return [$base, $warnings === [] && $unsupported === [] ? BackupStatus::Ok : BackupStatus::OkWithWarnings, $tables, $rows, $databaseBytes, $consistency, $warnings];
+    }
 
-        $manifest = $base->withParts(array_map(static fn (PartRecord $p): array => ['file' => $p->file, 'entries' => $p->entries], $records));
-        $status = $warnings === [] && $unsupported === [] ? BackupStatus::Ok : BackupStatus::OkWithWarnings;
-        $sidecar = new Sidecar($manifest, $records, $status, [], false, $s->source);
+    /**
+     * Encrypted backups: the last part gets the manifest and is closed, so that it can be sealed like the others.
+     */
+    private function close(BackupState $s, BackupContext $context): void
+    {
+        $pack = PackState::fromArray($s->pack ?? (new PackState())->toArray());
+        $s->finished = ($this->clock)();
+        [$base] = $this->manifestBase($s, $context, $pack, absorb: true);
+        $this->packer($context)->finish($pack, $base);
+        $s->pack = $pack->toArray();
+    }
+
+    private function finale(BackupState $s, BackupContext $context): void
+    {
+        $name = $context->backupName();
+        $pack = PackState::fromArray($s->pack ?? (new PackState())->toArray());
+        $encrypted = $context->encrypted();
+
+        [$base, $status, $tables, $rows, , $consistency, $warnings] = $this->manifestBase($s, $context, $pack, absorb: !$encrypted);
+        if ($encrypted) {
+            $records = array_map(static fn (array $p): PartRecord => new PartRecord($p['file'], $p['size'], $p['sha256'], $p['entries']), $s->sealed);
+            $manifest = $base->withParts(array_map(static fn (PartRecord $p): array => ['file' => $p->file, 'entries' => $p->entries], $records))->minimal();
+            $sidecar = new Sidecar($manifest, $records, $status, [], false, $s->source, $this->encryptionFacts($s, $context));
+            $finished = $s->finished;
+        } else {
+            $finished = ($this->clock)();
+            $s->finished = $finished;
+            $records = $this->packer($context)->finish($pack, $base);
+            $s->pack = $pack->toArray();
+            $manifest = $base->withParts(array_map(static fn (PartRecord $p): array => ['file' => $p->file, 'entries' => $p->entries], $records));
+            $sidecar = new Sidecar($manifest, $records, $status, [], false, $s->source);
+        }
         $context->storage->writeSidecar($name, $sidecar);
 
         $transfer = (new LocalPostproc())->store($name, $sidecar, $context->storage);
@@ -418,8 +544,27 @@ final class BackupRun implements Task
             'tables' => $tables,
             'rows' => $rows,
             'consistency' => $consistency,
-            'duration' => $finished->getTimestamp() - $started->getTimestamp(),
+            'duration' => $finished - $s->started,
+            'encrypted' => $encrypted,
         ];
+    }
+
+    /**
+     * What the sidecar file of an encrypted backup says about the keys: the short forms of the public keys (to find the right secret key
+     * again), and whether it is for a passphrase.
+     *
+     * @return array{format: string, recipients: list<string>, passphrase: bool}
+     */
+    private function encryptionFacts(BackupState $s, BackupContext $context): array
+    {
+        $keys = [];
+        if ($s->passphrase === '') {
+            foreach ($context->resolved->profile->encryption->recipients ?? [] as $key) {
+                $keys[] = substr($key, 0, 12) . '...' . substr($key, -6);
+            }
+        }
+
+        return ['format' => 'age', 'recipients' => $keys, 'passphrase' => $s->passphrase !== ''];
     }
 
     /**
@@ -444,12 +589,20 @@ final class BackupRun implements Task
         return $facts;
     }
 
+    private function packProgress(BackupState $s): string
+    {
+        $files = $s->pack !== null ? PackState::fromArray($s->pack)->files : 0;
+
+        return sprintf('packing files into the archive (%d files so far%s)', $files, $s->sealed !== [] ? ', ' . count($s->sealed) . ' part(s) encrypted' : '');
+    }
+
     private function progress(BackupState $s): string
     {
         return match ($s->phase) {
             BackupState::SCAN => sprintf('scanning the site (%d files and %d directories so far)', $s->scanFiles, $s->scanDirectories),
             BackupState::DUMP => 'dumping the database' . ($s->dump !== null ? ' (' . count(DumpState::fromArray($s->dump)->done) . ' tables done)' : ''),
-            BackupState::PACK => sprintf('packing files into the archive (%d files so far)', $s->pack !== null ? PackState::fromArray($s->pack)->files : 0),
+            BackupState::PACK => $this->packProgress($s),
+            BackupState::CLOSE, BackupState::SEAL => 'encrypting the last part of the archive',
             BackupState::FINALE => 'finishing the archive',
             BackupState::DONE => 'backup ' . $s->backup . ' is complete',
             default => 'starting',

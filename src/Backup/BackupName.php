@@ -15,6 +15,7 @@ use ThreadSafe\Profile\SiteProfile;
  * ```
  * <profile>_<YYYYMMDD-HHMMSS>_<random8>.zip         one archive
  * <profile>_<YYYYMMDD-HHMMSS>_<random8>-p01.zip     the parts of a split archive (-p02, ...)
+ * <profile>_<YYYYMMDD-HHMMSS>_<random8>.zip.age        an encrypted part (the `age` format around the ZIP part; -p01.zip.age ...)
  * <profile>_<YYYYMMDD-HHMMSS>_<random8>.json        the sidecar file
  * ```
  *
@@ -25,7 +26,7 @@ final readonly class BackupName
 {
     private const string PATTERN = '/^(?<profile>[a-z0-9][a-z0-9_-]{0,39})_(?<time>\d{8}-\d{6})_(?<random>[0-9a-f]{8})$/';
 
-    private const string FILE_PATTERN = '/^(?<base>.+?)(?:-p(?<part>\d{2,}))?\.(?<extension>zip|json)$/';
+    private const string FILE_PATTERN = '/^(?<base>.+?)(?:-p(?<part>\d{2,}))?\.(?<extension>zip\.age|zip|json)$/';
 
     private function __construct(public string $profile, public DateTimeImmutable $time, public string $random)
     {
@@ -71,7 +72,7 @@ final readonly class BackupName
             return null;
         }
         $part = $m['part'] === '' ? null : (int) $m['part'];
-        if ($part !== null && ($part < 1 || $m['extension'] !== 'zip')) {
+        if ($part !== null && ($part < 1 || $m['extension'] === 'json')) {
             return null;
         }
 
@@ -84,14 +85,18 @@ final readonly class BackupName
         return $this->profile . '_' . $this->time->format('Ymd-His') . '_' . $this->random;
     }
 
-    /** The file name of a part: a backup that is split always numbers its parts, even if it ends up with one. */
-    public function partFile(int $index, bool $split): string
+    /**
+     * The file name of a part: a backup that is split always numbers its parts, even if it ends up with one.
+     *
+     * @param bool $sealed the name of the encrypted part (`.zip.age`) instead of the ZIP part itself
+     */
+    public function partFile(int $index, bool $split, bool $sealed = false): string
     {
         if ($index < 1) {
             throw new InvalidArgumentException('Parts are numbered from 1.');
         }
 
-        return $this->base() . ($split ? sprintf('-p%02d', $index) : '') . '.zip';
+        return $this->base() . ($split ? sprintf('-p%02d', $index) : '') . ($sealed ? '.zip.age' : '.zip');
     }
 
     public function sidecarFile(): string

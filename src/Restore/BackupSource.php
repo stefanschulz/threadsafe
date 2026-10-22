@@ -39,6 +39,9 @@ final readonly class BackupSource
         }
         $directory = dirname($real);
         $info = BackupName::fromFile(basename($real));
+        if ($info !== null && $info['extension'] === 'zip.age') {
+            throw new RestoreException('"' . basename($real) . '" is encrypted. Restoring an encrypted backup is not possible yet; decrypt the parts first with the real age tool ("age --decrypt -i KEYFILE") and restore the .zip files.', ExitCode::GuardFailed);
+        }
         if ($info === null || $info['extension'] !== 'zip') {
             throw new RestoreException('"' . basename($real) . '" is not a part of a ThreadSafe backup (the name should look like <profile>_<date>-<time>_<code>.zip or ...-p01.zip).', ExitCode::GuardFailed);
         }

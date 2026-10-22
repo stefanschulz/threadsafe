@@ -23,6 +23,11 @@ use ThreadSafe\Storage\LocalStorage;
  * opens the source again at the offset the state remembers. The tail of the work is therefore always at a block boundary and
  * the archive is the same however the ticks were cut.
  *
+ * **Encrypted backups** (`$plainDirectory` given): the parts are written to that directory (the work directory, closed to the web like
+ * the storage) under their plain names, the manifest names the parts by their sealed names (`.zip.age`), and `pack()` returns each time a
+ * part has been closed, so that the caller can seal it and delete the plain part before the next one grows: at most one plain part is on
+ * the disk at a time.
+ *
  * Trouble with single files is never fatal: a file that cannot be opened is skipped, one that disappears or shrinks while it
  * is read is stored as far as it was read; each case is a warning in the state.
  */
@@ -35,6 +40,7 @@ final class ArchivePacker
         private readonly string $workDirectory,
         private readonly int $level,
         private readonly ?int $partSize,
+        private readonly ?string $plainDirectory = null,
     ) {
     }
 
@@ -75,8 +81,14 @@ final class ArchivePacker
                     $s->stage = PackState::DATABASE;
                     continue;
                 }
+                $closedBefore = count($s->closed);
                 $writer = $this->beginItem($s, $writer, $items[0]);
                 $s->listOffset = $offset;
+                if ($this->plainDirectory !== null && count($s->closed) > $closedBefore) {
+                    $s->writer = $writer->state();
+
+                    return false;   // a part is closed: it is sealed before more is written
+                }
                 continue;
             }
 
@@ -90,8 +102,14 @@ final class ArchivePacker
             if ($size === false) {
                 throw new RuntimeException("The dump file \"{$file['file']}\" is missing.");
             }
+            $closedBefore = count($s->closed);
             $writer = $this->beginItem($s, $writer, new ScanItem('db/' . $file['file'], false, $size, (int) @filemtime($path), 0100600), database: true);
             ++$s->databaseIndex;
+            if ($this->plainDirectory !== null && count($s->closed) > $closedBefore) {
+                $s->writer = $writer->state();
+
+                return false;
+            }
         }
     }
 
@@ -106,7 +124,8 @@ final class ArchivePacker
     {
         $writer = $this->openWriter($s);
         $last = $this->name->partFile($s->part, $this->partSize !== null);
-        $parts = [...array_map(static fn (array $p): array => ['file' => $p['file'], 'entries' => $p['entries']], $s->closed), ['file' => $last, 'entries' => $writer->entryCount() + 1]];
+        $listed = fn (string $file): string => $this->plainDirectory !== null ? $file . '.age' : $file;
+        $parts = [...array_map(static fn (array $p): array => ['file' => $listed($p['file']), 'entries' => $p['entries']], $s->closed), ['file' => $listed($last), 'entries' => $writer->entryCount() + 1]];
         $writer->addString(Manifest::ENTRY, $manifest->withParts($parts)->toJson(), time(), 0100600);
         $this->recordClosed($s, $writer->close());
         $s->writer = null;
@@ -140,7 +159,7 @@ final class ArchivePacker
     private function newPart(PackState $s): ZipWriter
     {
         $split = $this->partSize !== null;
-        $path = $this->storage->partPath($this->name, $s->part, $split);
+        $path = $this->plainDirectory !== null ? $this->plainDirectory . '/' . $this->name->partFile($s->part, $split) : $this->storage->partPath($this->name, $s->part, $split);
         $writer = ZipWriter::create($path, max(1, $this->level));
         $writer->addString(PartMarker::ENTRY, (new PartMarker($this->name->base(), $s->part, $split))->toJson(), time(), 0100600);
         $s->writer = $writer->state();

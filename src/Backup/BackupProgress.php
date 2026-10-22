@@ -36,6 +36,7 @@ final class BackupProgress
             BackupState::INIT, BackupState::SCAN => null,
             BackupState::DUMP => self::SCAN_END + (int) round(self::DUMP_SHARE * self::dumpRatio($s)),
             BackupState::PACK => $packStart + (int) round((97 - $packStart) * self::packRatio($s)),
+            BackupState::CLOSE, BackupState::SEAL => 97,
             BackupState::FINALE => 98,
             default => 100,
         };

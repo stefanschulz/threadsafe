@@ -88,6 +88,25 @@ final readonly class Manifest
     }
 
     /**
+     * What the sidecar file of an **encrypted** backup says about it (docs/PHASE5.md 3.5, decision 3): the time, the application and its
+     * version, the counts and the parts - and nothing that names the site: no addresses, no paths, no table names, no filters, no database
+     * facts, no warnings with file names (only how many there were), and the id of the profile instead of its name. It is made from the
+     * manifest inside the archive, so that a full check can compare the two.
+     */
+    public function minimal(): self
+    {
+        $count = count($this->warnings);
+
+        return new self(
+            $this->backupId, $this->toolVersion, $this->profileId, $this->profileId, $this->type, $this->application, $this->php,
+            [], $this->consistency, [], ['excludePaths' => [], 'structureOnlyTables' => [], 'literalExcludes' => []], $this->counts, $this->parts,
+            $this->started, $this->finished,
+            $count > 0 ? [$count . ($count === 1 ? ' warning' : ' warnings') . '; the details are in the encrypted archive.'] : [],
+            count($this->unsupportedObjects) > 0 ? [['type' => 'objects', 'name' => count($this->unsupportedObjects) . ' not backed up; see the encrypted archive']] : [],
+        );
+    }
+
+    /**
      * A copy with the part list of the finished backup.
      *
      * @param list<array{file: string, entries: int}> $parts

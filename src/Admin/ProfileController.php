@@ -78,6 +78,7 @@ final class ProfileController
             'Filters' => ($profile->useDefaultFilters ? 'the defaults of the type' : 'no defaults')
                 . ($profile->excludePaths === [] ? '' : ', also leaving out ' . implode(', ', $profile->excludePaths)),
             'Structure only' => $profile->structureOnlyTables === [] ? '-' : implode(', ', $profile->structureOnlyTables),
+            'Encryption' => $profile->encryption === null ? 'none' : 'for ' . count($profile->encryption->recipients) . ' public key' . (count($profile->encryption->recipients) === 1 ? '' : 's') . ' (' . implode(', ', array_map(static fn (string $key): string => substr($key, 0, 12) . '...' . substr($key, -6), $profile->encryption->recipients)) . ')',
             'Archives' => 'compression ' . $profile->compression . ($profile->partSize === null ? ', one archive' : ', parts of ' . round($profile->partSize / 1048576) . ' MB'),
             'Note' => $profile->note === '' ? '-' : $profile->note,
         ];
@@ -90,6 +91,7 @@ final class ProfileController
         $id = $profile->id;
         $actions = '<div class="actions"><a class="button" href="' . Html::e($context->urls->to("/profiles/$id/edit")) . '">Edit</a> '
             . View::form($context, "/profiles/$id/test", '<button type="submit">Test the connection</button>', 'inline')
+            . ' <a class="button secondary" href="' . Html::e($context->urls->to("/profiles/$id/keys")) . '">Keys</a>'
             . ' <a class="button danger" href="' . Html::e($context->urls->to("/profiles/$id/delete")) . '">Remove</a></div>';
 
         $backups = new BackupController($this->services);
@@ -341,6 +343,9 @@ final class ProfileController
             . View::field('keep', 'Keep at most this many backups', 'text', $values['keep'] ?? '', ['inputmode' => 'numeric'])
             . View::field('max_age_days', 'Delete backups older than this many days', 'text', $values['max_age_days'] ?? '', ['inputmode' => 'numeric'])
             . View::field('max_size', 'Keep the backups under this size together', 'text', $values['max_size'] ?? '', ['spellcheck' => 'false'], 'For example 20G or 500M. The oldest ones are deleted first.')
+            . '<h2>Encryption</h2>'
+            . View::textarea('recipients', 'Public keys', $values['recipients'] ?? '', 3, 'One per line (age1...). Backups are encrypted for these keys; only the matching secret keys open them, this server cannot. Empty: not encrypted.' . ($creating ? ' Make a key pair on the profile page after saving, or with the command "threadsafe keys generate".' : ''))
+            . ($creating ? '' : '<p><a href="' . Html::e($context->urls->to('/profiles/' . $currentId . '/keys')) . '">Make a key pair</a> (the secret key is shown once; the profile is not saved by following this link)</p>')
             . '<h2>Note</h2>'
             . View::field('note', 'Note', 'text', $values['note'])
             . '<div class="field check"><label><input type="checkbox" name="skip_test" value="1"> Save without testing</label><p class="hint">A profile that fails its test is not stored, unless you tick this.</p></div>'

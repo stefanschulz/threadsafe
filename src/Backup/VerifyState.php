@@ -62,7 +62,7 @@ final class VerifyState
     /** @var array<string, mixed>|null the report, when the run has ended */
     public ?array $result = null;
 
-    public function __construct(public readonly string $profileId, public readonly string $backup, public readonly bool $full)
+    public function __construct(public readonly string $profileId, public readonly string $backup, public bool $full)
     {
     }
 

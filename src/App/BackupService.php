@@ -11,6 +11,7 @@ use ThreadSafe\Backup\BackupProgress;
 use ThreadSafe\Backup\BackupRun;
 use ThreadSafe\Backup\BackupState;
 use ThreadSafe\Core\Exception\GuardFailed;
+use ThreadSafe\Crypto\Passphrases;
 use ThreadSafe\Engine\Budget;
 use ThreadSafe\Engine\EngineException;
 use ThreadSafe\Engine\Executor;
@@ -152,11 +153,14 @@ final class BackupService
     /**
      * Starts a backup run for the web interface: the state is made, nothing is done yet; the ticks follow.
      *
-     * @throws GuardFailed another backup is active, or there is no such profile
+     * A passphrase makes the backup one for that passphrase only (docs/PHASE5.md 3.5); it is kept in the run's state file (mode 0600)
+     * until the run is done and is not shown anywhere.
+     *
+     * @throws GuardFailed another backup is active, there is no such profile, or the passphrase is too weak
      */
-    public function startWeb(string $profileId, bool $force = false): Run
+    public function startWeb(string $profileId, bool $force = false, string $passphrase = ''): Run
     {
-        return $this->start($profileId, $force, snapshot: false, web: true, source: 'manual');
+        return $this->start($profileId, $force, snapshot: false, web: true, source: 'manual', passphrase: $passphrase);
     }
 
     /**
@@ -173,15 +177,18 @@ final class BackupService
     /**
      * @throws GuardFailed another backup is active, or there is no such profile
      */
-    private function start(string $profileId, bool $force, bool $snapshot, bool $web, string $source): Run
+    private function start(string $profileId, bool $force, bool $snapshot, bool $web, string $source, string $passphrase = ''): Run
     {
+        if ($passphrase !== '' && ($weak = Passphrases::weakness($passphrase)) !== null) {
+            throw new GuardFailed($weak);
+        }
         if (!ProfileStore::validId($profileId) || !$this->profiles->exists($profileId)) {
             throw new GuardFailed("There is no profile \"$profileId\".");
         }
         $this->assertNoActiveRun();
         $this->prune();
 
-        return $this->executor()->start(['profile' => $profileId, 'force' => $force, 'snapshot' => $snapshot, 'web' => $web, 'source' => $source]);
+        return $this->executor()->start(['profile' => $profileId, 'force' => $force, 'snapshot' => $snapshot, 'web' => $web, 'source' => $source, 'passphrase' => $passphrase]);
     }
 
     /**

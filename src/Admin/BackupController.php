@@ -8,6 +8,7 @@ use Throwable;
 use ThreadSafe\App\BackupService;
 use ThreadSafe\App\RetentionService;
 use ThreadSafe\Core\Exception\GuardFailed;
+use ThreadSafe\Crypto\Passphrases;
 use ThreadSafe\Engine\EngineException;
 use ThreadSafe\Engine\Run;
 use ThreadSafe\Engine\RunStatus;
@@ -42,7 +43,7 @@ final class BackupController
     {
         $id = $params['id'] ?? '';
         try {
-            $run = $this->service()->startWeb($id, $context->request->post('force') === '1');
+            $run = $this->service()->startWeb($id, $context->request->post('force') === '1', trim((string) $context->request->post('passphrase')));
         } catch (GuardFailed $e) {
             $context->flash('error', $e->getMessage());
             $active = $this->service()->activeRun();
@@ -254,6 +255,11 @@ final class BackupController
 
         return View::form($context, "/profiles/$profileId/backup", '<button type="submit">Back up now</button> '
             . '<label class="inline-check"><input type="checkbox" name="force" value="1"> Go on although the storage seems to have too little room</label>'
+            . '<details class="passphrase"><summary>Encrypt this backup with a passphrase</summary>'
+            . '<div class="field"><label for="f-passphrase">Passphrase</label><input id="f-passphrase" name="passphrase" type="text" autocomplete="off" spellcheck="false" autocapitalize="none"> '
+            . '<button type="button" class="secondary" data-suggest="#f-passphrase" data-alphabet="' . Html::e(Passphrases::ALPHABET) . '">Suggest one</button> '
+            . '<button type="button" class="secondary" data-copy="#f-passphrase">Copy</button>'
+            . '<p class="hint">Optional. This one backup is then encrypted for the passphrase only - not for the public keys of the profile - and only the passphrase opens it. It is not stored anywhere: write it down before you start, and keep it apart from the backup. If it is lost, the backup is lost. At least 12 characters; a suggested one is easy to read aloud and has about 99 bits.</p></div></details>'
             . '<p class="hint">The backup is made in steps while this page is open. The database is read table by table, not in one snapshot, as in a command line run.</p>');
     }
 

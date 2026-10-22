@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace ThreadSafe\Backup;
 
+use ThreadSafe\Crypto\Recipient;
 use ThreadSafe\Database\Connection;
 use ThreadSafe\Profile\ResolvedProfile;
 use ThreadSafe\Storage\LocalStorage;
@@ -22,7 +23,20 @@ final class BackupContext
         public readonly ?BackupName $name,
         public readonly ?int $partSize,
         public readonly int $compression,
+        /** @var list<Recipient> whom the parts are encrypted for; none = the backup is not encrypted */
+        public readonly array $recipients = [],
     ) {
+    }
+
+    public function encrypted(): bool
+    {
+        return $this->recipients !== [];
+    }
+
+    /** Where the plain parts of an encrypted backup wait to be sealed. */
+    public function plainDirectory(): string
+    {
+        return $this->workDirectory() . '/parts';
     }
 
     /** The database of the site; null for a site without one. @throws \ThreadSafe\Database\ConnectionFailed */

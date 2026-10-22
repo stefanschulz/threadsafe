@@ -57,6 +57,7 @@ final readonly class BackupEntry
             'application' => $this->sidecar === null ? null : trim($this->sidecar->manifest->application['name'] . ' ' . ($this->sidecar->manifest->application['version'] ?? '')),
             'consistency' => $this->sidecar?->manifest->consistency,
             'pinned' => $this->sidecar !== null && $this->sidecar->pinned,
+            'encrypted' => $this->sidecar?->encryption !== null,
             'source' => $this->sidecar === null || $this->sidecar->source === '' ? null : $this->sidecar->source,
             'warnings' => $this->sidecar === null ? null : count($this->sidecar->manifest->warnings),
             'rebuilt' => $this->rebuilt,

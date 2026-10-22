@@ -12,6 +12,7 @@ use ThreadSafe\Core\Exception\GuardFailed;
 use ThreadSafe\Core\Exception\StepFailed;
 use ThreadSafe\Core\ExitCode;
 use ThreadSafe\Core\Paths;
+use ThreadSafe\Crypto\Passphrases;
 use ThreadSafe\Engine\Budget;
 use ThreadSafe\Engine\EngineException;
 use ThreadSafe\Engine\Executor;
@@ -71,6 +72,7 @@ final class BackupCommand implements Command
             new OptionSpec('tick-seconds', 'Work in steps of this many seconds, saving the state in between (default: no limit)', takesValue: true, valueName: 'N'),
             new OptionSpec('force', 'Go on although the storage seems to have too little room'),
             new OptionSpec('report', 'Write the result as JSON to this file', takesValue: true, valueName: 'FILE'),
+            new OptionSpec('passphrase-file', 'Encrypt this backup with the passphrase in this file, for the passphrase only (or set THREADSAFE_PASSPHRASE); without it the public keys of the profile are used', takesValue: true, valueName: 'FILE'),
         ];
     }
 
@@ -110,7 +112,7 @@ final class BackupCommand implements Command
     }
 
     /**
-     * @return array{partSize: int|null, compression: int|null, tickSeconds: float|null, force: bool, report: string|null}
+     * @return array{partSize: int|null, compression: int|null, tickSeconds: float|null, force: bool, report: string|null, passphrase: string|null}
      */
     private function parseOptions(Input $input): array
     {
@@ -137,11 +139,16 @@ final class BackupCommand implements Command
             $tickSeconds = (float) $seconds;
         }
 
-        return ['partSize' => $partSize, 'compression' => $compression, 'tickSeconds' => $tickSeconds, 'force' => $input->has('force'), 'report' => $input->value('report')];
+        $passphrase = KeyOptions::passphrase($input);
+        if ($passphrase !== null && ($weak = Passphrases::weakness($passphrase)) !== null) {
+            throw new UsageError($weak);
+        }
+
+        return ['partSize' => $partSize, 'compression' => $compression, 'tickSeconds' => $tickSeconds, 'force' => $input->has('force'), 'report' => $input->value('report'), 'passphrase' => $passphrase];
     }
 
     /**
-     * @param array{partSize: int|null, compression: int|null, tickSeconds: float|null, force: bool, report: string|null} $options
+     * @param array{partSize: int|null, compression: int|null, tickSeconds: float|null, force: bool, report: string|null, passphrase: string|null} $options
      */
     private function all(ProfileStore $profiles, RunStore $runs, array $options, Output $output, string $data): ExitCode
     {
@@ -171,7 +178,7 @@ final class BackupCommand implements Command
     }
 
     /**
-     * @param array{partSize: int|null, compression: int|null, tickSeconds: float|null, force: bool, report: string|null} $options
+     * @param array{partSize: int|null, compression: int|null, tickSeconds: float|null, force: bool, report: string|null, passphrase: string|null} $options
      */
     private function one(string $id, ProfileStore $profiles, RunStore $runs, array $options, Output $output, string $data): ExitCode
     {
@@ -187,7 +194,7 @@ final class BackupCommand implements Command
     /**
      * Runs the backup of one profile under the lock of that profile.
      *
-     * @param array{partSize: int|null, compression: int|null, tickSeconds: float|null, force: bool, report: string|null} $options
+     * @param array{partSize: int|null, compression: int|null, tickSeconds: float|null, force: bool, report: string|null, passphrase: string|null} $options
      *
      * @return array<string, mixed> the report
      */
@@ -214,6 +221,7 @@ final class BackupCommand implements Command
                 'snapshot' => $options['tickSeconds'] === null,
                 'partSize' => $options['partSize'],
                 'compression' => $options['compression'],
+                'passphrase' => $options['passphrase'] ?? '',
             ]);
 
             $report = $this->execute($executor, $task, $runs, $run->id, false, $output);
@@ -246,7 +254,7 @@ final class BackupCommand implements Command
     }
 
     /**
-     * @param array{partSize: int|null, compression: int|null, tickSeconds: float|null, force: bool, report: string|null} $options
+     * @param array{partSize: int|null, compression: int|null, tickSeconds: float|null, force: bool, report: string|null, passphrase: string|null} $options
      */
     private function resume(string $runId, ProfileStore $profiles, RunStore $runs, array $options, Output $output): ExitCode
     {

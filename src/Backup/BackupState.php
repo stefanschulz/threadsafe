@@ -20,6 +20,11 @@ final class BackupState
 
     public const string PACK = 'pack';
 
+    /** Encrypted backups only: the last part is closed with the manifest, then sealed. */
+    public const string CLOSE = 'close';
+
+    public const string SEAL = 'seal';
+
     public const string FINALE = 'finale';
 
     public const string DONE = 'done';
@@ -37,6 +42,21 @@ final class BackupState
     public string $source = 'manual';
 
     public string $phase = self::INIT;
+
+    /**
+     * The passphrase of a backup that is encrypted for a passphrase and not for the keys of the profile. **Secret**: it lives in the 0600 file
+     * of the run for as long as the run lasts and is blanked at the last tick.
+     */
+    public string $passphrase = '';
+
+    /** @var array<string, mixed>|null the job of the part that is being sealed (secret: the file key is in it) */
+    public ?array $seal = null;
+
+    /** @var list<array{file: string, size: int, sha256: string, entries: int}> the sealed parts, in order */
+    public array $sealed = [];
+
+    /** When the archive was finished (Unix time); fixed at the closing of the last part, which holds the manifest. */
+    public int $finished = 0;
 
     /** The base name of the backup; empty until the run has started. */
     public string $backup = '';
@@ -113,6 +133,10 @@ final class BackupState
             'partSize' => $this->partSize,
             'compression' => $this->compression,
             'phase' => $this->phase,
+            'passphrase' => $this->phase === self::DONE ? '' : $this->passphrase,
+            'seal' => $this->phase === self::DONE ? null : $this->seal,
+            'sealed' => $this->sealed,
+            'finished' => $this->finished,
             'backup' => $this->backup,
             'profileHash' => $this->profileHash,
             'started' => $this->started,
@@ -153,12 +177,21 @@ final class BackupState
 
         $state = new self($string('profileId'), $bool('force'), $bool('snapshot'), $maybeInt('partSize'), $maybeInt('compression'));
         $phase = $string('phase');
-        if (!in_array($phase, [self::INIT, self::SCAN, self::DUMP, self::PACK, self::FINALE, self::DONE], true)) {
+        if (!in_array($phase, [self::INIT, self::SCAN, self::DUMP, self::PACK, self::CLOSE, self::SEAL, self::FINALE, self::DONE], true)) {
             throw $invalid('phase');
         }
         $state->web = (($data['web'] ?? false) === true);
         $state->source = ($data['source'] ?? 'manual') === 'schedule' ? 'schedule' : 'manual';
         $state->phase = $phase;
+        $state->passphrase = is_string($data['passphrase'] ?? null) ? $data['passphrase'] : '';
+        $state->seal = $maybeArray('seal');
+        $state->finished = is_int($data['finished'] ?? null) ? $data['finished'] : 0;
+        foreach (is_array($data['sealed'] ?? null) ? $data['sealed'] : [] as $part) {
+            if (!is_array($part) || !is_string($part['file'] ?? null) || !is_int($part['size'] ?? null) || !is_string($part['sha256'] ?? null) || !is_int($part['entries'] ?? null)) {
+                throw $invalid('sealed');
+            }
+            $state->sealed[] = ['file' => $part['file'], 'size' => $part['size'], 'sha256' => $part['sha256'], 'entries' => $part['entries']];
+        }
         $state->backup = $string('backup');
         $state->profileHash = $string('profileHash');
         $state->started = $int('started');

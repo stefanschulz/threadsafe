@@ -167,3 +167,15 @@ ul.warnings li.warning strong { color: var(--warning); }
 .result.warn { color: var(--warning); }
 ol.steps { padding-left: 1.3rem; }
 ol.steps li { margin: 0.6rem 0; }
+/* keys and passphrases */
+.print-only { display: none; }
+pre.secret { white-space: pre-wrap; word-break: break-all; font-size: 0.95rem; user-select: all; }
+details.passphrase { margin: 0.75rem 0; }
+details.passphrase summary { cursor: pointer; }
+.keypair { border-left: 5px solid var(--warning); }
+@media print {
+  .bar, nav, form, .actions, .hint, .flash, h1 { display: none !important; }
+  .print-only { display: block; }
+  body, main, .box, pre, code { background: #fff !important; color: #000 !important; border: 0; }
+  pre.secret { font-size: 12pt; }
+}

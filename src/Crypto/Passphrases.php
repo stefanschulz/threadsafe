@@ -10,7 +10,7 @@ namespace ThreadSafe\Crypto;
  */
 final class Passphrases
 {
-    private const string ALPHABET = 'abcdefghjkmnpqrstuvwxyz23456789';
+    public const string ALPHABET = 'abcdefghjkmnpqrstuvwxyz23456789';
 
     /** A typed passphrase shorter than this is called weak. */
     public const int MINIMUM_LENGTH = 12;

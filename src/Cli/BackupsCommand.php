@@ -151,12 +151,12 @@ final class BackupsCommand implements Command
         $application = $sidecar === null ? '' : trim($sidecar->manifest->application['name'] . ' ' . ($sidecar->manifest->application['version'] ?? ''));
 
         return sprintf(
-            '%-38s %s  %9s  %-8s %-17s %s',
+            '%-38s %s  %9s  %-8s %-26s %s',
             $entry->name->base(),
             $entry->name->time->format('Y-m-d H:i') . ' UTC',
             $sidecar === null ? '-' : SpaceCheck::format($sidecar->size()),
             $parts,
-            $entry->label() . ($sidecar?->pinned === true ? ' pinned' : ''),
+            $entry->label() . ($sidecar?->pinned === true ? ' pinned' : '') . ($sidecar?->encryption !== null ? ' encrypted' : ''),
             $application,
         );
     }

@@ -12,8 +12,9 @@ use JsonException;
  * the archives are the truth, and a missing sidecar can be rebuilt from the last part.
  *
  * ```json
- * {"format": 1, "status": "ok", "size": 123, "parts": [{"file", "size", "sha256", "entries"}], "transfers": [], "pinned": true, "source": "schedule", "manifest": {...}}
- * (`pinned` and `source` are optional: a file from before phase 5 has neither)
+ * {"format": 1, "status": "ok", "size": 123, "parts": [{"file", "size", "sha256", "entries"}], "transfers": [], "pinned": true, "source": "schedule", "encryption": {...}, "manifest": {...}}
+ * (`pinned`, `source` and `encryption` are optional: a file from before phase 5 has none of them; for an encrypted backup the manifest is the
+ * minimal one, {@see Manifest::minimal()})
  * ```
  */
 final readonly class Sidecar
@@ -25,6 +26,8 @@ final readonly class Sidecar
      * @param list<array{target: string, time: string, success: bool, message: string}> $transfers
      * @param bool                                                                      $pinned    retention must not delete it (docs/PHASE5.md 3.4); lost when the sidecar file is made again from the archive
      * @param string                                                                    $source    `manual` or `schedule`; empty for a backup made before phase 5
+     * @param array{format: string, recipients: list<string>, passphrase: bool}|null    $encryption null for a backup that is not encrypted; otherwise the format, the short forms of the public keys it was made
+     *                                                                                  for (to find the right secret key), and whether it is for a passphrase
      */
     public function __construct(
         public Manifest $manifest,
@@ -33,6 +36,7 @@ final readonly class Sidecar
         public array $transfers = [],
         public bool $pinned = false,
         public string $source = '',
+        public ?array $encryption = null,
     ) {
     }
 
@@ -44,7 +48,7 @@ final readonly class Sidecar
 
     public function withStatus(BackupStatus $status): self
     {
-        return new self($this->manifest, $this->parts, $status, $this->transfers, $this->pinned, $this->source);
+        return new self($this->manifest, $this->parts, $status, $this->transfers, $this->pinned, $this->source, $this->encryption);
     }
 
     /**
@@ -52,12 +56,12 @@ final readonly class Sidecar
      */
     public function withTransfer(array $transfer): self
     {
-        return new self($this->manifest, $this->parts, $this->status, [...$this->transfers, $transfer], $this->pinned, $this->source);
+        return new self($this->manifest, $this->parts, $this->status, [...$this->transfers, $transfer], $this->pinned, $this->source, $this->encryption);
     }
 
     public function withPinned(bool $pinned): self
     {
-        return new self($this->manifest, $this->parts, $this->status, $this->transfers, $pinned, $this->source);
+        return new self($this->manifest, $this->parts, $this->status, $this->transfers, $pinned, $this->source, $this->encryption);
     }
 
     /**
@@ -73,6 +77,7 @@ final readonly class Sidecar
             'transfers' => $this->transfers,
             ...($this->pinned ? ['pinned' => true] : []),
             ...($this->source !== '' ? ['source' => $this->source] : []),
+            ...($this->encryption !== null ? ['encryption' => $this->encryption] : []),
             'manifest' => $this->manifest->toArray(),
         ];
     }
@@ -119,6 +124,15 @@ final readonly class Sidecar
 
         $source = is_string($data['source'] ?? null) && in_array($data['source'], ['manual', 'schedule'], true) ? $data['source'] : '';
 
-        return new self(Manifest::fromArray($data['manifest']), $parts, $status, $transfers, ($data['pinned'] ?? false) === true, $source);
+        $encryption = null;
+        if (isset($data['encryption'])) {
+            $e = $data['encryption'];
+            if (!is_array($e) || !is_string($e['format'] ?? null) || !is_array($e['recipients'] ?? null) || !is_bool($e['passphrase'] ?? null)) {
+                throw new ManifestException('The sidecar file is damaged (encryption).');
+            }
+            $encryption = ['format' => $e['format'], 'recipients' => array_values(array_filter($e['recipients'], 'is_string')), 'passphrase' => $e['passphrase']];
+        }
+
+        return new self(Manifest::fromArray($data['manifest']), $parts, $status, $transfers, ($data['pinned'] ?? false) === true, $source, $encryption);
     }
 }

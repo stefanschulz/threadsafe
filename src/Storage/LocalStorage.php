@@ -158,7 +158,7 @@ final class LocalStorage
                 continue;
             }
             $rest = substr($file, strlen($name->base()));
-            if (preg_match('/^(-p\d{2,})?\.(zip|zip\.part|zip\.cd)$/', $rest) === 1) {
+            if (preg_match('/^(-p\d{2,})?\.(zip|zip\.age|zip\.part|zip\.age\.part|zip\.cd)$/', $rest) === 1) {
                 $parts[] = $this->directory . '/' . $file;
             } elseif ($rest === '.json') {
                 $others[] = $this->directory . '/' . $file;
@@ -193,7 +193,7 @@ final class LocalStorage
             $base = null;
             if (str_starts_with($file, '.work-')) {
                 $base = substr($file, 6);
-            } elseif (preg_match('/^(.+?)(?:-p\d{2,})?\.zip\.(?:part|cd)$/', $file, $m) === 1) {
+            } elseif (preg_match('/^(.+?)(?:-p\d{2,})?\.zip(?:\.age)?\.(?:part|cd)$/', $file, $m) === 1) {
                 $base = $m[1];
             }
             $name = $base === null ? null : BackupName::parse($base);

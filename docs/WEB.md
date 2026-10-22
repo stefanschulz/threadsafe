@@ -117,6 +117,8 @@ The database is read from the site's own configuration where the type can do tha
 
 The form has a *Schedule* section (a cron expression such as `30 3 * * *`; the time zone is the one of the System page; something must call the trigger, see the System page) and a *Retention* section (keep at most N backups, delete after D days, stay under a size). On the profile page the **Retention** box shows the rules, **what they would delete now and why**, and when they last ran; *Apply the rules now* deletes those backups and also tells the trigger that you have seen the rules (a rule that would delete more than one backup waits for that). See [BACKUP.md](BACKUP.md) 4.6.
 
+The form also has an *Encryption* section: the **public keys** (one per line, `age1...`; a mistyped one is refused, its checksum is checked) that the backups of this profile are encrypted for. **Keys** on the profile page (or the link in the form) opens the page where a **key pair is made**: the secret key is shown **once**, as the key file of `age-keygen`, with buttons to **copy** it, **save it as a file** and **print** it (the print view shows only the key), and the public key with its own copy button. ThreadSafe keeps nothing of the secret key - not in the profile, the session or the audit log. Only after you tick *I have stored the secret key somewhere else than on this server* is the public key put into the profile. Without the secret key the encrypted backups cannot be opened by anyone; you may also make the pair on your own computer and enter only the public key. See [BACKUP.md](BACKUP.md) section 5.
+
 *Remove* asks first. The profile goes; the site is not touched; the backups stay unless you tick *Also delete its backups*.
 
 ### Backing up
@@ -124,6 +126,7 @@ The form has a *Schedule* section (a cron expression such as `30 3 * * *`; the t
 *Back up now* (on the card, or on the profile page) opens the page of the run: a progress bar, what is being done, and a **Cancel the backup** button. If the storage seems to have too little room the backup stops with a message; the profile page has an option to go on anyway.
 
 - **Closed the page, lost the connection, the server stopped?** The run becomes *interrupted* about a minute after its last step (longer where the PHP time limit is long). Its page then offers **Continue** (from the saved place, to the same archive that an uninterrupted run would have made) and **Give it up** (removes what it wrote). The command line can do the same: `php bin/threadsafe backup --resume=RUN` and `backups --discard-run=RUN --yes`.
+- **A passphrase for one backup:** the start form has a field *Encrypt this backup with a passphrase* (**Suggest one** makes a passphrase of five groups of four characters in the browser, **Copy** copies it). That backup is encrypted for the passphrase only, not for the public keys of the profile. The passphrase is kept only in the state of the run until it ends; write it down before you start. One under 12 characters that was not suggested is refused.
 - **A second backup** is refused while one is going, with a link to the running one. An *interrupted* run does not block a new one.
 - **A failed backup** removes what it wrote; its page keeps the reason until you dismiss it.
 - Browsers without script get a button *Do the next step* instead of the automatic stepping.
@@ -145,6 +148,8 @@ On the profile page, newest first: when it was made (your local time, the UTC ti
 
 **Details** shows the manifest: when and with what it was made, application, how many files and tables, how the database was read, what was left out, the parts with their SHA-256, the addresses of the shop, warnings.
 
+An encrypted backup shows "(encrypted)" in the state column, and its details page says for which keys or that it is for a passphrase. The web interface holds no key, so **Check** does the quick check of an encrypted backup (size and SHA-256 of the sealed files) and says so; the full check is `php bin/threadsafe verify <profile> --identity-file=FILE`.
+
 **Check** reads every part, compares its size and SHA-256 with the record, reads it as an archive (every entry against its CRC32) and compares the manifest and the counts. It works in steps like a backup and reports the result; a faulty backup is marked in the list. Only one check runs at a time. (`php bin/threadsafe verify` does the same on the command line; `--quick` skips the archive reading.)
 
 **Delete** asks first, removes the parts and the record, and cannot be undone. A backup that a run is still writing, or a check is reading, cannot be deleted.
@@ -152,6 +157,8 @@ On the profile page, newest first: when it was made (your local time, the UTC ti
 ### Downloading
 
 *Download* lists the parts with their size and SHA-256. Press a button and the browser fetches that part. The address contains a random token that works for that one part, in your session, for two hours; it stops working when you log out. The download can be **resumed** (browsers do it by themselves, `curl -C -` too).
+
+An encrypted backup is downloaded as it is on the server (`.zip.age`, as `application/octet-stream`); only the key opens it, here or elsewhere.
 
 A download through the browser is a convenience, not a dependable transport for large archives: PHP, the web server, a proxy or a CDN in front, and your connection all have limits. Above a size (500 MB by default, a setting) the page says so and gives the **absolute path** on the server, example `scp` and `rsync` commands (with `USER@HOST` for you to fill in) and the checksums to compare afterwards. For several gigabytes use the server's own file access.
 

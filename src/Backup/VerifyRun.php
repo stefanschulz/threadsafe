@@ -10,6 +10,8 @@ use ThreadSafe\Archive\Entry;
 use ThreadSafe\Archive\ZipException;
 use ThreadSafe\Archive\ZipFormat;
 use ThreadSafe\Archive\ZipReader;
+use ThreadSafe\Crypto\AgeDecryptStream;
+use ThreadSafe\Crypto\Identity;
 use ThreadSafe\Engine\Budget;
 use ThreadSafe\Engine\Task;
 use ThreadSafe\Engine\TickOutcome;
@@ -34,9 +36,11 @@ final class VerifyRun implements Task
     private readonly Closure $storageFor;
 
     /**
-     * @param Closure(string): LocalStorage $storageFor the storage of a profile, by the id of the profile
+     * @param Closure(string): LocalStorage $storageFor  the storage of a profile, by the id of the profile
+     * @param list<Identity>|null           $identities the keys or passphrases that open an encrypted backup. Without them an encrypted backup gets the
+     *                                                  quick check only (the sealed files are compared with the record); they are never part of the state of the run.
      */
-    public function __construct(Closure $storageFor)
+    public function __construct(Closure $storageFor, private readonly ?array $identities = null)
     {
         $this->storageFor = $storageFor;
     }
@@ -121,6 +125,10 @@ final class VerifyRun implements Task
             }
         }
 
+        if ($s->full && $sidecar->encryption !== null && $this->identities === null) {
+            $s->full = false;
+            $s->notes[] = 'This backup is encrypted: a full check reads it through its key or passphrase, which are not given here, so only the sizes and SHA-256 sums of the parts were checked (verify <profile> --identity-file=FILE does the full check).';
+        }
         $s->partCount = count($sidecar->parts);
         $s->total = 0;
         foreach ($sidecar->parts as $part) {
@@ -234,13 +242,19 @@ final class VerifyRun implements Task
                 $s->zip = null;
                 continue;   // already a problem of the first pass, or the size was wrong
             }
+            $sealed = str_ends_with($part->file, '.age') && $this->identities !== null;
+            $source = $sealed ? AgeDecryptStream::url($path, $this->identities ?? []) : $path;
             try {
-                $reader = ZipReader::open($path);
+                $reader = ZipReader::open($source);
             } catch (ZipException $e) {
-                $s->problem("Part \"{$part->file}\" is not a sound archive: " . $e->getMessage());
+                $s->problem("Part \"{$part->file}\" is not a sound archive: " . ($sealed ? (AgeDecryptStream::lastError() ?? $e->getMessage()) : $e->getMessage()));
                 $s->done += $part->size;
                 ++$s->part;
                 $s->zip = null;
+                if ($sealed) {
+                    AgeDecryptStream::release($source);
+                }
+
                 continue;
             }
 
@@ -265,6 +279,10 @@ final class VerifyRun implements Task
                 }
             } catch (ZipException $e) {
                 $s->problem("Part \"{$part->file}\": " . $e->getMessage());
+            } finally {
+                if ($sealed) {
+                    AgeDecryptStream::release($source);
+                }
             }
 
             $s->files += $zip['files'];
@@ -373,7 +391,8 @@ final class VerifyRun implements Task
         }
         $problems = [];
         $manifest = Manifest::fromJson($reader->contents($entry, 4 * 1048576));
-        if ($manifest->toArray() !== $sidecar->manifest->toArray()) {
+        // (the sidecar file of an encrypted backup holds the minimal manifest, made from the one in the archive)
+        if (($sidecar->encryption !== null ? $manifest->minimal()->toArray() : $manifest->toArray()) !== $sidecar->manifest->toArray()) {
             $problems[] = 'The manifest in the archive differs from the one in the sidecar file.';
         }
         $named = array_map(static fn (array $p): string => $p['file'], $manifest->parts);

@@ -41,7 +41,7 @@ final class VerifyCommand implements Command
 
     public function usage(): string
     {
-        return 'verify <profile> [<backup>] [--quick] [--json]';
+        return 'verify <profile> [<backup>] [--quick] [--json] [--identity-file=FILE | --passphrase-file=FILE]';
     }
 
     public function options(): array
@@ -49,6 +49,7 @@ final class VerifyCommand implements Command
         return [
             new OptionSpec('quick', 'Only compare size and SHA-256 of the parts with the sidecar file'),
             new OptionSpec('json', 'Output as JSON'),
+            ...KeyOptions::specs('verify, for an encrypted backup (without it only the quick check is possible)'),
         ];
     }
 
@@ -76,7 +77,12 @@ final class VerifyCommand implements Command
             return ExitCode::StepFailed;
         }
 
-        $report = (new Verifier($storage))->verify(BackupName::parse($entry->name->base()) ?? $entry->name, !$input->has('quick'));
+        try {
+            $identities = KeyOptions::identities($input);
+        } catch (\ThreadSafe\Crypto\CryptoException $e) {
+            throw new UsageError($e->getMessage(), 0, $e);
+        }
+        $report = (new Verifier($storage, $identities))->verify(BackupName::parse($entry->name->base()) ?? $entry->name, !$input->has('quick'));
 
         if ($input->has('json')) {
             $output->writeln(json_encode($report->toArray(), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR));

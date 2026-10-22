@@ -113,6 +113,9 @@ final class BackupCatalog
             throw new StorageException("Backup \"{$name->base()}\" has no archive part.");
         }
         $last = $parts[array_key_last($parts)];
+        if (str_ends_with($last, '.age')) {
+            throw new StorageException("The record of the encrypted backup \"{$name->base()}\" cannot be made again without the key: the manifest is inside the encrypted archive.");
+        }
         try {
             $manifest = Manifest::fromArchive($last);
         } catch (ManifestException $e) {
@@ -143,7 +146,7 @@ final class BackupCatalog
      */
     public function archiveParts(BackupName $name): array
     {
-        return array_values(array_filter($this->storage->files($name), static fn (string $f): bool => str_ends_with($f, '.zip')));
+        return array_values(array_filter($this->storage->files($name), static fn (string $f): bool => str_ends_with($f, '.zip') || str_ends_with($f, '.zip.age')));
     }
 
     /**

@@ -66,6 +66,7 @@ final class DownloadController
         $body = '<p>Backup <strong>' . Html::e($base) . '</strong>, ' . Html::e(SpaceCheck::format($entry->sidecar->size())) . (count($entry->sidecar->parts) > 1 ? ' in ' . count($entry->sidecar->parts) . ' parts. Download every part and keep them together.' : '.') . '</p>'
             . ($large ? $this->warning($entry, $directory) : '')
             . '<div class="scroll"><table><thead><tr><th>File</th><th>Size</th><th>SHA-256</th><th></th></tr></thead><tbody>' . $rows . '</tbody></table></div>'
+            . ($entry->sidecar->encryption !== null ? '<p class="hint"><strong>Encrypted.</strong> The files are sent as they are on the server: only the key (or the passphrase) opens them, here or anywhere else. Keep it apart from the backup.</p>' : '')
             . '<p class="hint">After a download, compare its checksum with the one above: <code>sha256sum FILE</code> (Linux, macOS), <code>certutil -hashfile FILE SHA256</code> (Windows). A download that broke is resumed by most browsers and by <code>curl -C -</code>.</p>'
             . '<p><a href="' . Html::e($context->urls->to("/profiles/$profileId/backups/$base")) . '">Back to the backup</a></p>';
 
@@ -141,6 +142,7 @@ final class DownloadController
             static function (string $event, array $details) use ($audit, $user, $address, $profile, $backup): void {
                 $audit->record($event, $user, $address, ['profile' => $profile, 'backup' => $backup] + $details);
             },
+            str_ends_with($file, '.age') ? 'application/octet-stream' : 'application/zip',
         );
     }
 

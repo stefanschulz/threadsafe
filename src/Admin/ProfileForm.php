@@ -6,6 +6,7 @@ namespace ThreadSafe\Admin;
 
 use ThreadSafe\Database\DatabaseSettings;
 use ThreadSafe\Engine\Budget;
+use ThreadSafe\Profile\EncryptionSettings;
 use ThreadSafe\Profile\SiteProfile;
 use ThreadSafe\Web\Request;
 
@@ -16,10 +17,10 @@ use ThreadSafe\Web\Request;
  */
 final class ProfileForm
 {
-    public const array FIELDS = ['id', 'name', 'type', 'path', 'storage', 'note', 'db_mode', 'db_host', 'db_port', 'db_name', 'db_user', 'db_prefix', 'db_driver', 'exclude', 'structure_only', 'default_filters', 'compression', 'part_size', 'schedule', 'keep', 'max_age_days', 'max_size'];
+    public const array FIELDS = ['id', 'name', 'type', 'path', 'storage', 'note', 'db_mode', 'db_host', 'db_port', 'db_name', 'db_user', 'db_prefix', 'db_driver', 'exclude', 'structure_only', 'default_filters', 'compression', 'part_size', 'schedule', 'keep', 'max_age_days', 'max_size', 'recipients'];
 
     /** The fields that a form without the schedule and retention sections does not send; absent, they leave the profile as it is. */
-    private const array OPTIONAL = ['schedule', 'keep', 'max_age_days', 'max_size'];
+    private const array OPTIONAL = ['schedule', 'keep', 'max_age_days', 'max_size', 'recipients'];
 
     /**
      * @return array<string, string> the values for a new profile
@@ -27,7 +28,7 @@ final class ProfileForm
     public static function defaults(string $type = ''): array
     {
         return ['id' => '', 'name' => '', 'type' => $type, 'path' => '', 'storage' => '', 'note' => '', 'db_mode' => 'site', 'db_host' => 'localhost', 'db_port' => '3306',
-            'db_name' => '', 'db_user' => '', 'db_prefix' => '', 'db_driver' => DatabaseSettings::AUTO, 'exclude' => '', 'structure_only' => '', 'default_filters' => '1', 'compression' => '6', 'part_size' => '', 'schedule' => '', 'keep' => '', 'max_age_days' => '', 'max_size' => ''];
+            'db_name' => '', 'db_user' => '', 'db_prefix' => '', 'db_driver' => DatabaseSettings::AUTO, 'exclude' => '', 'structure_only' => '', 'default_filters' => '1', 'compression' => '6', 'part_size' => '', 'schedule' => '', 'keep' => '', 'max_age_days' => '', 'max_size' => '', 'recipients' => ''];
     }
 
     /**
@@ -50,6 +51,8 @@ final class ProfileForm
         $values['keep'] = $profile->retention?->keep === null ? '' : (string) $profile->retention->keep;
         $values['max_age_days'] = $profile->retention?->maxAgeDays === null ? '' : (string) $profile->retention->maxAgeDays;
         $values['max_size'] = $profile->retention?->maxBytes === null ? '' : self::formatSize($profile->retention->maxBytes);
+        $values['recipients'] = implode("
+", $profile->encryption->recipients ?? []);
         if ($profile->database !== null) {
             $values['db_mode'] = 'manual';
             $values['db_host'] = $profile->database->host;
@@ -132,6 +135,15 @@ final class ProfileForm
                 }
             }
             $data['retention'] = $retention === [] ? null : $retention;
+        }
+        if (array_key_exists('recipients', $values)) {
+            $keys = self::lines($values['recipients']);
+            foreach ($keys as $key) {
+                if (!EncryptionSettings::isRecipient($key)) {
+                    $errors[] = 'A public key starts with age1 and has 59 characters; "' . mb_substr($key, 0, 20) . (mb_strlen($key) > 20 ? '...' : '') . '" is not one (a mistyped key is refused: its checksum is checked).';
+                }
+            }
+            $data['encryption'] = $keys === [] ? null : ['recipients' => $keys];
         }
         if ($current !== null) {
             $data += array_intersect_key($current->toArray(), array_flip(['schedule', 'retention', 'encryption']));

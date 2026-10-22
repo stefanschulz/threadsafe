@@ -7,6 +7,7 @@ namespace ThreadSafe\Admin;
 use Throwable;
 use ThreadSafe\App\CatalogService;
 use ThreadSafe\Backup\BackupName;
+use ThreadSafe\Backup\Sidecar;
 use ThreadSafe\Core\Exception\GuardFailed;
 use ThreadSafe\Engine\EngineException;
 use ThreadSafe\Engine\Run;
@@ -92,12 +93,23 @@ final class CatalogController
         return $items === '' ? '' : '<div class="box"><h2>Checks</h2><ul class="plain">' . $items . '</ul></div>';
     }
 
+    private function encryptionText(Sidecar $sidecar): string
+    {
+        $e = $sidecar->encryption;
+        if ($e === null) {
+            return 'none';
+        }
+        $for = $e['recipients'] === [] ? '' : 'for ' . count($e['recipients']) . ' public key' . (count($e['recipients']) === 1 ? '' : 's') . ' (' . implode(', ', $e['recipients']) . ')';
+
+        return 'format age: ' . ($e['passphrase'] ? 'for a passphrase only' : $for) . '; only the key opens it, the server cannot';
+    }
+
     private function statusWord(BackupEntry $entry): string
     {
         $word = $entry->label();
         $text = ['ok' => 'ok', 'ok-with-warnings' => 'ok, with warnings', 'unverified' => 'not checked', 'faulty' => 'FAULTY', 'incomplete' => 'INCOMPLETE', 'unfinished' => 'unfinished', 'unknown' => 'unknown'][$word] ?? $word;
 
-        return '<strong>' . Html::e($text) . '</strong>' . ($entry->sidecar !== null && $entry->sidecar->pinned ? ' (pinned)' : '') . ($entry->problem !== null ? '<br><span class="hint">' . Html::e($entry->problem) . '</span>' : '');
+        return '<strong>' . Html::e($text) . '</strong>' . ($entry->sidecar !== null && $entry->sidecar->pinned ? ' (pinned)' : '') . ($entry->sidecar?->encryption !== null ? ' (encrypted)' : '') . ($entry->problem !== null ? '<br><span class="hint">' . Html::e($entry->problem) . '</span>' : '');
     }
 
     private function rowActions(Context $context, string $profileId, BackupEntry $entry): string
@@ -149,6 +161,7 @@ final class CatalogController
         }
         $m = $sidecar->manifest;
         $rows += [
+            'Encryption' => $this->encryptionText($sidecar),
             'Kept' => $sidecar->pinned ? 'pinned: retention never deletes it' : 'by the retention rules of the profile (if it has any)',
             'Asked for by' => ['manual' => 'a person (the command or the browser)', 'schedule' => 'the schedule'][$sidecar->source] ?? 'not recorded (made before this was noted)',
             'Made' => $m->started->setTimezone(new \DateTimeZone('UTC'))->format('Y-m-d H:i:s') . ' UTC, took ' . $m->duration() . ' s',

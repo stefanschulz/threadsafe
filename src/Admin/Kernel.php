@@ -143,6 +143,7 @@ final class Kernel
         $restore = new RestoreController($services);
         $system = new SystemController($services);
         $retention = new RetentionController($services);
+        $keys = new KeysController($services);
         $router = new Router();
         $router->add('GET', '/login', $auth->loginPage(...), public: true);
         $router->add('POST', '/login', $auth->login(...), public: true);
@@ -164,6 +165,9 @@ final class Kernel
         $router->add('POST', '/profiles/{id}/backups/{name}/delete', $catalog->delete(...));
         $router->add('POST', '/profiles/{id}/backups/{name}/pin', $catalog->pin(...));
         $router->add('POST', '/profiles/{id}/retention', $retention->apply(...));
+        $router->add('GET', '/profiles/{id}/keys', $keys->index(...));
+        $router->add('POST', '/profiles/{id}/keys/new', $keys->generate(...));
+        $router->add('POST', '/profiles/{id}/keys/use', $keys->use(...));
         $router->add('GET', '/profiles/{id}/backups/{name}/download', $download->dialog(...));
         $router->add('POST', '/profiles/{id}/backups/{name}/download', $download->issue(...));
         $router->add('GET', '/download/{hex}/{name}', $download->file(...));
