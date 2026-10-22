@@ -151,6 +151,16 @@ The rules are those of the profile (`--keep`, `--max-age-days`, `--max-bytes`): 
 
 The same rules are applied **by themselves** after every successful backup (the command, the browser and the trigger) and, by the trigger or a call of its address, once an hour for every profile with rules, so that `maxAgeDays` works for a site that makes no backups any more; not for a profile whose last backup run failed. **A rule that has not been seen at work and would delete more than one backup waits for your go-ahead**: the backup says so, the profile page shows the list, and `retention <profile>` (or the button) goes ahead and confirms the rules; changing the rules asks again.
 
+### 4.7 `keys`
+
+```bash
+php bin/threadsafe keys generate [--output=FILE]     # a key pair, as the file of age-keygen
+php bin/threadsafe keys passphrase [--output=FILE]   # a passphrase, e.g. kr7m-xq3d-hp9t-w4nc-2vfe
+php bin/threadsafe keys check <file.age> --identity-file=FILE | --passphrase-file=FILE
+```
+
+Encrypted backups use the format of [age](https://age-encryption.org/) (the encryption of the backups themselves comes with work package 6 of [PHASE5.md](PHASE5.md); the keys and the format are there now). `keys generate` shows a key file once: the secret key (`AGE-SECRET-KEY-1...`) and the public key (`age1...`); the public key goes into the profile (`profile edit <id> --recipient=age1...`), the secret key is for you to keep **somewhere other than this server** (a password manager, a printout). **Without it the backups made for that public key cannot be opened by anyone.** With `--output` the key file is written with mode 0600 and the secret key is not shown; an existing file is never overwritten. The real `age` tool opens a backup with that file (`age -d -i key.txt backup.zip.age`). `keys passphrase` makes a passphrase of five groups of four characters without look-alikes (about 99 bits); a passphrase is protected by scrypt with a work factor of 2^15, eight times less than the age tool's own, so a short passphrase that a person made up is weak and a generated one is not. A passphrase and public keys cannot be combined in one file (the format forbids it): a backup is for the passphrase or for the keys. `keys check` decrypts the first block of a file to show that a key or passphrase fits (the passphrase comes from a file or from `THREADSAFE_PASSPHRASE`, never from an option).
+
 ## 5. What a backup consists of
 
 ```

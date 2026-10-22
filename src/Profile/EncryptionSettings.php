@@ -4,17 +4,16 @@ declare(strict_types=1);
 
 namespace ThreadSafe\Profile;
 
+use ThreadSafe\Crypto\AgeKeys;
+
 /**
  * Whom the backups of a profile are encrypted for: the public keys (`age1...`) of the people who may open them
- * (docs/PHASE5.md 3.5). Only the shape of a key is checked here; the checksum of the key is checked by the `age` code of work
- * package 5, which makes the files.
+ * (docs/PHASE5.md 3.5). A key is checked in full, checksum included, so that a mistyped key is refused when it is entered and not
+ * when the first backup is made for it.
  */
 final readonly class EncryptionSettings
 {
     private const array KEYS = ['recipients'];
-
-    /** "age1" and 58 characters of the bech32 alphabet (no 1, b, i, o) */
-    private const string RECIPIENT = '/^age1[qpzry9x8gf2tvdw0s3jn54khce6mua7l]{58}$/';
 
     /**
      * @param non-empty-list<string> $recipients
@@ -25,7 +24,7 @@ final readonly class EncryptionSettings
 
     public static function isRecipient(string $text): bool
     {
-        return preg_match(self::RECIPIENT, $text) === 1;
+        return AgeKeys::isRecipient($text);
     }
 
     /**

@@ -126,6 +126,7 @@ final class SiteProfileTest extends TestCase
         yield 'recipients that are not a list' => [['encryption' => ['recipients' => self::KEY]], 'must be a list of public keys'];
         yield 'a recipient that is a secret key' => [['encryption' => ['recipients' => ['AGE-SECRET-KEY-1QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ']]], 'not a public key'];
         yield 'a recipient with a wrong letter' => [['encryption' => ['recipients' => ['age1bl3z7hjy54pw3hyww5ayyfg7zqgvc7w3j2elw8zmrj2kg5sfn9aqmcac8p']]], 'not a public key'];
+        yield 'a recipient with a mistyped character (wrong checksum)' => [['encryption' => ['recipients' => ['age1ql3z7hjy54pw3hyww5ayyfg7zqgvc7w3j2elw8zmrj2kg5sfn9aqmcac8q']]], 'not a public key'];
         yield 'a recipient that is too short' => [['encryption' => ['recipients' => ['age1ql3z7hjy54pw']]], 'not a public key'];
     }
 
