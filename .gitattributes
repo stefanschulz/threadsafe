@@ -1,3 +1,5 @@
 * text=auto eol=lf
 *.php diff=php
 *.sh text eol=lf
+# test vectors must stay byte for byte (one of them is about CRLF in a header)
+tests/fixtures/age-cctv/* -text
