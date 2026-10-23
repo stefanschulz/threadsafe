@@ -15,7 +15,7 @@ How it was designed and built, and the measurements behind it: [PHASE4.md](PHASE
 
 ## Installing
 
-ThreadSafe is a directory (a clone of the repository, or an archive) with PHP 8.4 or newer and `composer install --no-dev` run once. The extensions `zlib`, `hash`, `json` and `mbstring` are needed, and `pdo_mysql` or `mysqli` for sites with a database. The **System** page (below) tells you what your server lacks.
+ThreadSafe is a directory (a clone of the repository, or an archive) with PHP 8.4 or newer and `composer install --no-dev` run once. The extensions `zlib`, `hash`, `json` and `mbstring` are needed, and `pdo_mysql` or `mysqli` for sites with a database; `sodium` only if backups are to be encrypted (it is a suggestion in `composer.json`, not a requirement, so that a host without it can still install and use everything else). The **System** page (below) tells you what your server lacks.
 
 ### Where the web server points
 

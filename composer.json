@@ -14,6 +14,9 @@
         "phpstan/phpstan": "^2.0",
         "phpunit/phpunit": "^12.0"
     },
+    "suggest": {
+        "ext-sodium": "Encrypting backups and restoring encrypted ones (the age format); not needed for backups that are not encrypted"
+    },
     "bin": [
         "bin/threadsafe"
     ],
