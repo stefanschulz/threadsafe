@@ -98,6 +98,8 @@ The menu is on the left: **Dashboard**, **Profiles**, **System**, each with an i
 
 ### Dashboard
 
+At the top is a **strip of figures**: *Sites*, *Backups*, *In storage* and *Needs a look* (the number of sites with a warning or a problem; amber or red when it is not zero), and *Running* while a backup is going. Each cell has its label above and its value below, with a thin line between the cells; on a narrow screen the cells stack. Below the cards, **Recent activity** shows the last five events of the audit log; the button *See more* leads to the whole log on the System page.
+
 A card for every site, kept short: the **name** in bold with a **pencil** beside it (it edits the profile; no label, a tooltip *Edit profile*), the state on a badge, the **newest backup** (date, time and state) and the **next scheduled backup** (date and time, if the profile has a schedule), the backup that is going, and the **warnings**. Two buttons: **Back up now** and **Profile** (the page of the site with its backups, settings and retention). How long ago, how big and how many backups are on the profile page. The dates and times are shown in the time zone of your browser, without seconds; the tooltip has what the server wrote. The warnings:
 
 | Warning | When |
@@ -190,7 +192,7 @@ What `restore.php` then does, what it checks and refuses, and how to read its me
 - **Installation check:** the PHP version and the length of one step, the extensions, whether a PHP command line binary is found, https, running as root, the data directory (writable, permissions, closed), and for every profile the site directory, **left-over `restore.php`, `restore-key.php` or `.threadsafe-restore` in it**, and the storage (writable, protection files, free space). A left-over restore tool on a web server is a risk; remove it.
 - **Can the data directory be fetched?** The page writes a small file into `data/` and your browser asks for it at the addresses where `data/` would be served if the program lay below the web root. "Not reachable" is what you want. If it says **REACHABLE FROM OUTSIDE**, anyone can fetch your profiles and sessions: close it at once (make `public/` the document root, or move the data directory out with `THREADSAFE_DATA`). With `public/` as the document root nothing in `data/` is served at all, and the test says so.
 - **Trigger:** when the trigger (the cron job that makes the scheduled backups happen) called last, and a warning when it stays away; the command line for a crontab; the address with its secret for a cron that can only fetch an address, with buttons to make, replace or remove the secret. See [BACKUP.md](BACKUP.md) 4.5.
-- **Settings** (below) and the **recent activity** (the audit log).
+- **Settings** (below) and the **recent activity** (the audit log; the button *See more* under the last events on the dashboard leads straight to it, `/system#activity`).
 
 ### Settings
 

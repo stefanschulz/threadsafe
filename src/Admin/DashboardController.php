@@ -42,10 +42,15 @@ final class DashboardController
         $config = $this->services->config;
         $trigger = (new TriggerStatus(new Scheduler(new ScheduleStore($data . '/schedule'), $config->scheduleZone(), $config->scheduleGraceMinutes()), new Heartbeat($data . '/heartbeat.json'), $config->expectedIntervalMinutes(), $this->services->clock))->build($profiles->all());
 
-        $header = ($trigger['warning'] === null ? '' : '<p class="flash warning" role="alert">' . Html::e($trigger['warning']) . ' <a href="' . Html::e($context->urls->to('/system')) . '">System</a></p>') . '<p class="summary"><strong>' . $totals['profiles'] . '</strong> ' . ($totals['profiles'] === 1 ? 'site' : 'sites') . ' &middot; <strong>' . $totals['backups'] . '</strong> '
-            . ($totals['backups'] === 1 ? 'backup' : 'backups') . ' &middot; <strong>' . Html::e(SpaceCheck::format($totals['bytes'])) . '</strong> in storage'
-            . ($totals['running'] > 0 ? ' &middot; <strong>' . $totals['running'] . '</strong> running' : '') . '</p>';
-
+        // the figures as a strip: label above, value below, a thin line between them; the last one says how many sites need a look
+        $levels = array_count_values(array_map(static fn (array $card): string => (string) $card['level'], $overview['cards']));
+        $attention = ($levels[Overview::WARNING] ?? 0) + ($levels[Overview::PROBLEM] ?? 0);
+        $worst = ($levels[Overview::PROBLEM] ?? 0) > 0 ? Overview::PROBLEM : ($attention > 0 ? Overview::WARNING : '');
+        $stat = static fn (string $label, string $value, string $level = ''): string => '<div class="stat' . ($level !== '' ? ' ' . $level : '') . '"><dt>' . Html::e($label) . '</dt><dd>' . Html::e($value) . '</dd></div>';
+        $strip = '<dl class="stats">' . $stat('Sites', (string) $totals['profiles']) . $stat('Backups', (string) $totals['backups'])
+            . $stat('In storage', SpaceCheck::format($totals['bytes'])) . $stat('Needs a look', (string) $attention, $worst)
+            . ($totals['running'] > 0 ? $stat('Running', (string) $totals['running']) : '') . '</dl>';
+        $header = ($trigger['warning'] === null ? '' : '<p class="flash warning" role="alert">' . Html::e($trigger['warning']) . ' <a href="' . Html::e($context->urls->to('/system')) . '">System</a></p>') . $strip;
         // the sites can be filtered by website type (`?type=...`; an address that works without script); the tile for a new profile is always there
         $byType = [];
         foreach ($overview['cards'] as $card) {
@@ -71,8 +76,8 @@ final class DashboardController
         $cards .= '<a class="card new" href="' . Html::e($context->urls->to('/new-profile')) . '">' . Icons::svg('plus') . '<span>New profile</span></a></div>';
 
         $body = $header . (new CatalogController($this->services))->checksBox($context) . $cards
-            . '<h2>Recent activity</h2>' . View::audit($this->services->audit->recent(8))
-            . '<p class="hint"><a href="' . Html::e($context->urls->to('/system')) . '">More on the System page</a></p>';
+            . '<h2>Recent activity</h2>' . View::audit($this->services->audit->recent(5))
+            . '<p><a class="button secondary" href="' . Html::e($context->urls->to('/system')) . '#activity">See more</a></p>';
 
         return View::page($context, 'Dashboard', $body);
     }

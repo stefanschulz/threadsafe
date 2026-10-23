@@ -437,7 +437,7 @@ final class KernelTest extends TestCase
 
         $dashboard = $this->send('GET', '/');
 
-        self::assertStringContainsString('<strong>0</strong> sites', $dashboard->body);
+        self::assertStringContainsString('<div class="stat"><dt>Sites</dt><dd>0</dd></div>', $dashboard->body);
         self::assertStringContainsString('login', $dashboard->body, 'the login is in the recent activity');
         self::assertStringContainsString('<time datetime="2027-01-15T08:00:00Z">', $dashboard->body);
     }

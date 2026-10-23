@@ -70,7 +70,8 @@ final class SystemAndRestorePagesTest extends TestCase
 
         $page = $this->browser->get('/');
 
-        self::assertStringContainsString('<strong>1</strong> site &middot; <strong>1</strong> backup &middot;', $page->body);
+        self::assertStringContainsString('<dl class="stats"><div class="stat"><dt>Sites</dt><dd>1</dd></div><div class="stat"><dt>Backups</dt><dd>1</dd></div><div class="stat"><dt>In storage</dt><dd>', $page->body, 'the figures as a strip');
+        self::assertStringContainsString('<div class="stat"><dt>Needs a look</dt><dd>0</dd></div>', $page->body, 'a healthy site needs no look');
         self::assertStringContainsString('<article class="card ok">', $page->body);
         self::assertStringContainsString('<span class="badge ok">Healthy</span>', $page->body, 'the state is written, not only coloured');
         self::assertStringContainsString('href="/profiles/blog/backups/' . $name->base() . '"', $page->body);
@@ -105,6 +106,17 @@ final class SystemAndRestorePagesTest extends TestCase
         self::assertMatchesRegularExpression('~<div class="cards"><article class="card .*</article><a class="card new" href="/new-profile"><svg class="icon"[^>]*>.*?</svg><span>New profile</span></a></div>~s', $page->body, 'the tile is the last card, in the same grid');
         self::assertStringNotContainsString('>New profile</a></p>', $page->body, 'the plain link below the cards is gone');
         self::assertSame(1, substr_count($page->body, 'href="/new-profile"'), 'one way, and it is the whole tile');
+    }
+
+    public function testTheDashboardLeadsToTheActivityOnTheSystemPageByAnAnchor(): void
+    {
+        $dashboard = $this->browser->get('/')->body;
+        $system = $this->browser->get('/system')->body;
+
+        self::assertStringContainsString('<a class="button secondary" href="/system#activity">See more</a>', $dashboard, 'a button, with a name that says what it does');
+        self::assertStringNotContainsString('More on the System page', $dashboard);
+        self::assertStringContainsString('<h2 id="activity">Recent activity</h2>', $system, 'and the place it leads to');
+        self::assertSame(1, substr_count($system, 'id="activity"'));
     }
 
     public function testACardWithAWarningNamesItAndNeverRelyOnColourAlone(): void

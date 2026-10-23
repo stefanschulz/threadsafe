@@ -159,7 +159,7 @@ final class BackupPagesTest extends TestCase
         foreach (['/', '/profiles/blog'] as $route) {
             $body = $this->browser->get($route)->body;
             self::assertStringContainsString('href="/runs/' . $id . '"', $body, $route);
-            self::assertStringContainsString('running', $body, $route);
+            self::assertStringContainsString($route === '/' ? '<div class="stat"><dt>Running</dt><dd>1</dd></div>' : 'running', $body, $route);
         }
     }
 

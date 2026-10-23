@@ -119,7 +119,7 @@ final class SystemController
             . '<h2>Trigger</h2>' . $this->trigger($context)
             . '<h2>Can the data directory be fetched from outside?</h2>' . $this->probe($context, $probeWritten)
             . '<h2>Settings</h2>' . $this->settings($context, $errors, $values)
-            . '<h2>Recent activity</h2>' . View::audit($this->services->audit->recent(50));
+            . '<h2 id="activity">Recent activity</h2>' . View::audit($this->services->audit->recent(50));
 
         return View::page($context, 'System', $body, '/system', $status);
     }
