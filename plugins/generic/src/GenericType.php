@@ -75,7 +75,7 @@ final class GenericType implements WebsiteType, Backupable, Restorable
 
     public function title(): string
     {
-        return 'Any website';
+        return 'Other website';
     }
 
     public function options(): array

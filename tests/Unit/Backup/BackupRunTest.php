@@ -148,7 +148,7 @@ final class BackupRunTest extends TestCase
         $manifest = Manifest::fromArchive($archive);
         $sidecar = $storage->readSidecar($name);
         self::assertSame($manifest->toArray(), $sidecar->manifest->toArray());
-        self::assertSame('Any website', $manifest->application['name']);
+        self::assertSame('Other website', $manifest->application['name']);
         self::assertSame(['blog'], [$manifest->profileId]);
         self::assertSame(hash_file('sha256', $archive), $sidecar->parts[0]->sha256);
         self::assertSame(filesize($archive), $sidecar->parts[0]->size);

@@ -99,7 +99,7 @@ final class ProfileAndBackupCommandTest extends TestCase
 
         [$code, $stdout] = $this->cli(['profile', 'test', 'blog']);
         self::assertSame(0, $code);
-        self::assertStringContainsString('Any website', $stdout);
+        self::assertStringContainsString('Other website', $stdout);
         self::assertStringContainsString('The profile can be backed up.', $stdout);
 
         [$code, , $stderr] = $this->cli(['profile', 'remove', 'blog']);

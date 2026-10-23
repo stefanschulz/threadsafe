@@ -88,6 +88,15 @@ final readonly class Manifest
     }
 
     /**
+     * The name of an application as it is called now: the type for any other site was "Any website" and is "Other website"; backups made
+     * before the change say the old name, and every place that shows the name should show the new one (the name is a label, not an identity).
+     */
+    private static function currentName(string $name): string
+    {
+        return $name === 'Any website' ? 'Other website' : $name;
+    }
+
+    /**
      * What the sidecar file of an **encrypted** backup says about it (docs/PHASE5.md 3.5, decision 3): the time, the application and its
      * version, the counts and the parts - and nothing that names the site: no addresses, no paths, no table names, no filters, no database
      * facts, no warnings with file names (only how many there were), and the id of the profile instead of its name. It is made from the
@@ -227,7 +236,7 @@ final readonly class Manifest
             $string($profile, 'id'),
             $string($profile, 'name'),
             $string($data, 'type'),
-            ['name' => $string($application, 'name'), 'version' => $version],
+            ['name' => self::currentName($string($application, 'name')), 'version' => $version],
             $string($data, 'php'),
             $database,
             $string($data, 'consistency'),

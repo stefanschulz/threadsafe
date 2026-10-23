@@ -317,7 +317,7 @@ final class ProfileController
             . ($creating ? View::field('id', 'Id', 'text', $values['id'], ['required' => 'required', 'maxlength' => '40', 'autocapitalize' => 'none', 'spellcheck' => 'false'], 'Lower-case letters, digits, hyphens and underscores; part of the names of the backup files. It cannot be changed later.')
                 : '<p>Id: <code>' . Html::e($currentId) . '</code></p>')
             . View::field('name', 'Name', 'text', $values['name'], [], 'Shown in the lists; the id if left empty.')
-            . View::select('type', 'Website type', $types, $values['type'])
+            . View::select('type', 'Website type', $types, $values['type'], 'PrestaShop 9 knows its own files and reads its database from its configuration. Other website is any site: the files of its directory and, if you enter one, a database.')
             . View::field('path', 'Site directory', 'text', $values['path'], ['required' => 'required', 'spellcheck' => 'false'], 'The absolute path of the application on this server.')
             . '<p><button type="submit" name="action" value="detect" class="secondary" formnovalidate>Look at the site</button></p>'
             . '<h2>Backups</h2>'

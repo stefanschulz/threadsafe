@@ -19,7 +19,7 @@ final class GenericBackup implements Backupable
 {
     public function detect(string $path): ?DetectedSite
     {
-        return is_dir($path) ? new DetectedSite('Any website', null) : null;
+        return is_dir($path) ? new DetectedSite('Other website', null) : null;
     }
 
     public function databaseSettings(string $path): ?DatabaseSettings

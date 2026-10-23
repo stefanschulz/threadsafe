@@ -121,7 +121,7 @@ final class ProfileResolverTest extends TestCase
     {
         $resolved = $this->resolver()->resolve($this->profile('generic', $this->tempDirectory()));
 
-        self::assertSame('Any website', $resolved->site->describe());
+        self::assertSame('Other website', $resolved->site->describe());
         self::assertNull($resolved->database);
         self::assertSame([], $resolved->excludePaths);
         self::assertSame([], $resolved->structureOnly);
@@ -209,7 +209,7 @@ final class ProfileResolverTest extends TestCase
 
         self::assertTrue($report->passed(), implode("\n", $report->messages(\ThreadSafe\Profile\CheckLevel::Failure)));
         $text = implode("\n", array_map(static fn ($c): string => $c->subject . ': ' . $c->message, $report->checks));
-        self::assertStringContainsString('Any website', $text);
+        self::assertStringContainsString('Other website', $text);
         self::assertStringContainsString('Database: none: only the files are backed up', $text);
         self::assertStringContainsString('does not exist yet and can be created', $text);
         self::assertStringContainsString('PHP command line', $text);

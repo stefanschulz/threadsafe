@@ -1,6 +1,6 @@
 {
     "id": "generic",
-    "title": "Any website",
+    "title": "Other website",
     "version": "0.1.0",
     "api": 1,
     "class": "ThreadSafe\\Generic\\GenericType",

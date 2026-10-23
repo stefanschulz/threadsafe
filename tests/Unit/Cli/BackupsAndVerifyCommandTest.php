@@ -80,7 +80,7 @@ final class BackupsAndVerifyCommandTest extends TestCase
         self::assertSame($name->base(), $data['backups'][0]['backup']);
         self::assertSame('blog', $data['backups'][0]['profile']);
         self::assertSame('ok', $data['backups'][0]['status']);
-        self::assertSame('Any website', $data['backups'][0]['application']);
+        self::assertSame('Other website', $data['backups'][0]['application']);
         self::assertSame([$name->base() . '.zip'], $data['backups'][0]['parts']);
         self::assertSame([], $data['interruptedRuns']);
     }

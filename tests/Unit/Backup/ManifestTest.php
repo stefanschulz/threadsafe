@@ -62,6 +62,19 @@ final class ManifestTest extends TestCase
         self::assertSame("Webshop (live) ü", $again->profileName);
     }
 
+    public function testABackupFromBeforeTheRenamingOfTheGenericTypeShowsTheNewName(): void
+    {
+        $data = self::sample()->toArray();
+        $data['application'] = ['name' => 'Any website', 'version' => null];
+
+        $manifest = Manifest::fromArray($data);
+
+        self::assertSame('Other website', $manifest->application['name'], 'the old label is read as the new one');
+        self::assertSame('Other website', Manifest::fromJson($manifest->toJson())->application['name']);
+        $data['application'] = ['name' => 'PrestaShop', 'version' => '9.0.2'];
+        self::assertSame('PrestaShop', Manifest::fromArray($data)->application['name'], 'other names are left alone');
+    }
+
     public function testNoApplicationVersionIsAllowed(): void
     {
         $data = self::sample()->toArray();

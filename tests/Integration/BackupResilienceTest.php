@@ -381,7 +381,7 @@ final class BackupResilienceTest extends IntegrationTestCase
         }
         self::assertFileEquals($site . '/index.php', $target . '/files/index.php');
         $manifest = \ThreadSafe\Backup\Manifest::fromArchive($archive);
-        self::assertSame('Any website', $manifest->application['name']);
+        self::assertSame('Other website', $manifest->application['name']);
         self::assertSame('ps_', $manifest->database['prefix']);
         self::assertStringNotContainsString($this->shop->settings->password, $manifest->toJson() . (string) file_get_contents((new LocalStorage($this->storage . '-blog'))->sidecarPath(BackupName::parse(basename($archive, '.zip')) ?? throw new \LogicException('name'))) . $stdout);
     }

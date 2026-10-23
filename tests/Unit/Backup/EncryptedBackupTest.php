@@ -288,6 +288,9 @@ final class EncryptedBackupTest extends TestCase
     public function testAMistypedKeyIsRefusedWhenItIsEnteredNotWhenTheBackupRuns(): void
     {
         $this->expectException(\ThreadSafe\Profile\ProfileException::class);
-        $this->fixture->profiles->load('blog')->with(['encryption' => ['recipients' => [substr($this->pair['public'], 0, -1) . 'q']]]);
+        // the last character is changed to another one (one time in 32 a fixed 'q' would be the key itself)
+        $public = $this->pair['public'];
+        $typo = substr($public, 0, -1) . (substr($public, -1) === 'q' ? 'p' : 'q');
+        $this->fixture->profiles->load('blog')->with(['encryption' => ['recipients' => [$typo]]]);
     }
 }

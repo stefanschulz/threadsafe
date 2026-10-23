@@ -72,7 +72,7 @@ final class SystemAndRestorePagesTest extends TestCase
 
         self::assertStringContainsString('<strong>1</strong> site &middot; <strong>1</strong> backup &middot;', $page->body);
         self::assertStringContainsString('<article class="card ok">', $page->body);
-        self::assertStringContainsString('<span class="badge ok">OK</span>', $page->body, 'the state is written, not only coloured');
+        self::assertStringContainsString('<span class="badge ok">Healthy</span>', $page->body, 'the state is written, not only coloured');
         self::assertStringContainsString('href="/profiles/blog/backups/' . $name->base() . '"', $page->body);
         self::assertStringContainsString('Back up now', $page->body);
     }

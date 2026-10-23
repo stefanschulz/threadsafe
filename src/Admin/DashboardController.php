@@ -115,7 +115,7 @@ final class DashboardController
         $good = $card['lastGood'];
         $id = $profile->id;
         $level = (string) $card['level'];
-        $word = ['ok' => 'OK', 'warning' => 'Needs a look', 'problem' => 'Problem'][$level] ?? $level;
+        $word = ['ok' => 'Healthy', 'warning' => 'Needs a look', 'problem' => 'Problem'][$level] ?? $level;
 
         $application = '';
         $reference = $good ?? $last;
