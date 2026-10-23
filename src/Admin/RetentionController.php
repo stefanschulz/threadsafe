@@ -91,7 +91,7 @@ final class RetentionController
         if ($profile === null) {
             return View::page($context, 'Not found', '<p>There is no such profile. <a href="' . Html::e($context->urls->to('/profiles')) . '">Back to the profiles</a>.</p>', '/profiles', 404);
         }
-        $back = Response::redirect($context->urls->to('/profiles/' . $id));
+        $back = Response::redirect($context->urls->to('/profiles/' . $id, ['tab' => 'retention']));
         if ($profile->retention === null) {
             $context->flash('warning', 'The profile has no retention rules.');
 

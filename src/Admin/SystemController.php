@@ -115,7 +115,7 @@ final class SystemController
      */
     private function page(Context $context, array $errors, ?array $values, int $status = 200, ?string $tab = null): Response
     {
-        $tab ??= self::tabOf($context);
+        $tab ??= Tabs::current($context, self::TABS);
         $content = match ($tab) {
             'cron' => '<h2>Cron</h2>' . $this->cron($context),
             'settings' => '<h2>Settings</h2>' . $this->settings($context, $errors, $values),
@@ -123,29 +123,7 @@ final class SystemController
             default => $this->general($context),
         };
 
-        return View::page($context, 'System', $this->tabs($context, $tab) . $content, '/system', $status);
-    }
-
-    /** The section that the address asks for (`?tab=cron`); anything else is the general one. */
-    private static function tabOf(Context $context): string
-    {
-        $wanted = $context->request->query('tab');
-
-        return is_string($wanted) && isset(self::TABS[$wanted]) ? $wanted : 'general';
-    }
-
-    /**
-     * The sections of the page, side by side: links (`?tab=...`), so that the choice is in the address and works without script; the one that
-     * is shown is marked with `aria-current`.
-     */
-    private function tabs(Context $context, string $current): string
-    {
-        $links = '';
-        foreach (self::TABS as $id => $label) {
-            $links .= '<a href="' . Html::e($context->urls->to('/system', $id === 'general' ? [] : ['tab' => $id])) . '"' . ($id === $current ? ' aria-current="page"' : '') . '>' . Html::e($label) . '</a>';
-        }
-
-        return '<nav class="tabs" aria-label="Sections of the System page">' . $links . '</nav>';
+        return View::page($context, 'System', Tabs::render($context, '/system', self::TABS, $tab, 'Sections of the System page') . $content, '/system', $status);
     }
 
     /** The general section: the installation check, how the trigger is doing, and whether the data directory can be fetched. */

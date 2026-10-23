@@ -47,6 +47,29 @@ final class Overview
         $this->clock = $clock ?? time(...);
     }
 
+    /** The word for a level, as the badge of a card and of a profile says it. */
+    public static function label(string $level): string
+    {
+        return [self::OK => 'Healthy', self::WARNING => 'Needs a look', self::PROBLEM => 'Problem'][$level] ?? $level;
+    }
+
+    /**
+     * The card of one profile (the page of the profile has the same state and warnings as the dashboard).
+     *
+     * @return array<string, mixed>
+     */
+    public function forProfile(SiteProfile $profile): array
+    {
+        $runs = [];
+        foreach ($this->runs->all('backup') as $run) {
+            if (($run->state['profileId'] ?? null) === $profile->id) {
+                $runs[] = ['run' => $run, 'state' => $this->backups->state($run)];
+            }
+        }
+
+        return $this->card($profile, $runs);
+    }
+
     /**
      * @return array{cards: list<array<string, mixed>>, totals: array{profiles: int, backups: int, bytes: int, running: int}}
      */

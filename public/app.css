@@ -344,6 +344,16 @@ ul.plain { margin: 0; padding-left: 1.1rem; }
 .tabs a { margin-bottom: -1px; padding: 0.6rem 1.1rem; color: var(--text-soft); font: 500 0.78rem/1.4 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; text-decoration: none; border-bottom: 2px solid transparent; }
 .tabs a:hover { color: var(--text); border-bottom-color: var(--border-strong); }
 .tabs a[aria-current="page"] { color: var(--text); border-bottom-color: var(--brass); }
+/* the head of the page of a profile: type and state, the paths, what needs a look; a small action beside the title */
+.page-title { display: flex; align-items: center; gap: 0.25rem; min-width: 0; }
+.profile-summary { margin: 0.5rem 0 1.5rem; }
+.profile-summary .badges { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.75rem; }
+.profile-summary .facts { margin-top: 0; }
+.profile-summary ul.warnings { margin-bottom: 0.25rem; }
+.facts.roomy { margin-bottom: 1.5rem; }
+.facts.roomy .fact { grid-template-columns: 9rem minmax(0, 1fr); }
+.start-options { margin: 0 0 1rem; }
+.start-options summary { cursor: pointer; }
 /* the title of a page with its main action at the right */
 .page-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem 1rem; }
 .page-actions { margin: 1rem 0; }

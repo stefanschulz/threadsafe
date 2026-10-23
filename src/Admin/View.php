@@ -33,11 +33,15 @@ final class View
      *
      * @param string $active the route of the navigation entry to mark as current
      * @param string $actions the main action of the page as HTML (a button), shown at the right of the title
+     * @param string $titleSuffix a small action as HTML (an icon button), shown beside the title
      */
-    public static function page(Context $context, string $title, string $body, string $active = '/', int $status = 200, string $actions = ''): Response
+    public static function page(Context $context, string $title, string $body, string $active = '/', int $status = 200, string $actions = '', string $titleSuffix = ''): Response
     {
-        // the main action of a page (HTML) stands at the right of the title
+        // the main action of a page (HTML) stands at the right of the title, a small action (an icon button) beside it
         $heading = '<h1>' . Html::e($title) . '</h1>';
+        if ($titleSuffix !== '') {
+            $heading = '<div class="page-title">' . $heading . $titleSuffix . '</div>';
+        }
         if ($actions !== '') {
             $heading = '<div class="page-head">' . $heading . '<div class="page-actions">' . $actions . '</div></div>';
         }

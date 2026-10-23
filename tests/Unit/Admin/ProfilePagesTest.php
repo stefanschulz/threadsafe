@@ -162,6 +162,61 @@ final class ProfilePagesTest extends TestCase
         self::assertSame($expected, $names($this->browser->get('/')->body));
         self::assertSame(['Apple 2', 'apple 10'], array_slice($names($this->browser->get('/profiles?type=generic')->body), 0, 2), 'the filter keeps the order');
     }
+    public function testTheProfilePageHasAHeadThatIsAlwaysThereAndOneMainAction(): void
+    {
+        $this->create();
+
+        foreach (['/profiles/blog', '/profiles/blog?tab=retention', '/profiles/blog?tab=settings'] as $route) {
+            $page = $this->browser->get($route)->body;
+
+            self::assertStringContainsString('<div class="page-title"><h1>My Blog</h1><a class="icon-button" href="/profiles/blog/edit" title="Edit profile" aria-label="Edit profile My Blog"><svg class="icon"', $page, $route . ': the pencil stands beside the name');
+            self::assertStringContainsString('<div class="page-actions"><form method="post" action="/profiles/blog/backup" class="inline">', $page, $route . ': the one main action');
+            self::assertStringContainsString('<section class="card profile-summary ', $page, $route);
+            self::assertStringContainsString('<span class="badge">Other website</span>', $page, $route);
+            self::assertStringContainsString('<dt>Site</dt><dd><code class="path">' . str_replace('/', '/<wbr>', $this->base . '/my-site') . '</code></dd>', $page, $route);
+            self::assertStringContainsString('<dt>Backups</dt>', $page, $route);
+        }
+    }
+
+    public function testTheProfilePageShowsOneSectionAtATime(): void
+    {
+        $this->create();
+        $marks = ['backups' => '<h2>Backups</h2>', 'retention' => '<h2>Retention</h2>', 'settings' => '<h2>Settings</h2>'];
+        $routes = ['backups' => '/profiles/blog', 'retention' => '/profiles/blog?tab=retention', 'settings' => '/profiles/blog?tab=settings'];
+
+        foreach ($routes as $id => $route) {
+            $page = $this->browser->get($route)->body;
+
+            self::assertStringContainsString('<nav class="tabs" aria-label="Sections of the profile">', $page, $id);
+            foreach (['Backups' => '/profiles/blog', 'Retention' => '/profiles/blog?tab=retention', 'Settings' => '/profiles/blog?tab=settings'] as $name => $href) {
+                self::assertStringContainsString('<a href="' . $href . '"', $page, "$id has the link to $name");
+            }
+            foreach ($marks as $other => $mark) {
+                self::assertSame($other === $id, str_contains($page, $mark), "$id shows $other only if it is its own");
+            }
+        }
+        self::assertStringContainsString('<a href="/profiles/blog?tab=settings" aria-current="page">Settings</a>', $this->browser->get('/profiles/blog?tab=settings')->body);
+        self::assertStringContainsString('<h2>Backups</h2>', $this->browser->get('/profiles/blog?tab=nonsense')->body, 'an unknown section is the first one');
+    }
+
+    public function testTheOptionsOfABackupAreFoldedAndTheDangerousThingsAreInTheSettings(): void
+    {
+        $this->create();
+
+        $backups = $this->browser->get('/profiles/blog')->body;
+        self::assertStringContainsString('<details class="start-options"><summary>Back up with options</summary>', $backups);
+        self::assertStringNotContainsString('Test the connection', $backups);
+        self::assertStringNotContainsString('Remove the profile', $backups);
+
+        $settings = $this->browser->get('/profiles/blog?tab=settings')->body;
+        self::assertStringContainsString('Test the connection', $settings);
+        self::assertStringContainsString('/profiles/blog/keys', $settings);
+        self::assertStringContainsString('<a class="button danger" href="/profiles/blog/delete">Remove the profile</a>', $settings);
+        self::assertLessThan(strpos($settings, 'Remove the profile'), strpos($settings, 'Test the connection'), 'the removal stands apart, below the rest');
+        foreach (['Database', 'Filters', 'Archives', 'Encryption'] as $label) {
+            self::assertStringContainsString("<dt>$label</dt>", $settings, $label);
+        }
+    }
     public function testTheFormOffersTheWebsiteTypesAndNeverAPasswordValue(): void
     {
         $page = $this->browser->get('/new-profile');
@@ -179,7 +234,7 @@ final class ProfilePagesTest extends TestCase
     {
         $this->create();
 
-        $page = $this->browser->get('/profiles/blog');
+        $page = $this->browser->get('/profiles/blog?tab=settings');
 
         self::assertStringContainsString('<div class="actions">', $page->body);
         self::assertDoesNotMatchRegularExpression('/<p[^>]*>\s*<form/', $page->body, 'a form inside a paragraph is torn out of it by the HTML parser');
@@ -213,7 +268,7 @@ final class ProfilePagesTest extends TestCase
         self::assertSame(500 * 1048576, $profile->partSize);
         self::assertNull($profile->database);
 
-        $page = $this->browser->get('/profiles/blog');
+        $page = $this->browser->get('/profiles/blog?tab=settings');
         self::assertSame(200, $page->status);
         self::assertStringContainsString('The profile &quot;My Blog&quot; was created.', $page->body);
         self::assertStringContainsString('parts of 500 MB', $page->body);

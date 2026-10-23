@@ -56,7 +56,7 @@ final class RetentionPagesTest extends TestCase
 
     public function testWithoutRulesThePageSaysSo(): void
     {
-        $page = $this->browser->get('/profiles/blog');
+        $page = $this->browser->get('/profiles/blog?tab=retention');
 
         self::assertSame(200, $page->status);
         self::assertStringContainsString('has no retention rules', $page->body);
@@ -71,7 +71,7 @@ final class RetentionPagesTest extends TestCase
         }
         $this->rules(['keep' => 2]);
 
-        $page = $this->browser->get('/profiles/blog');
+        $page = $this->browser->get('/profiles/blog?tab=retention');
         self::assertStringContainsString('Rules: at most 2 backups', $page->body);
         self::assertStringContainsString('these would be deleted, the oldest first', $page->body);
         self::assertStringContainsString($names[4]->base(), $page->body);
@@ -84,7 +84,7 @@ final class RetentionPagesTest extends TestCase
         self::assertFalse($this->fake->exists($names[4]));
         self::assertFalse($this->fake->exists($names[3]));
         self::assertTrue($this->fake->exists($names[2]) && $this->fake->exists($names[1]));
-        $after = $this->browser->get('/profiles/blog');
+        $after = $this->browser->get('/profiles/blog?tab=retention');
         self::assertStringContainsString('2 backups deleted', $after->body);
         self::assertStringContainsString('nothing would be deleted', $after->body);
         self::assertStringContainsString('Retention last ran', $after->body);
@@ -102,12 +102,12 @@ final class RetentionPagesTest extends TestCase
         $service = RetentionService::create($this->fixture->data, fn (): int => $this->browser->now);
         self::assertNull($service->automatic($this->fixture->profiles->load('blog')));
 
-        $page = $this->browser->get('/profiles/blog');
+        $page = $this->browser->get('/profiles/blog?tab=retention');
 
         self::assertStringContainsString('would delete 4 backups. The trigger waits for your go-ahead', $page->body);
         self::assertSame(4, (new RetentionStateStore($this->fixture->data . '/retention'))->load('blog')->waiting);
         $this->browser->post('/profiles/blog/retention');
-        self::assertStringNotContainsString('waits for your go-ahead', $this->browser->get('/profiles/blog')->body);
+        self::assertStringNotContainsString('waits for your go-ahead', $this->browser->get('/profiles/blog?tab=retention')->body);
     }
 
     public function testApplyingNeedsAPostTheTokenAndRules(): void
@@ -117,7 +117,7 @@ final class RetentionPagesTest extends TestCase
         self::assertSame(405, $this->browser->get('/profiles/blog/retention')->status);
         self::assertSame(403, $this->browser->send('POST', '/profiles/blog/retention')->status);
         $this->browser->post('/profiles/blog/retention');
-        self::assertStringContainsString('has no retention rules', $this->browser->get('/profiles/blog')->body);
+        self::assertStringContainsString('has no retention rules', $this->browser->get('/profiles/blog?tab=retention')->body);
         self::assertSame(404, $this->browser->post('/profiles/nobody/retention')->status);
     }
 
@@ -151,7 +151,7 @@ final class RetentionPagesTest extends TestCase
         $this->browser->post('/profiles/blog/backups/' . $old->base() . '/pin', ['pinned' => '1']);
         $this->rules(['maxAgeDays' => 30]);
 
-        $page = $this->browser->get('/profiles/blog');
+        $page = $this->browser->get('/profiles/blog?tab=retention');
 
         self::assertStringContainsString('nothing would be deleted', $page->body);
         self::assertTrue($this->fake->exists($old));

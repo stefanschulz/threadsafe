@@ -5,9 +5,12 @@ declare(strict_types=1);
 namespace ThreadSafe\Admin;
 
 use ThreadSafe\App\Detection;
+use ThreadSafe\App\BackupService;
+use ThreadSafe\App\Overview;
 use ThreadSafe\App\ProfileService;
 use ThreadSafe\Core\Exception\GuardFailed;
 use ThreadSafe\Database\DatabaseSettings;
+use ThreadSafe\Engine\RunStore;
 use ThreadSafe\Plugin\PluginRegistry;
 use ThreadSafe\Profile\ProfileException;
 use ThreadSafe\Profile\ProfileStore;
@@ -23,6 +26,9 @@ use ThreadSafe\Web\Response;
  */
 final class ProfileController
 {
+    /** The sections of the page of a profile: id => name. The first is the one that opens without `?tab=`. */
+    private const array TABS = ['backups' => 'Backups', 'retention' => 'Retention', 'settings' => 'Settings'];
+
     /** The longest name that the list shows whole. */
     private const int NAME_WIDTH = 80;
 
@@ -87,11 +93,10 @@ final class ProfileController
         $name = mb_strimwidth($profile->name, 0, self::NAME_WIDTH, '…');
         $icon = static fn (string $route, string $icon, string $title): string => '<a class="icon-button" href="' . Html::e($route) . '" title="' . $title . '" aria-label="' . $title . ' ' . Html::e($profile->name) . '">' . Icons::svg($icon) . '</a>';
         // a paths with its label, an option with its icon (a tooltip and a hidden text name it); label or icon and value stand in one line
-        $fact = static fn (string $label, string $value): string => '<div class="fact wide"><dt>' . Html::e($label) . '</dt><dd>' . $value . '</dd></div>';
         $option = static fn (string $icon, string $label, string $value): string => '<div class="fact option"><dt title="' . Html::e($label) . '">' . Icons::svg($icon) . '<span class="visually-hidden">' . Html::e($label) . '</span></dt><dd>' . $value . '</dd></div>';
 
-        $facts = $fact('Site', '<code class="path">' . self::breakable($profile->path) . '</code>')
-            . $fact('Backups', '<code class="path">' . self::breakable($profile->storage) . '</code>');
+        $facts = self::fact('Site', '<code class="path">' . self::breakable($profile->path) . '</code>')
+            . self::fact('Backups', '<code class="path">' . self::breakable($profile->storage) . '</code>');
         if ($profile->schedule !== null) {
             $facts .= $option('clock', 'Schedule', '<code>' . Html::e($profile->schedule->cron) . '</code>');
         }
@@ -126,9 +131,6 @@ final class ProfileController
             ? 'read from the site\'s own configuration (or none)'
             : sprintf('%s@%s:%d/%s, prefix "%s", PHP interface %s, password hidden', $profile->database->user, $profile->database->host, $profile->database->port, $profile->database->name, $profile->database->prefix, $profile->database->driver);
         $rows = [
-            'Type' => $profile->type,
-            'Site' => $profile->path,
-            'Backups go to' => $profile->storage,
             'Database' => $database,
             'Filters' => ($profile->useDefaultFilters ? 'the defaults of the type' : 'no defaults')
                 . ($profile->excludePaths === [] ? '' : ', also leaving out ' . implode(', ', $profile->excludePaths)),
@@ -137,23 +139,71 @@ final class ProfileController
             'Archives' => 'compression ' . $profile->compression . ($profile->partSize === null ? ', one archive' : ', parts of ' . round($profile->partSize / 1048576) . ' MB'),
             'Note' => $profile->note === '' ? '-' : $profile->note,
         ];
-        $table = '<div class="scroll"><table class="facts"><tbody>';
-        foreach ($rows as $label => $value) {
-            $table .= '<tr><th scope="row">' . Html::e($label) . '</th><td>' . Html::e($value) . '</td></tr>';
-        }
-        $table .= '</tbody></table></div>';
-
         $id = $profile->id;
-        $actions = '<div class="actions"><a class="button" href="' . Html::e($context->urls->to("/profiles/$id/edit")) . '">Edit</a> '
-            . View::form($context, "/profiles/$id/test", '<button type="submit">Test the connection</button>', 'inline')
-            . ' <a class="button secondary" href="' . Html::e($context->urls->to("/profiles/$id/keys")) . '">Keys</a>'
-            . ' <a class="button danger" href="' . Html::e($context->urls->to("/profiles/$id/delete")) . '">Remove</a></div>';
+        $card = $this->overview()->forProfile($profile);
+        $level = (string) $card['level'];
 
+        // the head, always there: the type and the state, the paths and what needs a look
+        $warnings = '';
+        if ($card['warnings'] !== []) {
+            $warnings = '<ul class="warnings">';
+            foreach ($card['warnings'] as $warning) {
+                $warnings .= '<li class="' . Html::e((string) $warning['level']) . '"><strong>' . ($warning['level'] === Overview::PROBLEM ? 'Problem' : 'Warning') . '</strong> ' . Html::e((string) $warning['text']) . '</li>';
+            }
+            $warnings .= '</ul>';
+        }
+        $summary = '<section class="card profile-summary ' . Html::e($level) . '"><div class="badges"><span class="badge">' . Html::e(TypeFilter::title(PluginRegistry::load(), $profile->type)) . '</span>'
+            . '<span class="badge ' . Html::e($level) . '">' . Html::e(Overview::label($level)) . '</span></div>'
+            . '<dl class="facts">' . self::fact('Site', '<code class="path">' . self::breakable($profile->path) . '</code>') . self::fact('Backups', '<code class="path">' . self::breakable($profile->storage) . '</code>') . '</dl>'
+            . $warnings . '</section>';
+
+        // the one main action: back up now, or follow the run that is going
+        /** @var \ThreadSafe\Engine\Run|null $run */
+        $run = $card['run'] ?? null;
+        $state = $card['runState'] ?? null;
+        $backUp = $run !== null && ($state === 'active' || $state === 'interrupted')
+            ? '<a class="button" href="' . Html::e($context->urls->to('/runs/' . $run->id)) . '">' . ($state === 'active' ? 'Follow the backup' : 'Continue the backup') . '</a>'
+            : View::form($context, "/profiles/$id/backup", '<button type="submit">Back up now</button>', 'inline');
+        $pencil = '<a class="icon-button" href="' . Html::e($context->urls->to("/profiles/$id/edit")) . '" title="Edit profile" aria-label="Edit profile ' . Html::e($profile->name) . '">' . Icons::svg('edit') . '</a>';
+
+        $tab = Tabs::current($context, self::TABS);
         $backups = new BackupController($this->services);
         $catalog = new CatalogController($this->services);
+        if ($tab === 'retention') {
+            $content = (new RetentionController($this->services))->box($context, $profile);
+        } elseif ($tab === 'settings') {
+            $facts = '';
+            foreach ($rows as $label => $value) {
+                $facts .= self::fact($label, Html::e($value));
+            }
+            $content = '<h2>Settings</h2><dl class="facts roomy">' . $facts . '</dl>'
+                . '<div class="actions"><a class="button secondary" href="' . Html::e($context->urls->to("/profiles/$id/edit")) . '">Edit</a> '
+                . View::form($context, "/profiles/$id/test", '<button type="submit" class="secondary">Test the connection</button>', 'inline')
+                . ' <a class="button secondary" href="' . Html::e($context->urls->to("/profiles/$id/keys")) . '">Keys</a></div>'
+                . '<h2>Remove</h2><p class="hint">Takes the profile out of ThreadSafe; its backups stay on disk (the next page asks what to do with them).</p>'
+                . '<p><a class="button danger" href="' . Html::e($context->urls->to("/profiles/$id/delete")) . '">Remove the profile</a></p>';
+        } else {
+            $content = $backups->runsBox($context, $id) . $catalog->checksBox($context, $id)
+                . '<details class="start-options"><summary>Back up with options</summary>' . $backups->startForm($context, $id) . '</details>'
+                . '<h2>Backups</h2>' . $catalog->table($context, $id);
+        }
 
-        return View::page($context, $profile->name, $actions . $backups->runsBox($context, $id) . $catalog->checksBox($context, $id) . '<h2>Back up</h2>' . $backups->startForm($context, $id)
-            . '<h2>Backups</h2>' . $catalog->table($context, $id) . (new RetentionController($this->services))->box($context, $profile) . '<h2>Settings</h2>' . $table, '/profiles');
+        return View::page($context, $profile->name, $summary . Tabs::render($context, "/profiles/$id", self::TABS, $tab, 'Sections of the profile') . $content, '/profiles', 200, $backUp, $pencil);
+    }
+
+    /** A label and its value in one line (the facts of a card and of the head of a profile). */
+    private static function fact(string $label, string $value): string
+    {
+        return '<div class="fact wide"><dt>' . Html::e($label) . '</dt><dd>' . $value . '</dd></div>';
+    }
+
+    private function overview(): Overview
+    {
+        $data = $this->services->data;
+        $store = new ProfileStore($data . '/profiles');
+        $runs = new RunStore($data . '/runs');
+
+        return new Overview($store, $runs, new BackupService($store, PluginRegistry::load(), $runs, $data, $this->services->budgets, $this->services->clock), (int) $this->services->config->get('dashboard.warnAfterDays'), $this->services->clock);
     }
 
     /**

@@ -81,7 +81,7 @@ final class EncryptionPagesTest extends TestCase
         $edit = $this->browser->get('/profiles/news/edit');
         self::assertStringContainsString("$one\n$two</textarea>", $edit->body);
         self::assertStringContainsString('/profiles/news/keys', $edit->body, 'the way to a new key pair');
-        self::assertStringContainsString('for 2 public keys', $this->browser->get('/profiles/news')->body);
+        self::assertStringContainsString('for 2 public keys', $this->browser->get('/profiles/news?tab=settings')->body);
 
         $this->browser->post('/profiles/news', $this->fields());
         self::assertSame([$one, $two], $this->store()->load('news')->encryption?->recipients, 'a form without the field leaves the keys alone');
@@ -146,7 +146,7 @@ final class EncryptionPagesTest extends TestCase
         self::assertSame(303, $used->status);
         self::assertSame('/profiles/blog', $used->header('Location'));
         self::assertSame([$pair['public']], $this->store()->load('blog')->encryption?->recipients);
-        $profile = $this->browser->get('/profiles/blog')->body;
+        $profile = $this->browser->get('/profiles/blog?tab=settings')->body;
         self::assertStringContainsString('for 1 public key', $profile);
         self::assertStringContainsString(substr($pair['public'], 0, 12) . '...' . substr($pair['public'], -6), $profile);
 

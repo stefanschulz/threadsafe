@@ -90,7 +90,7 @@ final class DashboardController
         $good = $card['lastGood'];
         $id = $profile->id;
         $level = (string) $card['level'];
-        $word = ['ok' => 'Healthy', 'warning' => 'Needs a look', 'problem' => 'Problem'][$level] ?? $level;
+        $word = Overview::label($level);
 
         $application = '';
         $reference = $good ?? $last;
