@@ -24,7 +24,7 @@ use ThreadSafe\Web\Response;
 final class ProfileController
 {
     /** The longest name that the list shows whole. */
-    private const int NAME_WIDTH = 40;
+    private const int NAME_WIDTH = 80;
 
     private ?ProfileService $profiles;
 
@@ -82,7 +82,7 @@ final class ProfileController
     private function card(Context $context, SiteProfile $profile, string $typeTitle): string
     {
         $id = $profile->id;
-        // the name stays in one line; a long one is cut (the whole name is the tooltip)
+        // a name wraps where the card is narrow; only an extreme one is cut (the whole name is the tooltip)
         $name = mb_strimwidth($profile->name, 0, self::NAME_WIDTH, '…');
         $icon = static fn (string $route, string $icon, string $title): string => '<a class="icon-button" href="' . Html::e($route) . '" title="' . $title . '" aria-label="' . $title . ' ' . Html::e($profile->name) . '">' . Icons::svg($icon) . '</a>';
         // a paths with its label, an option with its icon (a tooltip and a hidden text name it); label or icon and value stand in one line

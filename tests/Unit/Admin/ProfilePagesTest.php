@@ -111,12 +111,12 @@ final class ProfilePagesTest extends TestCase
     public function testALongNameIsCutAndTheTooltipHasTheWholeName(): void
     {
         $this->create();
-        $long = trim(str_repeat('A long name ', 5));
+        $long = trim(str_repeat('A long name ', 8));
         $this->store()->save($this->store()->load('blog')->with(['name' => $long]));
 
         $page = $this->browser->get('/profiles')->body;
 
-        self::assertStringContainsString('<h2 title="' . $long . '">' . mb_strimwidth($long, 0, 40, '…') . '</h2>', $page);
+        self::assertStringContainsString('<h2 title="' . $long . '">' . mb_strimwidth($long, 0, 80, '…') . '</h2>', $page);
         self::assertStringContainsString('…</h2>', $page);
     }
 
