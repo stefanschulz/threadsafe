@@ -19,6 +19,7 @@ application automatically. First target: **PrestaShop 9.x**; MariaDB and MySQL; 
 | 3 | `restore.php` (extractor and wizard) | done (plan and "As built" in [docs/PHASE3.md](docs/PHASE3.md); user documentation [docs/RESTORE.md](docs/RESTORE.md)); milestone A: `threadsafe restore`, milestone B: the single file `dist/restore.php` with the wizard; disaster recovery proven on the Docker stack |
 | 4 | Web interface (dashboard, download) | done (plan and "As built" in [docs/PHASE4.md](docs/PHASE4.md); user documentation [docs/WEB.md](docs/WEB.md)); login and setup, profiles, backups in steps with progress, check, delete, download, dashboard and System page, restore help; proven against a real Apache with 5 s / 64 MB limits on all three database servers (phase 4b of `run.sh`) |
 | 5 | One trigger cron, retention, encryption | done (plan and "As built" in [docs/PHASE5.md](docs/PHASE5.md); user documentation [docs/SCHEDULE.md](docs/SCHEDULE.md) and [docs/ENCRYPTION.md](docs/ENCRYPTION.md)); the schedule in the profile and `threadsafe cron` / the address `/cron/<secret>` (detached worker or ticks), retention with pinned backups and a go-ahead, backups encrypted in the format of `age` (public keys of the profile, or a passphrase for one backup), restore with the key; proven on all three database servers (phases 4c and 4d of `run.sh`) |
+| 6 | Website type Joomla (backup, restore, migration) | **planned**: the plan is [docs/PHASE6.md](docs/PHASE6.md) (work packages in section 5; the decisions of section 7.2 are for the owner); nothing is built yet |
 
 Each finished work package has an **"As built"** paragraph in `docs/PHASE2.md` (what exists, where it differs from the plan,
 what is known to be missing). `docs/PHASE2.md` section 8 holds the findings of the spikes (`tools/spikes/`); they changed the
@@ -139,7 +140,7 @@ Building blocks: `TriggerService` (the one class behind both doors of the trigge
 web run is active while its last tick is recent), `Executor`/`RunStore`/`Lock`, `Overview`, `Config` and the System page, `Postproc` (for remote storage).
 
 What is not planned in detail: **remote storage** (SFTP/S3; the `transfers` list of the sidecar file is reserved, `Postproc` is the hook), further website types
-(WordPress, Joomla), restoring over an existing installation.
+(WordPress; Joomla is planned in [docs/PHASE6.md](docs/PHASE6.md)), restoring over an existing installation.
 Open items for the owner (not blocking): the download of a few hundred MB
 through the live host's FastCGI (`tools/spikes/web-download.php`, PHASE4.md section 8, finding 1); a **private test with a real backup** of the live shop (`docs/BACKUP.md` section 10); the web-server modes `X-Sendfile` /
 `X-Accel-Redirect` and the nginx rule in `docs/WEB.md` have never met a web server. Small gaps of the interface: the sidecar keeps no
