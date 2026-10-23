@@ -98,7 +98,7 @@ The menu is on the left: **Dashboard**, **Profiles**, **System**, each with an i
 
 ### Dashboard
 
-A card for every site: its newest backup (time, age, size, state), how many backups there are and how much room they take, the backup that is going, and the **warnings**:
+A card for every site, kept short: the **name** in bold with a **pencil** beside it (it edits the profile; no label, a tooltip *Edit profile*), the state on a badge, the **newest backup** (date, time and state) and the **next scheduled backup** (date and time, if the profile has a schedule), the backup that is going, and the **warnings**. Two buttons: **Back up now** and **Profile** (the page of the site with its backups, settings and retention). How long ago, how big and how many backups are on the profile page. The dates and times are shown in the time zone of your browser, without seconds; the tooltip has what the server wrote. The warnings:
 
 | Warning | When |
 |---|---|
@@ -111,7 +111,7 @@ A card for every site: its newest backup (time, age, size, state), how many back
 | storage not writable / without protection files | |
 | the site directory no longer exists | |
 
-A card is **OK**, **Needs a look** or **Problem**; the words are on the badge, the colour is only a help. Everything on the dashboard is read cheaply (the small `.json` file next to every backup, the disk, the run records): it opens no archive and asks no database. The database is tried only by the **Test the connection** button.
+A card is **OK**, **Needs a look** or **Problem**; the words are on the badge, the colour is only a help. Above the cards is a **filter by website type**: *All* and one entry per type that your profiles have (for example *Any website*, *PrestaShop 9*), each with its number; the chosen one is brass. The entries are links (`/?type=prestashop9`), so the choice is in the address, can be bookmarked and works without script; an unknown type shows all. The totals and the activity below are not filtered. After the cards comes an **empty tile with a plus, *New profile***, **always**, also when a type is chosen and when there are no sites yet: the whole tile is the link to the form for a new site (its edge is grey, because it has no state). Everything on the dashboard is read cheaply (the small `.json` file next to every backup, the disk, the run records): it opens no archive and asks no database. The database is tried only by the **Test the connection** button.
 
 ### Site profiles
 

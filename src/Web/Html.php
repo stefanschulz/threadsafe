@@ -71,7 +71,7 @@ final class Html
         return ':root{--ink:#eef0f2;--panel:#fff;--panel-2:#f6f7f8;--recess:#e5e8eb;--border:#cdd3d9;--border-strong:#7f8a95;--text:#14191f;--text-soft:#434e58;--text-faint:#56616b;'
             . '--brass:#8a5a08;--brass-bright:#6b4506;--brass-fill:#e0a13d;--brass-fill-hover:#f0b75a;--brass-edge:#a8740f;--on-brass:#14191f;--ok:#1a7339;--warning:#8f4a00;--error:#b3382c;'
             . '--sans:"IBM Plex Sans",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;--mono:"IBM Plex Mono",ui-monospace,"Cascadia Mono",Consolas,monospace}'
-            . '@media(prefers-color-scheme:dark){:root{--ink:#14191f;--panel:#1b232c;--panel-2:#212a33;--recess:#0f1318;--border:#303b47;--border-strong:#667380;--text:#e9ebe8;--text-soft:#9aa2a8;'
+            . '@media(prefers-color-scheme:dark){:root{--ink:#14191f;--panel:#1b232c;--panel-2:#212a33;--recess:#0f1318;--border:#303b47;--border-strong:#6a7784;--text:#e9ebe8;--text-soft:#9aa2a8;'
             . '--text-faint:#838b92;--brass:#e0a13d;--brass-bright:#f0b75a;--brass-edge:#e0a13d;--ok:#5cb87a;--warning:#e6c84f;--error:#e87065}}'
             . 'body{font:16px/1.55 var(--sans);margin:0;background:var(--ink);color:var(--text)}main{max-width:46rem;margin:0 auto;padding:1.5rem 1rem 4rem}'
             . 'a{color:var(--brass);text-underline-offset:.18em}a:hover{color:var(--brass-bright)}'

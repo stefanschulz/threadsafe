@@ -79,7 +79,7 @@ final class MenuAndThemeTest extends TestCase
         $page = $this->browser->get('/')->body;
 
         self::assertStringContainsString('<article class="card ', $page, 'the fixture has a profile');
-        self::assertMatchesRegularExpression('~<article class="card [^"]*"><header><h2><a href="/profiles/blog">~', $page, 'h1, then h2 for each site');
+        self::assertMatchesRegularExpression('~<article class="card [^"]*"><header><div class="card-title"><h2>blog</h2>~', $page, 'h1, then h2 for each site');
         self::assertStringNotContainsString('<h3', $page);
     }
 

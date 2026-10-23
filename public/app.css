@@ -48,7 +48,7 @@
     --panel-2: #212a33;
     --recess: #0f1318;
     --border: #303b47;
-    --border-strong: #667380;
+    --border-strong: #6a7784;
     --text: #e9ebe8;
     --text-soft: #9aa2a8;
     --text-faint: #838b92;
@@ -73,7 +73,7 @@
     --panel-2: #212a33;
     --recess: #0f1318;
     --border: #303b47;
-    --border-strong: #667380;
+    --border-strong: #6a7784;
     --text: #e9ebe8;
     --text-soft: #9aa2a8;
     --text-faint: #838b92;
@@ -306,14 +306,33 @@ ul.plain { margin: 0; padding-left: 1.1rem; }
 .box h2 { margin-top: 0; }
 .inline-check { display: inline-block; margin-left: 0.75rem; font-weight: 400; }
 /* dashboard cards and the system page */
+.filter { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin: 1.25rem 0 0; }
+.filter-label { margin-right: 0.25rem; color: var(--text-faint); font: 500 0.7rem/1.5 var(--mono); letter-spacing: 0.1em; text-transform: uppercase; }
+.filter a { display: inline-flex; align-items: center; gap: 0.5rem; min-height: 2rem; padding: 0.25rem 0.7rem; color: var(--text-soft); font: 500 0.75rem/1.4 var(--mono); letter-spacing: 0.06em; text-transform: uppercase; text-decoration: none; background: var(--panel); border: 1px solid var(--border-strong); border-radius: var(--radius-small); }
+.filter a:hover { color: var(--text); border-color: var(--brass); }
+.filter a[aria-current="true"] { color: var(--on-brass); background: var(--brass-fill); border-color: var(--brass-edge); }
+.filter .count { font-weight: 700; }
 .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(19rem, 100%), 1fr)); gap: 1rem; margin: 1rem 0; }
 .card { padding: 0.8rem 1rem; background: var(--panel-2); border: 1px solid var(--border); border-left-width: 5px; border-radius: var(--radius); }
 .card.ok { border-left-color: var(--ok); }
 .card.warning { border-left-color: var(--warning); }
 .card.problem { border-left-color: var(--error); }
+/* the empty tile after the cards: a new profile; the whole surface is the link, the edge is grey because there is no status */
+.card.new { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.5rem; min-height: 8rem; color: var(--text-soft); font: 600 0.78rem/1.4 var(--mono); letter-spacing: 0.06em; text-transform: uppercase; text-decoration: none; border-left-color: var(--border-strong); }
+.card.new .icon { width: 1.75rem; height: 1.75rem; }
+.card.new:hover { color: var(--text); background: var(--panel); border-left-color: var(--brass); }
 .card header { display: flex; justify-content: space-between; align-items: baseline; gap: 0.5rem; }
-.card h2 { margin: 0; font-size: 1.05rem; font-weight: 600; }
+.card h2 { margin: 0; font-size: 1.15rem; font-weight: 700; }
+.card-title { display: flex; align-items: center; gap: 0.25rem; min-width: 0; }
+.card-title h2 { overflow-wrap: anywhere; }
+/* a button that is only an icon: it has a tooltip and an accessible name, no label */
+.icon-button { display: inline-flex; flex: none; align-items: center; justify-content: center; width: 2.25rem; height: 2.25rem; color: var(--text); border: 1px solid transparent; border-radius: var(--radius-small); }
+.icon-button .icon { width: 1.5rem; height: 1.5rem; stroke-width: 1.75; }
+.icon-button:hover { color: var(--brass); background: var(--panel); border-color: var(--border-strong); }
 .card p { margin: 0.35rem 0; }
+/* room: between the type and the facts, and between the facts and the buttons */
+.card header + .hint { margin: 0.1rem 0 1rem; }
+.card .actions { margin-top: 1.25rem; }
 .badge {
   padding: 0.1rem 0.5rem;
   font: 600 0.68rem/1.5 var(--mono);

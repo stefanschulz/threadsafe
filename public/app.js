@@ -6,12 +6,16 @@
 (function () {
   'use strict';
 
-  // <time datetime="2026-10-21T17:55:00Z">...</time> shows the time of the browser, with the UTC time as the tooltip
+  // <time datetime="2026-10-21T17:55:00Z">...</time> shows the time of the browser, with the time as the server wrote it as the tooltip (UTC
+  // if the datetime ends in Z); with the attribute data-minutes the seconds are left out
   document.querySelectorAll('time[datetime]').forEach(function (element) {
-    var date = new Date(element.getAttribute('datetime'));
+    var stamp = element.getAttribute('datetime');
+    var date = new Date(stamp);
     if (!isNaN(date.getTime())) {
-      element.title = element.textContent + ' (UTC)';
-      element.textContent = date.toLocaleString();
+      element.title = element.textContent + (stamp.slice(-1) === 'Z' ? ' (UTC)' : '');
+      element.textContent = element.hasAttribute('data-minutes')
+        ? date.toLocaleString(undefined, { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+        : date.toLocaleString();
     }
   });
 

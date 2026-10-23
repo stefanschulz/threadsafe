@@ -72,7 +72,16 @@ final class AdminBrowser
      */
     public function send(string $method, string $route, array $fields = [], array $headers = [], string $address = '127.0.0.1'): Response
     {
-        $request = new Request($method, [], $fields, ($this->cookie === '' ? [] : ['threadsafe_session' => $this->cookie]) + $this->cookies, false, $address, $this->base . $route, $headers + ['host' => 'ts.example']);
+        // a route may carry a query string (`/?type=generic`): it goes into the query of the request, not into the path
+        [$route, $queryString] = explode('?', $route, 2) + [1 => ''];
+        parse_str($queryString, $parsed);
+        $query = [];
+        foreach ($parsed as $name => $value) {
+            if (is_string($value)) {
+                $query[(string) $name] = $value;
+            }
+        }
+        $request = new Request($method, $query, $fields, ($this->cookie === '' ? [] : ['threadsafe_session' => $this->cookie]) + $this->cookies, false, $address, $this->base . $route, $headers + ['host' => 'ts.example']);
         $response = (new Kernel($this->data, $this->base, fn (): int => $this->now, $this->budgets))->handle($request);
 
         foreach ($response->headers('Set-Cookie') as $line) {

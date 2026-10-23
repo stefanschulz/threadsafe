@@ -15,7 +15,7 @@ Names are those of the-loom (`--ink`, `--panel`, `--brass` ...) plus the additio
 | `--panel-2` | `#212a33` | `#f6f7f8` | cards, messages, secondary buttons |
 | `--recess` | `#0f1318` | `#e5e8eb` | inset: form fields, code, the progress bar |
 | `--border` | `#303b47` | `#cdd3d9` | 1px lines; separates, carries no information |
-| `--border-strong` *new* | `#667380` | `#7f8a95` | the boundary of a control (form field, secondary button) |
+| `--border-strong` *new* | `#6a7784` | `#7f8a95` | the boundary of a control (form field, secondary button) |
 | `--text` | `#e9ebe8` | `#14191f` | headings, main text |
 | `--text-soft` | `#9aa2a8` | `#434e58` | running copy, hints, navigation |
 | `--text-faint` | `#838b92` | `#56616b` | table headings, footer |
@@ -48,7 +48,7 @@ Text on the surfaces it is used on; everything readable is at least 4.5:1.
 | `--warning` | 10.7 / 9.6 / 8.8 | 5.8 / 6.7 / 6.2 |
 | `--error` | 5.8 / 5.2 / 4.8 | 5.2 / 6.0 / 5.6 |
 
-Other pairs: `--on-brass` on `--brass-fill` 7.9; `--on-danger` on `--danger-fill` 5.8 (dark) and 6.0 (light); `--border-strong` against the surfaces 3.0 to 3.6 (dark) and 3.1 to 3.5 (light), the 3:1 that the boundary of a control needs; `--text` on `--recess` 15.5 and 14.4.
+Other pairs: `--on-brass` on `--brass-fill` 7.9; `--on-danger` on `--danger-fill` 5.8 (dark) and 6.0 (light); `--border-strong` against the surfaces 3.2 to 3.9 (dark) and 3.1 to 3.5 (light), the 3:1 that the boundary of a control needs; `--text` on `--recess` 15.5 and 14.4.
 
 Rules that keep it so: `--text-faint` only on `--ink`, `--panel` and `--recess`, not on `--panel-2` in the dark theme (4.2); never dim text with `opacity`; `--border` is deliberately low (1.4 to 1.5:1) and carries no information.
 
@@ -75,6 +75,9 @@ Sizes: body 1rem / 1.55; `h1` 1.375rem; `h2` 1.15rem; labels in mono 0.7 to 0.78
 - **Links:** brass and underlined (they are in running text, tables and lists); the navigation, the wordmark and the buttons are not underlined. The focus ring is 2px brass with a 2px offset, on every control; it is never removed.
 - **Form fields:** `--recess` fill, 1px `--border-strong`, radius 6px; brass edge on focus.
 - **Box, card:** `--panel` (box) or `--panel-2` (card) with a 1px `--border` and radius 8px; no shadow, no gradient. A card and a message have a 4 to 5px coloured left edge for the status; a **message** (ok, warning, error) also has a faint tint of that colour as its background - 12 % over `--panel-2` - and its text stays in `--text` (the audit finds no text below 4.5:1 on it, in either scheme).
+- **The card** (dashboard): `--panel-2`, the name in 1.15rem bold - text, not a link - with an **icon button** beside it, the state badge at the right, then at most the newest backup, the next backup and the warnings, and two buttons (the filled *Back up now*, the secondary *Profile*). The **icon button** is 2.25rem square with a 1.5rem icon (line 1.75), no label, in `--text` (brass on hover, with a `--border-strong` edge), with a tooltip (`title`) and an accessible name (`aria-label`); the pencil edits the profile.
+- **The filter** above the tiles (website types): a row of chips - mono uppercase 0.75rem, `--panel` fill, 1px `--border-strong`, radius 6px, the number in bold - with a small label *Website type*; the chosen chip is brass like the pressed button of the switch (`aria-current="true"`); the chips are links.
+- **The empty tile** (*New profile*, last in the grid of the dashboard): a card with a grey left edge (`--border-strong`; no status), a plus icon and the name in mono, centred; the whole surface is one link, and hover turns the edge brass.
 - **Badge:** mono uppercase 0.68rem, the status colour as text, a 12 % tint of it as fill and a 45 % one as edge (`color-mix`).
 - **Table:** `--panel`, 1px `--border` rules, headings in mono uppercase `--text-faint`.
 - **Code and key blocks:** `--recess` with a 1px `--border`, mono, radius 4px.

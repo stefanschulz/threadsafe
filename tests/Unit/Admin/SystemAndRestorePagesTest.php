@@ -74,8 +74,37 @@ final class SystemAndRestorePagesTest extends TestCase
         self::assertStringContainsString('<article class="card ok">', $page->body);
         self::assertStringContainsString('<span class="badge ok">OK</span>', $page->body, 'the state is written, not only coloured');
         self::assertStringContainsString('href="/profiles/blog/backups/' . $name->base() . '"', $page->body);
-        self::assertMatchesRegularExpression('/Last backup: .*just now|Last backup: .*minute/s', $page->body);
         self::assertStringContainsString('Back up now', $page->body);
+    }
+
+    public function testTheCardIsShortAndItsTitleIsTextWithAPencilBesideIt(): void
+    {
+        $name = $this->backup();
+
+        $page = $this->browser->get('/')->body;
+
+        // the facts: date, time and state of the newest backup - no age, no size, no count
+        self::assertMatchesRegularExpression('~<p>Last backup: <a href="/profiles/blog/backups/' . preg_quote($name->base(), '~') . '"><time datetime="[0-9TZ:-]+" data-minutes>\d{4}-\d\d-\d\d \d\d:\d\d</time></a> &middot; ok</p>~', $page);
+        $card = substr($page, (int) strpos($page, '<article class="card '), (int) strpos($page, '</article>') - (int) strpos($page, '<article class="card '));
+        self::assertDoesNotMatchRegularExpression('~ago|[0-9] (KB|MB|GB)|[0-9] backups?,~', $card, 'no "hours ago", no size, no number of backups');
+
+        // the title is text, emphasised; the pencil beside it edits, has a tooltip and a name, and no label
+        self::assertStringContainsString('<div class="card-title"><h2>blog</h2><a class="icon-button" href="/profiles/blog/edit" title="Edit profile" aria-label="Edit blog"><svg class="icon"', $card);
+        self::assertStringNotContainsString('>Edit</a>', $card);
+        self::assertStringNotContainsString('<h2><a', $card, 'the title is not a link: the button leads to the profile');
+
+        // the buttons: the filled one backs up, the secondary one is the profile
+        self::assertStringContainsString('<a class="button secondary" href="/profiles/blog">Profile</a>', $card);
+        self::assertStringNotContainsString('>Backups</a>', $card);
+    }
+
+    public function testAnEmptyTileAfterTheCardsIsTheWayToANewProfile(): void
+    {
+        $page = $this->browser->get('/');
+
+        self::assertMatchesRegularExpression('~<div class="cards"><article class="card .*</article><a class="card new" href="/new-profile"><svg class="icon"[^>]*>.*?</svg><span>New profile</span></a></div>~s', $page->body, 'the tile is the last card, in the same grid');
+        self::assertStringNotContainsString('>New profile</a></p>', $page->body, 'the plain link below the cards is gone');
+        self::assertSame(1, substr_count($page->body, 'href="/new-profile"'), 'one way, and it is the whole tile');
     }
 
     public function testACardWithAWarningNamesItAndNeverRelyOnColourAlone(): void
@@ -96,7 +125,8 @@ final class SystemAndRestorePagesTest extends TestCase
         $page = $this->browser->get('/');
 
         self::assertStringContainsString('There are no sites yet', $page->body);
-        self::assertStringContainsString('Create the first profile', $page->body);
+        self::assertStringContainsString('<a class="card new" href="/new-profile">', $page->body, 'the tile is there when there is nothing else');
+        self::assertStringNotContainsString('class="filter"', $page->body, 'nothing to filter');
     }
 
     // ------------------------------------------------------------------------------------------------- system page
@@ -237,8 +267,8 @@ final class SystemAndRestorePagesTest extends TestCase
         $now = $this->browser->now;
 
         $page = $this->browser->get('/');
-        self::assertStringContainsString('Next scheduled backup:', $page->body);
-        self::assertStringContainsString('(30 3 * * *)', $page->body);
+        self::assertMatchesRegularExpression('~<p>Next backup: <time datetime="[^"]+" data-minutes>\d{4}-\d\d-\d\d \d\d:\d\d [A-Z+0-9-]+</time></p>~', $page->body);
+        self::assertStringNotContainsString('(30 3 * * *)', $page->body, 'the expression is on the profile, not on the card');
         self::assertStringContainsString('No trigger has called yet', $page->body);
 
         $heartbeat = new Heartbeat($this->fixture->data . '/heartbeat.json');
@@ -260,7 +290,7 @@ final class SystemAndRestorePagesTest extends TestCase
         $page = $this->browser->get('/');
 
         self::assertStringNotContainsString('No trigger has called yet', $page->body);
-        self::assertStringNotContainsString('Next scheduled backup', $page->body);
+        self::assertStringNotContainsString('Next backup', $page->body);
     }
 
     public function testMistakesInTheSettingsComeBackWithTheFormAndNothingIsSaved(): void

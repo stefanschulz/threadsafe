@@ -8,6 +8,7 @@ use ThreadSafe\App\BackupService;
 use ThreadSafe\App\Overview;
 use ThreadSafe\App\TriggerStatus;
 use ThreadSafe\Engine\RunStore;
+use ThreadSafe\Plugin\PluginError;
 use ThreadSafe\Plugin\PluginRegistry;
 use ThreadSafe\Profile\ProfileStore;
 use ThreadSafe\Schedule\Heartbeat;
@@ -45,22 +46,60 @@ final class DashboardController
             . ($totals['backups'] === 1 ? 'backup' : 'backups') . ' &middot; <strong>' . Html::e(SpaceCheck::format($totals['bytes'])) . '</strong> in storage'
             . ($totals['running'] > 0 ? ' &middot; <strong>' . $totals['running'] . '</strong> running' : '') . '</p>';
 
+        // the sites can be filtered by website type (`?type=...`; an address that works without script); the tile for a new profile is always there
+        $byType = [];
+        foreach ($overview['cards'] as $card) {
+            $byType[$card['profile']->type] = ($byType[$card['profile']->type] ?? 0) + 1;
+        }
+        ksort($byType);
+        $wanted = $context->request->query('type');
+        $selected = is_string($wanted) && isset($byType[$wanted]) ? $wanted : null;
+
+        $cards = '';
         if ($overview['cards'] === []) {
-            $cards = '<div class="box"><p>There are no sites yet. A site profile says which website to back up and where its backups go.</p><p><a class="button" href="'
-                . Html::e($context->urls->to('/new-profile')) . '">Create the first profile</a></p></div>';
+            $cards .= '<div class="box"><p>There are no sites yet. A site profile says which website to back up and where its backups go.</p></div>';
         } else {
-            $cards = '<div class="cards">';
-            foreach ($overview['cards'] as $card) {
+            $cards .= $this->filter($context, $byType, count($overview['cards']), $selected);
+        }
+        $cards .= '<div class="cards">';
+        foreach ($overview['cards'] as $card) {
+            if ($selected === null || $card['profile']->type === $selected) {
                 $cards .= $this->card($context, $card, $trigger['next'][$card['profile']->id] ?? null);
             }
-            $cards .= '</div><p><a href="' . Html::e($context->urls->to('/new-profile')) . '">New profile</a></p>';
         }
+        // the last tile is an empty card: the way to the next profile, the whole surface is the link
+        $cards .= '<a class="card new" href="' . Html::e($context->urls->to('/new-profile')) . '">' . Icons::svg('plus') . '<span>New profile</span></a></div>';
 
         $body = $header . (new CatalogController($this->services))->checksBox($context) . $cards
             . '<h2>Recent activity</h2>' . View::audit($this->services->audit->recent(8))
             . '<p class="hint"><a href="' . Html::e($context->urls->to('/system')) . '">More on the System page</a></p>';
 
         return View::page($context, 'Dashboard', $body);
+    }
+
+    /**
+     * The filter above the tiles: all, and one entry per website type that the profiles have, each with its number. The chosen one is marked
+     * (`aria-current`); the entries are links, so the choice is in the address and works without script.
+     *
+     * @param array<string, int> $byType  website type => number of profiles
+     * @param string|null        $selected the type that is shown, or null for all
+     */
+    private function filter(Context $context, array $byType, int $all, ?string $selected): string
+    {
+        $plugins = PluginRegistry::load();
+        $chip = static fn (string $label, int $count, string $href, bool $current): string => '<a href="' . Html::e($href) . '"' . ($current ? ' aria-current="true"' : '') . '>'
+            . Html::e($label) . ' <span class="count">' . $count . '</span></a>';
+        $html = $chip('All', $all, $context->urls->to('/'), $selected === null);
+        foreach ($byType as $type => $count) {
+            try {
+                $label = $plugins->get($type)->title();
+            } catch (PluginError) {
+                $label = $type;
+            }
+            $html .= $chip($label, $count, $context->urls->to('/', ['type' => $type]), $selected === $type);
+        }
+
+        return '<nav class="filter" aria-label="Filter the sites by website type"><span class="filter-label">Website type</span>' . $html . '</nav>';
     }
 
     /**
@@ -85,21 +124,22 @@ final class DashboardController
             $application = trim($m->application['name'] . ' ' . ($m->application['version'] ?? ''));
         }
 
-        $html = '<article class="card ' . Html::e($level) . '"><header><h2><a href="' . Html::e($context->urls->to("/profiles/$id")) . '">' . Html::e($profile->name) . '</a></h2>'
+        // the title is text, with a pencil beside it (a link with a tooltip and a name, no label); the way into the profile is the button below
+        $html = '<article class="card ' . Html::e($level) . '"><header><div class="card-title"><h2>' . Html::e($profile->name) . '</h2>'
+            . '<a class="icon-button" href="' . Html::e($context->urls->to("/profiles/$id/edit")) . '" title="Edit profile" aria-label="Edit ' . Html::e($profile->name) . '">' . Icons::svg('edit') . '</a></div>'
             . '<span class="badge ' . Html::e($level) . '">' . Html::e($word) . '</span></header>'
             . '<p class="hint">' . Html::e($application !== '' ? $application : $profile->type) . '</p>';
 
         if ($last !== null && $last->sidecar !== null) {
+            // date, time and state; how long ago and how big are on the pages of the backup
             $time = $last->name->time->format('Y-m-d\TH:i:s\Z');
-            $html .= '<p>Last backup: <a href="' . Html::e($context->urls->to("/profiles/$id/backups/" . $last->name->base())) . '"><time datetime="' . Html::e($time) . '">' . Html::e(str_replace('T', ' ', rtrim($time, 'Z'))) . '</time></a>'
-                . ' (' . Html::e(View::age(($this->services->clock)() - $last->name->time->getTimestamp())) . '), ' . Html::e(SpaceCheck::format($last->sidecar->size())) . ', ' . Html::e($last->label()) . '</p>'
-                . '<p class="hint">' . $card['backups'] . ' ' . ($card['backups'] === 1 ? 'backup' : 'backups') . ', ' . Html::e(SpaceCheck::format((int) $card['bytes'])) . '</p>';
+            $html .= '<p>Last backup: <a href="' . Html::e($context->urls->to("/profiles/$id/backups/" . $last->name->base())) . '"><time datetime="' . Html::e($time) . '" data-minutes>' . Html::e(substr(str_replace('T', ' ', $time), 0, 16)) . '</time></a> &middot; ' . Html::e($last->label()) . '</p>';
         } else {
             $html .= '<p>No backup yet.</p>';
         }
 
         if ($next !== null) {
-            $html .= '<p class="hint">Next scheduled backup: <time datetime="' . Html::e($next->format('c')) . '">' . Html::e($next->format('Y-m-d H:i T')) . '</time> (' . Html::e($profile->schedule !== null ? $profile->schedule->cron : '') . ')</p>';
+            $html .= '<p>Next backup: <time datetime="' . Html::e($next->format('c')) . '" data-minutes>' . Html::e($next->format('Y-m-d H:i T')) . '</time></p>';
         }
 
         if ($card['warnings'] !== []) {
@@ -116,7 +156,8 @@ final class DashboardController
         } else {
             $actions .= View::form($context, "/profiles/$id/backup", '<button type="submit">Back up now</button>', 'inline') . ' ';
         }
-        $actions .= '<a href="' . Html::e($context->urls->to("/profiles/$id")) . '">Backups</a> <a href="' . Html::e($context->urls->to("/profiles/$id/edit")) . '">Edit</a>';
+        // the main action is the filled button; the way into the profile (its backups, settings, retention) is a secondary button
+        $actions .= '<a class="button secondary" href="' . Html::e($context->urls->to("/profiles/$id")) . '">Profile</a>';
 
         return $html . '<div class="actions">' . $actions . '</div></article>';
     }
