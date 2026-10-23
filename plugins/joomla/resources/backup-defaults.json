@@ -1,0 +1,25 @@
+{
+    "description": "What a Joomla backup leaves out unless the profile says otherwise (docs/PHASE6.md 3.3). Paths are relative to the site root (patterns of ThreadSafe's backup filters); whole directories, which a restore makes again empty. Tables are named without the prefix and keep only their structure. finder_taxonomy keeps its data on purpose: its ROOT row is needed, without it the Smart Search indexer stops.",
+    "excludePaths": [
+        "cache",
+        "administrator/cache",
+        "tmp",
+        "administrator/logs",
+        "logs",
+        ".git",
+        "administrator/components/com_akeebabackup/backup",
+        "administrator/components/com_akeeba/backup"
+    ],
+    "structureOnlyTables": [
+        "session",
+        "user_keys",
+        "updates",
+        "finder_links",
+        "finder_links_terms",
+        "finder_logging",
+        "finder_taxonomy_map",
+        "finder_terms",
+        "finder_tokens",
+        "finder_tokens_aggregate"
+    ]
+}

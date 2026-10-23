@@ -1,0 +1,10 @@
+{
+    "id": "joomla",
+    "title": "Joomla",
+    "version": "0.1.0",
+    "api": 1,
+    "class": "ThreadSafe\\Joomla\\JoomlaType",
+    "autoload": {
+        "ThreadSafe\\Joomla\\": "src/"
+    }
+}
