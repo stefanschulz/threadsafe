@@ -72,7 +72,7 @@ final class DashboardController
 
         $body = $header . (new CatalogController($this->services))->checksBox($context) . $cards
             . '<h2>Recent activity</h2>' . View::audit($this->services->audit->recent(5))
-            . '<p><a class="button secondary" href="' . Html::e($context->urls->to('/system')) . '#activity">See more</a></p>';
+            . '<p><a class="button secondary" href="' . Html::e($context->urls->to('/system', ['tab' => 'activity'])) . '">See more</a></p>';
 
         return View::page($context, 'Dashboard', $body);
     }

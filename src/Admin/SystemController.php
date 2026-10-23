@@ -17,11 +17,14 @@ use ThreadSafe\Web\Html;
 use ThreadSafe\Web\Response;
 
 /**
- * The page "System" (docs/PHASE4.md 3.9, 3.10): the installation check, the question whether `data/` can be fetched from outside, the
- * settings, and the audit log.
+ * The page "System" (docs/PHASE4.md 3.9, 3.10) in four sections, one at a time: general (the installation check, the trigger's state, the
+ * question whether `data/` can be fetched from outside), cron (the command, the address, the secret), settings, and activity (the audit log).
  */
 final class SystemController
 {
+    /** The sections of the page: id => name. The first is the one that opens without `?tab=`. */
+    private const array TABS = ['general' => 'General', 'cron' => 'Cron', 'settings' => 'Settings', 'activity' => 'Activity'];
+
     public function __construct(private readonly Services $services)
     {
     }
@@ -81,7 +84,7 @@ final class SystemController
         }
 
         if ($errors !== []) {
-            return $this->page($context, array_values(array_unique($errors)), $values, 400);
+            return $this->page($context, array_values(array_unique($errors)), $values, 400, 'settings');
         }
 
         $changed = [];
@@ -93,35 +96,68 @@ final class SystemController
         try {
             $config->save($this->services->configFile());
         } catch (ConfigException $e) {
-            return $this->page($context, [$e->getMessage()], $values, 500);
+            return $this->page($context, [$e->getMessage()], $values, 500, 'settings');
         }
         if ($changed !== []) {
             $this->services->audit->record('settings.changed', $context->user() ?? '-', $context->request->remoteAddress, ['changed' => implode(', ', $changed)]);
         }
         $context->flash('ok', $changed === [] ? 'Nothing was changed.' : 'The settings were saved.');
 
-        return Response::redirect($context->urls->to('/system'));
+        return Response::redirect($context->urls->to('/system', ['tab' => 'settings']));
     }
 
     // ------------------------------------------------------------------------------------------------- the page
 
     /**
-     * @param list<string>              $errors
+     * @param list<string>               $errors
      * @param array<string, string>|null $values the form as it was sent (after a mistake); null = the stored settings
+     * @param string|null                $tab    the section to show; null = the one the address asks for
      */
-    private function page(Context $context, array $errors, ?array $values, int $status = 200): Response
+    private function page(Context $context, array $errors, ?array $values, int $status = 200, ?string $tab = null): Response
+    {
+        $tab ??= self::tabOf($context);
+        $content = match ($tab) {
+            'cron' => '<h2>Cron</h2>' . $this->cron($context),
+            'settings' => '<h2>Settings</h2>' . $this->settings($context, $errors, $values),
+            'activity' => '<h2>Recent activity</h2>' . View::audit($this->services->audit->recent(50)),
+            default => $this->general($context),
+        };
+
+        return View::page($context, 'System', $this->tabs($context, $tab) . $content, '/system', $status);
+    }
+
+    /** The section that the address asks for (`?tab=cron`); anything else is the general one. */
+    private static function tabOf(Context $context): string
+    {
+        $wanted = $context->request->query('tab');
+
+        return is_string($wanted) && isset(self::TABS[$wanted]) ? $wanted : 'general';
+    }
+
+    /**
+     * The sections of the page, side by side: links (`?tab=...`), so that the choice is in the address and works without script; the one that
+     * is shown is marked with `aria-current`.
+     */
+    private function tabs(Context $context, string $current): string
+    {
+        $links = '';
+        foreach (self::TABS as $id => $label) {
+            $links .= '<a href="' . Html::e($context->urls->to('/system', $id === 'general' ? [] : ['tab' => $id])) . '"' . ($id === $current ? ' aria-current="page"' : '') . '>' . Html::e($label) . '</a>';
+        }
+
+        return '<nav class="tabs" aria-label="Sections of the System page">' . $links . '</nav>';
+    }
+
+    /** The general section: the installation check, how the trigger is doing, and whether the data directory can be fetched. */
+    private function general(Context $context): string
     {
         $request = $context->request;
         $checks = new SystemChecks($this->services);
         $probeWritten = $checks->writeProbe();
 
-        $body = '<h2>Installation check</h2>' . View::checks($checks->run($request->https, $request->isLocal()))
-            . '<h2>Trigger</h2>' . $this->trigger($context)
-            . '<h2>Can the data directory be fetched from outside?</h2>' . $this->probe($context, $probeWritten)
-            . '<h2>Settings</h2>' . $this->settings($context, $errors, $values)
-            . '<h2 id="activity">Recent activity</h2>' . View::audit($this->services->audit->recent(50));
-
-        return View::page($context, 'System', $body, '/system', $status);
+        return '<h2>Installation check</h2>' . View::checks($checks->run($request->https, $request->isLocal()))
+            . '<h2>Trigger</h2>' . $this->trigger()
+            . '<h2>Can the data directory be fetched from outside?</h2>' . $this->probe($context, $probeWritten);
     }
 
     /**
@@ -146,18 +182,18 @@ final class SystemController
             $context->flash('error', $e->getMessage());
         }
 
-        return Response::redirect($context->urls->to('/system'));
+        return Response::redirect($context->urls->to('/system', ['tab' => 'cron']));
     }
 
-    /** The trigger: the last call, the command, the address with its secret. */
-    private function trigger(Context $context): string
+    /** How the trigger is doing: the last call, the warning, how many profiles have a schedule. */
+    private function trigger(): string
     {
         $services = $this->services;
         $config = $services->config;
         $profiles = (new ProfileStore($services->data . '/profiles'))->all();
         $status = (new TriggerStatus(new Scheduler(new ScheduleStore($services->data . '/schedule'), $config->scheduleZone(), $config->scheduleGraceMinutes()), new Heartbeat($services->data . '/heartbeat.json'), $config->expectedIntervalMinutes(), $services->clock))->build($profiles);
 
-        $html = '<p class="hint">Scheduled backups happen only when something calls the trigger: a cron job that runs <code>threadsafe cron</code>, or one that fetches the address below. Either is enough; one call a day is enough for a daily schedule.</p>';
+        $html = '';
         if ($status['last'] === null) {
             $html .= '<p>The trigger has not called yet.</p>';
         } else {
@@ -166,8 +202,16 @@ final class SystemController
         if ($status['warning'] !== null) {
             $html .= '<p class="flash warning">' . Html::e($status['warning']) . '</p>';
         }
-        $html .= '<p class="hint">' . $status['scheduled'] . ' of ' . count($profiles) . ' profiles have a schedule. Time zone of the schedules: ' . Html::e($config->scheduleZone()->getName()) . '. This host '
-            . (WorkerLauncher::available() ? 'can start a worker process, so a call of the address can run the backup outside the request' : 'cannot start a worker process, so a call of the address does one tick of work') . '.</p>';
+
+        return $html . '<p class="hint">' . $status['scheduled'] . ' of ' . count($profiles) . ' profiles have a schedule. Time zone of the schedules: ' . Html::e($config->scheduleZone()->getName()) . '. This host '
+            . (WorkerLauncher::available() ? 'can start a worker process, so a call of the address can run the backup outside the request' : 'cannot start a worker process, so a call of the address does one tick of work') . '. How to call the trigger is on the Cron tab.</p>';
+    }
+
+    /** The cron section: what to put into the crontab of the host (the command, or the address with its secret) and the secret itself. */
+    private function cron(Context $context): string
+    {
+        $services = $this->services;
+        $html = '<p class="hint">Scheduled backups happen only when something calls the trigger: a cron job that runs <code>threadsafe cron</code>, or one that fetches the address below. Either is enough; one call a day is enough for a daily schedule.</p>';
 
         $secret = (new CronSecret($services->data . '/cron-secret'))->get();
         $html .= '<h3>The command</h3><p><code>' . Html::e(TriggerHelp::commandLine()) . '</code></p><p class="hint">The line for a crontab. The command ends at once if another trigger is working, and ends with an error code when a backup failed.</p>';

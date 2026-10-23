@@ -339,6 +339,11 @@ ul.plain { margin: 0; padding-left: 1.1rem; }
 /* room: between the type and the facts, and between the facts and the buttons */
 .card header + .hint { margin: 0.1rem 0 1rem; }
 .card .actions { margin-top: 1.25rem; }
+/* the sections of a page, one at a time: links with a line under them; the one that is shown has a brass line */
+.tabs { display: flex; flex-wrap: wrap; gap: 0.25rem; margin: 0.5rem 0 1.5rem; border-bottom: 1px solid var(--border); }
+.tabs a { margin-bottom: -1px; padding: 0.6rem 1.1rem; color: var(--text-soft); font: 500 0.78rem/1.4 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; text-decoration: none; border-bottom: 2px solid transparent; }
+.tabs a:hover { color: var(--text); border-bottom-color: var(--border-strong); }
+.tabs a[aria-current="page"] { color: var(--text); border-bottom-color: var(--brass); }
 /* the title of a page with its main action at the right */
 .page-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem 1rem; }
 .page-actions { margin: 1rem 0; }

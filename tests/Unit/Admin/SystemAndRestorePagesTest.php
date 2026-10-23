@@ -108,15 +108,42 @@ final class SystemAndRestorePagesTest extends TestCase
         self::assertSame(1, substr_count($page->body, 'href="/new-profile"'), 'one way, and it is the whole tile');
     }
 
-    public function testTheDashboardLeadsToTheActivityOnTheSystemPageByAnAnchor(): void
+    public function testTheDashboardLeadsToTheActivitySectionOfTheSystemPage(): void
     {
         $dashboard = $this->browser->get('/')->body;
-        $system = $this->browser->get('/system')->body;
+        $activity = $this->browser->get('/system?tab=activity')->body;
 
-        self::assertStringContainsString('<a class="button secondary" href="/system#activity">See more</a>', $dashboard, 'a button, with a name that says what it does');
+        self::assertStringContainsString('<a class="button secondary" href="/system?tab=activity">See more</a>', $dashboard, 'a button, with a name that says what it does');
         self::assertStringNotContainsString('More on the System page', $dashboard);
-        self::assertStringContainsString('<h2 id="activity">Recent activity</h2>', $system, 'and the place it leads to');
-        self::assertSame(1, substr_count($system, 'id="activity"'));
+        self::assertStringContainsString('<h2>Recent activity</h2>', $activity, 'and the section it leads to');
+        self::assertStringContainsString('<a href="/system?tab=activity" aria-current="page">Activity</a>', $activity);
+    }
+
+    public function testTheSystemPageHasASectionForEachKindOfContentAndShowsOneAtATime(): void
+    {
+        $sections = ['general' => '/system', 'cron' => '/system?tab=cron', 'settings' => '/system?tab=settings', 'activity' => '/system?tab=activity'];
+        $marks = ['general' => '<h2>Installation check</h2>', 'cron' => '<h3>The address</h3>', 'settings' => 'name="idle"', 'activity' => '<h2>Recent activity</h2>'];
+
+        foreach ($sections as $id => $route) {
+            $page = $this->browser->get($route)->body;
+
+            self::assertStringContainsString('<nav class="tabs" aria-label="Sections of the System page">', $page, $id);
+            self::assertSame(1, substr_count($page, 'aria-current="page">') - 1, "$id: the menu has its own mark, the tabs one");
+            foreach (['General' => '/system', 'Cron' => '/system?tab=cron', 'Settings' => '/system?tab=settings', 'Activity' => '/system?tab=activity'] as $name => $href) {
+                self::assertStringContainsString('<a href="' . $href . '"', $page, "$id has the link to $name");
+            }
+            foreach ($marks as $other => $mark) {
+                self::assertSame($other === $id, str_contains($page, $mark), "$id shows $other's content only if it is its own");
+            }
+        }
+        self::assertStringContainsString('<a href="/system?tab=settings" aria-current="page">Settings</a>', $this->browser->get('/system?tab=settings')->body);
+        self::assertStringContainsString('<h2>Installation check</h2>', $this->browser->get('/system?tab=nonsense')->body, 'an unknown section is the general one');
+    }
+
+    public function testSavingAndMakingTheSecretLeadBackToTheirOwnSection(): void
+    {
+        self::assertSame('/system?tab=settings', $this->browser->post('/system/settings', ['idle' => '45', 'days' => '3', 'warn_mb' => '250', 'accel' => 'none', 'prefix' => '', 'audit_mb' => '2', 'pretty' => '1'])->header('Location'));
+        self::assertSame('/system?tab=cron', $this->browser->post('/system/cron-secret', ['action' => 'make'])->header('Location'));
     }
 
     public function testACardWithAWarningNamesItAndNeverRelyOnColourAlone(): void
@@ -195,7 +222,7 @@ final class SystemAndRestorePagesTest extends TestCase
 
     public function testTheSettingsAreShownChangedValidatedSavedAndAudited(): void
     {
-        $page = $this->browser->get('/system');
+        $page = $this->browser->get('/system?tab=settings');
         self::assertStringContainsString('name="idle" type="text" value="120"', $page->body);
         self::assertStringContainsString('name="warn_mb" type="text" value="500"', $page->body);
 
@@ -209,20 +236,20 @@ final class SystemAndRestorePagesTest extends TestCase
         self::assertSame(3, $config->get('dashboard.warnAfterDays'));
         self::assertSame(262668288, $config->get('download.warnAbove'));
         self::assertSame(2097152, $config->get('audit.maxBytes'));
-        self::assertStringContainsString('The settings were saved.', $this->browser->get('/system')->body);
+        self::assertStringContainsString('The settings were saved.', $this->browser->get('/system?tab=settings')->body);
         $audit = (new AuditLog($this->fixture->data . '/audit.log'))->recent(1)[0];
         self::assertSame('settings.changed', $audit['event']);
         self::assertStringContainsString('web.sessionIdleMinutes', $audit['changed']);
 
         // the same values again change nothing
         $this->browser->post('/system/settings', $fields);
-        self::assertStringContainsString('Nothing was changed.', $this->browser->get('/system')->body);
+        self::assertStringContainsString('Nothing was changed.', $this->browser->get('/system?tab=settings')->body);
         self::assertSame('settings.changed', (new AuditLog($this->fixture->data . '/audit.log'))->recent(1)[0]['event']);
     }
 
     public function testTheTriggerSettingsAreOnThePageAndChecked(): void
     {
-        $page = $this->browser->get('/system');
+        $page = $this->browser->get('/system?tab=settings');
         self::assertStringContainsString('name="grace" type="text" value="360"', $page->body);
         self::assertStringContainsString('name="interval" type="text" value="15"', $page->body);
 
@@ -240,9 +267,12 @@ final class SystemAndRestorePagesTest extends TestCase
 
     public function testTheTriggerSectionShowsTheCommandAndTheSecretIsMadeReplacedAndRemoved(): void
     {
-        $page = $this->browser->get('/system');
-        self::assertStringContainsString('<h2>Trigger</h2>', $page->body);
-        self::assertStringContainsString('The trigger has not called yet.', $page->body);
+        $general = $this->browser->get('/system');
+        self::assertStringContainsString('<h2>Trigger</h2>', $general->body);
+        self::assertStringContainsString('The trigger has not called yet.', $general->body);
+        self::assertStringNotContainsString('threadsafe cron -q', $general->body, 'the command is on the cron section');
+
+        $page = $this->browser->get('/system?tab=cron');
         self::assertStringContainsString('threadsafe cron -q', $page->body);
         self::assertStringContainsString('There is no secret, so there is no address.', $page->body);
         self::assertStringContainsString('Make the secret', $page->body);
@@ -250,7 +280,7 @@ final class SystemAndRestorePagesTest extends TestCase
         self::assertSame(303, $this->browser->post('/system/cron-secret', ['action' => 'make'])->status);
         $secret = trim((string) file_get_contents($this->fixture->data . '/cron-secret'));
         self::assertMatchesRegularExpression('/^[0-9a-f]{64}$/', $secret);
-        $page = $this->browser->get('/system');
+        $page = $this->browser->get('/system?tab=cron');
         self::assertStringContainsString('http://ts.example/cron/' . $secret, $page->body);
         self::assertStringContainsString('curl -fsS', $page->body);
         self::assertStringContainsString('A new secret was made', $page->body);
