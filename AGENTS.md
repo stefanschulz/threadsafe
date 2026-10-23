@@ -37,6 +37,7 @@ design more than once, so read them before touching the ZIP writer or the dumper
   says why, the tests that prove it. Small, reviewable commits per work package.
 - **Do not widen scope.** The plan's work packages are the unit of work. When the plan turns out wrong (it has: see
   PHASE2.md section 8, finding 6, and the corrections in the "As built" paragraphs), fix the plan text in the same commit as the code.
+- **Colours are tokens.** `public/app.css` and `Html::css()` (the wizard) define the same tokens (`docs/DESIGN.md`); change a colour in both and keep every readable text at least 4.5:1.
 - **Documentation is part of the work:** update the work package table and its "As built" paragraph when something is
   finished; update `README.md` when behaviour users see changes.
 
@@ -93,7 +94,7 @@ Oracles are real tools where possible: `unzip -t`, the `mariadb` client, `CHECKS
 | `src/Storage`, `src/Backup/Manifest*` | Phase 2: `LocalStorage` (protection files, sidecar, listing), `BackupCatalog` (listing, sidecar rebuild), `SpaceCheck`, `Postproc`; `BackupName`, `Manifest`, `Sidecar`, `Verifier` |
 | `tests/Unit`, `tests/Integration`, `tests/Support`, `tests/stack` | Tests, helpers, Docker stack scripts |
 | `tools/spikes` | Throw-away scripts behind the findings in PHASE2.md section 8 (kept for reference) |
-| `docs` | Concept, phase plans, `MIGRATE.md` (reference of the `migrate` command), `BACKUP.md` (reference of the backup commands and the archive), `RESTORE.md` (reference of the restore: wizard, command, checks, limits, encrypted backups), `WEB.md` (the web interface), `SCHEDULE.md` (schedules, the trigger, retention), `ENCRYPTION.md` (keys, passphrases, what is protected) |
+| `docs` | Concept, phase plans, `MIGRATE.md` (reference of the `migrate` command), `BACKUP.md` (reference of the backup commands and the archive), `RESTORE.md` (reference of the restore: wizard, command, checks, limits, encrypted backups), `WEB.md` (the web interface), `SCHEDULE.md` (schedules, the trigger, retention), `ENCRYPTION.md` (keys, passphrases, what is protected), `DESIGN.md` (colours and type of the web interface and the wizard; `DESIGN-theLoom.md` is the palette it follows) |
 
 ## Design rules that are easy to break
 
