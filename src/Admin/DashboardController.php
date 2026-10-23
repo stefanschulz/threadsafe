@@ -103,7 +103,7 @@ final class DashboardController
         $html = '<article class="card ' . Html::e($level) . '"><header><div class="card-title"><h2>' . Html::e($profile->name) . '</h2>'
             . '<a class="icon-button" href="' . Html::e($context->urls->to("/profiles/$id/edit")) . '" title="Edit profile" aria-label="Edit ' . Html::e($profile->name) . '">' . Icons::svg('edit') . '</a></div>'
             . '<span class="badge ' . Html::e($level) . '">' . Html::e($word) . '</span></header>'
-            . '<p class="hint">' . Html::e($application !== '' ? $application : $profile->type) . '</p>';
+            . '<p class="hint">' . Html::e($application !== '' ? $application : TypeFilter::title(PluginRegistry::load(), $profile->type)) . '</p>';
 
         if ($last !== null && $last->sidecar !== null) {
             // date, time and state; how long ago and how big are on the pages of the backup
