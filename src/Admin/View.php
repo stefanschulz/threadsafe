@@ -32,9 +32,15 @@ final class View
      * A page for a logged-in user.
      *
      * @param string $active the route of the navigation entry to mark as current
+     * @param string $actions the main action of the page as HTML (a button), shown at the right of the title
      */
-    public static function page(Context $context, string $title, string $body, string $active = '/', int $status = 200): Response
+    public static function page(Context $context, string $title, string $body, string $active = '/', int $status = 200, string $actions = ''): Response
     {
+        // the main action of a page (HTML) stands at the right of the title
+        $heading = '<h1>' . Html::e($title) . '</h1>';
+        if ($actions !== '') {
+            $heading = '<div class="page-head">' . $heading . '<div class="page-actions">' . $actions . '</div></div>';
+        }
         $navigation = '';
         foreach (self::NAVIGATION as $route => [$label, $icon]) {
             $navigation .= '<a href="' . Html::e($context->urls->to($route)) . '" title="' . Html::e($label) . '"' . ($route === $active ? ' aria-current="page"' : '') . '>'
@@ -54,7 +60,7 @@ final class View
         return self::document(
             $context,
             $title,
-            '<a class="skip" href="#content">Skip to the content</a><div class="app">' . $side . '<div class="content"><main id="content" tabindex="-1">' . self::flashes($context) . '<h1>' . Html::e($title) . '</h1>' . $body . '</main>' . self::footer() . '</div></div>',
+            '<a class="skip" href="#content">Skip to the content</a><div class="app">' . $side . '<div class="content"><main id="content" tabindex="-1">' . self::flashes($context) . $heading . $body . '</main>' . self::footer() . '</div></div>',
             $status,
             true,
         );

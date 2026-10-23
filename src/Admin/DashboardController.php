@@ -8,9 +8,9 @@ use ThreadSafe\App\BackupService;
 use ThreadSafe\App\Overview;
 use ThreadSafe\App\TriggerStatus;
 use ThreadSafe\Engine\RunStore;
-use ThreadSafe\Plugin\PluginError;
 use ThreadSafe\Plugin\PluginRegistry;
 use ThreadSafe\Profile\ProfileStore;
+use ThreadSafe\Profile\SiteProfile;
 use ThreadSafe\Schedule\Heartbeat;
 use ThreadSafe\Schedule\Scheduler;
 use ThreadSafe\Schedule\ScheduleStore;
@@ -52,19 +52,14 @@ final class DashboardController
             . ($totals['running'] > 0 ? $stat('Running', (string) $totals['running']) : '') . '</dl>';
         $header = ($trigger['warning'] === null ? '' : '<p class="flash warning" role="alert">' . Html::e($trigger['warning']) . ' <a href="' . Html::e($context->urls->to('/system')) . '">System</a></p>') . $strip;
         // the sites can be filtered by website type (`?type=...`; an address that works without script); the tile for a new profile is always there
-        $byType = [];
-        foreach ($overview['cards'] as $card) {
-            $byType[$card['profile']->type] = ($byType[$card['profile']->type] ?? 0) + 1;
-        }
-        ksort($byType);
-        $wanted = $context->request->query('type');
-        $selected = is_string($wanted) && isset($byType[$wanted]) ? $wanted : null;
+        $byType = TypeFilter::count(array_map(static fn (array $card): SiteProfile => $card['profile'], $overview['cards']));
+        $selected = TypeFilter::selected($context, $byType);
 
         $cards = '';
         if ($overview['cards'] === []) {
             $cards .= '<div class="box"><p>There are no sites yet. A site profile says which website to back up and where its backups go.</p></div>';
         } else {
-            $cards .= $this->filter($context, $byType, count($overview['cards']), $selected);
+            $cards .= TypeFilter::render($context, '/', $byType, count($overview['cards']), $selected);
         }
         $cards .= '<div class="cards">';
         foreach ($overview['cards'] as $card) {
@@ -80,31 +75,6 @@ final class DashboardController
             . '<p><a class="button secondary" href="' . Html::e($context->urls->to('/system')) . '#activity">See more</a></p>';
 
         return View::page($context, 'Dashboard', $body);
-    }
-
-    /**
-     * The filter above the tiles: all, and one entry per website type that the profiles have, each with its number. The chosen one is marked
-     * (`aria-current`); the entries are links, so the choice is in the address and works without script.
-     *
-     * @param array<string, int> $byType  website type => number of profiles
-     * @param string|null        $selected the type that is shown, or null for all
-     */
-    private function filter(Context $context, array $byType, int $all, ?string $selected): string
-    {
-        $plugins = PluginRegistry::load();
-        $chip = static fn (string $label, int $count, string $href, bool $current): string => '<a href="' . Html::e($href) . '"' . ($current ? ' aria-current="true"' : '') . '>'
-            . Html::e($label) . ' <span class="count">' . $count . '</span></a>';
-        $html = $chip('All', $all, $context->urls->to('/'), $selected === null);
-        foreach ($byType as $type => $count) {
-            try {
-                $label = $plugins->get($type)->title();
-            } catch (PluginError) {
-                $label = $type;
-            }
-            $html .= $chip($label, $count, $context->urls->to('/', ['type' => $type]), $selected === $type);
-        }
-
-        return '<nav class="filter" aria-label="Filter the sites by website type"><span class="filter-label">Website type</span>' . $html . '</nav>';
     }
 
     /**

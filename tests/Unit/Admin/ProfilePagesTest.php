@@ -6,6 +6,7 @@ namespace ThreadSafe\Tests\Unit\Admin;
 
 use PHPUnit\Framework\TestCase;
 use ThreadSafe\Admin\AuditLog;
+use ThreadSafe\Crypto\AgeKeys;
 use ThreadSafe\Profile\ProfileStore;
 use ThreadSafe\Tests\Support\AdminBrowser;
 use ThreadSafe\Tests\Support\TempDirectory;
@@ -67,10 +68,83 @@ final class ProfilePagesTest extends TestCase
 
         self::assertSame(200, $page->status);
         self::assertStringContainsString('There are no site profiles yet', $page->body);
-        self::assertStringContainsString('href="/new-profile"', $page->body);
+        self::assertStringContainsString('<a class="card new" href="/new-profile">', $page->body, 'the empty tile of the dashboard');
+        self::assertStringContainsString('<div class="page-actions"><a class="button" href="/new-profile">New profile</a></div>', $page->body, 'the button stands at the right of the title');
         self::assertStringContainsString('title="Profiles" aria-current="page"', $page->body, 'the navigation marks the page');
     }
 
+    public function testEachProfileIsACardWithItsPathsAndOptions(): void
+    {
+        $this->create();
+        $this->store()->save($this->store()->load('blog')->with([
+            'schedule' => ['cron' => '30 3 * * *'],
+            'retention' => ['keep' => 14, 'maxAgeDays' => 30],
+            'encryption' => ['recipients' => [AgeKeys::generate()['public']]],
+        ]));
+
+        $page = $this->browser->get('/profiles')->body;
+
+        self::assertStringContainsString('<article class="card profile"><header><div class="card-title"><h2>My Blog</h2>', $page);
+        self::assertStringContainsString('<span class="badge">Other website</span>', $page, 'the title of the type, not its id');
+        self::assertStringContainsString('<dt>Site</dt><dd><code class="path">' . str_replace('/', '/<wbr>', $this->base . '/my-site') . '</code></dd>', $page, 'a path may break after a slash');
+        self::assertStringContainsString('<dt>Backups</dt><dd><code class="path">' . str_replace('/', '/<wbr>', $this->base . '/storage/blog') . '</code></dd>', $page);
+        // the options have an icon in place of the label, with a tooltip and a name for a screen reader
+        self::assertMatchesRegularExpression('~<dt title="Schedule"><svg class="icon"[^>]*>.*?</svg><span class="visually-hidden">Schedule</span></dt><dd><code>30 3 \* \* \*</code></dd>~', $page);
+        self::assertMatchesRegularExpression('~<dt title="Retention"><svg.*?<span class="visually-hidden">Retention</span></dt><dd>keeps the last 14, up to 30 days</dd>~', $page);
+        self::assertMatchesRegularExpression('~<dt title="Encryption"><svg.*?<span class="visually-hidden">Encryption</span></dt><dd>Encrypted</dd>~', $page);
+        self::assertStringNotContainsString('<table', $page);
+        self::assertStringNotContainsString('/profiles/blog/backup', $page, 'backing up is done from the dashboard and the page of the profile');
+        self::assertStringNotContainsString('Last backup', $page, 'the state of the backups is on the dashboard');
+    }
+
+    public function testTheWayToTheProfileAndToTheFormAreTwoIconButtonsWithNames(): void
+    {
+        $this->create();
+
+        $page = $this->browser->get('/profiles')->body;
+
+        self::assertMatchesRegularExpression('~<a class="icon-button" href="/profiles/blog" title="View profile" aria-label="View profile My Blog"><svg class="icon"~', $page);
+        self::assertMatchesRegularExpression('~<a class="icon-button" href="/profiles/blog/edit" title="Edit profile" aria-label="Edit profile My Blog"><svg class="icon"~', $page);
+        self::assertLessThan(strpos($page, 'href="/profiles/blog/edit"'), strpos($page, 'href="/profiles/blog"'), 'the eye stands left of the pencil');
+    }
+
+    public function testALongNameIsCutAndTheTooltipHasTheWholeName(): void
+    {
+        $this->create();
+        $long = trim(str_repeat('A long name ', 5));
+        $this->store()->save($this->store()->load('blog')->with(['name' => $long]));
+
+        $page = $this->browser->get('/profiles')->body;
+
+        self::assertStringContainsString('<h2 title="' . $long . '">' . mb_strimwidth($long, 0, 40, '…') . '</h2>', $page);
+        self::assertStringContainsString('…</h2>', $page);
+    }
+
+    public function testOptionsThatAProfileDoesNotHaveAreLeftOut(): void
+    {
+        $this->create();
+
+        $page = $this->browser->get('/profiles')->body;
+
+        self::assertStringContainsString('<dt>Site</dt>', $page);
+        self::assertStringNotContainsString('class="fact option"', $page, 'no option, no icon');
+    }
+
+    public function testTheListCanBeFilteredByWebsiteType(): void
+    {
+        $this->create();
+
+        $all = $this->browser->get('/profiles')->body;
+        self::assertStringContainsString('<a href="/profiles" aria-current="true">All <span class="count">1</span></a>', $all);
+        self::assertStringContainsString('<a href="/profiles?type=generic">Other website <span class="count">1</span></a>', $all);
+
+        $chosen = $this->browser->get('/profiles?type=generic')->body;
+        self::assertStringContainsString('<a href="/profiles?type=generic" aria-current="true">', $chosen);
+        self::assertStringContainsString('<h2>My Blog</h2>', $chosen);
+
+        $unknown = $this->browser->get('/profiles?type=nonsense')->body;
+        self::assertStringContainsString('<h2>My Blog</h2>', $unknown, 'an unknown type shows everything');
+    }
     public function testTheFormOffersTheWebsiteTypesAndNeverAPasswordValue(): void
     {
         $page = $this->browser->get('/new-profile');

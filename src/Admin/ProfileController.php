@@ -23,6 +23,9 @@ use ThreadSafe\Web\Response;
  */
 final class ProfileController
 {
+    /** The longest name that the list shows whole. */
+    private const int NAME_WIDTH = 40;
+
     private ?ProfileService $profiles;
 
     /**
@@ -34,27 +37,78 @@ final class ProfileController
     }
 
     /**
+     * The profiles for looking after them, the technical side: a card for each, one under the other, with the name, the way to the page of
+     * the profile and to the form, the type, the two paths and the options it has (schedule, retention, encryption). The state of the sites
+     * and of their backups is on the dashboard.
+     *
      * @param array<string, string> $params
      */
     public function index(Context $context, array $params = []): Response
     {
         ['profiles' => $profiles, 'damaged' => $damaged] = $this->service()->listing();
 
-        $rows = '';
+        $byType = TypeFilter::count($profiles);
+        $selected = TypeFilter::selected($context, $byType);
+        $plugins = PluginRegistry::load();
+        $cards = '';
         foreach ($profiles as $profile) {
-            $rows .= '<tr><td><a href="' . Html::e($context->urls->to('/profiles/' . $profile->id)) . '">' . Html::e($profile->name) . '</a>'
-                . ($profile->name !== $profile->id ? ' <span class="hint">' . Html::e($profile->id) . '</span>' : '') . '</td>'
-                . '<td>' . Html::e($profile->type) . '</td><td><code>' . Html::e($profile->path) . '</code></td><td><code>' . Html::e($profile->storage) . '</code></td></tr>';
+            if ($selected === null || $profile->type === $selected) {
+                $cards .= $this->card($context, $profile, TypeFilter::title($plugins, $profile->type));
+            }
         }
         foreach ($damaged as $id) {
-            $rows .= '<tr><td>' . Html::e($id) . '</td><td colspan="3"><span class="flash error">The file of this profile is damaged: ' . Html::e($this->damage($id)) . '</span></td></tr>';
+            $cards .= '<article class="card profile problem"><header><div class="card-title"><h2>' . Html::e($id) . '</h2></div></header>'
+                . '<p class="flash error">The file of this profile is damaged: ' . Html::e($this->damage($id)) . '</p></article>';
         }
 
-        $body = '<p><a class="button" href="' . Html::e($context->urls->to('/new-profile')) . '">New profile</a></p>'
-            . ($rows === '' ? '<p class="hint">There are no site profiles yet. A profile says which site to back up and where its backups go.</p>'
-                : '<div class="scroll"><table><thead><tr><th>Name</th><th>Type</th><th>Site</th><th>Backups go to</th></tr></thead><tbody>' . $rows . '</tbody></table></div>');
+        $body = '';
+        if ($profiles === [] && $damaged === []) {
+            $body .= '<p class="hint">There are no site profiles yet. A profile says which site to back up and where its backups go.</p>'
+                . '<div class="cards"><a class="card new" href="' . Html::e($context->urls->to('/new-profile')) . '">' . Icons::svg('plus') . '<span>New profile</span></a></div>';
+        } else {
+            $body .= ($profiles === [] ? '' : TypeFilter::render($context, '/profiles', $byType, count($profiles), $selected))
+                . '<div class="profile-list">' . $cards . '</div>';
+        }
 
-        return View::page($context, 'Profiles', $body, '/profiles');
+        return View::page($context, 'Profiles', $body, '/profiles', 200, '<a class="button" href="' . Html::e($context->urls->to('/new-profile')) . '">New profile</a>');
+    }
+
+    /** A path as HTML that may break after a slash, so that a long one wraps between its parts and not in the middle of a name. */
+    private static function breakable(string $path): string
+    {
+        return str_replace('/', '/<wbr>', Html::e($path));
+    }
+
+    private function card(Context $context, SiteProfile $profile, string $typeTitle): string
+    {
+        $id = $profile->id;
+        // the name stays in one line; a long one is cut (the whole name is the tooltip)
+        $name = mb_strimwidth($profile->name, 0, self::NAME_WIDTH, '…');
+        $icon = static fn (string $route, string $icon, string $title): string => '<a class="icon-button" href="' . Html::e($route) . '" title="' . $title . '" aria-label="' . $title . ' ' . Html::e($profile->name) . '">' . Icons::svg($icon) . '</a>';
+        // a paths with its label, an option with its icon (a tooltip and a hidden text name it); label or icon and value stand in one line
+        $fact = static fn (string $label, string $value): string => '<div class="fact wide"><dt>' . Html::e($label) . '</dt><dd>' . $value . '</dd></div>';
+        $option = static fn (string $icon, string $label, string $value): string => '<div class="fact option"><dt title="' . Html::e($label) . '">' . Icons::svg($icon) . '<span class="visually-hidden">' . Html::e($label) . '</span></dt><dd>' . $value . '</dd></div>';
+
+        $facts = $fact('Site', '<code class="path">' . self::breakable($profile->path) . '</code>')
+            . $fact('Backups', '<code class="path">' . self::breakable($profile->storage) . '</code>');
+        if ($profile->schedule !== null) {
+            $facts .= $option('clock', 'Schedule', '<code>' . Html::e($profile->schedule->cron) . '</code>');
+        }
+        if ($profile->retention !== null) {
+            $keep = array_filter([
+                $profile->retention->keep === null ? null : 'the last ' . $profile->retention->keep,
+                $profile->retention->maxAgeDays === null ? null : 'up to ' . $profile->retention->maxAgeDays . ' days',
+                $profile->retention->maxBytes === null ? null : 'up to ' . SpaceCheck::format($profile->retention->maxBytes),
+            ]);
+            $facts .= $option('archive', 'Retention', Html::e('keeps ' . implode(', ', $keep)));
+        }
+        if ($profile->encryption !== null) {
+            $facts .= $option('lock', 'Encryption', 'Encrypted');
+        }
+
+        return '<article class="card profile"><header><div class="card-title"><h2' . ($name !== $profile->name ? ' title="' . Html::e($profile->name) . '"' : '') . '>' . Html::e($name) . '</h2>'
+            . $icon($context->urls->to("/profiles/$id"), 'view', 'View profile') . $icon($context->urls->to("/profiles/$id/edit"), 'edit', 'Edit profile') . '</div>'
+            . '<span class="badge">' . Html::e($typeTitle) . '</span></header><dl class="facts">' . $facts . '</dl></article>';
     }
 
     /**
