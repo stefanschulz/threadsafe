@@ -8,6 +8,7 @@ use PHPUnit\Framework\TestCase;
 use ThreadSafe\Admin\AuditLog;
 use ThreadSafe\Crypto\AgeKeys;
 use ThreadSafe\Profile\ProfileStore;
+use ThreadSafe\Profile\SiteProfile;
 use ThreadSafe\Tests\Support\AdminBrowser;
 use ThreadSafe\Tests\Support\TempDirectory;
 
@@ -144,6 +145,22 @@ final class ProfilePagesTest extends TestCase
 
         $unknown = $this->browser->get('/profiles?type=nonsense')->body;
         self::assertStringContainsString('<h2>My Blog</h2>', $unknown, 'an unknown type shows everything');
+    }
+    public function testProfilesAreSortedByNameOnTheProfilesPageAndTheDashboard(): void
+    {
+        foreach ([['b', 'Zebra shop'], ['c', 'apple 10'], ['a', 'Apple 2'], ['d', 'Banana']] as [$id, $name]) {
+            $this->store()->save(SiteProfile::fromArray(['id' => $id, 'name' => $name, 'type' => 'generic', 'path' => $this->base . '/my-site', 'storage' => $this->base . '/storage/' . $id]));
+        }
+        $names = static function (string $page): array {
+            preg_match_all('~<article class="card [^"]*"><header><div class="card-title"><h2[^>]*>([^<]+)</h2>~', $page, $m);
+
+            return $m[1];
+        };
+        $expected = ['Apple 2', 'apple 10', 'Banana', 'Zebra shop'];
+
+        self::assertSame($expected, $names($this->browser->get('/profiles')->body), 'upper and lower case alike, numbers by their value');
+        self::assertSame($expected, $names($this->browser->get('/')->body));
+        self::assertSame(['Apple 2', 'apple 10'], array_slice($names($this->browser->get('/profiles?type=generic')->body), 0, 2), 'the filter keeps the order');
     }
     public function testTheFormOffersTheWebsiteTypesAndNeverAPasswordValue(): void
     {

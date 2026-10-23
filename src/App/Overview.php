@@ -63,7 +63,7 @@ final class Overview
 
         $cards = [];
         $totals = ['profiles' => 0, 'backups' => 0, 'bytes' => 0, 'running' => $running];
-        foreach ($this->profiles->all() as $profile) {
+        foreach (SiteProfile::sortedByName($this->profiles->all()) as $profile) {
             $card = $this->card($profile, $byProfile[$profile->id] ?? []);
             $cards[] = $card;
             ++$totals['profiles'];

@@ -201,6 +201,21 @@ final readonly class SiteProfile
     }
 
     /**
+     * The order in which people look at profiles: by name, upper and lower case alike, numbers by their value ("Shop 2" before "Shop 10"),
+     * and by id where two names are the same.
+     *
+     * @param list<self> $profiles
+     *
+     * @return list<self>
+     */
+    public static function sortedByName(array $profiles): array
+    {
+        usort($profiles, static fn (self $a, self $b): int => strnatcasecmp($a->name, $b->name) ?: strcmp($a->id, $b->id));
+
+        return $profiles;
+    }
+
+    /**
      * @param array<array-key, mixed> $data
      */
     private static function string(array $data, string $key, bool $required = false, string $default = ''): string

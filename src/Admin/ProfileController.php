@@ -46,6 +46,7 @@ final class ProfileController
     public function index(Context $context, array $params = []): Response
     {
         ['profiles' => $profiles, 'damaged' => $damaged] = $this->service()->listing();
+        $profiles = SiteProfile::sortedByName($profiles);
 
         $byType = TypeFilter::count($profiles);
         $selected = TypeFilter::selected($context, $byType);
