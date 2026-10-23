@@ -24,7 +24,8 @@
         "psr-4": {
             "ThreadSafe\\": "src/",
             "ThreadSafe\\PrestaShop9\\": "plugins/prestashop9/src/",
-            "ThreadSafe\\Generic\\": "plugins/generic/src/"
+            "ThreadSafe\\Generic\\": "plugins/generic/src/",
+            "ThreadSafe\\Joomla\\": "plugins/joomla/src/"
         }
     },
     "autoload-dev": {
