@@ -19,7 +19,7 @@ ThreadSafe is a directory (a clone of the repository, or an archive) with PHP 8.
 
 ### Where the web server points
 
-Make **`public/`** the document root. That directory holds only `index.php`, `app.css` and `app.js`; `src/`, `data/`, `plugins/`, `vendor/` and the rest are then not reachable by any address.
+Make **`public/`** the document root. That directory holds only `index.php`, `app.css`, `app.js` and the fonts (`fonts/`, seven WOFF2 files of IBM Plex and their license); `src/`, `data/`, `plugins/`, `vendor/` and the rest are then not reachable by any address.
 
 **Apache:** `public/.htaccess` hands every address to `index.php` (it needs `mod_rewrite` and `AllowOverride All` for that directory; without them set `web.prettyUrls` to `false`, see the settings below, and the pages are `index.php?route=/profiles` instead).
 
@@ -91,6 +91,10 @@ and open the interface. It shows a single page, the setup, where you enter that 
 Wrong passwords are slowed down: after three, the next try has to wait 5 seconds, then 10, doubling up to 5 minutes; during the wait even the right password is not accepted. A success clears it. A session ends after two idle hours (a setting) and after 12 hours in any case; logging in again always makes a new session.
 
 ## Using it
+
+### The menu and the colour scheme
+
+The menu is on the left: **Dashboard**, **Profiles**, **System**, each with an icon and a name; at the top the mark of ThreadSafe (the letters TS until there is a logo), at the bottom the colour scheme and **Log out**. The arrow at the top **folds the menu to the icons** (the names are then in the tooltips and stay available to screen readers); on a narrow screen the menu is always folded. The **switch at the bottom has three positions: Auto** (the scheme of your system or browser, the default), **Light** and **Dark**. Both choices are kept in two cookies of this page (`threadsafe_nav`, `threadsafe_theme`; they hold one word each, are sent to no one else and have no other use), so the next page is drawn right from the start. The switch and the arrow need script; without script the menu is open and the scheme is the system's. Before the login the page has the mark and the switch in a bar on top. The look is described in [DESIGN.md](DESIGN.md).
 
 ### Dashboard
 

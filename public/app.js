@@ -1,7 +1,8 @@
 // ThreadSafe web interface. One file, no framework, no inline code (the content security policy allows only this file).
 // What it does: local time next to the UTC time, a confirmation before a form that asks for one, and the tick loop of a running
 // backup (a page with a [data-tick-url] element asks for one tick after the other and shows how far the run is).
-// Also: copy, save and print buttons for keys, and a suggestion for a passphrase.
+// Also: copy, save and print buttons for keys, a suggestion for a passphrase, and the two choices of the menu: folded to the icons or not,
+// and the colour scheme (automatic, light, dark). Both are kept in cookies that the server reads, so that the next page is drawn right.
 (function () {
   'use strict';
 
@@ -153,6 +154,39 @@
       field.focus();
       field.select();
     }
+  });
+
+  // The menu: what the script offers is shown only when there is a script.
+  var root = document.documentElement;
+  root.classList.add('js');
+  var side = document.querySelector('[data-cookie-path]');
+  var cookiePath = side ? side.getAttribute('data-cookie-path') : '/';
+  var keep = function (name, value) {
+    // a year; no value removes the cookie (automatic, unfolded)
+    document.cookie = name + '=' + (value || '') + '; path=' + cookiePath + '; max-age=' + (value ? 31536000 : 0) + '; samesite=lax' + (window.location.protocol === 'https:' ? '; secure' : '');
+  };
+
+  var toggle = document.querySelector('[data-nav-toggle]');
+  if (toggle) {
+    toggle.addEventListener('click', function () {
+      var fold = root.getAttribute('data-nav') !== 'collapsed';
+      if (fold) { root.setAttribute('data-nav', 'collapsed'); } else { root.removeAttribute('data-nav'); }
+      toggle.setAttribute('aria-expanded', fold ? 'false' : 'true');
+      toggle.title = fold ? 'Unfold the menu' : 'Fold the menu';
+      var name = toggle.querySelector('.side-label');
+      if (name) { name.textContent = toggle.title; }
+      keep('threadsafe_nav', fold ? 'collapsed' : '');
+    });
+  }
+
+  var schemes = document.querySelectorAll('[data-theme-set]');
+  schemes.forEach(function (button) {
+    button.addEventListener('click', function () {
+      var mode = button.getAttribute('data-theme-set');
+      if (mode === 'light' || mode === 'dark') { root.setAttribute('data-theme', mode); } else { root.removeAttribute('data-theme'); }
+      keep('threadsafe_theme', mode === 'light' || mode === 'dark' ? mode : '');
+      schemes.forEach(function (other) { other.setAttribute('aria-pressed', other === button ? 'true' : 'false'); });
+    });
   });
 
   // <form data-confirm="Delete this backup?"> asks first

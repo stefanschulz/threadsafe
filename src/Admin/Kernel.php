@@ -28,7 +28,7 @@ use ThreadSafe\Web\Throttle;
  */
 final class Kernel
 {
-    private const string CSP = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'";
+    private const string CSP = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'";
 
     /**
      * @param string              $data  the data directory

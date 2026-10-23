@@ -68,7 +68,7 @@ final class ProfilePagesTest extends TestCase
         self::assertSame(200, $page->status);
         self::assertStringContainsString('There are no site profiles yet', $page->body);
         self::assertStringContainsString('href="/new-profile"', $page->body);
-        self::assertStringContainsString('aria-current="page">Profiles', $page->body, 'the navigation marks the page');
+        self::assertStringContainsString('title="Profiles" aria-current="page"', $page->body, 'the navigation marks the page');
     }
 
     public function testTheFormOffersTheWebsiteTypesAndNeverAPasswordValue(): void

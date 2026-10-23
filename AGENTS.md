@@ -37,7 +37,7 @@ design more than once, so read them before touching the ZIP writer or the dumper
   says why, the tests that prove it. Small, reviewable commits per work package.
 - **Do not widen scope.** The plan's work packages are the unit of work. When the plan turns out wrong (it has: see
   PHASE2.md section 8, finding 6, and the corrections in the "As built" paragraphs), fix the plan text in the same commit as the code.
-- **Colours are tokens.** `public/app.css` and `Html::css()` (the wizard) define the same tokens (`docs/DESIGN.md`); change a colour in both and keep every readable text at least 4.5:1.
+- **Colours are tokens.** `public/app.css` and `Html::css()` (the wizard) define the same tokens (`docs/DESIGN.md`); change a colour in both and keep every readable text at least 4.5:1 (`tools/a11y-audit.js` checks a page in both schemes; `docs/DESIGN.md` "Accessibility" says how).
 - **Documentation is part of the work:** update the work package table and its "As built" paragraph when something is
   finished; update `README.md` when behaviour users see changes.
 

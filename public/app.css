@@ -1,10 +1,20 @@
 /* ThreadSafe web interface. One file, no build step. The palette is the one of docs/DESIGN-theLoom.md (charcoal panels, one brass accent);
-   dark is its own theme, light is derived from it and the two follow the system. Every colour is a token; every text colour is at least
-   4.5:1 on the surfaces it is used on (docs/DESIGN.md has the table). The restore wizard (src/Web/Html.php) uses the same tokens. */
+   dark is its own theme, light is derived from it. The scheme is automatic (the system's) unless the switch in the menu sets it: the
+   script writes the cookie, the server puts data-theme="light" or "dark" on the html element. Every colour is a token; every text colour
+   is at least 4.5:1 on the surfaces it is used on (docs/DESIGN.md has the table). The restore wizard (src/Web/Html.php) uses the same tokens. */
+@font-face { font-family: "IBM Plex Sans"; font-weight: 400; font-style: normal; font-display: swap; src: url("fonts/ibm-plex-sans-latin-400-normal.woff2") format("woff2"); }
+@font-face { font-family: "IBM Plex Sans"; font-weight: 500; font-style: normal; font-display: swap; src: url("fonts/ibm-plex-sans-latin-500-normal.woff2") format("woff2"); }
+@font-face { font-family: "IBM Plex Sans"; font-weight: 600; font-style: normal; font-display: swap; src: url("fonts/ibm-plex-sans-latin-600-normal.woff2") format("woff2"); }
+@font-face { font-family: "IBM Plex Sans"; font-weight: 700; font-style: normal; font-display: swap; src: url("fonts/ibm-plex-sans-latin-700-normal.woff2") format("woff2"); }
+@font-face { font-family: "IBM Plex Mono"; font-weight: 400; font-style: normal; font-display: swap; src: url("fonts/ibm-plex-mono-latin-400-normal.woff2") format("woff2"); }
+@font-face { font-family: "IBM Plex Mono"; font-weight: 500; font-style: normal; font-display: swap; src: url("fonts/ibm-plex-mono-latin-500-normal.woff2") format("woff2"); }
+@font-face { font-family: "IBM Plex Mono"; font-weight: 600; font-style: normal; font-display: swap; src: url("fonts/ibm-plex-mono-latin-600-normal.woff2") format("woff2"); }
+
 :root {
+  color-scheme: light dark;
   /* light: the panel in daylight */
   --ink: #eef0f2;            /* page */
-  --panel: #ffffff;          /* header, footer, boxes, tables */
+  --panel: #ffffff;          /* menu, boxes, tables */
   --panel-2: #f6f7f8;        /* cards and messages */
   --recess: #e5e8eb;         /* inset: form fields, code */
   --border: #cdd3d9;         /* separates, carries no information */
@@ -25,12 +35,14 @@
   --on-danger: #ffffff;
   --radius: 8px;
   --radius-small: 6px;
+  --side-width: 14.5rem;
   --sans: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, "Liberation Mono", monospace;
 }
 
+/* dark: by the system's choice unless the switch says light ... */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --ink: #14191f;
     --panel: #1b232c;
     --panel-2: #212a33;
@@ -53,7 +65,31 @@
     --on-danger: #14191f;
   }
 }
-
+/* ... or by the switch */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+    --ink: #14191f;
+    --panel: #1b232c;
+    --panel-2: #212a33;
+    --recess: #0f1318;
+    --border: #303b47;
+    --border-strong: #667380;
+    --text: #e9ebe8;
+    --text-soft: #9aa2a8;
+    --text-faint: #838b92;
+    --brass: #e0a13d;
+    --brass-bright: #f0b75a;
+    --brass-fill: #e0a13d;
+    --brass-fill-hover: #f0b75a;
+    --brass-edge: #e0a13d;
+    --on-brass: #14191f;
+    --ok: #5cb87a;
+    --warning: #e6c84f;
+    --error: #e87065;
+    --danger-fill: #e87065;
+    --on-danger: #14191f;
+}
+:root[data-theme="light"] { color-scheme: light; }
 * { box-sizing: border-box; }
 
 body {
@@ -67,37 +103,117 @@ a { color: var(--brass); text-underline-offset: 0.18em; }
 a:hover { color: var(--brass-bright); }
 a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, summary:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
 
-.bar {
+.js-only { display: none !important; }
+html.js .js-only { display: flex !important; }
+.icon { flex: none; width: 1.25rem; height: 1.25rem; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+
+/* the page: the menu on the left, the content beside it */
+.app { display: grid; grid-template-columns: var(--side-width) minmax(0, 1fr); min-height: 100vh; }
+:root[data-nav="collapsed"] { --side-width: 3.75rem; }
+.content { display: flex; flex-direction: column; min-width: 0; }
+.content main { flex: 1; width: 100%; }
+
+.side {
+  position: sticky;
+  top: 0;
+  align-self: start;
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.5rem 1.5rem;
-  padding: 0.6rem 1rem;
+  flex-direction: column;
+  gap: 1rem;
+  height: 100vh;
+  padding: 0.75rem 0.5rem;
+  overflow-x: hidden;
+  overflow-y: auto;
   background: var(--panel);
-  border-bottom: 1px solid var(--border);
+  border-right: 1px solid var(--border);
 }
-.bar nav { display: flex; gap: 1.1rem; flex: 1; }
-.bar nav a {
-  padding: 0.2rem 0;
+.side-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+/* the mark: TS until there is a logo */
+.mark { display: flex; align-items: center; gap: 0.65rem; min-width: 0; color: var(--text); text-decoration: none; }
+.mark:hover { color: var(--text); }
+.mark > span:first-child {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 2.25rem;
+  height: 2.25rem;
+  color: var(--on-brass);
+  font: 700 0.85rem/1 var(--mono);
+  letter-spacing: 0.04em;
+  background: var(--brass-fill);
+  border: 1px solid var(--brass-edge);
+  border-radius: var(--radius-small);
+}
+.mark .side-label { font: 600 0.85rem/1.4 var(--mono); letter-spacing: 0.2em; text-transform: uppercase; }
+.side-menu { display: flex; flex-direction: column; gap: 0.25rem; flex: 1; }
+.side nav { display: flex; flex-direction: column; gap: 0.25rem; padding-top: 0.5rem; border-top: 1px solid var(--border); }
+.side-foot { display: flex; flex-direction: column; gap: 0.5rem; padding-top: 0.75rem; border-top: 1px solid var(--border); }
+
+.side nav a, .side-link, .side-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  min-height: 2.5rem;
+  padding: 0.5rem 0.65rem;
   color: var(--text-soft);
   font: 500 0.75rem/1.4 var(--mono);
   letter-spacing: 0.06em;
+  text-align: left;
   text-transform: uppercase;
   text-decoration: none;
-  border-bottom: 2px solid transparent;
+  background: none;
+  border: 0;
+  border-radius: var(--radius-small);
+  cursor: pointer;
 }
-.bar nav a:hover { color: var(--text); }
-.bar nav a[aria-current="page"] { color: var(--text); border-bottom-color: var(--brass); }
-.brand { color: var(--text); font: 600 0.85rem/1.4 var(--mono); letter-spacing: 0.2em; text-transform: uppercase; text-decoration: none; }
-.brand:hover { color: var(--text); }
+.side nav a:hover, .side-link:hover, .side-toggle:hover { color: var(--text); background: var(--panel-2); }
+.side nav a[aria-current="page"] { color: var(--text); background: var(--panel-2); box-shadow: inset 2px 0 0 var(--brass); }
+.side-toggle .icon { transition: transform 0.15s; }
+:root[data-nav="collapsed"] .side-toggle .icon { transform: rotate(180deg); }
+form.logout { margin: 0; }
 
+/* the way past the menu for the keyboard; and the target of it */
+.skip { position: absolute; top: -4rem; left: 0.5rem; z-index: 10; padding: 0.5rem 0.9rem; color: var(--on-brass); font: 600 0.78rem/1.4 var(--mono); letter-spacing: 0.06em; text-transform: uppercase; text-decoration: none; background: var(--brass-fill); border: 1px solid var(--brass-edge); border-radius: var(--radius-small); }
+.skip:focus { top: 0.5rem; color: var(--on-brass); }
+main:focus { outline: none; }
+
+/* the switch: automatic, light, dark */
+.theme { gap: 0.25rem; padding: 0.2rem; background: var(--recess); border: 1px solid var(--border-strong); border-radius: var(--radius-small); }
+.theme button {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  padding: 0.35rem;
+  color: var(--text-soft);
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.theme button:hover { color: var(--text); background: none; }
+.theme button[aria-pressed="true"] { color: var(--on-brass); background: var(--brass-fill); border-color: var(--brass-edge); }
+.theme .side-label { display: none; }
+
+/* folded: only the icons; the names stay for assistive technology */
+:root[data-nav="collapsed"] .side-label,
+:root[data-nav="collapsed"] .side-head .mark .side-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+:root[data-nav="collapsed"] .side-head { flex-direction: column; }
+:root[data-nav="collapsed"] .side nav a, :root[data-nav="collapsed"] .side-link, :root[data-nav="collapsed"] .side-toggle { justify-content: center; padding-left: 0; padding-right: 0; }
+:root[data-nav="collapsed"] .theme { flex-direction: column; }
+
+/* before the login there is no menu: a bar with the mark and the switch */
+.bar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.6rem 1rem; background: var(--panel); border-bottom: 1px solid var(--border); }
+.bar .theme { flex: none; }
+.bar .theme button { padding: 0.3rem 0.5rem; }
 main { max-width: 64rem; margin: 0 auto; padding: 1rem 1rem 3rem; }
 main.narrow { max-width: 28rem; }
 h1, h2, h3 { color: var(--text); line-height: 1.25; text-wrap: balance; }
 h1 { font-size: 1.375rem; font-weight: 600; margin: 1rem 0; }
 h2 { font-size: 1.15rem; font-weight: 600; margin: 1.5rem 0 0.5rem; }
 
-footer { max-width: 64rem; margin: 0 auto; padding: 1rem; color: var(--text-faint); font: 0.72rem/1.5 var(--mono); letter-spacing: 0.04em; }
+footer { width: 100%; max-width: 64rem; margin: 0 auto; padding: 1rem; color: var(--text-faint); font: 0.72rem/1.5 var(--mono); letter-spacing: 0.04em; }
 
 .field { margin: 0.9rem 0; }
 .field label { display: block; margin-bottom: 0.25rem; font-weight: 600; }
@@ -113,6 +229,7 @@ input[type="text"], input[type="password"], select, textarea {
 }
 input[type="text"]:focus, input[type="password"]:focus, select:focus, textarea:focus { border-color: var(--brass); }
 input[type="checkbox"] { accent-color: var(--brass-fill); }
+::placeholder { color: var(--text-faint); opacity: 1; }
 
 button, .button {
   display: inline-block;
@@ -130,13 +247,12 @@ button, .button {
 button:hover, .button:hover { color: var(--on-brass); background: var(--brass-fill-hover); }
 button.link { padding: 0.2rem 0; color: var(--brass); font: inherit; letter-spacing: 0; text-transform: none; background: none; border: 0; text-decoration: underline; text-underline-offset: 0.18em; }
 button.link:hover { color: var(--brass-bright); background: none; }
-form.logout { margin-left: auto; }
-form.logout button.link { font-size: 0.9rem; color: var(--text-soft); }
 
 .flash { margin: 0.8rem 0; padding: 0.6rem 0.9rem; border: 1px solid var(--border); border-left-width: 4px; border-radius: var(--radius); background: var(--panel-2); }
-.flash.ok { border-left-color: var(--ok); }
-.flash.warning { border-left-color: var(--warning); }
-.flash.error { border-left-color: var(--error); }
+/* the status colour as a faint tint (12 %) over the surface, and as the edge; the text stays in the text colour */
+.flash.ok { border-left-color: var(--ok); background: color-mix(in srgb, var(--ok) 12%, var(--panel-2)); }
+.flash.warning { border-left-color: var(--warning); background: color-mix(in srgb, var(--warning) 12%, var(--panel-2)); }
+.flash.error { border-left-color: var(--error); background: color-mix(in srgb, var(--error) 12%, var(--panel-2)); }
 
 .hint { color: var(--text-soft); font-size: 0.9rem; }
 .summary { font-size: 1.05rem; }
@@ -153,7 +269,14 @@ th { color: var(--text-faint); font: 500 0.7rem/1.5 var(--mono); letter-spacing:
 dialog { max-width: 30rem; color: var(--text); background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); }
 dialog::backdrop { background: rgba(0, 0, 0, 0.5); }
 
-@media (max-width: 30rem) {
+@media (max-width: 40rem) {
+  /* a narrow screen keeps the menu as a rail of icons */
+  :root { --side-width: 3.75rem; }
+  html.js .side-toggle.js-only { display: none !important; }
+  .side-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .side-head { flex-direction: column; }
+  .side nav a, .side-link { justify-content: center; padding-left: 0; padding-right: 0; }
+  .theme { flex-direction: column; }
   .bar { padding: 0.5rem 0.75rem; }
   main { padding: 0.75rem 1rem 2rem; }
 }
@@ -183,13 +306,13 @@ ul.plain { margin: 0; padding-left: 1.1rem; }
 .box h2 { margin-top: 0; }
 .inline-check { display: inline-block; margin-left: 0.75rem; font-weight: 400; }
 /* dashboard cards and the system page */
-.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(19rem, 1fr)); gap: 1rem; margin: 1rem 0; }
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(19rem, 100%), 1fr)); gap: 1rem; margin: 1rem 0; }
 .card { padding: 0.8rem 1rem; background: var(--panel-2); border: 1px solid var(--border); border-left-width: 5px; border-radius: var(--radius); }
 .card.ok { border-left-color: var(--ok); }
 .card.warning { border-left-color: var(--warning); }
 .card.problem { border-left-color: var(--error); }
 .card header { display: flex; justify-content: space-between; align-items: baseline; gap: 0.5rem; }
-.card h3 { margin: 0; font-size: 1.05rem; font-weight: 600; }
+.card h2 { margin: 0; font-size: 1.05rem; font-weight: 600; }
 .card p { margin: 0.35rem 0; }
 .badge {
   padding: 0.1rem 0.5rem;
@@ -220,8 +343,13 @@ details.passphrase { margin: 0.75rem 0; }
 details.passphrase summary { cursor: pointer; }
 .keypair { border-left: 5px solid var(--warning); }
 @media print {
-  .bar, nav, form, .actions, .hint, .flash, h1 { display: none !important; }
+  .bar, .side, nav, form, .actions, .hint, .flash, h1 { display: none !important; }
+  .app { display: block; }
   .print-only { display: block; }
   body, main, .box, pre, code { background: #fff !important; color: #000 !important; border: 0; }
   pre.secret { font-size: 12pt; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
 }

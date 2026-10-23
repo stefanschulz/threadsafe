@@ -22,6 +22,9 @@ final class AdminBrowser
 
     public string $cookie = '';
 
+    /** @var array<string, string> more cookies of the browser, such as the choices of the menu */
+    public array $cookies = [];
+
     public string $csrf = '';
 
     /**
@@ -69,7 +72,7 @@ final class AdminBrowser
      */
     public function send(string $method, string $route, array $fields = [], array $headers = [], string $address = '127.0.0.1'): Response
     {
-        $request = new Request($method, [], $fields, $this->cookie === '' ? [] : ['threadsafe_session' => $this->cookie], false, $address, $this->base . $route, $headers + ['host' => 'ts.example']);
+        $request = new Request($method, [], $fields, ($this->cookie === '' ? [] : ['threadsafe_session' => $this->cookie]) + $this->cookies, false, $address, $this->base . $route, $headers + ['host' => 'ts.example']);
         $response = (new Kernel($this->data, $this->base, fn (): int => $this->now, $this->budgets))->handle($request);
 
         foreach ($response->headers('Set-Cookie') as $line) {

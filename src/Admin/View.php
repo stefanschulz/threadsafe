@@ -15,11 +15,18 @@ use ThreadSafe\Web\Response;
  * {@see Html::e()} for everything that comes from outside; nothing here puts text into a page in any other way. There is no inline
  * script or style (the content security policy forbids both): the page links `app.css` and `app.js` and carries the CSRF token in
  * a `<meta>` element for the script.
+ *
+ * The menu is a bar on the left with an icon and a name per entry; it can be folded to the icons, and the colour scheme can be set to
+ * automatic (the system's), light or dark. Both choices are kept in cookies (`threadsafe_nav`, `threadsafe_theme`) that the script sets and
+ * this class reads, so that the page is drawn right from the first byte: no flash of the other scheme, no script in the head.
  */
 final class View
 {
-    /** The entries of the navigation: route => label. Later work packages add theirs. */
-    private const array NAVIGATION = ['/' => 'Dashboard', '/profiles' => 'Profiles', '/system' => 'System'];
+    /** The entries of the navigation: route => [label, icon]. */
+    private const array NAVIGATION = ['/' => ['Dashboard', 'dashboard'], '/profiles' => ['Profiles', 'profiles'], '/system' => ['System', 'system']];
+
+    /** The settings of the colour scheme, in the order of the switch: value => [label, icon]. */
+    private const array THEMES = ['auto' => ['Auto (follows the system)', 'auto'], 'light' => ['Light', 'light'], 'dark' => ['Dark', 'dark']];
 
     /**
      * A page for a logged-in user.
@@ -29,13 +36,28 @@ final class View
     public static function page(Context $context, string $title, string $body, string $active = '/', int $status = 200): Response
     {
         $navigation = '';
-        foreach (self::NAVIGATION as $route => $label) {
-            $navigation .= '<a href="' . Html::e($context->urls->to($route)) . '"' . ($route === $active ? ' aria-current="page"' : '') . '>' . Html::e($label) . '</a>';
+        foreach (self::NAVIGATION as $route => [$label, $icon]) {
+            $navigation .= '<a href="' . Html::e($context->urls->to($route)) . '" title="' . Html::e($label) . '"' . ($route === $active ? ' aria-current="page"' : '') . '>'
+                . Icons::svg($icon) . '<span class="side-label">' . Html::e($label) . '</span></a>';
         }
-        $header = '<header class="bar"><a class="brand" href="' . Html::e($context->urls->to('/')) . '">ThreadSafe</a><nav aria-label="Main">' . $navigation . '</nav>'
-            . self::form($context, '/logout', '<button class="link" type="submit">Log out (' . Html::e($context->user() ?? '') . ')</button>', 'logout') . '</header>';
+        $collapsed = self::collapsed($context);
+        $user = Html::e($context->user() ?? '');
+        $side = '<aside class="side" aria-label="Menu" data-cookie-path="' . Html::e($context->urls->cookiePath()) . '">'
+            . '<div class="side-head"><a class="mark" href="' . Html::e($context->urls->to('/')) . '" title="ThreadSafe"><span aria-hidden="true">TS</span><span class="side-label">ThreadSafe</span></a></div>'
+            . '<div class="side-menu"><button type="button" class="side-toggle js-only" data-nav-toggle aria-expanded="' . ($collapsed ? 'false' : 'true') . '" aria-controls="side-nav" title="' . ($collapsed ? 'Unfold the menu' : 'Fold the menu') . '">'
+            . Icons::svg('chevron') . '<span class="side-label">' . ($collapsed ? 'Unfold the menu' : 'Fold the menu') . '</span></button>'
+            . '<nav id="side-nav" aria-label="Main">' . $navigation . '</nav></div>'
+            . '<div class="side-foot">' . self::themeSwitch($context)
+            . self::form($context, '/logout', '<button class="side-link" type="submit" title="Log out (' . $user . ')">' . Icons::svg('logout') . '<span class="side-label">Log out (' . $user . ')</span></button>', 'logout')
+            . '</div></aside>';
 
-        return self::document($context, $title, $header . '<main>' . self::flashes($context) . '<h1>' . Html::e($title) . '</h1>' . $body . '</main>', $status);
+        return self::document(
+            $context,
+            $title,
+            '<a class="skip" href="#content">Skip to the content</a><div class="app">' . $side . '<div class="content"><main id="content" tabindex="-1">' . self::flashes($context) . '<h1>' . Html::e($title) . '</h1>' . $body . '</main>' . self::footer() . '</div></div>',
+            $status,
+            true,
+        );
     }
 
     /**
@@ -43,9 +65,40 @@ final class View
      */
     public static function bare(Context $context, string $title, string $body, int $status = 200): Response
     {
-        $header = '<header class="bar"><span class="brand">ThreadSafe</span></header>';
+        $header = '<header class="bar"><span class="mark"><span aria-hidden="true">TS</span><span class="side-label">ThreadSafe</span></span>' . self::themeSwitch($context) . '</header>';
 
-        return self::document($context, $title, $header . '<main class="narrow">' . self::flashes($context) . '<h1>' . Html::e($title) . '</h1>' . $body . '</main>', $status);
+        return self::document($context, $title, '<a class="skip" href="#content">Skip to the content</a>' . $header . '<main class="narrow" id="content" tabindex="-1">' . self::flashes($context) . '<h1>' . Html::e($title) . '</h1>' . $body . '</main>' . self::footer(), $status);
+    }
+
+    /** The cookie of the colour scheme: `light` or `dark`; anything else (no cookie, a forged one) is automatic. */
+    private static function theme(Context $context): string
+    {
+        $value = $context->request->cookie('threadsafe_theme');
+
+        return $value === 'light' || $value === 'dark' ? $value : 'auto';
+    }
+
+    private static function collapsed(Context $context): bool
+    {
+        return $context->request->cookie('threadsafe_nav') === 'collapsed';
+    }
+
+    /** Three buttons: automatic, light, dark. The script sets the scheme and the cookie; without script they are not shown. */
+    private static function themeSwitch(Context $context): string
+    {
+        $current = self::theme($context);
+        $buttons = '';
+        foreach (self::THEMES as $value => [$label, $icon]) {
+            $buttons .= '<button type="button" data-theme-set="' . $value . '" aria-pressed="' . ($value === $current ? 'true' : 'false') . '" title="' . Html::e($label) . '">'
+                . Icons::svg($icon) . '<span class="side-label">' . Html::e($label) . '</span></button>';
+        }
+
+        return '<div class="theme js-only" role="group" aria-label="Colour scheme">' . $buttons . '</div>';
+    }
+
+    private static function footer(): string
+    {
+        return '<footer>ThreadSafe ' . Html::e(Version::CURRENT) . '</footer>';
     }
 
     /**
@@ -195,14 +248,16 @@ final class View
         return $html;
     }
 
-    private static function document(Context $context, string $title, string $inner, int $status): Response
+    private static function document(Context $context, string $title, string $inner, int $status, bool $withMenu = false): Response
     {
+        $theme = self::theme($context);
+        $attributes = ($theme !== 'auto' ? ' data-theme="' . $theme . '"' : '') . ($withMenu && self::collapsed($context) ? ' data-nav="collapsed"' : '');
         $csrf = $context->csrf() !== '' ? '<meta name="csrf-token" content="' . Html::e($context->csrf()) . '">' : '';
-        $html = '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
+        $html = '<!doctype html><html lang="en"' . $attributes . '><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
             . '<meta name="robots" content="noindex, nofollow"><meta name="color-scheme" content="light dark">' . $csrf
             . '<title>' . Html::e($title) . ' - ThreadSafe</title><link rel="stylesheet" href="' . Html::e($context->urls->asset('app.css')) . '">'
             . '<script src="' . Html::e($context->urls->asset('app.js')) . '" defer></script></head><body>'
-            . $inner . '<footer>ThreadSafe ' . Html::e(Version::CURRENT) . '</footer></body></html>';
+            . $inner . '</body></html>';
 
         return Response::html($html, $status);
     }

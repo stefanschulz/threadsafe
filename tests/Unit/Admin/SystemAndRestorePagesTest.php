@@ -115,7 +115,7 @@ final class SystemAndRestorePagesTest extends TestCase
         self::assertStringContainsString('data-probe="/data/probe.txt"', $page->body);
         self::assertStringContainsString('data-expect="' . SystemChecks::PROBE . '"', $page->body);
         self::assertDoesNotMatchRegularExpression('/<script(?![^>]*\bsrc=)/i', $page->body);
-        self::assertStringContainsString('aria-current="page">System', $page->body);
+        self::assertStringContainsString('title="System" aria-current="page"', $page->body);
     }
 
     public function testTheProbeLooksWhereDataWouldBeIfTheTreeLayBelowTheWebRoot(): void

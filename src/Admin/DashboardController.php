@@ -85,7 +85,7 @@ final class DashboardController
             $application = trim($m->application['name'] . ' ' . ($m->application['version'] ?? ''));
         }
 
-        $html = '<article class="card ' . Html::e($level) . '"><header><h3><a href="' . Html::e($context->urls->to("/profiles/$id")) . '">' . Html::e($profile->name) . '</a></h3>'
+        $html = '<article class="card ' . Html::e($level) . '"><header><h2><a href="' . Html::e($context->urls->to("/profiles/$id")) . '">' . Html::e($profile->name) . '</a></h2>'
             . '<span class="badge ' . Html::e($level) . '">' . Html::e($word) . '</span></header>'
             . '<p class="hint">' . Html::e($application !== '' ? $application : $profile->type) . '</p>';
 
