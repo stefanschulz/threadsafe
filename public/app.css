@@ -344,6 +344,22 @@ ul.plain { margin: 0; padding-left: 1.1rem; }
 .tabs a { margin-bottom: -1px; padding: 0.6rem 1.1rem; color: var(--text-soft); font: 500 0.78rem/1.4 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; text-decoration: none; border-bottom: 2px solid transparent; }
 .tabs a:hover { color: var(--text); border-bottom-color: var(--border-strong); }
 .tabs a[aria-current="page"] { color: var(--text); border-bottom-color: var(--brass); }
+/* the form of a profile: a card for each theme; the ones that are not needed at once are folded and say in their line what they are set to */
+.form-section { margin: 0 0 1rem; padding: 0.25rem 1.25rem 0.5rem; background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius); }
+.form-section h2 { margin: 0.9rem 0 0.25rem; font-size: 1.05rem; }
+.form-section h3 { margin: 1.25rem 0 0; font-size: 0.95rem; }
+details.form-section { padding-top: 0; padding-bottom: 0; }
+details.form-section > summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.25rem 1rem; padding: 0.9rem 0; list-style: none; cursor: pointer; }
+details.form-section > summary::-webkit-details-marker { display: none; }
+details.form-section > summary::before { content: ""; flex: none; align-self: center; width: 0.5rem; height: 0.5rem; margin-right: 0.1rem; border-right: 2px solid var(--text-soft); border-bottom: 2px solid var(--text-soft); transform: rotate(-45deg); transition: transform 0.15s; }
+details.form-section[open] > summary::before { transform: rotate(45deg); }
+details.form-section > summary h2 { margin: 0; }
+.summary-value { color: var(--text-soft); font-size: 0.9rem; }
+.form-section-body { padding-bottom: 0.5rem; }
+/* the buttons stay in view at the lower edge of the window while the form is long */
+.form-bar { position: sticky; bottom: 0; z-index: 2; display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1rem; margin: 1.5rem -1rem 0; padding: 0.75rem 1rem; background: var(--panel); border-top: 1px solid var(--border-strong); }
+.form-bar .inline-check { margin-left: auto; }
+@media (prefers-reduced-motion: reduce) { details.form-section > summary::before { transition: none; } }
 /* the head of the page of a profile: type and state, the paths, what needs a look; a small action beside the title */
 .page-title { display: flex; align-items: center; gap: 0.25rem; min-width: 0; }
 .profile-summary { margin: 0.5rem 0 1.5rem; }

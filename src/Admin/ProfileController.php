@@ -418,18 +418,22 @@ final class ProfileController
             $inner .= '<h2>Test</h2>' . View::report($report);
         }
 
-        $inner .= '<h2>The site</h2>'
+        // an error shows every section, so that nothing that may have caused it stays folded
+        $open = $messages !== [];
+        $summary = self::summaries($values);
+        $inner .= '<section class="form-section"><h2>Site</h2>'
             . ($creating ? View::field('id', 'Id', 'text', $values['id'], ['required' => 'required', 'maxlength' => '40', 'autocapitalize' => 'none', 'spellcheck' => 'false'], 'Lower-case letters, digits, hyphens and underscores; part of the names of the backup files. It cannot be changed later.')
                 : '<p>Id: <code>' . Html::e($currentId) . '</code></p>')
             . View::field('name', 'Name', 'text', $values['name'], [], 'Shown in the lists; the id if left empty.')
             . View::select('type', 'Website type', $types, $values['type'], 'PrestaShop 9 knows its own files and reads its database from its configuration. Other website is any site: the files of its directory and, if you enter one, a database.')
             . View::field('path', 'Site directory', 'text', $values['path'], ['required' => 'required', 'spellcheck' => 'false'], 'The absolute path of the application on this server.')
             . '<p><button type="submit" name="action" value="detect" class="secondary" formnovalidate>Look at the site</button></p>'
-            . '<h2>Backups</h2>'
+            . View::field('note', 'Note', 'text', $values['note'])
+            . '</section><section class="form-section"><h2>Storage</h2>'
             . View::field('storage', 'Storage directory', 'text', $values['storage'], ['required' => 'required', 'spellcheck' => 'false'], 'Where the backups of this site are kept: an absolute path, best outside the web root, e.g. /var/backups/threadsafe/shop.')
             . View::field('compression', 'Compression', 'text', $values['compression'], ['inputmode' => 'numeric', 'maxlength' => '1'], '0 (store) to 9; 6 is a good balance.')
             . View::field('part_size', 'Part size', 'text', $values['part_size'], ['spellcheck' => 'false'], 'Split archives into parts of this size, e.g. 500M or 2G. Empty = one archive.')
-            . '<h2>Database</h2>'
+            . '</section>' . self::fold('Database', $summary['database'], $open)
             . View::select('db_mode', 'Access', ['site' => 'Read it from the site\'s own configuration (or the site has none)', 'manual' => 'Enter it here'], $values['db_mode'], 'PrestaShop keeps its database access in app/config/parameters.php; reading it from there means no second copy of the password. Types without such a file need the entries below.')
             . View::field('db_host', 'Host', 'text', $values['db_host'], ['spellcheck' => 'false'])
             . View::field('db_port', 'Port', 'text', $values['db_port'], ['inputmode' => 'numeric'])
@@ -438,29 +442,78 @@ final class ProfileController
             . View::field('db_password', 'Password', 'password', '', ['autocomplete' => 'new-password'], $current?->database !== null ? 'Leave empty to keep the stored password. It is never shown.' : 'Stored in the profile file (mode 0600).')
             . View::field('db_prefix', 'Table prefix', 'text', $values['db_prefix'], ['spellcheck' => 'false'])
             . View::select('db_driver', 'PHP interface', array_combine(DatabaseSettings::DRIVERS, DatabaseSettings::DRIVERS), $values['db_driver'])
-            . '<h2>Filters</h2>'
+            . '</div></details>' . self::fold('What to back up', $summary['filters'], $open)
             . View::checkbox('default_filters', 'Use the filters of the website type', $values['default_filters'] === '1', 'Caches, logs and the tables of statistics are left out; the type knows which.')
             . View::textarea('exclude', 'Leave out also', $values['exclude'], 4, 'Paths relative to the site directory, one per line.')
             . View::textarea('structure_only', 'Tables of which only the structure is kept', $values['structure_only'], 3, 'One per line, with or without the table prefix.')
-            . '<h2>Schedule</h2>'
+            . '</div></details>' . self::fold('Automation', $summary['automation'], $open)
+            . '<h3>Schedule</h3>'
             . View::field('schedule', 'Back up by itself at', 'text', $values['schedule'] ?? '', ['spellcheck' => 'false', 'placeholder' => '30 3 * * *'], 'A cron expression: minute hour day-of-month month day-of-week, e.g. 30 3 * * * for 03:30 every day, or @daily. Read in the time zone ' . $this->services->config->scheduleZone()->getName() . ' (System page). Empty: no scheduled backups. Something must call the trigger, see the System page.')
-            . '<h2>Retention</h2><p class="hint">What is kept in the storage. The newest usable backup and pinned backups are never deleted. Every rule is optional.</p>'
+            . '<h3>Retention</h3><p class="hint">What is kept in the storage. The newest usable backup and pinned backups are never deleted. Every rule is optional.</p>'
             . View::field('keep', 'Keep at most this many backups', 'text', $values['keep'] ?? '', ['inputmode' => 'numeric'])
             . View::field('max_age_days', 'Delete backups older than this many days', 'text', $values['max_age_days'] ?? '', ['inputmode' => 'numeric'])
             . View::field('max_size', 'Keep the backups under this size together', 'text', $values['max_size'] ?? '', ['spellcheck' => 'false'], 'For example 20G or 500M. The oldest ones are deleted first.')
-            . '<h2>Encryption</h2>'
+            . '</div></details>' . self::fold('Encryption', $summary['encryption'], $open)
             . View::textarea('recipients', 'Public keys', $values['recipients'] ?? '', 3, 'One per line (age1...). Backups are encrypted for these keys; only the matching secret keys open them, this server cannot. Empty: not encrypted.' . ($creating ? ' Make a key pair on the profile page after saving, or with the command "threadsafe keys generate".' : ''))
             . ($creating ? '' : '<p><a href="' . Html::e($context->urls->to('/profiles/' . $currentId . '/keys')) . '">Make a key pair</a> (the secret key is shown once; the profile is not saved by following this link)</p>')
-            . '<h2>Note</h2>'
-            . View::field('note', 'Note', 'text', $values['note'])
-            . '<div class="field check"><label><input type="checkbox" name="skip_test" value="1"> Save without testing</label><p class="hint">A profile that fails its test is not stored, unless you tick this.</p></div>'
-            . '<p><button type="submit" name="action" value="save">' . ($creating ? 'Test and create' : 'Test and save') . '</button> '
+            . '</div></details>'
+            . '<div class="form-bar"><button type="submit" name="action" value="save">' . ($creating ? 'Test and create' : 'Test and save') . '</button> '
             . '<button type="submit" name="action" value="test" class="secondary">Only test</button> '
-            . '<a href="' . Html::e($context->urls->to($creating ? '/profiles' : '/profiles/' . $currentId)) . '">Cancel</a></p>';
+            . '<a href="' . Html::e($context->urls->to($creating ? '/profiles' : '/profiles/' . $currentId)) . '">Cancel</a>'
+            . '<label class="inline-check" title="A profile that fails its test is not stored, unless you tick this."><input type="checkbox" name="skip_test" value="1"> Save without testing</label></div>';
 
         $route = $creating ? '/profiles' : '/profiles/' . $currentId;
 
         return View::page($context, $creating ? 'New profile' : 'Edit ' . $currentName, View::form($context, $route, $inner, 'wide'), '/profiles', $status);
+    }
+
+    /**
+     * A section of the form that is folded: its name and, in the same line, what it is set to now (so that one sees what is set without
+     * opening it). It is closed by `</div></details>`. An error opens it.
+     */
+    private static function fold(string $title, string $summary, bool $open): string
+    {
+        return '<details class="form-section"' . ($open ? ' open' : '') . '><summary><h2>' . Html::e($title) . '</h2><span class="summary-value">' . Html::e($summary) . '</span></summary><div class="form-section-body">';
+    }
+
+    /**
+     * What the folded sections are set to, in a few words, from the values of the form.
+     *
+     * @param array<string, string> $values
+     *
+     * @return array{database: string, filters: string, automation: string, encryption: string}
+     */
+    private static function summaries(array $values): array
+    {
+        $lines = static fn (string $text): int => count(array_filter(array_map('trim', explode("\n", $text)), static fn (string $line): bool => $line !== ''));
+
+        $database = ($values['db_mode'] ?? 'site') === 'manual'
+            ? 'Entered here' . (trim($values['db_name'] ?? '') !== '' ? ': ' . trim($values['db_name']) : '')
+            : 'Read from the site';
+
+        $filters = [($values['default_filters'] ?? '1') === '1' ? 'defaults of the type' : 'no defaults'];
+        if ($lines($values['exclude'] ?? '') > 0) {
+            $filters[] = $lines($values['exclude']) . ' more left out';
+        }
+        if ($lines($values['structure_only'] ?? '') > 0) {
+            $filters[] = $lines($values['structure_only']) . ' tables structure only';
+        }
+
+        $keeps = array_filter([
+            trim($values['keep'] ?? '') === '' ? null : 'keeps the last ' . trim($values['keep']),
+            trim($values['max_age_days'] ?? '') === '' ? null : 'up to ' . trim($values['max_age_days']) . ' days',
+            trim($values['max_size'] ?? '') === '' ? null : 'up to ' . trim($values['max_size']),
+        ]);
+        $automation = (trim($values['schedule'] ?? '') === '' ? 'no schedule' : 'schedule ' . trim($values['schedule'])) . ', ' . ($keeps === [] ? 'keeps everything' : implode(', ', $keeps));
+
+        $keys = $lines($values['recipients'] ?? '');
+
+        return [
+            'database' => $database,
+            'filters' => implode(', ', $filters),
+            'automation' => $automation,
+            'encryption' => $keys === 0 ? 'off' : 'for ' . $keys . ' public key' . ($keys === 1 ? '' : 's'),
+        ];
     }
 
     private function detectionBox(Detection $detection): string

@@ -217,6 +217,64 @@ final class ProfilePagesTest extends TestCase
             self::assertStringContainsString("<dt>$label</dt>", $settings, $label);
         }
     }
+    public function testTheFormHasTwoOpenCardsAndFoldedSectionsThatSayWhatTheyAreSetTo(): void
+    {
+        $page = $this->browser->get('/new-profile')->body;
+
+        self::assertStringContainsString('<section class="form-section"><h2>Site</h2>', $page);
+        self::assertStringContainsString('<h2>Storage</h2>', $page);
+        foreach (['Database' => 'Read from the site', 'What to back up' => 'defaults of the type', 'Automation' => 'no schedule, keeps everything', 'Encryption' => 'off'] as $title => $value) {
+            self::assertStringContainsString('<details class="form-section"><summary><h2>' . $title . '</h2><span class="summary-value">' . $value . '</span></summary>', $page, $title . ' is folded');
+        }
+        self::assertSame(4, substr_count($page, '<details class="form-section">'));
+        self::assertSame(0, substr_count($page, '<details class="form-section" open>'));
+        self::assertStringContainsString('<h3>Schedule</h3>', $page);
+        self::assertStringContainsString('<h3>Retention</h3>', $page);
+        self::assertStringContainsString('name="note"', $page, 'the note is part of the site card');
+        self::assertLessThan(strpos($page, '<h2>Storage</h2>'), strpos($page, 'name="note"'));
+        self::assertStringNotContainsString('<h2>Note</h2>', $page);
+    }
+
+    public function testTheFoldedSectionsOfAProfileShowItsValuesInTheLine(): void
+    {
+        $this->create();
+        $this->store()->save($this->store()->load('blog')->with([
+            'schedule' => ['cron' => '30 3 * * *'],
+            'retention' => ['keep' => 14, 'maxAgeDays' => 30],
+            'encryption' => ['recipients' => [AgeKeys::generate()['public'], AgeKeys::generate()['public']]],
+            'excludePaths' => ['cache', '*.log'],
+        ]));
+
+        $page = $this->browser->get('/profiles/blog/edit')->body;
+
+        self::assertStringContainsString('<span class="summary-value">schedule 30 3 * * *, keeps the last 14, up to 30 days</span>', $page);
+        self::assertStringContainsString('<span class="summary-value">for 2 public keys</span>', $page);
+        self::assertStringContainsString('<span class="summary-value">defaults of the type, 2 more left out</span>', $page);
+        self::assertStringContainsString('<p>Id: <code>blog</code></p>', $page, 'the id is shown, not asked for');
+    }
+
+    public function testAnErrorOpensEverySectionSoThatNothingStaysFoldedThatMayHaveCausedIt(): void
+    {
+        $page = $this->browser->post('/profiles', $this->fields(['compression' => 'x']));
+
+        self::assertSame(400, $page->status);
+        self::assertSame(4, substr_count($page->body, '<details class="form-section" open>'));
+        self::assertStringContainsString('class="flash error"', $page->body);
+    }
+
+    public function testTheButtonsStayInOneBarThatKeepsInView(): void
+    {
+        $page = $this->browser->get('/new-profile')->body;
+
+        self::assertSame(1, substr_count($page, '<div class="form-bar">'));
+        $bar = substr($page, (int) strpos($page, '<div class="form-bar">'));
+        self::assertStringContainsString('name="action" value="save">Test and create</button>', $bar);
+        self::assertStringContainsString('name="action" value="test" class="secondary">Only test</button>', $bar);
+        self::assertStringContainsString('>Cancel</a>', $bar);
+        self::assertStringContainsString('name="skip_test" value="1"> Save without testing', $bar);
+        self::assertStringContainsString('name="action" value="detect"', $page, 'the look at the site is in the site card, not in the bar');
+        self::assertStringNotContainsString('name="action" value="detect"', $bar);
+    }
     public function testTheFormOffersTheWebsiteTypesAndNeverAPasswordValue(): void
     {
         $page = $this->browser->get('/new-profile');
