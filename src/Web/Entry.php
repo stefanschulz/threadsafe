@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace ThreadSafe\Web;
 
 use ThreadSafe\Cli\Application;
+use ThreadSafe\Cli\CommandLine;
 use ThreadSafe\Cli\RestoreCommand;
 use ThreadSafe\Cli\StreamOutput;
 use ThreadSafe\Engine\Budget;
@@ -29,9 +30,10 @@ final class Entry
                 @set_time_limit(0);
                 @ini_set('html_errors', '0');
             }
-            $argv = $_SERVER['argv'] ?? [$script];
+            // no $_SERVER['argv'] if register_argc_argv is off (the CGI binary with php.ini-production): the process knows its command line
+            $arguments = CommandLine::arguments($_SERVER['argv'] ?? null, $script) ?? [$script];
 
-            return (new Application([new RestoreCommand()]))->run(array_values(array_map('strval', $argv)), StreamOutput::standard());
+            return (new Application([new RestoreCommand()]))->run($arguments, StreamOutput::standard());
         }
 
         (new Wizard(dirname($script), null, basename($script)))->handle(Request::fromGlobals())->send();

@@ -79,14 +79,40 @@ final class BinTest extends TestCase
     }
 
     /**
+     * php.ini-production turns `register_argc_argv` off, and the CGI binary then has no `$argv` (the command line binary always has it): the
+     * arguments must come from the process (found on the CI runner, whose PHP has that ini file).
+     */
+    public function testRunsWithThePhpCgiBinaryThatHandsOverNoArguments(): void
+    {
+        $cgi = dirname(PHP_BINARY) . DIRECTORY_SEPARATOR . 'php-cgi';
+        if (!is_file($cgi) || !is_readable('/proc/self/cmdline')) {
+            self::markTestSkipped('There is no php-cgi next to the PHP binary, or no /proc to read the command line from.');
+        }
+
+        [$code, $stdout, $stderr] = $this->executeWithCgi($cgi, ['--version'], ['register_argc_argv=0']);
+        self::assertSame(0, $code, $stdout . $stderr);
+        self::assertSame('threadsafe ' . Version::CURRENT . "\n", $stdout);
+
+        [$code, $stdout, $stderr] = $this->executeWithCgi($cgi, ['no-such-command'], ['register_argc_argv=0']);
+        self::assertSame(1, $code);
+        self::assertSame('', $stdout);
+        self::assertStringContainsString('Unknown command', $stderr);
+    }
+
+    /**
      * @param list<string> $arguments
+     * @param list<string> $settings  more `-d` settings of the binary (`name=value`)
      *
      * @return array{int, string, string} exit code, stdout, stderr
      */
-    private function executeWithCgi(string $cgi, array $arguments): array
+    private function executeWithCgi(string $cgi, array $arguments, array $settings = []): array
     {
+        $options = [];
+        foreach (['max_execution_time=1', ...$settings] as $setting) {
+            array_push($options, '-d', $setting);
+        }
         $process = proc_open(
-            [$cgi, '-q', '-d', 'max_execution_time=1', dirname(__DIR__, 3) . '/bin/threadsafe', ...$arguments],
+            [$cgi, '-q', ...$options, dirname(__DIR__, 3) . '/bin/threadsafe', ...$arguments],
             [0 => ['file', PHP_OS_FAMILY === 'Windows' ? 'NUL' : '/dev/null', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
             $pipes,
         );
