@@ -105,13 +105,15 @@ final class JoomlaBackup implements Backupable
             $table = $db->quote($db->table('extensions'));
             $core = 0;
             $third = [];
-            foreach ($db->select('SELECT type, element, folder, client_id, enabled, manifest_cache FROM ' . $table . ' ORDER BY type, folder, element') as $row) {
+            foreach ($db->select('SELECT type, element, folder, client_id, enabled, locked, manifest_cache FROM ' . $table . ' ORDER BY type, folder, element') as $row) {
                 $manifest = json_decode((string) $row['manifest_cache'], true);
                 $manifest = is_array($manifest) ? $manifest : [];
                 if ((string) $row['type'] === 'file' && (string) $row['element'] === 'joomla' && is_string($manifest['version'] ?? null)) {
                     $extras['versionInDatabase'] = $manifest['version'];
                 }
-                if (preg_match('/^Joomla!?\s+Project$/i', is_string($manifest['author'] ?? null) ? trim($manifest['author']) : '') === 1) {
+                // what Joomla ships is locked (it cannot be uninstalled) - that includes the editors and libraries of other authors; an
+                // extension of the project that is not locked would still be the project's
+                if ((int) $row['locked'] === 1 || preg_match('/^Joomla!?\s+Project$/i', is_string($manifest['author'] ?? null) ? trim($manifest['author']) : '') === 1) {
                     ++$core;
                     continue;
                 }

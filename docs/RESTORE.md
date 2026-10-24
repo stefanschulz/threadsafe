@@ -5,7 +5,7 @@ How to put a ThreadSafe backup back: with the single file `restore.php` on a hos
 ## 1. The rules of a restore
 
 - **A restore goes into an empty directory and an empty database. It never overwrites or deletes an installation.** A directory with files in it, or a database with tables of the same prefix, is refused before a single byte is written. To redo a restore, empty both yourself (section 8).
-- The restored site is **adapted** to its new place at the end: new domain, new database credentials, caches, `.htaccess` (for PrestaShop; for `generic` sites only the domain in the database content - see section 7).
+- The restored site is **adapted** to its new place at the end: new domain, new database credentials, caches, `.htaccess` (for PrestaShop; for **Joomla** `configuration.php`, the old address in the content, `.htaccess` and the directories Joomla writes to, [MIGRATE.md](MIGRATE.md) section 13; for `generic` sites only the domain in the database content - see section 7).
 - It works in **steps that are saved**, so it fits the time limit of a web request, survives a closed browser and continues after a failure.
 - The backup stays as it is. The restore reads it and never changes it.
 
@@ -103,11 +103,11 @@ The state of a run is a file in the data directory (`runs/`, mode 0600); it hold
 | `The backup does not contain the function "..."` (warning) | ThreadSafe does not back up stored functions and procedures; create them again by hand. |
 | `The backup itself reported: ...` (warning) | A warning of the backup run, e.g. a skipped symbolic link. |
 | `The default character set of the database is "utf8mb3"` (warning) | The tables are created with their own character set; no action. |
-| `The backup holds PrestaShop X; only PrestaShop 9 can be restored and adapted` | Only PrestaShop 9 and `generic` exist as website types. |
+| `The backup holds PrestaShop X; only PrestaShop 9 can be restored and adapted` | Only PrestaShop 9, Joomla 5 and 6 (`The backup holds Joomla X; only Joomla 5 and 6 ...`) and `generic` exist as website types. |
 
 ## 7. Another domain, path, database or table prefix
 
-- **Domain:** `--to` / the field "New domain". The old domain comes from the backup (for PrestaShop the main shop URL). On the same domain (disaster recovery) give the same domain again; nothing is replaced then.
+- **Domain:** `--to` / the field "New domain". The old domain comes from the backup (for PrestaShop the main shop URL; for Joomla, which stores its own address nowhere, the `live_site` of the site or the host that its content points to most often, shown in the field "Old domain" with the others that were found). On the same domain (disaster recovery) give the same domain again; nothing is replaced then.
 - **Database:** any empty database; `parameters.php` is written for it.
 - **Table prefix:** the SQL files contain the real table names, so the restore rewrites the table name in the statements it knows (`DROP TABLE`, `CREATE TABLE`, `INSERT INTO`, `UPDATE`). That is only safe where no other statement names a table, so a prefix change is **refused if the backup holds views or triggers**, and a `CREATE TABLE` with a foreign key stops it before the first row is written. PrestaShop 9 has none.
 - **Dev mode, SSL, base path:** the options of [MIGRATE.md](MIGRATE.md), in the wizard as fields.

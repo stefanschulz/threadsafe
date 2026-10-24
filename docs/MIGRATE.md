@@ -317,5 +317,7 @@ php bin/threadsafe migrate joomla --root=/var/www/site --from=www.example.org --
   the search index), `rewrite-htaccess`, `discard-caches` (the files of the caches, the sessions, the update cache) and `self-test`
   (the front page and `/administrator/` answer; the generator tag, if the site has one, says Joomla).
 - **`live_site`**: a stale value makes the front page redirect, so it follows the move, and it is **cleared** if it names a host that is
-  not part of the move. **`dbtype`**: `mysqli` or `pdomysql`, whichever this PHP has (a host often has only one of them).
+  not part of the move. **`dbtype`**: `mysqli` or `pdomysql` - the one that `--db-driver` names (`pdo` or `mysqli`), else whichever this PHP has.
+  The PHP of a command line is not always the PHP of the web server (the Docker target of the tests has `pdo_mysql` and no `mysqli` in the
+  web server, but both in the command line): then name the driver. The `restore.php` wizard runs in the web server's PHP, so `auto` is right there.
 - Not done: a Joomla 4 or older, a database on PostgreSQL or reached through a socket, extension-specific rules, a dev mode.

@@ -10,6 +10,7 @@ use ThreadSafe\Core\Notice;
 use ThreadSafe\Core\Plan;
 use ThreadSafe\Core\Step;
 use ThreadSafe\Core\StepResult;
+use ThreadSafe\Database\DatabaseSettings;
 use ThreadSafe\Joomla\Config\JoomlaConfigFile;
 use ThreadSafe\Joomla\Installation;
 use ThreadSafe\Joomla\State;
@@ -20,7 +21,8 @@ use ThreadSafe\Migration\MigrationRequest;
  * file (`secret`, the mail settings, the properties of the site's own stay byte for byte):
  *
  *  - the database (host, port, user, password, name, prefix) if the request names another one;
- *  - `dbtype`: `mysqli` or `pdomysql`, by what this PHP has (a host often has only one of them);
+ *  - `dbtype`: `mysqli` or `pdomysql` - the one that `--db-driver` names, else by what this PHP has (a host often has only one of them,
+ *    and the PHP of a command line is not always the PHP of the web server: then the driver is named);
  *  - `log_path` and `tmp_path`, which hold the absolute paths of the old host;
  *  - `live_site`: a stale value breaks the site (the front page answers with a redirect), so it follows the new address, and is
  *    cleared if it names a host that is not part of the move.
@@ -109,9 +111,9 @@ final class WriteConfiguration implements Step
             }
         }
 
-        $type = self::databaseType($source->dbType);
+        $type = self::databaseType($source->dbType, driver: $new->driver);
         if ($type !== $source->dbType) {
-            $add('dbtype', $type, $source->dbType, $type, notice: "This PHP has no \"{$source->dbType}\" interface to the database; Joomla is told to use \"$type\".");
+            $add('dbtype', $type, $source->dbType, $type, notice: "Joomla is told to use the database interface \"$type\" (the site had \"{$source->dbType}\").");
         }
 
         $logPath = $request->serverPath() . '/administrator/logs';
@@ -134,10 +136,17 @@ final class WriteConfiguration implements Step
     }
 
     /**
-     * The `dbtype` that works on this PHP: the one the site has if its extension is loaded, else the other one if that is.
+     * The `dbtype` for the host: the one that the driver of the request names (`pdo` is `pdomysql`, `mysqli` is `mysqli`); with `auto` the
+     * one the site has if its extension is loaded in this PHP, else the other one if that is.
      */
-    public static function databaseType(string $configured, ?bool $mysqli = null, ?bool $pdo = null): string
+    public static function databaseType(string $configured, ?bool $mysqli = null, ?bool $pdo = null, string $driver = DatabaseSettings::AUTO): string
     {
+        if ($driver === DatabaseSettings::PDO) {
+            return 'pdomysql';
+        }
+        if ($driver === DatabaseSettings::MYSQLI) {
+            return 'mysqli';
+        }
         $mysqli ??= extension_loaded('mysqli');
         $pdo ??= extension_loaded('pdo_mysql');
         if ($configured === 'mysqli' && !$mysqli && $pdo) {

@@ -118,6 +118,45 @@ services:
       db:
         condition: service_healthy
 
+  # Two Joomla sites to back up (profile "joomla"; docs/PHASE6.md 4.2): Joomla 5.4 (the images of 5 stop at PHP 8.3) and Joomla 6 (PHP 8.4), each
+  # with a database of its own on the `db` service, installed by the image's own installer on the first start (tests/stack/seed-joomla.sh
+  # makes the databases first and seeds the sites). Their files are mounted into the tools container to be backed up, read-only.
+  joomla5:
+    profiles: ["joomla"]
+    image: joomla:${JOOMLA5_TAG:-5.4-php8.3-apache}
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "${JOOMLA5_PORT:-8195}:80"
+    environment: &joomla-environment
+      JOOMLA_DB_HOST: db
+      JOOMLA_DB_USER: root
+      JOOMLA_DB_PASSWORD: ${DB_ROOT_PASSWORD:-prestashop}
+      JOOMLA_DB_NAME: joomla5
+      JOOMLA_SITE_NAME: Seeded Joomla 5
+      JOOMLA_ADMIN_USER: Seeded Administrator
+      JOOMLA_ADMIN_USERNAME: seedadmin
+      JOOMLA_ADMIN_PASSWORD: ${JOOMLA_ADMIN_PASSWORD:-Seed-admin-0123456789}
+      JOOMLA_ADMIN_EMAIL: admin@example.com
+    volumes:
+      - joomla5_data:/var/www/html
+
+  joomla6:
+    profiles: ["joomla"]
+    image: joomla:${JOOMLA6_TAG:-6-php8.4-apache}
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "${JOOMLA6_PORT:-8196}:80"
+    environment:
+      <<: *joomla-environment
+      JOOMLA_DB_NAME: joomla6
+      JOOMLA_SITE_NAME: Seeded Joomla 6
+    volumes:
+      - joomla6_data:/var/www/html
+
   # Development tools (PHP 8.4 CLI + pdo_mysql + Composer). Not started by `up`; use:
   #   docker compose --profile tools run --rm tools composer install
   #   docker compose --profile tools run --rm tools composer check
@@ -134,6 +173,9 @@ services:
       # the data and the storage of the web interface (service "web"), to prepare and read them
       - web_data:/web-data
       - web_storage:/web-storage
+      # the Joomla sites (profile "joomla")
+      - joomla5_data:/joomla5:ro
+      - joomla6_data:/joomla6:ro
     depends_on:
       db:
         condition: service_healthy
@@ -158,4 +200,8 @@ volumes:
     name: threadsafe-dev_web_data${VOLUME_SUFFIX:-}
   web_storage:
     name: threadsafe-dev_web_storage${VOLUME_SUFFIX:-}
+  joomla5_data:
+    name: threadsafe-dev_joomla5_data${VOLUME_SUFFIX:-}
+  joomla6_data:
+    name: threadsafe-dev_joomla6_data${VOLUME_SUFFIX:-}
   composer_cache:

@@ -187,7 +187,7 @@ final class JoomlaBackupTest extends TestCase
     public function testTheManifestExtrasWithADatabaseListThirdPartyExtensionsTemplatesLanguagesAndAddresses(): void
     {
         $core = static fn (string $type, string $element, string $folder = '', string $version = '5.4.8'): array => [
-            'type' => $type, 'element' => $element, 'folder' => $folder, 'client_id' => '0', 'enabled' => '1',
+            'type' => $type, 'element' => $element, 'folder' => $folder, 'client_id' => '0', 'enabled' => '1', 'locked' => '1',
             'manifest_cache' => json_encode(['name' => $element, 'version' => $version, 'author' => 'Joomla! Project']),
         ];
         $db = FakeConnection::with([
@@ -195,8 +195,10 @@ final class JoomlaBackupTest extends TestCase
                 $core('file', 'joomla'),
                 $core('component', 'com_content'),
                 $core('plugin', 'system', 'system'),
-                ['type' => 'component', 'element' => 'com_shop', 'folder' => '', 'client_id' => '1', 'enabled' => '1', 'manifest_cache' => json_encode(['name' => 'Shop', 'version' => '2.1.0', 'author' => 'Example Ltd'])],
-                ['type' => 'plugin', 'element' => 'seo', 'folder' => 'system', 'client_id' => '0', 'enabled' => '0', 'manifest_cache' => 'not json'],
+                ['type' => 'component', 'element' => 'com_shop', 'folder' => '', 'client_id' => '1', 'enabled' => '1', 'locked' => '0', 'manifest_cache' => json_encode(['name' => 'Shop', 'version' => '2.1.0', 'author' => 'Example Ltd'])],
+                ['type' => 'plugin', 'element' => 'seo', 'folder' => 'system', 'client_id' => '0', 'enabled' => '0', 'locked' => '0', 'manifest_cache' => 'not json'],
+                // shipped with Joomla, made by others (the editors, a library): locked, so core
+                ['type' => 'plugin', 'element' => 'tinymce', 'folder' => 'editors', 'client_id' => '0', 'enabled' => '1', 'locked' => '1', 'manifest_cache' => json_encode(['name' => 'plg_editors_tinymce', 'version' => '8.9.1', 'author' => 'Tiny Technologies, Inc'])],
             ],
             '~FROM `joom_languages`~' => [['lang_code' => 'en-GB', 'title' => 'English', 'published' => '1'], ['lang_code' => 'de-DE', 'title' => 'Deutsch', 'published' => '0']],
             '~FROM `joom_template_styles`~' => [
@@ -214,7 +216,7 @@ final class JoomlaBackupTest extends TestCase
         $extras = $backup->manifestExtras($site, $db);
 
         self::assertSame('5.4.8', $extras['versionInDatabase']);
-        self::assertSame(3, $extras['coreExtensions'], 'the core ones are counted, not listed');
+        self::assertSame(4, $extras['coreExtensions'], 'the core ones are counted, not listed (also the locked ones of other authors)');
         self::assertCount(2, $extras['extensions']);
         self::assertSame(['type' => 'component', 'element' => 'com_shop', 'folder' => '', 'client' => 'administrator', 'name' => 'Shop', 'version' => '2.1.0', 'author' => 'Example Ltd', 'enabled' => true], $extras['extensions'][0]);
         self::assertSame(['type' => 'plugin', 'element' => 'seo', 'folder' => 'system', 'client' => 'site', 'name' => null, 'version' => null, 'author' => null, 'enabled' => false], $extras['extensions'][1], 'a manifest that is not JSON does not stop the list');

@@ -24,6 +24,8 @@ tests/stack/run.sh            # seed → clone → PHPUnit phase 1 (incl. the mi
                               # pair, opened by the real `age` tool, restored by the command and through the wizard with the key typed in) → phase 5 (disaster recovery: the
                               # target's containers and volumes are destroyed and made again empty; restore.php, served by the target's own
                               # Apache under limits of 5 seconds and 64 MB, brings the shop back)
+                              # → phase 6 (group `joomla`: two seeded Joomla sites, Joomla 5.4 and 6, backed up and restored on another domain, into a sub-directory and through
+                              # the wizard; `seed-joomla.sh` starts and seeds them, `docs/PHASE6.md` 4.2)
 tests/stack/cross.sh          # backups across the two kinds of database server (MySQL 8.4 -> MariaDB and back), needs the source seeded on both
 ```
 
@@ -47,6 +49,7 @@ Single steps:
 | `seed.sh` | Idempotent. Installs the fixture module `threadsafe_fixture`, loads `tests/fixtures/seed-problem-cases.sql` (CMS text in many URL notations, a foreign domain, a cache table entry, 200,000 log rows) and writes a `php.ini` and a sitemap with host-bound values |
 | `clone.sh` | Wipes the target, copies files (without `var/cache` and `cache/smarty`, like a backup) and the database from the source, checks isolation |
 | `cross.sh` | Runs the group `cross-server` twice, with the source stack on one kind of database server and the target's database on the other (`TARGET_DB_IMAGE`, `TARGET_DB_SUFFIX` of the compose file): the shop is backed up, restored with `threadsafe restore`, compared table by table; a MySQL 8 collation is refused on MariaDB |
+| `seed-joomla.sh` | Idempotent. Makes the databases `joomla5` and `joomla6` on the `db` service, starts the services `joomla5` (port 8195) and `joomla6` (port 8196; profile `joomla`, installed by the image's own installer on the first start), and loads `tests/fixtures/seed-joomla.sql` (content with the site's own domain in every form, a foreign domain, a sub-domain, an e-mail address, a third-party extension, sessions) and the files that a backup leaves out, `.htaccess` and the search-engine friendly addresses |
 | `oracle.sh <source\|target>` | Saves the current `.htaccess` and the one PrestaShop itself would generate (`oracle/htaccess-oracle.php`, `Tools::generateHtaccess`) to `.cache/oracle/` |
 
 The scripts need Docker and Bash (Git Bash on Windows works). The PHPUnit tests run inside the `tools` container,

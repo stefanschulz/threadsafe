@@ -40,14 +40,16 @@ final class Stack
 
     /**
      * GET with a fixed Host header. Follows up to five redirects that stay on the same host.
+     *
+     * @param array<string, string> $headers more request headers (name => value)
      */
-    public static function get(string $baseUrl, string $hostHeader, string $path = '/'): HttpResponse
+    public static function get(string $baseUrl, string $hostHeader, string $path = '/', array $headers = []): HttpResponse
     {
         $url = $baseUrl . $path;
         $response = new HttpResponse(0, [], '');
 
         for ($hop = 0; $hop <= 5; ++$hop) {
-            $response = self::request($url, $hostHeader);
+            $response = self::request($url, $hostHeader, 'GET', null, $headers);
             $location = $response->header('location');
             if ($response->status < 300 || $response->status >= 400 || $location === null) {
                 break;
@@ -89,11 +91,18 @@ final class Stack
         @file_get_contents(self::MAILPIT_URL . '/api/v1/messages', false, stream_context_create(['http' => ['method' => 'DELETE', 'ignore_errors' => true]]));
     }
 
-    private static function request(string $url, string $hostHeader, string $method = 'GET', ?string $body = null): HttpResponse
+    /**
+     * @param array<string, string> $headers more request headers (name => value)
+     */
+    private static function request(string $url, string $hostHeader, string $method = 'GET', ?string $body = null, array $headers = []): HttpResponse
     {
+        $extra = '';
+        foreach ($headers as $name => $value) {
+            $extra .= "$name: $value\r\n";
+        }
         $context = stream_context_create(['http' => [
             'method' => $method,
-            'header' => "Host: $hostHeader\r\nUser-Agent: ThreadSafe-Tests\r\n" . ($body === null ? '' : "Content-Type: application/x-www-form-urlencoded\r\n"),
+            'header' => "Host: $hostHeader\r\nUser-Agent: ThreadSafe-Tests\r\n" . $extra . ($body === null ? '' : "Content-Type: application/x-www-form-urlencoded\r\n"),
             'content' => $body ?? '',
             'follow_location' => 0,
             'ignore_errors' => true,

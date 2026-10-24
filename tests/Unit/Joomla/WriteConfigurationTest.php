@@ -130,6 +130,26 @@ final class WriteConfigurationTest extends TestCase
         self::assertSame($expected, WriteConfiguration::databaseType($configured, $mysqli, $pdo));
     }
 
+    public function testADriverThatTheRequestNamesWinsOverWhatThisPhpHas(): void
+    {
+        // the PHP of a command line is not always the PHP of the web server: the person names the interface of the web server's PHP
+        self::assertSame('pdomysql', WriteConfiguration::databaseType('mysqli', true, false, 'pdo'));
+        self::assertSame('mysqli', WriteConfiguration::databaseType('pdomysql', false, true, 'mysqli'));
+        self::assertSame('mysqli', WriteConfiguration::databaseType('mysqli', true, true, 'auto'), 'auto looks at the extensions');
+        self::assertSame('pdomysql', WriteConfiguration::databaseType('mysqli', false, true, 'auto'));
+    }
+
+    public function testTheDriverOfTheNewDatabaseIsWrittenAsDbtype(): void
+    {
+        $root = $this->root();
+        $context = JoomlaSite::context($root, database: new DatabaseSettings('db', 3306, 'joomla_test', 'joomla', 'test-db-password', 'joom_', DatabaseSettings::PDO), serverPath: '/var/www/html');
+
+        $step = new WriteConfiguration();
+        $step->apply($context, $step->plan($context));
+
+        self::assertSame('pdomysql', JoomlaConfigFile::fromPath($root . '/configuration.php')->get('dbtype'));
+    }
+
     /**
      * @param list<DomainMapping> $domains
      */
