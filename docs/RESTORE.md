@@ -5,7 +5,7 @@ How to put a ThreadSafe backup back: with the single file `restore.php` on a hos
 ## 1. The rules of a restore
 
 - **A restore goes into an empty directory and an empty database. It never overwrites or deletes an installation.** A directory with files in it, or a database with tables of the same prefix, is refused before a single byte is written. To redo a restore, empty both yourself (section 8).
-- The restored site is **adapted** to its new place at the end: new domain, new database credentials, caches, `.htaccess` (for PrestaShop; for **Joomla** `configuration.php`, the old address in the content, `.htaccess` and the directories Joomla writes to, [MIGRATE.md](MIGRATE.md) section 13; for `generic` sites only the domain in the database content - see section 7).
+- The restored site is **adapted** to its new place at the end: new domain, new database credentials, caches, `.htaccess` (for PrestaShop; for **Joomla** `configuration.php`, the old address in the content, `.htaccess` and the directories Joomla writes to, [MIGRATE.md](MIGRATE.md) section 13 and [JOOMLA.md](JOOMLA.md); for `generic` sites only the domain in the database content - see section 7).
 - It works in **steps that are saved**, so it fits the time limit of a web request, survives a closed browser and continues after a failure.
 - The backup stays as it is. The restore reads it and never changes it.
 

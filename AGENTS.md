@@ -19,7 +19,7 @@ application automatically. First target: **PrestaShop 9.x**; MariaDB and MySQL; 
 | 3 | `restore.php` (extractor and wizard) | done (plan and "As built" in [docs/PHASE3.md](docs/PHASE3.md); user documentation [docs/RESTORE.md](docs/RESTORE.md)); milestone A: `threadsafe restore`, milestone B: the single file `dist/restore.php` with the wizard; disaster recovery proven on the Docker stack |
 | 4 | Web interface (dashboard, download) | done (plan and "As built" in [docs/PHASE4.md](docs/PHASE4.md); user documentation [docs/WEB.md](docs/WEB.md)); login and setup, profiles, backups in steps with progress, check, delete, download, dashboard and System page, restore help; proven against a real Apache with 5 s / 64 MB limits on all three database servers (phase 4b of `run.sh`) |
 | 5 | One trigger cron, retention, encryption | done (plan and "As built" in [docs/PHASE5.md](docs/PHASE5.md); user documentation [docs/SCHEDULE.md](docs/SCHEDULE.md) and [docs/ENCRYPTION.md](docs/ENCRYPTION.md)); the schedule in the profile and `threadsafe cron` / the address `/cron/<secret>` (detached worker or ticks), retention with pinned backups and a go-ahead, backups encrypted in the format of `age` (public keys of the profile, or a passphrase for one backup), restore with the key; proven on all three database servers (phases 4c and 4d of `run.sh`) |
-| 6 | Website type Joomla 5 and 6 (backup, restore, migration) | **in progress**: work packages 1 to 5 done and proven on all three database servers (plan and "As built" in [docs/PHASE6.md](docs/PHASE6.md); reference [docs/MIGRATE.md](docs/MIGRATE.md) section 13; phase 6 of `run.sh`); left: the dev mode (work package 6), `docs/JOOMLA.md` (work package 7) and the owner's field test (work package 8) |
+| 6 | Website type Joomla 5 and 6 (backup, restore, migration) | **in progress**: work packages 1 to 7 done and proven on all three database servers (plan and "As built" in [docs/PHASE6.md](docs/PHASE6.md); user documentation [docs/JOOMLA.md](docs/JOOMLA.md), reference [docs/MIGRATE.md](docs/MIGRATE.md) section 13; phase 6 of `run.sh`; dev mode in a small first cut, `--mode=dev`); left: the owner's field test (work package 8) and the extension rules that it finds |
 | 7 | Installation and update (release package, web installer, update from the web interface) | **planned**: the plan is [docs/PHASE7.md](docs/PHASE7.md) (work packages in section 5; the decisions of section 7.2 are for the owner); nothing is built yet |
 
 Each finished work package has an **"As built"** paragraph in `docs/PHASE2.md` (what exists, where it differs from the plan,
@@ -96,7 +96,7 @@ Oracles are real tools where possible: `unzip -t`, the `mariadb` client, `CHECKS
 | `src/Storage`, `src/Backup/Manifest*` | Phase 2: `LocalStorage` (protection files, sidecar, listing), `BackupCatalog` (listing, sidecar rebuild), `SpaceCheck`, `Postproc`; `BackupName`, `Manifest`, `Sidecar`, `Verifier` |
 | `tests/Unit`, `tests/Integration`, `tests/Support`, `tests/stack` | Tests, helpers, Docker stack scripts |
 | `tools/spikes` | Throw-away scripts behind the findings in PHASE2.md section 8 (kept for reference) |
-| `docs` | Concept, phase plans, `MIGRATE.md` (reference of the `migrate` command), `BACKUP.md` (reference of the backup commands and the archive), `RESTORE.md` (reference of the restore: wizard, command, checks, limits, encrypted backups), `WEB.md` (the web interface), `SCHEDULE.md` (schedules, the trigger, retention), `ENCRYPTION.md` (keys, passphrases, what is protected), `DESIGN.md` (colours and type of the web interface and the wizard; `DESIGN-theLoom.md` is the palette it follows) |
+| `docs` | Concept, phase plans, `MIGRATE.md` (reference of the `migrate` command), `BACKUP.md` (reference of the backup commands and the archive), `RESTORE.md` (reference of the restore: wizard, command, checks, limits, encrypted backups), `WEB.md` (the web interface), `SCHEDULE.md` (schedules, the trigger, retention), `ENCRYPTION.md` (keys, passphrases, what is protected), `JOOMLA.md` (the Joomla type: what a backup holds, the old address, the restore, dev mode, limits), `DESIGN.md` (colours and type of the web interface and the wizard; `DESIGN-theLoom.md` is the palette it follows) |
 
 ## Design rules that are easy to break
 
@@ -141,7 +141,7 @@ Building blocks: `TriggerService` (the one class behind both doors of the trigge
 web run is active while its last tick is recent), `Executor`/`RunStore`/`Lock`, `Overview`, `Config` and the System page, `Postproc` (for remote storage).
 
 What is not planned in detail: **remote storage** (SFTP/S3; the `transfers` list of the sidecar file is reserved, `Postproc` is the hook), further website types
-(WordPress; Joomla is planned in [docs/PHASE6.md](docs/PHASE6.md)), restoring over an existing installation.
+(WordPress; Joomla is done, [docs/JOOMLA.md](docs/JOOMLA.md); rules for single Joomla extensions wait for the owner's field test), restoring over an existing installation.
 Open items for the owner (not blocking): the download of a few hundred MB
 through the live host's FastCGI (`tools/spikes/web-download.php`, PHASE4.md section 8, finding 1); a **private test with a real backup** of the live shop (`docs/BACKUP.md` section 10); the web-server modes `X-Sendfile` /
 `X-Accel-Redirect` and the nginx rule in `docs/WEB.md` have never met a web server. Small gaps of the interface: the sidecar keeps no
@@ -150,7 +150,7 @@ button, and the language is English only.
 Known gaps that the owner may want to turn into work (all listed in `docs/RESTORE.md` section 9): restoring **over** an existing
 installation with a rollback (left out of phase 3 on purpose); a MySQL 8 backup onto MariaDB (refused because of the collation
 `utf8mb4_0900_ai_ci`; mapping it while importing would be a feature); views and triggers whose `DEFINER` does not exist on the
-new server; a prefix change for backups with views, triggers or foreign keys; website types for WordPress and Joomla (the
+new server; a prefix change for backups with views, triggers or foreign keys; a website type for WordPress (the
 `Restorable` capability in `src/Plugin` is what they implement, `plugins/generic` is the smallest example).
 The live host (probe runs of 2026-10-21, `docs/PHASE3.md` section 8, finding 6): PHP 8.4.26 only as CGI builds (web: 30 s per
 request, 512 MB, `exec` allowed, no cut-off up to 40 s; the SSH shell's `php` is PHP 4 but `/usr/bin/php8.4 -q` works),
