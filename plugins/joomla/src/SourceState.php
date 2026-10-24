@@ -18,6 +18,9 @@ final readonly class SourceState
      * @param string $logPath       the `log_path` of the configuration ('' if there is none)
      * @param string $tmpPath       the `tmp_path` of the configuration ('' if there is none)
      * @param string $serverVersion the version string that the database server reported
+     * @param string $siteName      the `sitename` of the configuration
+     * @param string $robots        the `robots` setting ('' = none, the visitors' search engines decide)
+     * @param bool   $mailOnline    whether `mailonline` is on (the site sends mail)
      */
     public function __construct(
         public string $root,
@@ -29,6 +32,9 @@ final readonly class SourceState
         public string $logPath,
         public string $tmpPath,
         public string $serverVersion,
+        public string $siteName = '',
+        public string $robots = '',
+        public bool $mailOnline = true,
     ) {
     }
 
@@ -54,6 +60,9 @@ final readonly class SourceState
             'logPath' => $this->logPath,
             'tmpPath' => $this->tmpPath,
             'serverVersion' => $this->serverVersion,
+            'siteName' => $this->siteName,
+            'robots' => $this->robots,
+            'mailOnline' => $this->mailOnline,
         ];
     }
 
@@ -72,6 +81,9 @@ final readonly class SourceState
             (string) $data['logPath'],
             (string) $data['tmpPath'],
             (string) $data['serverVersion'],
+            (string) ($data['siteName'] ?? ''),
+            (string) ($data['robots'] ?? ''),
+            (bool) ($data['mailOnline'] ?? true),
         );
     }
 }

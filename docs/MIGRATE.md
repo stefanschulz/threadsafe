@@ -315,9 +315,17 @@ php bin/threadsafe migrate joomla --root=/var/www/site --from=www.example.org --
   missing), `write-configuration` (the database, `dbtype`, `log_path`, `tmp_path`, `live_site`; nothing else of the file changes),
   `replace-content-domains` (the generic replacement, in every text column except the sessions, the update cache and the big tables of
   the search index), `rewrite-htaccess`, `discard-caches` (the files of the caches, the sessions, the update cache) and `self-test`
-  (the front page and `/administrator/` answer; the generator tag, if the site has one, says Joomla).
+  (the front page and `/administrator/` answer; the generator tag, if the site has one, says Joomla). With `--mode=dev` the step
+  `block-search-engines` runs as well (below).
 - **`live_site`**: a stale value makes the front page redirect, so it follows the move, and it is **cleared** if it names a host that is
   not part of the move. **`dbtype`**: `mysqli` or `pdomysql` - the one that `--db-driver` names (`pdo` or `mysqli`), else whichever this PHP has.
   The PHP of a command line is not always the PHP of the web server (the Docker target of the tests has `pdo_mysql` and no `mysqli` in the
   web server, but both in the command line): then name the driver. The `restore.php` wizard runs in the web server's PHP, so `auto` is right there.
-- Not done: a Joomla 4 or older, a database on PostgreSQL or reached through a socket, extension-specific rules, a dev mode.
+- **`--mode=dev`** makes a development or staging copy, in a small first cut: the configuration gets `mailonline = false` (the site sends no
+  mail), `robots = noindex, nofollow` (the robots meta tag) and the site name gets the mark `[DEV] ` in front; `robots.txt` is replaced by
+  `Disallow: /`; and a block at the top of `.htaccess` (between `# BEGIN ThreadSafe dev mode` and `# END ThreadSafe dev mode`, made again on every
+  run, never twice) sends `X-Robots-Tag: noindex, nofollow` (needs `mod_headers`; without it the server ignores the block). `offline` stays as it
+  is. What the PrestaShop dev mode does with extensions (payment, analytics, cron) is not done for Joomla: that needs rules per extension, so
+  an extension that sends mail itself, or talks to a payment provider, still does. The options `--mail-catcher`, `--dev-skip` and
+  `--dev-rules` do not exist for this type.
+- Not done: a Joomla 4 or older, a database on PostgreSQL or reached through a socket, extension-specific rules.

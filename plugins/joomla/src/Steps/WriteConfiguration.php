@@ -24,11 +24,19 @@ use ThreadSafe\Migration\MigrationRequest;
  *  - `dbtype`: `mysqli` or `pdomysql` - the one that `--db-driver` names, else by what this PHP has (a host often has only one of them,
  *    and the PHP of a command line is not always the PHP of the web server: then the driver is named);
  *  - `log_path` and `tmp_path`, which hold the absolute paths of the old host;
+ *  - in dev mode: `mailonline` off (the copy sends no mail), `robots` "noindex, nofollow" (the meta tag of every page) and a "[DEV] " in front
+ *    of the site name, so that nobody mistakes the copy for the site;
  *  - `live_site`: a stale value breaks the site (the front page answers with a redirect), so it follows the new address, and is
  *    cleared if it names a host that is not part of the move.
  */
 final class WriteConfiguration implements Step
 {
+    /** the `robots` setting of a dev copy: the meta tag of every page */
+    public const string DEV_ROBOTS = 'noindex, nofollow';
+
+    /** in front of the name of a dev copy */
+    public const string DEV_MARK = '[DEV] ';
+
     public function id(): string
     {
         return 'write-configuration';
@@ -79,7 +87,7 @@ final class WriteConfiguration implements Step
     }
 
     /**
-     * @return list<array{property: string, value: string|int, change: Change, notice?: string}>
+     * @return list<array{property: string, value: string|int|bool, change: Change, notice?: string}>
      */
     private function changes(Context $context): array
     {
@@ -88,7 +96,7 @@ final class WriteConfiguration implements Step
         $old = $source->configuredDatabase;
         $new = $source->database;
         $found = [];
-        $add = static function (string $property, string|int $value, string $before, string $after, bool $secret = false, ?string $notice = null) use (&$found): void {
+        $add = static function (string $property, string|int|bool $value, string $before, string $after, bool $secret = false, ?string $notice = null) use (&$found): void {
             $entry = ['property' => $property, 'value' => $value, 'change' => Change::update("file configuration.php $property", self::describe($property), $before, $after, secret: $secret)];
             if ($notice !== null) {
                 $entry['notice'] = $notice;
@@ -129,6 +137,18 @@ final class WriteConfiguration implements Step
             [$liveSite, $notice] = self::liveSite($source->liveSite, $request);
             if ($liveSite !== $source->liveSite) {
                 $add('live_site', $liveSite, $source->liveSite, $liveSite, notice: $notice);
+            }
+        }
+
+        if ($request->isDevMode()) {
+            if ($source->mailOnline) {
+                $add('mailonline', false, 'on', 'off');
+            }
+            if ($source->robots !== self::DEV_ROBOTS) {
+                $add('robots', self::DEV_ROBOTS, $source->robots, self::DEV_ROBOTS);
+            }
+            if (!str_starts_with($source->siteName, self::DEV_MARK)) {
+                $add('sitename', self::DEV_MARK . $source->siteName, $source->siteName, self::DEV_MARK . $source->siteName);
             }
         }
 
@@ -197,6 +217,9 @@ final class WriteConfiguration implements Step
             'dbtype' => 'use the database interface that this PHP has',
             'log_path', 'tmp_path' => 'point to the directory on this host',
             'live_site' => 'follow the new address',
+            'mailonline' => 'dev mode: the copy sends no mail',
+            'robots' => 'dev mode: keep search engines out of every page',
+            'sitename' => 'dev mode: mark the copy',
             default => 'point the site to the database it has now',
         };
     }

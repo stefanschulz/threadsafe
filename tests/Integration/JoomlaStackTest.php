@@ -366,6 +366,51 @@ final class JoomlaStackTest extends IntegrationTestCase
         $this->assertRestored($major, $manifest, $archive, $root, 'joomla_target_sub', Stack::TARGET_HOST, '/sub/', '/var/www/html/sub');
     }
 
+    // ------------------------------------------------------------------------------------------------- dev mode
+
+    public function testADevCopyIsRestoredThatSendsNoMailAndKeepsSearchEnginesOut(): void
+    {
+        $major = 6;
+        $this->requireSite($major);
+        [$base, $archive] = $this->backUp($major);
+        $this->emptyTarget('joomla_target');
+        file_put_contents($base . '/db-password', self::password() . "\n");
+
+        putenv('THREADSAFE_DATA=' . $base . '/data');
+        try {
+            [$code, $stdout, $stderr] = CliProcess::run([
+                'restore', $archive, '--root=' . self::TARGET, '--to=' . Stack::TARGET_HOST, '--mode=dev',
+                '--db-host=target-db', '--db-name=joomla_target', '--db-user=root', '--db-password-file=' . $base . '/db-password',
+                '--db-driver=pdo', '--server-path=/var/www/html', '--self-test-url=' . Stack::TARGET_URL, '--yes',
+            ], 1800);
+        } finally {
+            putenv('THREADSAFE_DATA');
+        }
+        self::assertSame(0, $code, $stderr . $stdout);
+
+        $config = JoomlaConfigFile::fromPath(self::TARGET . '/configuration.php');
+        self::assertFalse($config->get('mailonline'), 'the copy sends no mail');
+        self::assertSame('noindex, nofollow', $config->get('robots'));
+        self::assertSame('[DEV] Seeded Joomla 6', $config->get('sitename'));
+        self::assertSame("User-agent: *\nDisallow: /\n", file_get_contents(self::TARGET . '/robots.txt'));
+        self::assertStringStartsWith('# BEGIN ThreadSafe dev mode', (string) file_get_contents(self::TARGET . '/.htaccess'));
+
+        $home = Stack::get(Stack::TARGET_URL, Stack::TARGET_HOST, '/');
+        self::assertSame(200, $home->status);
+        self::assertSame('noindex, nofollow', $home->header('x-robots-tag'), 'the web server sends the header');
+        self::assertStringContainsString('<meta name="robots" content="noindex, nofollow">', $home->body);
+        self::assertStringContainsString('[DEV] Seeded Joomla 6', $home->body, 'the copy is marked in the title of its pages');
+        $about = Stack::get(Stack::TARGET_URL, Stack::TARGET_HOST, '/about');
+        self::assertSame(200, $about->status, 'the rules of Joomla still work behind the block');
+        self::assertSame('noindex, nofollow', $about->header('x-robots-tag'));
+        $robots = Stack::get(Stack::TARGET_URL, Stack::TARGET_HOST, '/robots.txt');
+        self::assertStringContainsString('Disallow: /', $robots->body);
+
+        // the source was not touched
+        self::assertNotFalse(strpos((string) file_get_contents(self::SITES[$major][0] . '/configuration.php'), "\$sitename = 'Seeded Joomla 6'"));
+        self::assertTrue(JoomlaConfigFile::fromPath(self::SITES[$major][0] . '/configuration.php')->get('mailonline'));
+    }
+
     // ------------------------------------------------------------------------------------------------- the wizard
 
     public function testTheBackupIsRestoredThroughTheWizardUnderTightLimits(): void

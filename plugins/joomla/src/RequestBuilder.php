@@ -4,17 +4,20 @@ declare(strict_types=1);
 
 namespace ThreadSafe\Joomla;
 
+use InvalidArgumentException;
 use ThreadSafe\Core\Exception\GuardFailed;
 use ThreadSafe\Database\DatabaseSettings;
 use ThreadSafe\Joomla\Config\JoomlaConfigFile;
 use ThreadSafe\Joomla\Exception\InvalidConfigFile;
 use ThreadSafe\Migration\MigrationRequest;
+use ThreadSafe\Migration\Mode;
 use ThreadSafe\Migration\RequestBuilder as BaseRequestBuilder;
 
 /**
  * The request builder for Joomla: the common settings ({@see BaseRequestBuilder}) plus
  *
  *   path   string   new base path, e.g. "/sub/" (the directory of the domain the site lives in); default: unchanged
+ *   mode   string   production (default) or dev: a development or staging copy that sends no mail and keeps search engines out
  *
  * The database values that are not given come from `configuration.php`. The old domain cannot be read from the installation (Joomla
  * stores its own address nowhere as one value): it is given with `--from`, and a restore proposes one from its manifest.
@@ -42,12 +45,14 @@ final class RequestBuilder extends BaseRequestBuilder
 
     protected function extraKeys(): array
     {
-        return ['path'];
+        return ['path', 'mode'];
     }
 
     protected function extraArguments(array $settings, string $root): array
     {
-        return ['physicalUri' => $this->string($settings, 'path')];
+        $mode = Mode::tryFrom($this->string($settings, 'mode') ?? 'production') ?? throw new InvalidArgumentException('The mode must be "production" or "dev".');
+
+        return ['physicalUri' => $this->string($settings, 'path'), 'mode' => $mode];
     }
 
     protected function configuredDatabase(string $root): ?DatabaseSettings

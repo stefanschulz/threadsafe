@@ -228,7 +228,8 @@ final class MigrateCommandTest extends TestCase
         yield 'no website type' => [[], 'prestashop9'];
         yield 'unknown website type' => [['wordpress', '--root=/x'], 'Unknown website type "wordpress" (available: generic, joomla, prestashop9)'];
         yield 'option of another website type' => [['generic', '--root=/tmp', '--ssl=all'], '--ssl is an option of the website type prestashop9, not of generic'];
-        yield 'dev option of another website type' => [['generic', '--root=/tmp', '--mode=dev'], '--mode is an option of the website type prestashop9'];
+        yield 'dev option of another website type' => [['generic', '--root=/tmp', '--mail-catcher=mailpit'], '--mail-catcher is an option of the website type prestashop9'];
+        yield 'mode of a type that has none' => [['generic', '--root=/tmp', '--mode=dev'], '--mode is an option of the website type joomla'];
         yield 'extra argument' => [['prestashop9', 'more', '--root=/x'], 'Unexpected argument "more"'];
         yield 'dry run and yes' => [['prestashop9', '--root=/x', '--dry-run', '--yes'], 'contradict'];
         yield 'missing root' => [['prestashop9', '--to=a.test'], 'root'];

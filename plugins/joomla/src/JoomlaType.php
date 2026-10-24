@@ -12,6 +12,7 @@ use ThreadSafe\Database\DatabaseSettings;
 use ThreadSafe\Generic\Steps\ReplaceContentDomains;
 use ThreadSafe\Joomla\Backup\JoomlaBackup;
 use ThreadSafe\Joomla\Restore\JoomlaRestore;
+use ThreadSafe\Joomla\Steps\BlockSearchEngines;
 use ThreadSafe\Joomla\Steps\DiscardCaches;
 use ThreadSafe\Joomla\Steps\EnsureSkeleton;
 use ThreadSafe\Joomla\Steps\ReadJoomlaState;
@@ -47,12 +48,20 @@ final class JoomlaType implements WebsiteType, Backupable, Restorable
     {
         return [
             new OptionSpec('path', 'New base path of the site, e.g. /sub/ (default: unchanged)', takesValue: true, valueName: 'PATH'),
+            new OptionSpec('mode', 'production (default) or dev: the copy sends no mail and keeps search engines out', takesValue: true, valueName: 'MODE'),
         ];
     }
 
     public function settings(Input $input): array
     {
-        return $input->has('path') ? ['path' => $input->value('path')] : [];
+        $settings = [];
+        foreach (['path', 'mode'] as $option) {
+            if ($input->has($option)) {
+                $settings[$option] = $input->value($option);
+            }
+        }
+
+        return $settings;
     }
 
     public function requestBuilder(): BaseRequestBuilder
@@ -68,6 +77,7 @@ final class JoomlaType implements WebsiteType, Backupable, Restorable
             new WriteConfiguration(),
             new ReplaceContentDomains(),
             new RewriteHtaccess(),
+            new BlockSearchEngines(),
             new DiscardCaches(),
             new SelfTest(),
         ];

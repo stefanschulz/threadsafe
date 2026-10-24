@@ -13,6 +13,7 @@ use ThreadSafe\Joomla\Config\JoomlaConfigFile;
 use ThreadSafe\Joomla\SourceState;
 use ThreadSafe\Joomla\State;
 use ThreadSafe\Migration\MigrationRequest;
+use ThreadSafe\Migration\Mode;
 use ThreadSafe\Replace\DomainMapping;
 
 /**
@@ -39,9 +40,9 @@ final class JoomlaSite
      *
      * @param list<DomainMapping> $domains
      */
-    public static function context(string $root, array $domains = [], ?DatabaseSettings $database = null, ?string $path = null, ?Connection $connection = null, ?string $serverPath = null, bool $selfTest = true, ?string $selfTestUrl = null): Context
+    public static function context(string $root, array $domains = [], ?DatabaseSettings $database = null, ?string $path = null, ?Connection $connection = null, ?string $serverPath = null, bool $selfTest = true, ?string $selfTestUrl = null, Mode $mode = Mode::Production): Context
     {
-        $request = new MigrationRequest($root, $domains, $database, $path, serverPath: $serverPath, selfTest: $selfTest, selfTestUrl: $selfTestUrl);
+        $request = new MigrationRequest($root, $domains, $database, $path, mode: $mode, serverPath: $serverPath, selfTest: $selfTest, selfTestUrl: $selfTestUrl);
         $config = JoomlaConfigFile::fromPath($root . '/configuration.php');
         $configured = $config->database();
         $source = new SourceState(
@@ -54,6 +55,9 @@ final class JoomlaSite
             (string) $config->get('log_path'),
             (string) $config->get('tmp_path'),
             '10.11.0-MariaDB',
+            (string) $config->get('sitename'),
+            (string) $config->get('robots'),
+            $config->get('mailonline') !== false,
         );
         $context = new Context($request, new NullJournal(), new NullLogger(), false);
         State::store($context, $source, $connection ?? FakeConnection::with([], 'joom_'));

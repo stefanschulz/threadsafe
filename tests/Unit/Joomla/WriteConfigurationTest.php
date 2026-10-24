@@ -10,6 +10,7 @@ use ThreadSafe\Database\DatabaseSettings;
 use ThreadSafe\Joomla\Config\JoomlaConfigFile;
 use ThreadSafe\Joomla\Steps\WriteConfiguration;
 use ThreadSafe\Migration\MigrationRequest;
+use ThreadSafe\Migration\Mode;
 use ThreadSafe\Replace\DomainMapping;
 use ThreadSafe\Tests\Support\JoomlaSite;
 use ThreadSafe\Tests\Support\TempDirectory;
@@ -196,6 +197,47 @@ final class WriteConfigurationTest extends TestCase
         $step->apply($context, $step->plan($context));
 
         self::assertSame('https://new.example.org', JoomlaConfigFile::fromPath($root . '/configuration.php')->get('live_site'));
+    }
+
+    public function testADevCopySendsNoMailKeepsSearchEnginesOutAndIsMarked(): void
+    {
+        $root = $this->root();
+        $before = (string) file_get_contents($root . '/configuration.php');
+        $context = JoomlaSite::context($root, serverPath: '/var/www/html', mode: Mode::Dev);
+
+        $step = new WriteConfiguration();
+        $plan = $step->plan($context);
+        $step->apply($context, $plan);
+
+        $after = (string) file_get_contents($root . '/configuration.php');
+        self::assertSame(strtr($before, [
+            'public $mailonline = true;' => 'public $mailonline = false;',
+            "public \$robots = '';" => "public \$robots = 'noindex, nofollow';",
+            "public \$sitename = 'Test site';" => "public \$sitename = '[DEV] Test site';",
+        ]), $after, 'three values, nothing else');
+        self::assertSame(3, $plan->changeCount());
+    }
+
+    public function testADevRunTwiceChangesNothingTheSecondTime(): void
+    {
+        $root = $this->root();
+        $step = new WriteConfiguration();
+        $first = JoomlaSite::context($root, serverPath: '/var/www/html', mode: Mode::Dev);
+        $step->apply($first, $step->plan($first));
+
+        $second = JoomlaSite::context($root, serverPath: '/var/www/html', mode: Mode::Dev);
+
+        self::assertFalse($step->plan($second)->hasChanges(), 'the mark is not added twice');
+        self::assertSame('[DEV] Test site', JoomlaConfigFile::fromPath($root . '/configuration.php')->get('sitename'));
+    }
+
+    public function testAProductionRunLeavesTheMailAndTheRobotsAlone(): void
+    {
+        $root = $this->root();
+
+        $plan = (new WriteConfiguration())->plan(JoomlaSite::context($root, serverPath: '/var/www/html'));
+
+        self::assertFalse($plan->hasChanges());
     }
 
     public function testAnEmptyLiveSiteStaysEmpty(): void

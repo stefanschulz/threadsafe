@@ -85,6 +85,9 @@ final class ReadJoomlaState implements Step, HasFindings
             self::string($config->get('log_path')),
             self::string($config->get('tmp_path')),
             $connection->serverVersion(),
+            self::string($config->get('sitename')),
+            self::string($config->get('robots')),
+            $config->get('mailonline') !== false,
         );
         State::store($context, $source, $connection);
 

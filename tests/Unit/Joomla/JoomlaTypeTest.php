@@ -87,15 +87,15 @@ final class JoomlaTypeTest extends TestCase
     {
         $ids = array_map(static fn (Step $step): string => $step->id(), (new JoomlaType())->steps());
 
-        self::assertSame(['read-source-state', 'ensure-skeleton', 'write-configuration', 'replace-content-domains', 'rewrite-htaccess', 'discard-caches', 'self-test'], $ids);
+        self::assertSame(['read-source-state', 'ensure-skeleton', 'write-configuration', 'replace-content-domains', 'rewrite-htaccess', 'block-search-engines', 'discard-caches', 'self-test'], $ids);
     }
 
-    public function testTheMigrationOptionAndSettingOfTheBasePath(): void
+    public function testTheMigrationOptionsAndSettingsOfTheBasePathAndTheMode(): void
     {
         $type = new JoomlaType();
 
-        self::assertSame(['path'], array_map(static fn (OptionSpec $option): string => $option->name, $type->options()));
-        self::assertSame(['path' => '/sub/'], $type->settings(Input::parse(['--path=/sub/'], $type->options())));
+        self::assertSame(['path', 'mode'], array_map(static fn (OptionSpec $option): string => $option->name, $type->options()));
+        self::assertSame(['path' => '/sub/', 'mode' => 'dev'], $type->settings(Input::parse(['--path=/sub/', '--mode=dev'], $type->options())));
         self::assertSame([], $type->settings(Input::parse([], $type->options())));
     }
 }

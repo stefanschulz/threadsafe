@@ -78,6 +78,19 @@ final class JoomlaMigrationTest extends TestCase
         (new RequestBuilder())->build(['root' => $this->root(), 'to' => 'new.example.org']);
     }
 
+    public function testTheModeIsProductionOrDev(): void
+    {
+        $root = $this->root();
+
+        self::assertTrue((new RequestBuilder())->build(['root' => $root, 'mode' => 'dev'])->isDevMode());
+        self::assertFalse((new RequestBuilder())->build(['root' => $root])->isDevMode());
+        self::assertFalse((new RequestBuilder())->build(['root' => $root, 'mode' => 'production'])->isDevMode());
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('production" or "dev');
+        (new RequestBuilder())->build(['root' => $root, 'mode' => 'staging']);
+    }
+
     public function testABasePathMustStartAndEndWithASlash(): void
     {
         $this->expectException(InvalidArgumentException::class);

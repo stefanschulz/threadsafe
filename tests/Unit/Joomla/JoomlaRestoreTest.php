@@ -54,7 +54,8 @@ final class JoomlaRestoreTest extends TestCase
 
         $fields = (new JoomlaRestore())->fields($manifest);
 
-        self::assertSame(['from', 'to', 'path'], array_map(static fn ($field): string => $field->name, $fields));
+        self::assertSame(['from', 'to', 'path', 'mode'], array_map(static fn ($field): string => $field->name, $fields));
+        self::assertSame(['production', 'dev'], $fields[3]->choices);
         self::assertSame('www.example.org', $fields[0]->default);
         self::assertStringContainsString('www.example.org (40), cdn.example.net (3)', $fields[0]->help);
         self::assertFalse($fields[1]->required, 'a restore on the same domain is allowed');
@@ -67,6 +68,8 @@ final class JoomlaRestoreTest extends TestCase
         self::assertSame(['from' => 'old.example', 'to' => 'new.example', 'path' => '/sub/'], $restore->restoreSettings(['from' => 'old.example', 'to' => 'new.example', 'path' => '/sub/']));
         self::assertSame([], $restore->restoreSettings(['from' => 'old.example', 'to' => '', 'path' => '']), 'the pre-filled old address alone changes nothing');
         self::assertSame(['to' => 'new.example'], $restore->restoreSettings(['from' => '', 'to' => 'new.example']));
+        self::assertSame(['to' => 'new.example', 'mode' => 'dev'], $restore->restoreSettings(['to' => 'new.example', 'mode' => 'dev']));
+        self::assertSame([], $restore->restoreSettings(['mode' => 'production']), 'production is the default and needs no setting');
     }
 
     /**

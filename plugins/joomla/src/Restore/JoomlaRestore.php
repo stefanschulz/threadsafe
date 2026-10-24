@@ -31,6 +31,7 @@ final class JoomlaRestore implements Restorable
             new Field('from', 'Old domain', Field::TEXT, $this->sourceDomain($manifest) ?? '', help: 'The domain the backed-up site had; it is replaced in the content of the database. Joomla stores its own address nowhere, so this is the most frequent one in the content.' . $found),
             new Field('to', 'New domain', Field::TEXT, '', help: 'The domain the restored site is reached under, e.g. www.example.org. Empty: the domain stays and only the host-bound settings are adapted.'),
             new Field('path', 'Base path', Field::TEXT, '', help: 'Where in the domain the site lives, e.g. /sub/; empty keeps it as it is. Sets RewriteBase in .htaccess.'),
+            new Field('mode', 'Mode', Field::CHOICE, 'production', ['production', 'dev'], help: 'dev makes a development or staging copy: the site sends no mail, and robots.txt, the robots meta tag and a header keep search engines out.'),
         ];
     }
 
@@ -41,6 +42,9 @@ final class JoomlaRestore implements Restorable
             if (($values[$field] ?? '') !== '') {
                 $settings[$key] = $values[$field];
             }
+        }
+        if (($values['mode'] ?? '') === 'dev') {
+            $settings['mode'] = 'dev';
         }
         // an old domain without a new one would be refused as an error of the request; it is only a proposal, so it is left out
         if (!isset($settings['to'])) {
