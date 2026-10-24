@@ -6,12 +6,10 @@ namespace ThreadSafe\Tests\Unit\Joomla;
 
 use PHPUnit\Framework\TestCase;
 use ThreadSafe\App\ProfileService;
-use ThreadSafe\Cli\Application;
-use ThreadSafe\Cli\BufferedOutput;
-use ThreadSafe\Cli\MigrateCommand;
+use ThreadSafe\Cli\Input;
+use ThreadSafe\Cli\OptionSpec;
+use ThreadSafe\Core\Step;
 use ThreadSafe\Joomla\JoomlaType;
-use ThreadSafe\Joomla\Steps\NotYetBuilt;
-use ThreadSafe\Plugin\PluginError;
 use ThreadSafe\Plugin\PluginRegistry;
 use ThreadSafe\Profile\ProfileException;
 use ThreadSafe\Profile\ProfileStore;
@@ -41,7 +39,7 @@ final class JoomlaTypeTest extends TestCase
         return $root;
     }
 
-    public function testTheTypeIsRegisteredAndCanBeBackedUpButNotRestoredYet(): void
+    public function testTheTypeIsRegisteredAndCanBeBackedUpAndRestored(): void
     {
         $plugins = PluginRegistry::load();
 
@@ -50,9 +48,7 @@ final class JoomlaTypeTest extends TestCase
         self::assertSame('Joomla', $plugins->get('joomla')->title());
         self::assertSame('joomla', $plugins->backupable('joomla')->detect($this->site())?->application === 'Joomla' ? 'joomla' : '');
 
-        $this->expectException(PluginError::class);
-        $this->expectExceptionMessage('does not support restores');
-        $plugins->restorable('joomla');
+        self::assertInstanceOf(JoomlaType::class, $plugins->restorable('joomla'));
     }
 
     public function testTheTypeIsOfferedWhereAProfileChoosesItsType(): void
@@ -87,16 +83,19 @@ final class JoomlaTypeTest extends TestCase
         $service->detect('joomla', $this->site('4', '4', '10'));
     }
 
-    public function testTheMigrationRefusesInsteadOfReportingSuccessForASiteThatNothingWasDoneTo(): void
+    public function testTheStepsAreTheAdaptationInItsOrder(): void
     {
-        $steps = (new JoomlaType())->steps();
-        self::assertCount(1, $steps);
-        self::assertInstanceOf(NotYetBuilt::class, $steps[0]);
+        $ids = array_map(static fn (Step $step): string => $step->id(), (new JoomlaType())->steps());
 
-        $output = new BufferedOutput();
-        $code = (new Application([new MigrateCommand()]))->run(['threadsafe', 'migrate', 'joomla', '--root=' . $this->site(), '--from=old.test', '--to=new.test'], $output);
+        self::assertSame(['read-source-state', 'ensure-skeleton', 'write-configuration', 'replace-content-domains', 'rewrite-htaccess', 'discard-caches', 'self-test'], $ids);
+    }
 
-        self::assertSame(2, $code, 'a refused run');
-        self::assertStringContainsString('not built yet', $output->stderr() . $output->stdout());
+    public function testTheMigrationOptionAndSettingOfTheBasePath(): void
+    {
+        $type = new JoomlaType();
+
+        self::assertSame(['path'], array_map(static fn (OptionSpec $option): string => $option->name, $type->options()));
+        self::assertSame(['path' => '/sub/'], $type->settings(Input::parse(['--path=/sub/'], $type->options())));
+        self::assertSame([], $type->settings(Input::parse([], $type->options())));
     }
 }

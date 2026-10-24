@@ -95,6 +95,7 @@ final class FakeConnection implements Driver
 
     public function run(string $sql): void
     {
+        $this->log[] = $sql;
     }
 
     public function warnings(): array

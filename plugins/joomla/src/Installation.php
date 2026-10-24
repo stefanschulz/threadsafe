@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace ThreadSafe\Joomla;
 
+use ThreadSafe\Database\ServerInfo;
+
 /**
  * What the files of a directory say about a Joomla installation. Reads only; nothing is included or run.
  */
@@ -44,6 +46,28 @@ final class Installation
         $root = rtrim($root, '/\\');
 
         return is_file($root . '/configuration.php') && is_dir($root . '/administrator');
+    }
+
+    /**
+     * What the database server must be for this Joomla, as a sentence if it is not: Joomla 6 needs MariaDB 10.4 or MySQL 8.0.13 (from the
+     * project's requirements; a warning, not a refusal, because ThreadSafe cannot know every server's version string). Joomla 5 is
+     * content with what ThreadSafe itself needs.
+     */
+    public static function databaseProblem(int $major, ServerInfo $server): ?string
+    {
+        if ($major < 6 || $server->version === '') {
+            return null;
+        }
+        $minimum = match ($server->type) {
+            ServerInfo::MARIADB => '10.4.0',
+            ServerInfo::MYSQL => '8.0.13',
+            default => null,
+        };
+        if ($minimum === null || version_compare($server->version, $minimum, '>=')) {
+            return null;
+        }
+
+        return sprintf('Joomla 6 needs %s %s or newer; this server is %s %s.', $server->type === ServerInfo::MARIADB ? 'MariaDB' : 'MySQL', $minimum, $server->type === ServerInfo::MARIADB ? 'MariaDB' : 'MySQL', $server->version);
     }
 
     public static function configurationPath(string $root): string

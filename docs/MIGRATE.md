@@ -8,8 +8,8 @@ restore later, by Akeeba, by `tar` and `mariadb`, by hand) and makes it work whe
 path, with a new database, or – without any new address – again in the place it came from (disaster recovery). Without
 `--yes` it only plans and reports. MariaDB (from 10.2) or MySQL (from 5.7), PHP 8.4+.
 
-The **website type** (the first argument) says what ThreadSafe knows about the application. Two exist: `prestashop9` (this
-whole document, unless it says otherwise) and `generic` ([section 12](#12-the-generic-website-type)). Types are plugins in
+The **website type** (the first argument) says what ThreadSafe knows about the application. Three exist: `prestashop9` (this
+whole document, unless it says otherwise), `generic` ([section 12](#12-the-generic-website-type)) and `joomla` ([section 13](#13-the-joomla-website-type)). Types are plugins in
 `plugins/`; `threadsafe help migrate` lists the types and marks the options that belong to one of them.
 
 ## 1. Quick start
@@ -295,3 +295,27 @@ php bin/threadsafe migrate generic --root=/var/www/blog --from=blog.example --to
   prefix if `--prefix` is given). Bare host names stay unless you give `--replace-bare`.
 - Options of the PrestaShop type (`--ssl`, `--path`, `--mode` ...) are refused. Module rules and dev mode do not exist here.
 - The steps are `read-source-state`, `replace-content-domains` and `self-test`; report, journal and exit codes are as described above.
+
+## 13. The Joomla website type
+
+`migrate joomla` adapts a restored or copied **Joomla 5 or 6** site to its new host (the same steps run at the end of `restore` and in the
+`restore.php` wizard). Joomla stores its own address nowhere as one value, so **`--from` is required** with `--to`; a restore proposes one
+from the backup (the `live_site` of the site, else the host that its content points to most often).
+
+```bash
+php bin/threadsafe migrate joomla --root=/var/www/site --from=www.example.org --to=dev.example.test --path=/ \
+    --db-name=site_dev --db-user=site --db-password-file=/root/site.pw --self-test-url=http://127.0.0.1:8080 --yes
+```
+
+- The database values that are not given come from the site's `configuration.php`; the password is given as for any type.
+- `--path=/sub/` is the new base path (the directory of the domain the site lives in): it sets `RewriteBase` in `.htaccess` and follows
+  into `live_site`. It does not rewrite root-relative links in the content (`/old-dir/images/...`); links with a domain are replaced.
+- The steps, in order: `read-source-state` (a Joomla 5 or 6, a readable `configuration.php`, a reachable database whose tables have the
+  prefix), `ensure-skeleton` (makes `tmp`, `cache`, `administrator/cache`, `administrator/logs` with their `index.html` where they are
+  missing), `write-configuration` (the database, `dbtype`, `log_path`, `tmp_path`, `live_site`; nothing else of the file changes),
+  `replace-content-domains` (the generic replacement, in every text column except the sessions, the update cache and the big tables of
+  the search index), `rewrite-htaccess`, `discard-caches` (the files of the caches, the sessions, the update cache) and `self-test`
+  (the front page and `/administrator/` answer; the generator tag, if the site has one, says Joomla).
+- **`live_site`**: a stale value makes the front page redirect, so it follows the move, and it is **cleared** if it names a host that is
+  not part of the move. **`dbtype`**: `mysqli` or `pdomysql`, whichever this PHP has (a host often has only one of them).
+- Not done: a Joomla 4 or older, a database on PostgreSQL or reached through a socket, extension-specific rules, a dev mode.
