@@ -207,6 +207,21 @@ final class KernelTest extends TestCase
         self::assertFileDoesNotExist($this->data . '/setup-key.php');
     }
 
+    public function testTheHealthAddressAnswersToItsOwnTokenOnly(): void
+    {
+        $this->installed();
+        file_put_contents($this->data . '/health.json', (string) json_encode(['token' => 'a1b2c3', 'expires' => 4102444800]));
+
+        self::assertNotSame(200, $this->send('GET', '/health/wrong')->status, 'a wrong token gets what any address that is not there gets');
+        $answer = $this->send('GET', '/health/a1b2c3');
+
+        self::assertSame(200, $answer->status);
+        self::assertSame(['ok' => true, 'version' => Version::CURRENT], json_decode($answer->body, true));
+        self::assertSame('no-store', $answer->header('Cache-Control'));
+        self::assertNotSame(200, $this->send('GET', '/health/a1b2c3')->status, 'a token is used up by its answer');
+        self::assertNotSame(200, $this->send('POST', '/health/a1b2c3')->status);
+    }
+
     public function testWrongSetupKeysAreThrottled(): void
     {
         mkdir($this->data, 0700, true);

@@ -16,6 +16,7 @@ use ThreadSafe\Cli\ProfileCommand;
 use ThreadSafe\Cli\RestoreCommand;
 use ThreadSafe\Cli\RetentionCommand;
 use ThreadSafe\Cli\StreamOutput;
+use ThreadSafe\Cli\UpdateCommand;
 use ThreadSafe\Cli\VerifyCommand;
 
 // The PHP CGI binary ("php-cgi", often the only PHP 8 on shared hosting) runs scripts from a shell too, but defines no STDERR
@@ -37,7 +38,15 @@ if (!is_file($autoload)) {
 }
 require $autoload;
 
-$application = new Application([new MigrateCommand(), new ProfileCommand(), new BackupCommand(), new BackupsCommand(), new VerifyCommand(), new RestoreCommand(), new CronCommand(), new RetentionCommand(), new KeysCommand(), new AdminCommand(), new DoctorCommand()]);
+// the data directory is brought to the format of this release; data of a newer program is not touched (docs/PHASE7.md 3.6)
+try {
+    (new ThreadSafe\Update\Migrator(ThreadSafe\Update\Migrations::all()))->ensure(ThreadSafe\Core\Paths::data());
+} catch (ThreadSafe\Update\UpdateException $e) {
+    fwrite(defined('STDERR') ? STDERR : fopen('php://stderr', 'wb'), 'error: ' . $e->getMessage() . "\n");
+    exit(2);
+}
+
+$application = new Application([new MigrateCommand(), new ProfileCommand(), new BackupCommand(), new BackupsCommand(), new VerifyCommand(), new RestoreCommand(), new CronCommand(), new RetentionCommand(), new KeysCommand(), new AdminCommand(), new DoctorCommand(), new UpdateCommand()]);
 
 // The CGI binary hands over no $argv if register_argc_argv is off (php.ini-production does that): read the command line from the process then.
 $arguments = CommandLine::arguments($argv ?? null, defined('THREADSAFE_SCRIPT') ? (string) constant('THREADSAFE_SCRIPT') : __FILE__);

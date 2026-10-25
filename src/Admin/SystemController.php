@@ -23,10 +23,13 @@ use ThreadSafe\Web\Response;
 final class SystemController
 {
     /** The sections of the page: id => name. The first is the one that opens without `?tab=`. */
-    private const array TABS = ['general' => 'General', 'cron' => 'Cron', 'settings' => 'Settings', 'activity' => 'Activity'];
+    private const array TABS = ['general' => 'General', 'cron' => 'Cron', 'settings' => 'Settings', 'update' => 'Update', 'activity' => 'Activity'];
+
+    private readonly UpdateController $update;
 
     public function __construct(private readonly Services $services)
     {
+        $this->update = new UpdateController($services);
     }
 
     /**
@@ -119,6 +122,7 @@ final class SystemController
         $content = match ($tab) {
             'cron' => '<h2>Cron</h2>' . $this->cron($context),
             'settings' => '<h2>Settings</h2>' . $this->settings($context, $errors, $values),
+            'update' => '<h2>Update</h2>' . $this->update->section($context),
             'activity' => '<h2>Recent activity</h2>' . View::audit($this->services->audit->recent(50)),
             default => $this->general($context),
         };

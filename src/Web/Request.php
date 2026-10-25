@@ -14,6 +14,7 @@ final readonly class Request
      * @param array<string, string> $post    the POST fields (arrays are not accepted anywhere in the wizard and are dropped)
      * @param array<string, string> $cookies
      * @param array<string, string> $headers the request headers, names in lower case ("x-csrf-token")
+     * @param array<string, array{name: string, tmp_name: string, size: int, error: int}> $files the files of a multipart form, one per field
      */
     public function __construct(
         public string $method = 'GET',
@@ -24,6 +25,7 @@ final readonly class Request
         public string $remoteAddress = '',
         public string $path = '',
         public array $headers = [],
+        public array $files = [],
     ) {
     }
 
@@ -50,7 +52,27 @@ final readonly class Request
             (string) ($server['REMOTE_ADDR'] ?? ''),
             (string) (parse_url((string) ($server['REQUEST_URI'] ?? ''), PHP_URL_PATH) ?? ''),
             $headers,
+            self::uploads($_FILES),
         );
+    }
+
+    /**
+     * The single files of $_FILES (a field that holds several files is dropped, as arrays are everywhere else).
+     *
+     * @param array<mixed> $files
+     *
+     * @return array<string, array{name: string, tmp_name: string, size: int, error: int}>
+     */
+    private static function uploads(array $files): array
+    {
+        $uploads = [];
+        foreach ($files as $field => $file) {
+            if (is_array($file) && is_string($file['name'] ?? null) && is_string($file['tmp_name'] ?? null) && is_int($file['size'] ?? null) && is_int($file['error'] ?? null)) {
+                $uploads[(string) $field] = ['name' => $file['name'], 'tmp_name' => $file['tmp_name'], 'size' => $file['size'], 'error' => $file['error']];
+            }
+        }
+
+        return $uploads;
     }
 
     public function isPost(): bool

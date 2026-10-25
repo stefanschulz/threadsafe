@@ -7,7 +7,9 @@ namespace ThreadSafe\Admin;
 use Closure;
 use Throwable;
 use ThreadSafe\App\TriggerService;
+use ThreadSafe\Core\Version;
 use ThreadSafe\Schedule\CronSecret;
+use ThreadSafe\Update\HttpHealthCheck;
 use ThreadSafe\Web\Request;
 use ThreadSafe\Web\Response;
 use ThreadSafe\Web\StateDirectory;
@@ -68,6 +70,14 @@ final class Kernel
             $answer = $this->trigger($services, $request, $method, substr($route, strlen('/cron/')));
             if ($answer !== null) {
                 return $answer;
+            }
+        }
+
+        if ($method === 'GET' && str_starts_with($route, '/health/')) {
+            // the question of the update after the switch (docs/PHASE7.md 3.5): answered to its own token only, whether or not the interface is on
+            $answer = HttpHealthCheck::answer($this->data, substr($route, strlen('/health/')), Version::CURRENT, ($services->clock)());
+            if ($answer !== null) {
+                return Response::json($answer)->withHeader('Cache-Control: no-store');
             }
         }
 
@@ -177,6 +187,13 @@ final class Kernel
         $router->add('GET', '/system', $system->index(...));
         $router->add('POST', '/system/settings', $system->save(...));
         $router->add('POST', '/system/cron-secret', $system->cronSecret(...));
+        $update = new UpdateController($services);
+        $router->add('POST', '/system/update/upload', $update->upload(...));
+        $router->add('POST', '/system/update/start', $update->start(...));
+        $router->add('POST', '/system/update/tick', $update->tick(...));
+        $router->add('POST', '/system/update/retry', $update->retry(...));
+        $router->add('POST', '/system/update/discard', $update->discard(...));
+        $router->add('POST', '/system/update/rollback', $update->rollback(...));
         $router->add('GET', '/checks/{run}', $catalog->showCheck(...));
         $router->add('POST', '/checks/{run}/tick', $catalog->tickCheck(...));
         $router->add('POST', '/checks/{run}/continue', $catalog->nextCheck(...));

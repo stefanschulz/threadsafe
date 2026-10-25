@@ -6,6 +6,9 @@ namespace ThreadSafe\Admin;
 
 use ThreadSafe\Core\Paths;
 use ThreadSafe\Core\Version;
+use ThreadSafe\Update\Migrations;
+use ThreadSafe\Update\Migrator;
+use ThreadSafe\Update\UpdateException;
 use ThreadSafe\Web\Request;
 
 /**
@@ -25,6 +28,15 @@ final class Entry
         $asset = (new Assets(Paths::program() . '/public', Version::CURRENT, Paths::home() !== null))->answer($request, $base);
         if ($asset !== null) {
             $asset->send();
+
+            return;
+        }
+
+        // the first start of a new release brings the data to its format; data of a newer program is refused (docs/PHASE7.md 3.6)
+        try {
+            (new Migrator(Migrations::all()))->ensure(Paths::data());
+        } catch (UpdateException $e) {
+            View::error('The data was made by a newer ThreadSafe', $e->getMessage(), 500)->send();
 
             return;
         }

@@ -199,7 +199,7 @@ What `restore.php` then does, what it checks and refuses, and how to read its me
 
 ### The System page
 
-The page has four **sections**, side by side under the title; one is shown at a time. They are links (`/system`, `/system?tab=cron`, `/system?tab=settings`, `/system?tab=activity`), so the choice is in the address and works without script.
+The page has five **sections**, side by side under the title; one is shown at a time. They are links (`/system`, `/system?tab=cron`, `/system?tab=settings`, `/system?tab=update`, `/system?tab=activity`), so the choice is in the address and works without script.
 
 **General** - what is known about the installation:
 
@@ -211,7 +211,22 @@ The page has four **sections**, side by side under the title; one is shown at a 
 
 **Settings** - the form of the next chapter (after saving you come back to it).
 
+**Update** - for an installation from a release (made by the installer, `install.php`): the installed version, the upload of a newer package with the SHA-256 from its release page, the update in steps with a progress bar, and a button that goes back to the previous release. See the next chapter. An installation from a clone is told to use `git pull` and `composer install`.
+
 **Activity** - the audit log, the last 50 events; the button *See more* under the last five events on the dashboard leads straight to it (`/system?tab=activity`).
+
+### Updating
+
+The update never looks for anything on its own: ThreadSafe makes no request to find a new version. You download `threadsafe-X.Y.Z.zip` and note its SHA-256 from the release page, then on *System → Update* upload the file and type the SHA-256 (a file larger than the upload limit of the host, or put there by FTP, goes into `data/updates/` and is offered in a list). The same on the command line: `php <home>/bin/threadsafe update threadsafe-X.Y.Z.zip --sha256=<hash> --url=https://example.org/threadsafe`.
+
+What happens, in this order, and what stays untouched until the step before it has passed:
+
+1. **Check.** The SHA-256 of the file must be the one you gave (otherwise nothing is installed); the manifest `release.json` must be readable; the version must be newer (an older one only if you tick the box); the data directory must not be of a newer format than the package writes; this host must meet the requirements of the package (PHP, extensions). Nothing has changed.
+2. **Unpack** into `releases/X.Y.Z.partial/` beside the running release, every file checked against its hash in the manifest. The running program is not touched.
+3. **Switch**, once nothing is running (no backup, check or trigger; the update waits, it never interrupts): a copy of the small state files (profiles, configuration, schedule, retention state, administrator) goes to `data/update-backup/`, the release gets its name, and the pointer `current.php` is rewritten. Then the **health check**: ThreadSafe asks its own address for a page that only the new version can answer, with a token it has just stored. If the new version does not answer, or answers as another version, **the pointer and the state files are put back** and the page says what happened. The new version migrates the data at its first start (the health check is that start). A host whose PHP may not make a request to its own address (`allow_url_fopen` off) cannot be checked; the page says so, and says how to go back.
+4. **After.** The previous release stays for a roll-back (the button *Go back*, or `update --rollback`; the data is not touched, because a release reads the data of the one before it); older releases are removed. The audit log has `update.applied` or `update.rolled_back`. Make a new `restore.php` from the page *Restore*, so that your copy of it is the new version.
+
+If the web interface itself cannot start after an update and the health check was skipped, go back by hand: write the name of the previous release into `current.php` (the second line is JSON: `{"release":"0.1.0","previous":null}`), or run `php <home>/releases/<previous>/bin/threadsafe update --rollback`.
 
 ### Settings
 
