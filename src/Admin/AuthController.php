@@ -111,6 +111,10 @@ final class AuthController
     public function setup(Context $context, array $params = []): Response
     {
         $request = $context->request;
+        // the installer hands over with the key only (in the body of a request, never in an address): the form comes back with the key filled in
+        if ($request->post('key') !== null && $request->post('password') === null) {
+            return $this->setupForm($context, '', 200, (string) $request->post('key'));
+        }
         if (self::plainHttp($context) && $request->post('plain') !== '1') {
             return $this->setupForm($context, 'Confirm that you accept the unencrypted connection, or use https.', 403);
         }
@@ -187,12 +191,14 @@ final class AuthController
         return View::bare($context, 'Log in', View::form($context, '/login', $inner), $status);
     }
 
-    private function setupForm(Context $context, string $error, int $status): Response
+    private function setupForm(Context $context, string $error, int $status, string $key = ''): Response
     {
         $keyFile = Html::e(basename($this->services->setupKeyFile()));
         $inner = ($error !== '' ? '<p class="flash error" role="alert">' . Html::e($error) . '</p>' : '')
             . '<p>Choose the password of the administrator. The key is the secret in <code>' . $keyFile . '</code> in the data directory.</p>'
-            . View::field('key', 'Key from ' . basename($this->services->setupKeyFile()), 'password', '', ['autocomplete' => 'off', 'required' => 'required'])
+            . ($key !== ''
+                ? '<input type="hidden" name="key" value="' . Html::e($key) . '"><p class="hint">The key from the installer is filled in.</p>'
+                : View::field('key', 'Key from ' . basename($this->services->setupKeyFile()), 'password', '', ['autocomplete' => 'off', 'required' => 'required']))
             . View::field('password', 'New password (at least ' . AdminStore::MIN_PASSWORD_LENGTH . ' characters)', 'password', '', ['autocomplete' => 'new-password', 'required' => 'required'])
             . View::field('repeat', 'The password again', 'password', '', ['autocomplete' => 'new-password', 'required' => 'required'])
             . $this->plainWarning($context) . '<button type="submit">Set up</button>';

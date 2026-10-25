@@ -165,7 +165,7 @@ docker compose --profile tools run --rm tools composer install
 docker compose --profile tools run --rm tools composer check   # lint, PHPStan (level 8), unit tests
 ```
 
-A release package (`threadsafe-X.Y.Z.zip` with its `SHA256SUMS`, reproducible, no Composer needed on the host) is built with `php tools/build-release.php --version=X.Y.Z` (needs Composer; plan: [docs/PHASE7.md](docs/PHASE7.md)).
+A release (`threadsafe-X.Y.Z.zip`, the web installer `install.php` that holds the same package, and `SHA256SUMS`; reproducible, no Composer needed on the host) is built with `php tools/build-release.php --version=X.Y.Z` (needs Composer; plan: [docs/PHASE7.md](docs/PHASE7.md)). The installer is for a host with FTP and a browser: upload `install.php`, put an `install-key.php` next to it (`<?php return 'a secret you choose';`), open it.
 
 Single steps: `composer lint`, `composer stan`, `composer test`. The checks are meant to run in this container (PHP 8.4); a host PHP without the database drivers or of another version gives false failures. Integration tests (`tests/Integration`) run against Docker stacks: `tests/stack/run.sh` seeds the source shop, clones it into an isolated target stack and runs them (see [tests/stack/README.md](tests/stack/README.md) and [docs/PHASE1.md](docs/PHASE1.md)). All code, comments and documentation are written in English.
 

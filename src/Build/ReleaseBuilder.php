@@ -193,7 +193,7 @@ final class ReleaseBuilder
     /** `threadsafe-0.1.0/` */
     public static function topDirectory(string $version): string
     {
-        return 'threadsafe-' . $version . '/';
+        return ReleaseManifest::topDirectory($version);
     }
 
     /** `threadsafe-0.1.0.zip` */

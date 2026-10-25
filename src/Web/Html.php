@@ -20,24 +20,26 @@ final class Html
     }
 
     /**
-     * @param string|null $step the current step (a key of {@see STEPS}) for the step list, null on the pages around the steps
+     * @param string|null          $step  the current step (a key of $steps) for the step list, null on the pages around the steps
+     * @param string               $name  what the page belongs to ("restore", "installer"): the heading and the title
+     * @param array<string, string> $steps the steps by key and label; default: those of the restore wizard
      */
-    public static function page(string $title, string $body, string $nonce, ?string $step = null, string $script = ''): string
+    public static function page(string $title, string $body, string $nonce, ?string $step = null, string $script = '', string $name = 'restore', array $steps = self::STEPS): string
     {
-        $steps = '';
+        $list = '';
         if ($step !== null) {
-            foreach (self::STEPS as $key => $label) {
+            foreach ($steps as $key => $label) {
                 $class = $key === $step ? ' class="current"' : '';
-                $steps .= '<li' . $class . '>' . self::e($label) . '</li>';
+                $list .= '<li' . $class . '>' . self::e($label) . '</li>';
             }
-            $steps = '<ol class="steps">' . $steps . '</ol>';
+            $list = '<ol class="steps">' . $list . '</ol>';
         }
         $scriptTag = $script === '' ? '' : '<script nonce="' . self::e($nonce) . '">' . $script . '</script>';
 
         return '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
-            . '<meta name="robots" content="noindex, nofollow"><title>' . self::e($title) . ' - ThreadSafe restore</title>'
+            . '<meta name="robots" content="noindex, nofollow"><title>' . self::e($title) . ' - ThreadSafe ' . self::e($name) . '</title>'
             . '<style nonce="' . self::e($nonce) . '">' . self::css() . '</style></head><body><main>'
-            . '<h1>ThreadSafe restore</h1>' . $steps . '<h2>' . self::e($title) . '</h2>' . $body . '</main>' . $scriptTag . '</body></html>';
+            . '<h1>ThreadSafe ' . self::e($name) . '</h1>' . $list . '<h2>' . self::e($title) . '</h2>' . $body . '</main>' . $scriptTag . '</body></html>';
     }
 
     /**

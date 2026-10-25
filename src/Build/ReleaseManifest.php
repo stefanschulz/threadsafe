@@ -120,6 +120,12 @@ final readonly class ReleaseManifest
         return new self($version, $built, $php, $extensions, $dataFormat, $files);
     }
 
+    /** `threadsafe-0.1.0/`: the top directory of a package of this version. */
+    public static function topDirectory(string $version): string
+    {
+        return 'threadsafe-' . $version . '/';
+    }
+
     /** A path that stays inside the directory it is relative to. */
     public static function safePath(string $path): bool
     {

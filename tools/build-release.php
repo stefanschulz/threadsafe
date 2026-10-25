@@ -1,7 +1,8 @@
 <?php
 
 /**
- * Builds the release package (docs/PHASE7.md 3.1): threadsafe-X.Y.Z.zip and the file of checksums SHA256SUMS.
+ * Builds the release (docs/PHASE7.md 3.1): threadsafe-X.Y.Z.zip, the web installer install.php (the same package behind a stub) and the
+ * file of checksums SHA256SUMS.
  *
  *   php tools/build-release.php [--version=X.Y.Z] [--output=DIR] [--keep] [--composer=PATH]
  *
@@ -17,6 +18,7 @@
 declare(strict_types=1);
 
 use ThreadSafe\Archive\ZipReader;
+use ThreadSafe\Build\InstallBuilder;
 use ThreadSafe\Build\ReleaseBuilder;
 use ThreadSafe\Build\ReleaseManifest;
 use ThreadSafe\Core\Version;
@@ -92,7 +94,16 @@ try {
         throw new RuntimeException("The package does not match its manifest:\n  " . implode("\n  ", $problems));
     }
 
-    $sums = ReleaseBuilder::checksums([ReleaseBuilder::packageName($version) => $zipPath]);
+    // the installer: built from the tree the package was made from, so that its code and the package's code are the same
+    $installPath = rtrim($output, '/') . '/install.php';
+    (new InstallBuilder($stage))->build($installPath, $zipPath, $version);
+    $installed = ZipReader::open($installPath);
+    $installFirst = $installed->entries()->current();
+    if ($installFirst->name !== $top . ReleaseManifest::FILE || ReleaseManifest::fromJson($installed->contents($installFirst))->problems($installed, $top) !== []) {
+        throw new RuntimeException('install.php does not hold the package it was built with.');
+    }
+
+    $sums = ReleaseBuilder::checksums([ReleaseBuilder::packageName($version) => $zipPath, 'install.php' => $installPath]);
     file_put_contents(rtrim($output, '/') . '/SHA256SUMS', $sums);
 } catch (RuntimeException $e) {
     fwrite(STDERR, 'error: ' . $e->getMessage() . "\n");
@@ -107,5 +118,6 @@ if ($options['keep']) {
 } else {
     $remove($stage);
 }
-printf("%s: %d files, %.2f MB, %s (built %s)\n", ReleaseBuilder::packageName($version), count($manifest->files) + 1, filesize($zipPath) / 1048576, substr($sums, 0, 12) . '...', gmdate('Y-m-d H:i:s', $epoch) . ' UTC');
+@chmod($zipPath, 0644);
+printf("%s: %d files, %.2f MB; install.php: %.2f MB (built %s)\n", ReleaseBuilder::packageName($version), count($manifest->files) + 1, filesize($zipPath) / 1048576, filesize($installPath) / 1048576, gmdate('Y-m-d H:i:s', $epoch) . ' UTC');
 echo $sums;

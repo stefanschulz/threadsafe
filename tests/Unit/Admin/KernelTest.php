@@ -187,6 +187,26 @@ final class KernelTest extends TestCase
         self::assertSame('setup', (new AuditLog($this->data . '/audit.log'))->recent(1)[0]['event'] ?? null);
     }
 
+    public function testTheInstallerHandsOverWithTheKeyAloneAndTheFormComesBackWithItFilledIn(): void
+    {
+        mkdir($this->data, 0700, true);
+        file_put_contents($this->data . '/setup-key.php', "<?php return 'a secret to open it';");
+
+        $page = $this->send('POST', '/setup', ['key' => 'a secret to open it']);
+
+        self::assertSame(200, $page->status);
+        self::assertStringContainsString('<input type="hidden" name="key" value="a secret to open it">', $page->body);
+        self::assertStringContainsString('The key from the installer is filled in', $page->body);
+        self::assertStringNotContainsString('class="flash error"', $page->body, 'no complaint about the password that is not there yet');
+        self::assertStringNotContainsString('type="password" required', $page->body);
+        self::assertFileExists($this->data . '/setup-key.php', 'the key is not spent by showing the form');
+        self::assertFileDoesNotExist($this->data . '/admin.json', 'and nothing was set up');
+
+        $done = $this->send('POST', '/setup', ['key' => 'a secret to open it', 'password' => 'a long new password', 'repeat' => 'a long new password']);
+        self::assertSame(200, $done->status);
+        self::assertFileDoesNotExist($this->data . '/setup-key.php');
+    }
+
     public function testWrongSetupKeysAreThrottled(): void
     {
         mkdir($this->data, 0700, true);
