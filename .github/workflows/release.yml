@@ -1,0 +1,117 @@
+name: Release
+
+# A pushed tag vX.Y.Z builds the release (docs/PHASE7.md 3.7): the checks, the files, a test of the built files on a clean PHP without Composer,
+# and only then the GitHub release. The files people download are the ones this workflow made. Nothing is published if one step fails.
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Check and build
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: The tag, the version and the notes
+        id: version
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          if ! [[ "$TAG" =~ ^v([0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?)$ ]]; then
+            echo "::error::The tag $TAG is not of the form vX.Y.Z (or vX.Y.Z-suffix)."
+            exit 1
+          fi
+          VERSION="${BASH_REMATCH[1]}"
+          # the notes of the release are the section "## [X.Y.Z]" of CHANGELOG.md; without them there is no release
+          awk -v v="$VERSION" 'index($0, "## [" v "]") == 1 { found = 1; next } found && /^## \[/ { exit } found { print }' CHANGELOG.md > release-notes.md
+          if ! grep -q '[^[:space:]]' release-notes.md; then
+            echo "::error::CHANGELOG.md has no section '## [$VERSION]' with notes."
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: mbstring, pdo, sodium
+          coverage: none
+          tools: composer:v2
+
+      - name: Install dependencies
+        run: composer install --no-interaction --no-progress --prefer-dist
+
+      - name: The checks
+        run: composer check
+
+      - name: Build the release
+        run: php tools/build-release.php --version="${{ steps.version.outputs.version }}" --output=dist/release
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release
+          path: |
+            dist/release/threadsafe-*.zip
+            dist/release/install.php
+            dist/release/restore.php
+            dist/release/SHA256SUMS
+            release-notes.md
+          if-no-files-found: error
+
+  smoke:
+    name: Test the built files on a clean PHP
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      # only the test script comes from the repository; the program under test is the built files
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: tools/test-release.php
+          sparse-checkout-cone-mode: false
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: mbstring, pdo, sodium
+          coverage: none
+          tools: none
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: release
+          path: release
+
+      - name: Test the built files (no Composer, no vendor/, no source tree)
+        run: php tools/test-release.php release/dist/release "${{ needs.build.outputs.version }}"
+
+  publish:
+    name: Publish the GitHub release
+    needs: [build, smoke]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: release
+          path: release
+
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          # a version below 1.0.0, or with a suffix, is a pre-release
+          PRE=""
+          if [[ "$VERSION" == 0.* || "$VERSION" == *-* ]]; then PRE="--prerelease"; fi
+          gh release create "$GITHUB_REF_NAME" \
+            release/dist/release/threadsafe-"$VERSION".zip \
+            release/dist/release/install.php \
+            release/dist/release/restore.php \
+            release/dist/release/SHA256SUMS \
+            --repo "$GITHUB_REPOSITORY" --title "ThreadSafe $VERSION" --notes-file release/release-notes.md --verify-tag $PRE

@@ -23,7 +23,11 @@ final class RestoreBuilder
 {
     private readonly string $root;
 
-    public function __construct(string $root)
+    /**
+     * @param string|null $version the version the tool says it is (the header of the file); default: the one of the running code. A release
+     *                             builds the tool from its staged tree, whose Version.php is stamped, with that version.
+     */
+    public function __construct(string $root, private readonly ?string $version = null)
     {
         $this->root = rtrim(str_replace('\\', '/', $root), '/');
     }
@@ -97,7 +101,7 @@ final class RestoreBuilder
         if (!is_dir($directory) && !@mkdir($directory, 0777, true) && !is_dir($directory)) {
             throw new RuntimeException("Cannot create the directory \"$directory\".");
         }
-        $file = RestoreStub::source(Version::CURRENT) . $deflated;
+        $file = RestoreStub::source($this->version ?? Version::CURRENT) . $deflated;
         if (@file_put_contents($output, $file) === false) {
             throw new RuntimeException("Cannot write \"$output\".");
         }

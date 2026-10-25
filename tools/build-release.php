@@ -21,6 +21,7 @@ use ThreadSafe\Archive\ZipReader;
 use ThreadSafe\Build\InstallBuilder;
 use ThreadSafe\Build\ReleaseBuilder;
 use ThreadSafe\Build\ReleaseManifest;
+use ThreadSafe\Build\RestoreBuilder;
 use ThreadSafe\Core\Version;
 
 require dirname(__DIR__) . '/vendor/autoload.php';
@@ -103,7 +104,11 @@ try {
         throw new RuntimeException('install.php does not hold the package it was built with.');
     }
 
-    $sums = ReleaseBuilder::checksums([ReleaseBuilder::packageName($version) => $zipPath, 'install.php' => $installPath]);
+    // the generic restore tool of this version, built from the same tree (its Version.php is the stamped one)
+    $restorePath = rtrim($output, '/') . '/restore.php';
+    (new RestoreBuilder($stage, $version))->build($restorePath);
+
+    $sums = ReleaseBuilder::checksums([ReleaseBuilder::packageName($version) => $zipPath, 'install.php' => $installPath, 'restore.php' => $restorePath]);
     file_put_contents(rtrim($output, '/') . '/SHA256SUMS', $sums);
 } catch (RuntimeException $e) {
     fwrite(STDERR, 'error: ' . $e->getMessage() . "\n");
@@ -119,5 +124,5 @@ if ($options['keep']) {
     $remove($stage);
 }
 @chmod($zipPath, 0644);
-printf("%s: %d files, %.2f MB; install.php: %.2f MB (built %s)\n", ReleaseBuilder::packageName($version), count($manifest->files) + 1, filesize($zipPath) / 1048576, filesize($installPath) / 1048576, gmdate('Y-m-d H:i:s', $epoch) . ' UTC');
+printf("%s: %d files, %.2f MB; install.php: %.2f MB; restore.php: %d KB (built %s)\n", ReleaseBuilder::packageName($version), count($manifest->files) + 1, filesize($zipPath) / 1048576, filesize($installPath) / 1048576, filesize($restorePath) / 1024, gmdate('Y-m-d H:i:s', $epoch) . ' UTC');
 echo $sums;
