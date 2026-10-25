@@ -9,7 +9,8 @@
  *   --version   the version to stamp (a leading "v" is dropped, so a tag can be passed as it is); default: the one in the source
  *   --output    where the files go (default: dist/release)
  *   --keep      keep the staging directory (it holds the tree the package was made from)
- *   --composer  the Composer command (default: composer)
+ *   --composer  the Composer command (default: composer): a name on the PATH, the path of a file, or a whole command line such as
+ *               "php C:	ools\composer.phar"
  *
  * The time of every file is SOURCE_DATE_EPOCH, else the time of the last commit, else now: two builds of one commit give one checksum.
  * The build copies the program to a staging directory, stamps the version into the copy, runs `composer install --no-dev
@@ -49,7 +50,7 @@ $output = $options['output'] ?? $root . '/dist/release';
 $epoch = getenv('SOURCE_DATE_EPOCH');
 if ($epoch === false || $epoch === '' || !ctype_digit($epoch)) {
     $commit = [];
-    exec('git -C ' . escapeshellarg($root) . ' log -1 --format=%ct 2>/dev/null', $commit, $code);
+    exec('git -C ' . escapeshellarg($root) . ' log -1 --format=%ct ' . (DIRECTORY_SEPARATOR === '\\' ? '2>NUL' : '2>/dev/null'), $commit, $code);
     $epoch = $code === 0 && isset($commit[0]) && ctype_digit($commit[0]) ? $commit[0] : (string) time();
 }
 $epoch = (int) $epoch;
@@ -73,7 +74,9 @@ try {
     $builder->stage($stage, $version);
 
     $composer = $options['composer'] ?? 'composer';
-    $command = escapeshellarg($composer) . ' install --no-dev --optimize-autoloader --no-interaction --no-progress --no-scripts --working-dir=' . escapeshellarg($stage) . ' 2>&1';
+    // A file is quoted; a bare name or a command line is used as it is. cmd.exe runs a quoted "composer" (composer.bat) with the wrong %~dp0 and
+    // looks for composer.phar in the current directory.
+    $command = (is_file($composer) ? escapeshellarg($composer) : $composer) . ' install --no-dev --optimize-autoloader --no-interaction --no-progress --no-scripts --working-dir=' . escapeshellarg($stage) . ' 2>&1';
     $lines = [];
     exec($command, $lines, $code);
     if ($code !== 0) {

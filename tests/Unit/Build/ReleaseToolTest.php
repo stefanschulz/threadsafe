@@ -64,6 +64,14 @@ final class ReleaseToolTest extends TestCase
         self::assertStringContainsString('not a valid version', $output);
     }
 
+    public function testTheComposerOptionIsACommandLineAsWellAsAFile(): void
+    {
+        // a command line with a space in it is used as it is (a quoted "php composer.phar" would not be a command); its failure is reported
+        [$code, $output] = $this->shell(escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg(dirname(__DIR__, 3) . '/tools/build-release.php') . ' --version=1.0.0 --output=' . escapeshellarg($this->tempDirectory()) . ' ' . escapeshellarg('--composer=' . PHP_BINARY . ' -r "exit(3);" --'));
+
+        self::assertSame(1, $code);
+        self::assertStringContainsString('Composer failed (exit 3)', $output);
+    }
     public function testAnUnknownArgumentIsRefused(): void
     {
         [$code, $output] = $this->shell(escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg(dirname(__DIR__, 3) . '/tools/build-release.php') . ' --publish');

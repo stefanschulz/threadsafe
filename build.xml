@@ -8,7 +8,8 @@
 
     vendor/bin/phing                          build 0.0.0-dev into dist/release (a package for trying out)
     vendor/bin/phing -Dversion=0.1.0          build version 0.1.0 (a leading "v" is dropped)
-    vendor/bin/phing verify -Dversion=0.1.0   build, then test the built files as the workflow does
+    vendor/bin/phing verify -Dversion=0.1.0   build, then test the built files as the workflow does (needs a POSIX shell and unzip:
+                                              Linux, macOS or the Docker tools container, not Windows)
     vendor/bin/phing -l                       list the targets
 
   Properties (-Dname=value): version (default 0.0.0-dev), output (default dist/release), composer (default composer; the build runs

@@ -17,6 +17,10 @@ if ($argc < 3) {
     fwrite(STDERR, "usage: php tools/test-release.php <directory with the release files> <version>\n");
     exit(2);
 }
+if (DIRECTORY_SEPARATOR === '\\') {
+    fwrite(STDERR, "This test runs PHP code through the shell and needs unzip: run it on Linux or macOS, or in the Docker tools container.\n");
+    exit(2);
+}
 $dir = rtrim(str_replace('\\', '/', $argv[1]), '/');
 $version = ltrim($argv[2], 'v');
 $failures = [];
