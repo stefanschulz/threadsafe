@@ -26,6 +26,9 @@ tests/stack/run.sh            # seed → clone → PHPUnit phase 1 (incl. the mi
                               # Apache under limits of 5 seconds and 64 MB, brings the shop back)
                               # → phase 6 (group `joomla`: two seeded Joomla sites, Joomla 5.4 and 6, backed up and restored on another domain, into a sub-directory and through
                               # the wizard; `seed-joomla.sh` starts and seeds them, `docs/PHASE6.md` 4.2)
+                              # → phase 7 (group `fresh`: the service `fresh`, Apache and PHP 8.4 with nothing on it and limits of 5 s / 64 MB; the releases are built
+                              # by `tools/build-release.php`, `install.php` installs through the browser interface, the System page updates, a version that cannot
+                              # start is taken back; no database needed, `docs/PHASE7.md` 4.2)
 tests/stack/cross.sh          # backups across the two kinds of database server (MySQL 8.4 -> MariaDB and back), needs the source seeded on both
 ```
 

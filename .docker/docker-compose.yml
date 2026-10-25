@@ -118,6 +118,20 @@ services:
       db:
         condition: service_healthy
 
+  # A host with nothing on it (profile "fresh"; docs/PHASE7.md 4.2): Apache and PHP 8.4 of the shop image, and no Composer, no repository, no
+  # ThreadSafe. The tests put the built install.php and a key file into /var/www/html (the tools container mounts the volume as /shops/fresh)
+  # and install and update ThreadSafe through the browser interface only. /var/www is writable for PHP so that the home can go next to the
+  # document root; the limits are those of a modest shared host: 5 seconds and 64 MB, for every request.
+  fresh:
+    profiles: ["fresh"]
+    image: prestashop/prestashop:${PS_TAG:-9.0.2-apache}
+    command: ["sh", "-c", "a2enmod -q headers rewrite && chown www-data:www-data /var/www && exec apache2-foreground"]
+    ports:
+      - "${FRESH_PORT:-8490}:80"
+    volumes:
+      - fresh_www:/var/www
+      - ./fresh-limits.conf:/etc/apache2/conf-enabled/threadsafe-fresh-limits.conf:ro
+
   # Two Joomla sites to back up (profile "joomla"; docs/PHASE6.md 4.2): Joomla 5.4 (the images of 5 stop at PHP 8.3) and Joomla 6 (PHP 8.4), each
   # with a database of its own on the `db` service, installed by the image's own installer on the first start (tests/stack/seed-joomla.sh
   # makes the databases first and seeds the sites). Their files are mounted into the tools container to be backed up, read-only.
@@ -176,6 +190,8 @@ services:
       # the Joomla sites (profile "joomla")
       - joomla5_data:/joomla5:ro
       - joomla6_data:/joomla6:ro
+      # the host with nothing on it (profile "fresh"): its /var/www
+      - fresh_www:/shops/fresh
     depends_on:
       db:
         condition: service_healthy
@@ -200,6 +216,9 @@ volumes:
     name: threadsafe-dev_web_data${VOLUME_SUFFIX:-}
   web_storage:
     name: threadsafe-dev_web_storage${VOLUME_SUFFIX:-}
+  # no database behind it, so it does not change with the server variant
+  fresh_www:
+    name: threadsafe-dev_fresh_www
   joomla5_data:
     name: threadsafe-dev_joomla5_data${VOLUME_SUFFIX:-}
   joomla6_data:

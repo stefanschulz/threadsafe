@@ -28,6 +28,11 @@
 #      .htaccess follows, the web service API answers there), and through the restore.php wizard under 5 s / 64 MB; the restored sites
 #      serve, their content points to the new domain and to nothing of the old one, and their configuration fits the host. It wipes the target.
 #
+#   9. phase seven: the installer and the update (group "fresh", the service `fresh`: Apache and PHP 8.4 with nothing on it, limits of 5 s / 64 MB; no database):
+#      the releases are built by tools/build-release.php, install.php installs one through the browser interface (both layouts), the update
+#      switches to the next one through the System page with a real health check, a version that cannot start is taken back, and what is not
+#      right (checksum, file, host, a backup running) is refused. It needs no stack of the other phases and leaves them alone.
+#
 #   tests/stack/run.sh [phpunit arguments]
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
@@ -40,7 +45,7 @@ phpunit() {
 }
 
 log "Integration tests, phase 1: baseline, steps, migration of the clone"
-phpunit --exclude-group after-migration --exclude-group dev-migration --exclude-group backup-roundtrip --exclude-group disaster-prepare --exclude-group disaster-restore --exclude-group cross-server --exclude-group restore-variant --exclude-group web-ui --exclude-group trigger --exclude-group encryption --exclude-group joomla "$@"
+phpunit --exclude-group after-migration --exclude-group dev-migration --exclude-group backup-roundtrip --exclude-group disaster-prepare --exclude-group disaster-restore --exclude-group cross-server --exclude-group restore-variant --exclude-group web-ui --exclude-group trigger --exclude-group encryption --exclude-group joomla --exclude-group fresh "$@"
 
 "$STACK_DIR/oracle.sh" target
 
@@ -81,3 +86,8 @@ phpunit --group disaster-restore "$@"
 log "Integration tests, phase 6: Joomla 5 and 6 (backup, restore on another domain, into a sub-directory, through the wizard under 5 s / 64 MB)"
 "$STACK_DIR/seed-joomla.sh"
 phpunit --group joomla "$@"
+
+log "Integration tests, phase 7: the installer and the update on a host with nothing on it (Apache, 5 s / 64 MB)"
+dc up -d fresh >/dev/null
+wait_http "http://localhost:${FRESH_PORT:-8490}/" "localhost" 120
+phpunit --group fresh "$@"
