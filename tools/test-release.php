@@ -98,6 +98,9 @@ if (is_file("$tree/release.json")) {
         }
     }
     $check('every file matches release.json', $bad === [] && count((array) ($manifest['files'] ?? [])) > 300, implode(', ', array_slice($bad, 0, 5)));
+    foreach (['INSTALL.md', 'CHANGELOG.md', 'LICENSE', 'docs/WEB.md'] as $present) {
+        $check("the package has $present", is_file("$tree/$present"));
+    }
     foreach (['tests', 'tools', '.docker', '.github', 'composer.lock'] as $absent) {
         $check("the package has no $absent", !file_exists("$tree/$absent"));
     }

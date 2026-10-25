@@ -15,7 +15,9 @@ How it was designed and built, and the measurements behind it: [PHASE4.md](PHASE
 
 ## Installing
 
-ThreadSafe is a directory (a clone of the repository, or an archive) with PHP 8.4 or newer and `composer install --no-dev` run once. The extensions `zlib`, `hash`, `json` and `mbstring` are needed, and `pdo_mysql` or `mysqli` for sites with a database; `sodium` only if backups are to be encrypted (it is a suggestion in `composer.json`, not a requirement, so that a host without it can still install and use everything else). The **System** page (below) tells you what your server lacks.
+**[INSTALL.md](../INSTALL.md) is the guide**: the web installer `install.php` for a host with FTP and a browser (it makes the layout below by itself), the package unpacked by hand, and a clone. This chapter is the reference for the pieces: where the web server points, and the data directory. An installation made by the installer has the home (program in `releases/<version>/`, `data/`, `bin/threadsafe`, the pointer `current.php`) next to the document root, which holds only a stub `index.php` and an `.htaccess`; the chapter [Updating](#updating) is for such installations.
+
+The rest of this chapter is about a directory (a clone of the repository, or an unpacked package) with PHP 8.4 or newer and, for a clone, `composer install --no-dev` run once. The extensions `zlib`, `hash`, `json` and `mbstring` are needed, and `pdo_mysql` or `mysqli` for sites with a database; `sodium` only if backups are to be encrypted (it is a suggestion in `composer.json`, not a requirement, so that a host without it can still install and use everything else). The **System** page (below) tells you what your server lacks.
 
 ### Where the web server points
 
