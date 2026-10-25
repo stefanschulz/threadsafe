@@ -9,6 +9,7 @@ use ThreadSafe\Cli\BackupCommand;
 use ThreadSafe\Cli\BackupsCommand;
 use ThreadSafe\Cli\CommandLine;
 use ThreadSafe\Cli\CronCommand;
+use ThreadSafe\Cli\DoctorCommand;
 use ThreadSafe\Cli\KeysCommand;
 use ThreadSafe\Cli\MigrateCommand;
 use ThreadSafe\Cli\ProfileCommand;
@@ -36,7 +37,7 @@ if (!is_file($autoload)) {
 }
 require $autoload;
 
-$application = new Application([new MigrateCommand(), new ProfileCommand(), new BackupCommand(), new BackupsCommand(), new VerifyCommand(), new RestoreCommand(), new CronCommand(), new RetentionCommand(), new KeysCommand(), new AdminCommand()]);
+$application = new Application([new MigrateCommand(), new ProfileCommand(), new BackupCommand(), new BackupsCommand(), new VerifyCommand(), new RestoreCommand(), new CronCommand(), new RetentionCommand(), new KeysCommand(), new AdminCommand(), new DoctorCommand()]);
 
 // The CGI binary hands over no $argv if register_argc_argv is off (php.ini-production does that): read the command line from the process then.
 $arguments = CommandLine::arguments($argv ?? null, defined('THREADSAFE_SCRIPT') ? (string) constant('THREADSAFE_SCRIPT') : __FILE__);
