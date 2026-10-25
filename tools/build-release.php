@@ -1,0 +1,111 @@
+<?php
+
+/**
+ * Builds the release package (docs/PHASE7.md 3.1): threadsafe-X.Y.Z.zip and the file of checksums SHA256SUMS.
+ *
+ *   php tools/build-release.php [--version=X.Y.Z] [--output=DIR] [--keep] [--composer=PATH]
+ *
+ *   --version   the version to stamp (a leading "v" is dropped, so a tag can be passed as it is); default: the one in the source
+ *   --output    where the files go (default: dist/release)
+ *   --keep      keep the staging directory (it holds the tree the package was made from)
+ *   --composer  the Composer command (default: composer)
+ *
+ * The time of every file is SOURCE_DATE_EPOCH, else the time of the last commit, else now: two builds of one commit give one checksum.
+ * The build copies the program to a staging directory, stamps the version into the copy, runs `composer install --no-dev
+ * --optimize-autoloader` there (the package needs no Composer on the host), writes the package and checks it against its own manifest.
+ */
+declare(strict_types=1);
+
+use ThreadSafe\Archive\ZipReader;
+use ThreadSafe\Build\ReleaseBuilder;
+use ThreadSafe\Build\ReleaseManifest;
+use ThreadSafe\Core\Version;
+
+require dirname(__DIR__) . '/vendor/autoload.php';
+
+$options = ['keep' => false];
+foreach (array_slice($argv, 1) as $argument) {
+    if ($argument === '--keep') {
+        $options['keep'] = true;
+    } elseif (preg_match('/^--(version|output|composer)=(.+)$/', $argument, $m) === 1) {
+        $options[$m[1]] = $m[2];
+    } else {
+        fwrite(STDERR, "error: unknown argument \"$argument\"\n");
+        exit(1);
+    }
+}
+
+$root = dirname(__DIR__);
+$version = ltrim((string) ($options['version'] ?? Version::CURRENT), 'v');
+if (!Version::isValid($version)) {
+    fwrite(STDERR, "error: \"$version\" is not a valid version (X.Y.Z or X.Y.Z-suffix).\n");
+    exit(1);
+}
+$output = $options['output'] ?? $root . '/dist/release';
+
+$epoch = getenv('SOURCE_DATE_EPOCH');
+if ($epoch === false || $epoch === '' || !ctype_digit($epoch)) {
+    $commit = [];
+    exec('git -C ' . escapeshellarg($root) . ' log -1 --format=%ct 2>/dev/null', $commit, $code);
+    $epoch = $code === 0 && isset($commit[0]) && ctype_digit($commit[0]) ? $commit[0] : (string) time();
+}
+$epoch = (int) $epoch;
+
+$stage = sys_get_temp_dir() . '/threadsafe-release-' . bin2hex(random_bytes(4));
+$remove = static function (string $path) use (&$remove): void {
+    if (is_dir($path) && !is_link($path)) {
+        foreach (scandir($path) ?: [] as $entry) {
+            if ($entry !== '.' && $entry !== '..') {
+                $remove($path . '/' . $entry);
+            }
+        }
+        @rmdir($path);
+    } else {
+        @unlink($path);
+    }
+};
+
+try {
+    $builder = new ReleaseBuilder($root);
+    $builder->stage($stage, $version);
+
+    $composer = $options['composer'] ?? 'composer';
+    $command = escapeshellarg($composer) . ' install --no-dev --optimize-autoloader --no-interaction --no-progress --no-scripts --working-dir=' . escapeshellarg($stage) . ' 2>&1';
+    $lines = [];
+    exec($command, $lines, $code);
+    if ($code !== 0) {
+        throw new RuntimeException("Composer failed (exit $code):\n" . implode("\n", $lines));
+    }
+
+    $zipPath = rtrim($output, '/') . '/' . ReleaseBuilder::packageName($version);
+    $manifest = (new ReleaseBuilder($stage))->write($zipPath, $version, $epoch);
+
+    // the test of the built package against its own manifest
+    $zip = ZipReader::open($zipPath);
+    $top = ReleaseBuilder::topDirectory($version);
+    $first = $zip->entries()->current();
+    if ($first === null || $first->name !== $top . ReleaseManifest::FILE) {
+        throw new RuntimeException('The manifest is not the first entry of the package.');
+    }
+    $problems = ReleaseManifest::fromJson($zip->contents($first))->problems($zip, $top);
+    if ($problems !== []) {
+        throw new RuntimeException("The package does not match its manifest:\n  " . implode("\n  ", $problems));
+    }
+
+    $sums = ReleaseBuilder::checksums([ReleaseBuilder::packageName($version) => $zipPath]);
+    file_put_contents(rtrim($output, '/') . '/SHA256SUMS', $sums);
+} catch (RuntimeException $e) {
+    fwrite(STDERR, 'error: ' . $e->getMessage() . "\n");
+    if (!$options['keep']) {
+        $remove($stage);
+    }
+    exit(1);
+}
+
+if ($options['keep']) {
+    echo "staging directory kept: $stage\n";
+} else {
+    $remove($stage);
+}
+printf("%s: %d files, %.2f MB, %s (built %s)\n", ReleaseBuilder::packageName($version), count($manifest->files) + 1, filesize($zipPath) / 1048576, substr($sums, 0, 12) . '...', gmdate('Y-m-d H:i:s', $epoch) . ' UTC');
+echo $sums;

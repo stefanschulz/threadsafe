@@ -12,6 +12,9 @@ final class Version
     /** Semantic version; replaced by the release process. */
     public const string CURRENT = '0.0.0-dev';
 
+    /** The version of the format of the files in `data/` that this release writes (docs/PHASE7.md 3.6); format 1 is the one of phases 2 to 6. */
+    public const int DATA_FORMAT = 1;
+
     private function __construct()
     {
     }
