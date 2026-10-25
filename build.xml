@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Phing build file of ThreadSafe (docs/PHASE7.md 3.1, AGENTS.md "Making a release").
+
+  Builds the release: the package threadsafe-X.Y.Z.zip, the web installer install.php (the same package behind a stub, also a ZIP archive),
+  the generic restore tool restore.php of that version, and the file of checksums SHA256SUMS. The work is done by tools/build-release.php, which
+  the release workflow (.github/workflows/release.yml) runs as well, so a build made here is the one a tag would give.
+
+    vendor/bin/phing                          build 0.0.0-dev into dist/release (a package for trying out)
+    vendor/bin/phing -Dversion=0.1.0          build version 0.1.0 (a leading "v" is dropped)
+    vendor/bin/phing verify -Dversion=0.1.0   build, then test the built files as the workflow does
+    vendor/bin/phing -l                       list the targets
+
+  Properties (-Dname=value): version (default 0.0.0-dev), output (default dist/release), composer (default composer; the build runs
+  "composer install" without the development packages in a copy of the tree, so Composer must be there).
+
+  In the Docker tools container (see AGENTS.md "Running the checks"), run vendor/bin/phing with -Dversion=0.1.0 as the command of the
+  service "tools" of .docker/docker-compose.yml.
+-->
+<project name="threadsafe" default="build" basedir="." description="Builds the ThreadSafe release: package, installer, restore tool, checksums">
+
+    <property name="version" value="0.0.0-dev"/>
+    <property name="output" value="${project.basedir}/dist/release"/>
+    <property name="composer" value="composer"/>
+
+    <!-- the version without a leading "v", so that a tag can be passed as it is -->
+    <php expression="ltrim('${version}', 'v')" returnProperty="release.version"/>
+
+    <target name="check-version" description="Refuses a version that is not X.Y.Z or X.Y.Z-suffix">
+        <fail message="'${release.version}' is not a version (X.Y.Z or X.Y.Z-suffix), use -Dversion=0.1.0.">
+            <condition>
+                <not>
+                    <matches pattern="^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$" string="${release.version}"/>
+                </not>
+            </condition>
+        </fail>
+    </target>
+
+    <target name="clean" description="Removes the built files of the output directory">
+        <delete dir="${output}" includeemptydirs="true" failonerror="false"/>
+    </target>
+
+    <target name="build" depends="check-version,clean"
+            description="Builds threadsafe-X.Y.Z.zip, install.php, restore.php and SHA256SUMS into the output directory">
+        <echo message="Building ThreadSafe ${release.version} into ${output}"/>
+        <exec executable="${php.interpreter}" dir="${project.basedir}" checkreturn="true" passthru="true">
+            <arg value="tools/build-release.php"/>
+            <arg value="--version=${release.version}"/>
+            <arg value="--output=${output}"/>
+            <arg value="--composer=${composer}"/>
+        </exec>
+        <echo message="Package:   ${output}/threadsafe-${release.version}.zip"/>
+        <echo message="Installer: ${output}/install.php"/>
+        <echo message="Checksums: ${output}/SHA256SUMS"/>
+    </target>
+
+    <!-- The package and the installer are made from one tree in one run; these names are for finding the target. -->
+    <target name="package" depends="build" description="Same as build: the package threadsafe-X.Y.Z.zip is among the files"/>
+    <target name="installer" depends="build" description="Same as build: the installer install.php is among the files"/>
+
+    <target name="verify" depends="build"
+            description="Builds, then tests the built files on their own (checksums, unzip, the unpacked package, the installer's wizard, restore.php)">
+        <exec executable="${php.interpreter}" dir="${project.basedir}" checkreturn="true" passthru="true">
+            <arg value="tools/test-release.php"/>
+            <arg value="${output}"/>
+            <arg value="${release.version}"/>
+        </exec>
+    </target>
+
+    <target name="restore" description="Builds only the generic restore tool dist/restore.php (the version of the running source)">
+        <exec executable="${php.interpreter}" dir="${project.basedir}" checkreturn="true" passthru="true">
+            <arg value="tools/build-restore.php"/>
+        </exec>
+    </target>
+
+    <target name="check" description="Lint, PHPStan, the unit tests (what CI runs)">
+        <exec executable="${composer}" dir="${project.basedir}" checkreturn="true" passthru="true">
+            <arg value="check"/>
+        </exec>
+    </target>
+
+    <target name="all" depends="check,verify" description="The checks, then the build and its test: what the release workflow does"/>
+
+</project>
