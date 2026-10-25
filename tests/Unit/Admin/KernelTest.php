@@ -9,6 +9,7 @@ use ThreadSafe\Admin\AdminStore;
 use ThreadSafe\Admin\AuditLog;
 use ThreadSafe\Admin\Config;
 use ThreadSafe\Admin\Kernel;
+use ThreadSafe\Core\Version;
 use ThreadSafe\Tests\Support\TempDirectory;
 use ThreadSafe\Web\Request;
 use ThreadSafe\Web\Response;
@@ -394,7 +395,7 @@ final class KernelTest extends TestCase
         $pages[] = $this->send('GET', '/nothing-here')->body;
 
         foreach ($pages as $html) {
-            self::assertStringContainsString('<script src="/app.js" defer></script>', $html);
+            self::assertStringContainsString('<script src="/app.js?v=' . Version::CURRENT . '" defer></script>', $html);
             self::assertDoesNotMatchRegularExpression('/<script(?![^>]*\bsrc=)/i', $html, 'an inline script');
             self::assertDoesNotMatchRegularExpression('/<style/i', $html);
             self::assertDoesNotMatchRegularExpression('/\sstyle\s*=/i', $html);

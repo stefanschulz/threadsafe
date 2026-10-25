@@ -77,7 +77,7 @@ final class WorkerLauncher
         $setsid = self::hasSetsid() ? 'setsid ' : '';
 
         return 'env -i PATH=/usr/local/bin:/usr/bin:/bin THREADSAFE_DATA=' . escapeshellarg($this->data) . ' ' . $setsid . 'nohup ' . escapeshellarg($php) . ' -q '
-            . escapeshellarg(Paths::program() . '/bin/threadsafe') . ' cron --quiet < /dev/null > ' . escapeshellarg($this->data . '/cron-worker.log') . ' 2>&1 &';
+            . escapeshellarg(Paths::cli()) . ' cron --quiet < /dev/null > ' . escapeshellarg($this->data . '/cron-worker.log') . ' 2>&1 &';
     }
 
     private static function hasSetsid(): bool

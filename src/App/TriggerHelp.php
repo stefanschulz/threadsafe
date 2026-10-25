@@ -18,7 +18,7 @@ final class TriggerHelp
     {
         $php = PhpBinary::cli() ?? 'php';
 
-        return $schedule . ' ' . $php . ' -q ' . Paths::program() . '/bin/threadsafe cron -q';
+        return $schedule . ' ' . $php . ' -q ' . Paths::cli() . ' cron -q';
     }
 
     /** The crontab line for an address, for a host whose cron can only fetch one. */

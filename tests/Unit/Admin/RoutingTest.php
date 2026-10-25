@@ -10,6 +10,7 @@ use ThreadSafe\Admin\Csrf;
 use ThreadSafe\Admin\MethodNotAllowed;
 use ThreadSafe\Admin\Router;
 use ThreadSafe\Admin\Urls;
+use ThreadSafe\Core\Version;
 use ThreadSafe\Web\Request;
 use ThreadSafe\Web\Response;
 
@@ -52,7 +53,9 @@ final class RoutingTest extends TestCase
 
         self::assertSame('/ts/', $urls->to('/'));
         self::assertSame('/ts/profiles/shop?tab=files', $urls->to('/profiles/shop', ['tab' => 'files']));
-        self::assertSame('/ts/app.css', $urls->asset('app.css'));
+        self::assertSame('/ts/app.css?v=' . Version::CURRENT, $urls->asset('app.css'));
+        self::assertSame('/ts/app.css?v=1.2.3', (new Urls('/ts', true, '1.2.3'))->asset('app.css'));
+        self::assertSame('/ts/index.php?asset=fonts/a.woff2&v=1.2.3', (new Urls('/ts', false, '1.2.3'))->asset('fonts/a.woff2'), 'without the rule the file is asked for through index.php');
         self::assertSame('/ts/', $urls->cookiePath());
         self::assertSame('/', (new Urls(''))->cookiePath());
     }

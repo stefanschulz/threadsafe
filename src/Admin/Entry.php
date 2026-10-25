@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace ThreadSafe\Admin;
 
 use ThreadSafe\Core\Paths;
+use ThreadSafe\Core\Version;
 use ThreadSafe\Web\Request;
 
 /**
@@ -19,7 +20,16 @@ final class Entry
         $server = $_SERVER;
         $base = rtrim(str_replace('\\', '/', dirname((string) ($server['SCRIPT_NAME'] ?? '/index.php'))), '/');
 
-        (new Kernel(Paths::data(), $base))->handle(Request::fromGlobals())->send();
+        $request = Request::fromGlobals();
+        // the static files first: they need neither the data directory nor a login
+        $asset = (new Assets(Paths::program() . '/public', Version::CURRENT, Paths::home() !== null))->answer($request, $base);
+        if ($asset !== null) {
+            $asset->send();
+
+            return;
+        }
+
+        (new Kernel(Paths::data(), $base))->handle($request)->send();
     }
 
     private function __construct()

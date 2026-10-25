@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace ThreadSafe\Admin;
 
+use ThreadSafe\Core\Version;
 use ThreadSafe\Web\Request;
 
 /**
@@ -15,9 +16,10 @@ final readonly class Urls
 {
     /**
      * @param string $base   the path of the directory `index.php` is in, without a trailing slash (`/threadsafe/public`, or empty)
-     * @param bool   $pretty whether routes are paths (needs the web server rule) or a query parameter
+     * @param bool   $pretty  whether routes are paths (needs the web server rule) or a query parameter
+     * @param string $version the version of the program, which the addresses of the static files carry
      */
-    public function __construct(public string $base = '', public bool $pretty = true)
+    public function __construct(public string $base = '', public bool $pretty = true, public string $version = Version::CURRENT)
     {
     }
 
@@ -56,10 +58,15 @@ final readonly class Urls
         return $url;
     }
 
-    /** A static file next to `index.php`. */
+    /**
+     * A static file of the interface. The version in the address makes a new version a new address (the files are cached for a year in a
+     * release). Without the web server rule the file is asked for through `index.php`, which answers it ({@see Assets}).
+     */
     public function asset(string $name): string
     {
-        return $this->base . '/' . $name;
+        $version = rawurlencode($this->version);
+
+        return $this->pretty ? $this->base . '/' . $name . '?v=' . $version : $this->base . '/index.php?asset=' . $name . '&v=' . $version;
     }
 
     /** The path the session cookie is valid for: the application's directory. */

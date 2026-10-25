@@ -39,7 +39,7 @@ require $autoload;
 $application = new Application([new MigrateCommand(), new ProfileCommand(), new BackupCommand(), new BackupsCommand(), new VerifyCommand(), new RestoreCommand(), new CronCommand(), new RetentionCommand(), new KeysCommand(), new AdminCommand()]);
 
 // The CGI binary hands over no $argv if register_argc_argv is off (php.ini-production does that): read the command line from the process then.
-$arguments = CommandLine::arguments($argv ?? null, __FILE__);
+$arguments = CommandLine::arguments($argv ?? null, defined('THREADSAFE_SCRIPT') ? (string) constant('THREADSAFE_SCRIPT') : __FILE__);
 if ($arguments === null) {
     fwrite(defined('STDERR') ? STDERR : fopen('php://stderr', 'wb'), "PHP does not pass the command line arguments (register_argc_argv is off for this PHP binary). Run it with -d register_argc_argv=1, e.g. \"php-cgi -q -d register_argc_argv=1 bin/threadsafe ...\".\n");
     exit(1);
