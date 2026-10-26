@@ -475,7 +475,7 @@ JS;
             'X-Content-Type-Options: nosniff',
             'X-Frame-Options: DENY',
             'Referrer-Policy: no-referrer',
-            "Content-Security-Policy: default-src 'none'; style-src 'nonce-{$this->nonce}'; script-src 'nonce-{$this->nonce}'; connect-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'",
+            "Content-Security-Policy: default-src 'none'; img-src data:; style-src 'nonce-{$this->nonce}'; script-src 'nonce-{$this->nonce}'; connect-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'",
         ], $response->body);
     }
 }

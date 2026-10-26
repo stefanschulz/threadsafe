@@ -1,0 +1,7 @@
+<svg viewBox="0 0 24 24" width="24" height="24" xmlns="http://www.w3.org/2000/svg">
+  <!-- Simpler variant for very small sizes (16 px): the disc as a plain clock -->
+  <path d="M9.5,17 H4.5 A2,2 0 0 1 2.5,15 V4.5 A2,2 0 0 1 4.5,2.5 H15.5 A2,2 0 0 1 17.5,4.5 V8.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="9" cy="9.2" r="2.5" fill="none" stroke="currentColor" stroke-width="1.7"/>
+  <circle cx="17" cy="17" r="5.6" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <path d="M17,14.6 V17 L18.6,18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

@@ -1,3 +1,5 @@
+<p align="center"><img src=".design/logo.svg" width="128" height="128" alt="ThreadSafe"></p>
+
 # ThreadSafe
 
 A website backup application. One instance manages backups for many sites through site profiles (dashboard, backup overview per site, manual backups, download). Backups can be restored on a different domain or path, with all application-specific adjustments done automatically. First supported application: **PrestaShop 9.x**; **Joomla 5 and 6** follow ([docs/JOOMLA.md](docs/JOOMLA.md)).

@@ -17,11 +17,12 @@ use ThreadSafe\Web\Response;
  */
 final readonly class Assets
 {
-    private const string NAMES = '#^(app\.css|app\.js|fonts/[A-Za-z0-9][A-Za-z0-9._-]*)$#';
+    private const string NAMES = '#^(app\.css|app\.js|favicon\.svg|fonts/[A-Za-z0-9][A-Za-z0-9._-]*)$#';
 
     private const array TYPES = [
         'css' => 'text/css; charset=utf-8',
         'js' => 'text/javascript; charset=utf-8',
+        'svg' => 'image/svg+xml',
         'woff2' => 'font/woff2',
         'txt' => 'text/plain; charset=utf-8',
     ];

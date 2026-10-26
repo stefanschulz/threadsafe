@@ -23,6 +23,7 @@ final class AssetsTest extends TestCase
         mkdir($this->directory . '/fonts', 0777, true);
         file_put_contents($this->directory . '/app.css', 'body { color: #000; }');
         file_put_contents($this->directory . '/app.js', 'console.log(1);');
+        file_put_contents($this->directory . '/favicon.svg', '<svg xmlns="http://www.w3.org/2000/svg"/>');
         file_put_contents($this->directory . '/fonts/plex.woff2', 'wOF2....');
         file_put_contents($this->directory . '/fonts/OFL.txt', 'license');
         file_put_contents($this->directory . '/index.php', '<?php echo "must never be served";');
@@ -103,6 +104,14 @@ final class AssetsTest extends TestCase
         self::assertNotNull($response);
         self::assertSame('wOF2....', $response->body);
         self::assertSame('font/woff2', $response->header('Content-Type'));
+    }
+
+    public function testTheFaviconIsAnSvgImage(): void
+    {
+        $response = $this->assets()->answer($this->request('/favicon.svg', ['v' => '1.2.3']), '');
+
+        self::assertSame('image/svg+xml', $response?->header('Content-Type'));
+        self::assertSame('public, max-age=31536000, immutable', $response?->header('Cache-Control'));
     }
 
     public function testTheLicenseOfTheFontsIsPlainText(): void

@@ -8,6 +8,7 @@ use ThreadSafe\Core\Version;
 use ThreadSafe\Profile\Check;
 use ThreadSafe\Profile\TestReport;
 use ThreadSafe\Web\Html;
+use ThreadSafe\Web\Logo;
 use ThreadSafe\Web\Response;
 
 /**
@@ -53,7 +54,7 @@ final class View
         $collapsed = self::collapsed($context);
         $user = Html::e($context->user() ?? '');
         $side = '<aside class="side" aria-label="Menu" data-cookie-path="' . Html::e($context->urls->cookiePath()) . '">'
-            . '<div class="side-head"><a class="mark" href="' . Html::e($context->urls->to('/')) . '" title="ThreadSafe"><span aria-hidden="true">TS</span><span class="side-label">ThreadSafe</span></a></div>'
+            . '<div class="side-head"><a class="mark" href="' . Html::e($context->urls->to('/')) . '" title="ThreadSafe">' . Logo::svg() . '<span class="side-label">ThreadSafe</span></a></div>'
             . '<div class="side-menu"><button type="button" class="side-toggle js-only" data-nav-toggle aria-expanded="' . ($collapsed ? 'false' : 'true') . '" aria-controls="side-nav" title="' . ($collapsed ? 'Unfold the menu' : 'Fold the menu') . '">'
             . Icons::svg('chevron') . '<span class="side-label">' . ($collapsed ? 'Unfold the menu' : 'Fold the menu') . '</span></button>'
             . '<nav id="side-nav" aria-label="Main">' . $navigation . '</nav></div>'
@@ -75,7 +76,7 @@ final class View
      */
     public static function bare(Context $context, string $title, string $body, int $status = 200): Response
     {
-        $header = '<header class="bar"><span class="mark"><span aria-hidden="true">TS</span><span class="side-label">ThreadSafe</span></span>' . self::themeSwitch($context) . '</header>';
+        $header = '<header class="bar"><span class="mark">' . Logo::svg() . '<span class="side-label">ThreadSafe</span></span>' . self::themeSwitch($context) . '</header>';
 
         return self::document($context, $title, '<a class="skip" href="#content">Skip to the content</a>' . $header . '<main class="narrow" id="content" tabindex="-1">' . self::flashes($context) . '<h1>' . Html::e($title) . '</h1>' . $body . '</main>' . self::footer(), $status);
     }
@@ -265,7 +266,7 @@ final class View
         $csrf = $context->csrf() !== '' ? '<meta name="csrf-token" content="' . Html::e($context->csrf()) . '">' : '';
         $html = '<!doctype html><html lang="en"' . $attributes . '><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
             . '<meta name="robots" content="noindex, nofollow"><meta name="color-scheme" content="light dark">' . $csrf
-            . '<title>' . Html::e($title) . ' - ThreadSafe</title><link rel="stylesheet" href="' . Html::e($context->urls->asset('app.css')) . '">'
+            . '<title>' . Html::e($title) . ' - ThreadSafe</title><link rel="icon" type="image/svg+xml" href="' . Html::e($context->urls->asset('favicon.svg')) . '"><link rel="stylesheet" href="' . Html::e($context->urls->asset('app.css')) . '">'
             . '<script src="' . Html::e($context->urls->asset('app.js')) . '" defer></script></head><body>'
             . $inner . '</body></html>';
 

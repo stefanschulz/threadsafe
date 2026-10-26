@@ -128,22 +128,10 @@ html.js .js-only { display: flex !important; }
   border-right: 1px solid var(--border);
 }
 .side-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
-/* the mark: TS until there is a logo */
+/* the mark: the logo (src/Web/Logo.php, docs/DESIGN.md "The logo") and the name */
 .mark { display: flex; align-items: center; gap: 0.65rem; min-width: 0; color: var(--text); text-decoration: none; }
 .mark:hover { color: var(--text); }
-.mark > span:first-child {
-  display: grid;
-  place-items: center;
-  flex: none;
-  width: 2.25rem;
-  height: 2.25rem;
-  color: var(--on-brass);
-  font: 700 0.85rem/1 var(--mono);
-  letter-spacing: 0.04em;
-  background: var(--brass-fill);
-  border: 1px solid var(--brass-edge);
-  border-radius: var(--radius-small);
-}
+.mark > .logo { flex: none; width: 2.25rem; height: 2.25rem; border-radius: var(--radius-small); }
 .mark .side-label { font: 600 0.85rem/1.4 var(--mono); letter-spacing: 0.2em; text-transform: uppercase; }
 .side-menu { display: flex; flex-direction: column; gap: 0.25rem; flex: 1; }
 .side nav { display: flex; flex-direction: column; gap: 0.25rem; padding-top: 0.5rem; border-top: 1px solid var(--border); }

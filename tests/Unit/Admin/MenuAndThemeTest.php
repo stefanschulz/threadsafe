@@ -42,7 +42,8 @@ final class MenuAndThemeTest extends TestCase
             self::assertMatchesRegularExpression('~<a href="' . preg_quote($route, '~') . '" title="' . $name . '"[^>]*><svg class="icon"[^>]*aria-hidden="true"[^>]*>.*?</svg><span class="side-label">' . $name . '</span></a>~', $page, $name);
         }
         self::assertSame(1, substr_count($page, 'aria-current="page"'));
-        self::assertStringContainsString('<span aria-hidden="true">TS</span>', $page, 'TS stands for the logo until there is one');
+        self::assertStringContainsString('<a class="mark" href="/" title="ThreadSafe"><svg class="logo"', $page, 'the logo is the mark of the menu');
+        self::assertStringContainsString('<link rel="icon" type="image/svg+xml" href="/favicon.svg?v=', $page, 'and the favicon is a file of the interface');
         self::assertStringContainsString('Log out (admin)', $page);
         self::assertStringNotContainsString('<header class="bar">', $page, 'the bar on top is only for the pages before the login');
     }
@@ -140,7 +141,7 @@ final class MenuAndThemeTest extends TestCase
 
         self::assertStringContainsString('<html lang="en" data-theme="dark">', $page, 'the choice of the menu does not apply: there is no menu');
         self::assertStringContainsString('<header class="bar">', $page);
-        self::assertStringContainsString('<span aria-hidden="true">TS</span>', $page);
+        self::assertStringContainsString('<span class="mark"><svg class="logo"', $page);
         self::assertStringContainsString('data-theme-set="dark" aria-pressed="true"', $page);
         self::assertStringNotContainsString('<aside', $page);
     }

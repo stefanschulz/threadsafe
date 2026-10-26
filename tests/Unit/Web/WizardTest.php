@@ -220,6 +220,7 @@ final class WizardTest extends TestCase
             self::assertSame('no-referrer', $response->header('Referrer-Policy'));
             $policy = (string) $response->header('Content-Security-Policy');
             self::assertStringContainsString("default-src 'none'", $policy);
+            self::assertStringContainsString('img-src data:', $policy, 'the favicon is a data address');
             self::assertMatchesRegularExpression("/script-src 'nonce-[0-9a-f]+'/", $policy);
             self::assertStringNotContainsString('unsafe-inline', $policy);
         }

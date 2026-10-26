@@ -110,6 +110,12 @@ What the audit found and this page's change fixed: no way past the menu for the 
 
 **Not checked:** a screen reader (NVDA, VoiceOver); a high-contrast mode of the system (`forced-colors`); a user's own text spacing; zoom beyond what a 320 px screen shows; touch use on a device. The badges use `color-mix` for their tint; a browser without it shows the text and the border in the status colour and no tint, which keeps the contrast. Run the audit again after a change of a colour or of the markup of a page.
 
+## The logo
+
+The logo follows the grammar of the other applications of the author (SetLister): a graphite tile (`#1b232c`, the dark `--panel`), one shape in brass outline (`#e0a13d`, `--brass-fill`), and a brass disc with a graphite rim that steps out of it. Here the shape is the door of a safe, with its hinges and a combination dial (the backup is kept safe), and the disc is the restore: a counter-clockwise arrow around clock hands. The files are in `.design/`: `logo.svg` (the logo), `logo-icon.svg` (24 px, `currentColor`), `logo-icon-simple.svg` (16 px) and `favicon.svg` (fewer, heavier parts); [`.design/README.md`](../.design/README.md) lists them.
+
+In the program the logo is **markup in the code** (`Web\Logo`): the mark of the menu and of the bar before the login (2.25 rem), the heading of the wizards (`restore.php`, `install.php`; single files, so inline), and the favicon (a file `public/favicon.svg` for the interface, a data address for the wizards). It is written with **presentation attributes only** - never a `style` attribute or element - because the interface is served with `style-src 'self'` and the wizards with a nonce, and both refuse inline styles. `LogoTest` keeps three things true: no `style`, the same shapes as the design files (so a change is made in `.design/` and in `Web\Logo` together), and `public/favicon.svg` equal to `Logo::favicon()`. On the dark scheme the tile has the colour of the panel, so only the brass shows; that is meant.
+
 ## Where it is used
 
 `public/app.css` and `public/fonts/` (all pages of the interface), `src/Admin/View.php` and `Icons.php` (the menu, the switch), `src/Web/Html.php` (`css()`, the restore wizard; it has no menu and no switch and follows the system). The tests do not look at colours; contrast was computed from the values above with the formula of WCAG 2.x and the pages were looked at in both themes at desktop width and at 375 px.

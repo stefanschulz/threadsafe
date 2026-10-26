@@ -18,6 +18,8 @@ Nothing is released yet. Rename this heading to the version (`## [0.1.0] - date`
 - The web interface: profiles, backups with progress, checks, downloads, the dashboard and the System page.
 - One trigger (`threadsafe cron` or an address), schedules, retention, and backups encrypted in the format of `age`.
 - The Joomla website type, with a dev mode for a live to dev copy.
+- A logo (a safe with a restore arrow) in the menu and the login of the web interface, in the heading of the installer and of `restore.php`, as favicon, and in
+  the README.
 - Release packages: `threadsafe-X.Y.Z.zip`, the web installer `install.php` (also a ZIP archive), `restore.php` and `SHA256SUMS`,
   reproducible, built by the release workflow; `threadsafe doctor`; updates from a package checked by its SHA-256, switched by a pointer
   and taken back by themselves if the new version does not start.

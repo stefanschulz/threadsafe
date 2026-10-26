@@ -37,9 +37,9 @@ final class Html
         $scriptTag = $script === '' ? '' : '<script nonce="' . self::e($nonce) . '">' . $script . '</script>';
 
         return '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
-            . '<meta name="robots" content="noindex, nofollow"><title>' . self::e($title) . ' - ThreadSafe ' . self::e($name) . '</title>'
+            . '<meta name="robots" content="noindex, nofollow"><title>' . self::e($title) . ' - ThreadSafe ' . self::e($name) . '</title><link rel="icon" type="image/svg+xml" href="' . Logo::faviconUri() . '">'
             . '<style nonce="' . self::e($nonce) . '">' . self::css() . '</style></head><body><main>'
-            . '<h1>ThreadSafe ' . self::e($name) . '</h1>' . $list . '<h2>' . self::e($title) . '</h2>' . $body . '</main>' . $scriptTag . '</body></html>';
+            . '<h1>' . Logo::svg() . '<span>ThreadSafe ' . self::e($name) . '</span></h1>' . $list . '<h2>' . self::e($title) . '</h2>' . $body . '</main>' . $scriptTag . '</body></html>';
     }
 
     /**
@@ -78,7 +78,7 @@ final class Html
             . 'body{font:16px/1.55 var(--sans);margin:0;background:var(--ink);color:var(--text)}main{max-width:46rem;margin:0 auto;padding:1.5rem 1rem 4rem}'
             . 'a{color:var(--brass);text-underline-offset:.18em}a:hover{color:var(--brass-bright)}'
             . 'a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--brass);outline-offset:2px}'
-            . 'h1{font:600 .85rem/1.4 var(--mono);letter-spacing:.2em;text-transform:uppercase;margin:0 0 .5rem;color:var(--text)}h2{font-size:1.375rem;font-weight:600;line-height:1.25;margin:1rem 0;color:var(--text)}'
+            . 'h1{display:flex;align-items:center;gap:.65rem;font:600 .85rem/1.4 var(--mono);letter-spacing:.2em;text-transform:uppercase;margin:0 0 .5rem;color:var(--text)}.logo{flex:none;width:2.25rem;height:2.25rem;border-radius:6px}h2{font-size:1.375rem;font-weight:600;line-height:1.25;margin:1rem 0;color:var(--text)}'
             . '.steps{display:flex;gap:.25rem;flex-wrap:wrap;list-style:none;padding:0;margin:0}'
             . '.steps li{padding:.2rem .6rem;border-radius:4px;border:1px solid var(--border);background:var(--panel);color:var(--text-soft);font:500 .7rem/1.5 var(--mono);letter-spacing:.06em;text-transform:uppercase}'
             . '.steps li.current{background:var(--brass-fill);border-color:var(--brass-edge);color:var(--on-brass)}'
