@@ -51,6 +51,16 @@ final class HttpClientTest extends TestCase
         self::assertSame(['http://shop.test/a', 'http://shop.test/b', 'http://shop.test/c'], $result->redirects);
     }
 
+    public function testNoAnswerNamesTheReasonPhpGave(): void
+    {
+        // nothing listens on port 1 of the local machine: the connection is refused at once
+        $result = (new HttpClient(false, 5, 3))->get('http://127.0.0.1:1/health/x', '127.0.0.1');
+
+        self::assertSame(0, $result->status);
+        self::assertMatchesRegularExpression('~^no answer from http://127\.0\.0\.1:1/health/x \(.+\)$~', (string) $result->problem);
+        self::assertStringNotContainsString('file_get_contents', (string) $result->problem);
+    }
+
     public function testRedirectToAnotherHostIsAProblemNotFollowed(): void
     {
         $requests = [];

@@ -20,6 +20,9 @@ final class HttpClient
     /** @var Closure(string, string): (array{int, array<string, string>, string}|null) */
     private readonly Closure $transport;
 
+    /** Why the last request of the stream transport got no answer (PHP's message), for the problem text. */
+    private ?string $failure = null;
+
     /**
      * @param bool         $insecure  do not verify TLS certificates (dev copies with a self-signed certificate)
      * @param Closure|null $transport for tests: fn (string $url, string $hostHeader): ?array{int, array<string, string>, string}
@@ -55,7 +58,7 @@ final class HttpClient
 
             $response = ($this->transport)($current, $host);
             if ($response === null) {
-                return new HttpResult(0, [], '', $current, array_slice($visited, 0, -1), "no answer from $current");
+                return new HttpResult(0, [], '', $current, array_slice($visited, 0, -1), "no answer from $current" . ($this->failure !== null ? " ({$this->failure})" : ''));
             }
             [$status, $headers, $body] = $response;
 
@@ -134,11 +137,17 @@ final class HttpClient
             'ssl' => ['verify_peer' => !$this->insecure, 'verify_peer_name' => !$this->insecure],
         ]);
 
+        error_clear_last();
         $body = @file_get_contents($url, false, $context);
         $responseHeaders = http_get_last_response_headers();
         if ($body === false || $responseHeaders === null) {
+            // PHP's own reason (connection refused, timed out, certificate not trusted ...), without the function and the address it repeats
+            $message = error_get_last()['message'] ?? '';
+            $this->failure = $message === '' ? null : trim(preg_replace('~^[^:(]*\([^)]*\):\s*~', '', $message) ?? $message);
+
             return null;
         }
+        $this->failure = null;
 
         $status = 0;
         $headers = [];
