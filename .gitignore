@@ -6,6 +6,7 @@
 /vendor/
 /build/
 /dist/
+/build.properties
 
 # Local environment
 .docker/.env

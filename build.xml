@@ -15,10 +15,16 @@
   Properties (-Dname=value): version (default 0.0.0-dev), output (default dist/release), composer (default composer; the build runs
   "composer install" without the development packages in a copy of the tree, so Composer must be there).
 
+  The same properties can stand in a file build.properties next to this one (copy build.properties.dist; the file is not in the
+  repository), so that the version need not be typed each time. -Dname=value wins over the file, the file over the defaults.
+
   In the Docker tools container (see AGENTS.md "Running the checks"), run vendor/bin/phing with -Dversion=0.1.0 as the command of the
   service "tools" of .docker/docker-compose.yml.
 -->
 <project name="threadsafe" default="build" basedir="." description="Builds the ThreadSafe release: package, installer, restore tool, checksums">
+
+    <!-- the local file first: a property that is set stays, so -D wins over the file and the file over the defaults below -->
+    <property file="${project.basedir}/build.properties" required="false"/>
 
     <property name="version" value="0.0.0-dev"/>
     <property name="output" value="${project.basedir}/dist/release"/>
