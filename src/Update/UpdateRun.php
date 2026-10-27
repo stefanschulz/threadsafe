@@ -46,7 +46,7 @@ final class UpdateRun implements Task
     }
 
     /**
-     * @param array<string, mixed> $parameters `file` (the package), `sha256` (what the person typed), `home`, `data`, `allowDowngrade`
+     * @param array<string, mixed> $parameters `file` (the package), `sha256` (what the person typed), `home`, `data`, `allowDowngrade`, `skipHealthCheck`
      *
      * @return array<string, mixed>
      */
@@ -59,6 +59,7 @@ final class UpdateRun implements Task
             'home' => rtrim(str_replace('\\', '/', (string) ($parameters['home'] ?? '')), '/'),
             'data' => rtrim(str_replace('\\', '/', (string) ($parameters['data'] ?? '')), '/'),
             'allowDowngrade' => (bool) ($parameters['allowDowngrade'] ?? false),
+            'skipHealthCheck' => (bool) ($parameters['skipHealthCheck'] ?? false),
             'from' => '',
             'version' => '',
             'entry' => 0,
@@ -207,7 +208,11 @@ final class UpdateRun implements Task
             }
             Home::writePointer($home, $to, $from);
 
-            $result = $this->health !== null ? ($this->health)($home, $data, $to) : HealthResult::skipped('The new version was not started to check it.');
+            $result = match (true) {
+                (bool) ($state['skipHealthCheck'] ?? false) => HealthResult::skipped('The new version was not started to check it, as you asked.'),
+                $this->health !== null => ($this->health)($home, $data, $to),
+                default => HealthResult::skipped('The new version was not started to check it.'),
+            };
             if ($result->status === HealthResult::FAILED) {
                 // the switch is taken back: the pointer, the state files, and the release that did not start
                 Home::writePointer($home, $from, $pointer['previous']);

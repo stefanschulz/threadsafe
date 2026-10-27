@@ -187,6 +187,29 @@ final class UpdateControllerTest extends TestCase
         self::assertStringContainsString('update --rollback', $page);
     }
 
+    public function testTheTickBoxToSkipTheCheckIsOfferedAndCarriedIntoTheRun(): void
+    {
+        $html = $this->controller()->section($this->context([], [], 'GET'));
+        self::assertStringContainsString('name="skipcheck"', $html);
+        self::assertStringContainsString('Do not start the new version to check it', $html);
+
+        $asked = false;
+        $this->health = static function () use (&$asked): HealthResult {
+            $asked = true;
+
+            return HealthResult::failed('no answer');
+        };
+        $package = $this->package('0.2.0');
+        $file = ['name' => 'threadsafe-0.2.0.zip', 'tmp_name' => $package, 'size' => (int) filesize($package), 'error' => UPLOAD_ERR_OK];
+        $this->controller()->upload($this->context(['sha256' => (string) hash_file('sha256', $package), 'skipcheck' => '1'], ['package' => $file]));
+        $controller = $this->controller();
+        $this->tickToTheEnd($controller);
+
+        self::assertFalse($asked, 'the new version was not asked');
+        self::assertSame('0.2.0', Home::readPointer($this->home)['release'] ?? null);
+        self::assertStringContainsString('update --rollback', $controller->section($this->context([], [], 'GET')));
+    }
+
     public function testTheRollbackButtonGoesBackAndTheDataStays(): void
     {
         $this->upload($this->package('0.2.0'));

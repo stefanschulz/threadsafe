@@ -92,7 +92,7 @@ final class UpdateController
             . '<input type="hidden" name="MAX_FILE_SIZE" value="' . self::UPLOAD_LIMIT . '">'
             . View::field('package', 'Package (threadsafe-X.Y.Z.zip)', 'file', '', ['required' => 'required', 'accept' => '.zip'])
             . View::field('sha256', 'SHA-256 of the package', 'text', '', ['required' => 'required', 'autocomplete' => 'off', 'spellcheck' => 'false', 'pattern' => '[0-9A-Fa-f]{64}'], 'The 64 characters from the release page.')
-            . '<div class="field check"><label><input type="checkbox" name="downgrade" value="1"> Allow an older version than the installed one</label></div>'
+            . $this->options()
             . '<button type="submit">Upload and check</button></form>';
 
         $waiting = glob($this->updates() . '/*.zip') ?: [];
@@ -100,7 +100,7 @@ final class UpdateController
             $html .= '<h3>A package that is on the server already</h3><p>For a package larger than the upload limit of the host, or put there by FTP: <code>' . Html::e($this->updates()) . '</code>.</p>'
                 . View::form($context, '/system/update/start', View::select('file', 'File', array_combine(array_map('basename', $waiting), array_map(static fn (string $p): string => basename($p) . ' (' . SpaceCheck::format((int) filesize($p)) . ')', $waiting)), basename($waiting[0]))
                     . View::field('sha256', 'SHA-256 of the package', 'text', '', ['required' => 'required', 'autocomplete' => 'off', 'spellcheck' => 'false'])
-                    . '<div class="field check"><label><input type="checkbox" name="downgrade" value="1"> Allow an older version than the installed one</label></div><button type="submit">Check and update</button>');
+                    . $this->options() . '<button type="submit">Check and update</button>');
         } else {
             $html .= '<p class="hint">A package larger than the upload limit of this host (' . Html::e((string) ini_get('upload_max_filesize')) . ') can be put into <code>' . Html::e($this->updates()) . '</code> by FTP; it is then offered here.</p>';
         }
@@ -110,6 +110,14 @@ final class UpdateController
         }
 
         return $html;
+    }
+
+    /** The two choices of an update: an older version, and no request to the own address to check the new one. */
+    private function options(): string
+    {
+        return '<div class="field check"><label><input type="checkbox" name="downgrade" value="1"> Allow an older version than the installed one</label></div>'
+            . '<div class="field check"><label><input type="checkbox" name="skipcheck" value="1"> Do not start the new version to check it</label>'
+            . '<p class="hint">Normally the new version is asked once, through this site\'s own address, and the update is taken back if it does not answer. Tick this on a host that cannot reach its own address (the update then reports "no answer"). Nothing is taken back by itself afterwards: if this page does not open, go back with <code>php bin/threadsafe update --rollback</code> or by writing the previous release into <code>current.php</code>.</p></div>';
     }
 
     private function runPanel(Context $context, Run $run): string
@@ -196,6 +204,7 @@ final class UpdateController
                 'home' => $home,
                 'data' => $this->services->data,
                 'allowDowngrade' => $request->post('downgrade') === '1',
+                'skipHealthCheck' => $request->post('skipcheck') === '1',
             ]));
         } catch (Throwable $e) {
             return $this->back($context, 'error', $e->getMessage());

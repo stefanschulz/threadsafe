@@ -89,6 +89,28 @@ final class UpdateRunTest extends TestCase
         return Home::readPointer($this->home)['release'] ?? null;
     }
 
+    public function testWhenTheCheckIsSkippedOnRequestTheNewVersionIsNotAskedAndNothingIsTakenBack(): void
+    {
+        $asked = false;
+        $task = new UpdateRun(static function () use (&$asked): HealthResult {
+            $asked = true;
+
+            return HealthResult::failed('a host that cannot reach itself');
+        }, static fn (): int => self::NOW);
+        $package = $this->package('0.2.0');
+        $state = $task->initialState(['file' => $package, 'sha256' => hash_file('sha256', $package), 'home' => $this->home, 'data' => $this->data, 'skipHealthCheck' => true]);
+        do {
+            $outcome = $task->tick($state, new Budget(0.0));
+            $state = $outcome->state;
+        } while (!$outcome->finished);
+
+        self::assertFalse($asked);
+        self::assertSame('0.2.0', $this->release());
+        self::assertFalse($state['result']['rolledBack']);
+        self::assertSame('skipped', $state['result']['health']);
+        self::assertStringContainsString('as you asked', $state['result']['message']);
+    }
+
     public function testItSwitchesToTheNewReleaseAndKeepsTheOldOneForARollback(): void
     {
         $state = $this->update($this->package('0.2.0'));
