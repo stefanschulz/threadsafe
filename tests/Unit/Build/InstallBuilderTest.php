@@ -9,6 +9,7 @@ use ThreadSafe\Archive\ZipReader;
 use ThreadSafe\Build\Bundler;
 use ThreadSafe\Build\InstallBuilder;
 use ThreadSafe\Build\InstallStub;
+use ThreadSafe\Build\StubNotice;
 use ThreadSafe\Build\ReleaseManifest;
 use ThreadSafe\Tests\Support\ReleasePackage;
 use ThreadSafe\Tests\Support\TempDirectory;
@@ -172,8 +173,36 @@ final class InstallBuilderTest extends TestCase
         [$output] = $this->php('$_SERVER["REQUEST_METHOD"] = "GET"; include $argv[1];', $site . '/install.php');
 
         self::assertStringContainsString('does nothing until you give it a key', $output);
-        self::assertStringContainsString("<?php return 'a secret you choose';", $output);
+        self::assertStringContainsString("<pre><code>&lt;?php return 'a secret you choose';</code></pre>", $output);
+        self::assertStringContainsString('<code>install-key.php</code> next to <code>install.php</code>', $output);
         self::assertSame(['install.php'], array_values(array_diff(scandir($site) ?: [], ['.', '..'])), 'nothing was written');
+    }
+
+    public function testTheNoticeOfTheStubIsAPageInTheStyleOfTheWizard(): void
+    {
+        $site = $this->site(withKey: false);
+
+        [$output, $errors] = $this->php('$_SERVER["REQUEST_METHOD"] = "GET"; include $argv[1];', $site . '/install.php');
+
+        self::assertSame('', $errors);
+        self::assertStringStartsWith('<!doctype html>', $output);
+        self::assertStringContainsString('<title>No access key yet - ThreadSafe installer</title>', $output);
+        self::assertStringContainsString('<h1><svg class="logo"', $output, 'the logo');
+        self::assertStringContainsString('<span>ThreadSafe installer</span>', $output);
+        self::assertStringContainsString('--brass-fill:#e0a13d', $output, 'the palette of the wizard');
+        self::assertStringContainsString('<h2>No access key yet</h2>', $output);
+        self::assertStringNotContainsString(' style=', $output, 'the policy of the page allows a style element, no style attribute');
+        self::assertStringNotContainsString('<script', $output);
+    }
+
+    public function testInAShellTheNoticeIsPlainText(): void
+    {
+        // the block of the stub itself, run in a shell with a notice set (the stub's other paths do not reach it there)
+        [$output, $errors, $code] = $this->php('$threadsafeNotice = array("500 X", "Title", "<p>Hello <code>world</code></p><pre><code>&lt;?php return 1;</code></pre>"); eval($argv[1]);', StubNotice::source('installer'));
+
+        self::assertSame('', $errors);
+        self::assertSame(1, $code);
+        self::assertSame("Hello world\n\n<?php return 1;\n\n\n", $output, 'the text of the notice, no markup');
     }
 
     public function testWithAKeyFileItAsksForTheKey(): void

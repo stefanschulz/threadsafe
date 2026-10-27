@@ -97,7 +97,7 @@ final class Html
      * The style of the wizard: the palette of the web interface (docs/DESIGN.md), in the same tokens, light and dark by the system's choice.
      * The wizard is one file with no other file next to it, so the style is inline.
      */
-    private static function css(): string
+    public static function css(): string
     {
         return ':root{--ink:#eef0f2;--panel:#fff;--panel-2:#f6f7f8;--recess:#e5e8eb;--border:#cdd3d9;--border-strong:#7f8a95;--text:#14191f;--text-soft:#434e58;--text-faint:#56616b;'
             . '--brass:#8a5a08;--brass-bright:#6b4506;--brass-fill:#e0a13d;--brass-fill-hover:#f0b75a;--brass-edge:#a8740f;--on-brass:#14191f;--ok:#1a7339;--warning:#8f4a00;--error:#b3382c;'
@@ -122,6 +122,7 @@ final class Html
             . '.box{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:.8rem 1rem;margin:1rem 0}.bar{height:1.2rem;background:var(--recess);border:1px solid var(--border);border-radius:4px;overflow:hidden}'
             . '.bar div{height:100%;width:0;background:var(--brass-fill);transition:width .3s}.fail{color:var(--error)}table{border-collapse:collapse;width:100%;background:var(--panel)}'
             . 'td,th{text-align:left;padding:.25rem .5rem;border-bottom:1px solid var(--border);vertical-align:top}th{font:500 .7rem/1.5 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--text-faint)}'
+            . 'pre{background:var(--recess);border:1px solid var(--border);border-radius:6px;padding:.7rem .9rem;overflow-x:auto}pre code{background:none;border:0;padding:0;word-break:normal}'
             . 'code{background:var(--recess);border:1px solid var(--border);padding:.05rem .3rem;border-radius:4px;font:.88em var(--mono);word-break:break-all}.ok{color:var(--ok)}@media(prefers-reduced-motion:reduce){*{transition:none!important}}';
     }
 
