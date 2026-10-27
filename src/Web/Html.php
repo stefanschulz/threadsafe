@@ -122,7 +122,9 @@ final class Html
             . '.box{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:.8rem 1rem;margin:1rem 0}.bar{height:1.2rem;background:var(--recess);border:1px solid var(--border);border-radius:4px;overflow:hidden}'
             . '.bar div{height:100%;width:0;background:var(--brass-fill);transition:width .3s}.fail{color:var(--error)}table{border-collapse:collapse;width:100%;background:var(--panel)}'
             . 'td,th{text-align:left;padding:.25rem .5rem;border-bottom:1px solid var(--border);vertical-align:top}th{font:500 .7rem/1.5 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--text-faint)}'
-            . '.copyrow{display:flex;gap:.5rem;align-items:flex-start;margin:1rem 0}.copyrow pre{flex:1;min-width:0;margin:0}.copyrow button.copy{flex:none;margin:0;padding:.55rem;line-height:0}.copyrow button.copy svg{display:block}'
+            . '.copyrow{position:relative;margin:1rem 0}.copyrow pre{margin:0;padding-right:3rem;white-space:pre-wrap;overflow-wrap:anywhere}@media(max-width:30rem){.copyrow pre{font-size:.9rem}}'
+            . '.copyrow button.copy{position:absolute;top:50%;transform:translateY(-50%);right:.35rem;width:2rem;height:2rem;margin:0;padding:0;display:flex;align-items:center;justify-content:center;background:transparent;border:1px solid transparent;color:var(--text-soft)}'
+            . '.copyrow button.copy:hover,.copyrow button.copy:focus-visible{background:var(--panel-2);border-color:var(--border-strong);color:var(--text)}'
             . 'pre{background:var(--recess);border:1px solid var(--border);border-radius:6px;padding:.7rem .9rem;overflow-x:auto}pre code{background:none;border:0;padding:0;word-break:normal}'
             . 'code{background:var(--recess);border:1px solid var(--border);padding:.05rem .3rem;border-radius:4px;font:.88em var(--mono);word-break:break-all}.ok{color:var(--ok)}@media(prefers-reduced-motion:reduce){*{transition:none!important}}';
     }

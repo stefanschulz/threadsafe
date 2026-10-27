@@ -16,7 +16,7 @@ use ThreadSafe\Web\Logo;
 final class StubNotice
 {
     /**
-     * The script of the page: a button to the right of every code block, with the symbol "copy" and no text (the words "Copy to clipboard" are its tooltip
+     * The script of the page: a button inside the frame of every code block, at its right, always visible and muted, with the symbol "copy" and no text (the words "Copy to clipboard" are its tooltip
      * and its name for a screen reader; after a click they say what happened, and the symbol turns into a check mark for a moment). It uses the clipboard
      * API where the page is a secure context (https, localhost) and selects the text and copies it as the fallback; without a script the block can still
      * be selected by hand. The page allows this one script by its nonce.
