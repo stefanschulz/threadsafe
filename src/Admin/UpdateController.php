@@ -17,6 +17,7 @@ use ThreadSafe\Engine\RunStatus;
 use ThreadSafe\Engine\RunStore;
 use ThreadSafe\Storage\SpaceCheck;
 use ThreadSafe\Update\Busy;
+use ThreadSafe\Update\Diagnosis;
 use ThreadSafe\Update\HealthResult;
 use ThreadSafe\Update\HttpHealthCheck;
 use ThreadSafe\Update\Releases;
@@ -138,12 +139,44 @@ final class UpdateController
         }
         $result = (array) ($state['result'] ?? []);
         $body = ($result['rolledBack'] ?? false)
-            ? '<p class="flash error" role="alert">Version <strong>' . Html::e((string) ($result['to'] ?? '?')) . '</strong> did not start, so it was taken back. Version <strong>' . Html::e((string) ($result['from'] ?? '?')) . '</strong> is active again, with the state files as they were.</p><p>' . Html::e((string) ($result['message'] ?? '')) . '</p>'
+            ? $this->takenBack($result)
             : '<p class="flash ok">Updated from <strong>' . Html::e((string) ($result['from'] ?? '?')) . '</strong> to <strong>' . Html::e((string) ($result['to'] ?? '?')) . '</strong>.</p><p>' . Html::e((string) ($result['message'] ?? '')) . '</p>'
                 . (($result['health'] ?? '') === HealthResult::SKIPPED ? '<p class="flash warning">The new version could not be started to check it. If this page does not open after you leave it, go back with <code>php bin/threadsafe update --rollback</code>, or write the previous release into <code>current.php</code>.</p>' : '')
                 . '<p>The previous release is kept for a roll-back. If you use restore.php, make a new one from the page "Restore".</p>';
 
         return $body . '<div class="actions">' . View::form($context, '/system/update/discard', '<button type="submit" class="secondary">Close</button>', 'inline') . '</div>';
+    }
+
+    /**
+     * An update that was taken back, as one card: what happened and that nothing is lost, what the check reported (set apart, as it was said), the cause in
+     * plain words, and the way on in a part that opens on request.
+     *
+     * @param array<string, mixed> $result
+     */
+    private function takenBack(array $result): string
+    {
+        $message = (string) ($result['message'] ?? '');
+        $diagnosis = Diagnosis::explain($message);
+        $steps = '';
+        foreach ($diagnosis['steps'] as $step) {
+            $steps .= '<li>' . self::rich($step) . '</li>';
+        }
+
+        return '<section class="failure" role="alert"><div class="failure-head">' . Html::symbol('error') . '<div>'
+            . '<h3>Version <strong>' . Html::e((string) ($result['to'] ?? '?')) . '</strong> did not start, so it was taken back</h3>'
+            . '<p>Version <strong>' . Html::e((string) ($result['from'] ?? '?')) . '</strong> is active again, with the state files as they were. Nothing is lost.</p></div></div>'
+            . '<div class="failure-reason"><span class="failure-label">What the check reported</span><code>' . Html::e($message) . '</code></div>'
+            . '<p class="failure-cause">' . Html::e($diagnosis['cause']) . '</p>'
+            . '<details class="failure-help"><summary>What you can do</summary><ol>' . $steps . '</ol></details></section>';
+    }
+
+    /** Text of the diagnosis as HTML: escaped, with `code` and **bold** from their marks. */
+    private static function rich(string $text): string
+    {
+        $html = Html::e($text);
+        $html = (string) preg_replace('/`([^`]+)`/', '<code>$1</code>', $html);
+
+        return (string) preg_replace('/\*\*([^*]+)\*\*/', '<strong>$1</strong>', $html);
     }
 
     // ------------------------------------------------------------------------------------------------- actions

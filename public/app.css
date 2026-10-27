@@ -242,6 +242,26 @@ button.link:hover { color: var(--brass-bright); background: none; }
 .flash.warning { border-left-color: var(--warning); background: color-mix(in srgb, var(--warning) 12%, var(--panel-2)); }
 .flash.error { border-left-color: var(--error); background: color-mix(in srgb, var(--error) 12%, var(--panel-2)); }
 
+/* a failure that needs an explanation: one card - what happened, what was reported (set apart), the cause, and the way on that opens on request */
+.failure { margin: 1rem 0; overflow: hidden; border: 1px solid var(--border); border-left: 4px solid var(--error); border-radius: var(--radius); background: color-mix(in srgb, var(--error) 8%, var(--panel-2)); }
+.failure-head { display: flex; gap: 0.75rem; align-items: flex-start; padding: 0.85rem 1rem 0.6rem; }
+.failure-head .sym { flex: none; width: 1.6rem; height: 1.6rem; margin-top: 0.1rem; color: var(--error); }
+.failure-head h3 { margin: 0 0 0.2rem; font-size: 1.05rem; }
+.failure-head p { margin: 0; }
+.failure-reason { margin: 0.3rem 1rem 0; padding: 0.55rem 0.75rem; background: var(--recess); border: 1px solid var(--border); border-radius: var(--radius-small); }
+.failure-label { display: block; margin-bottom: 0.2rem; color: var(--text-faint); font: 500 0.7rem/1.5 var(--mono); letter-spacing: 0.1em; text-transform: uppercase; }
+.failure-reason code { padding: 0; background: none; border: 0; word-break: break-word; }
+.failure-cause { margin: 0.7rem 1rem 0.8rem; font-weight: 500; }
+.failure-help { border-top: 1px solid var(--border); background: var(--panel-2); }
+.failure-help > summary { display: flex; align-items: center; gap: 0.5rem; padding: 0.6rem 1rem; cursor: pointer; list-style: none; font-weight: 600; }
+.failure-help > summary::-webkit-details-marker { display: none; }
+.failure-help > summary::before { content: ""; flex: none; width: 0.5rem; height: 0.5rem; border-right: 2px solid var(--text-soft); border-bottom: 2px solid var(--text-soft); transform: rotate(-45deg); transition: transform 0.15s; }
+.failure-help[open] > summary::before { transform: rotate(45deg); }
+.failure-help ol { margin: 0; padding: 0 1rem 0.8rem 2.5rem; }
+.failure-help li { margin: 0.45rem 0; }
+.failure-help code { word-break: normal; overflow-wrap: anywhere; }
+@media (prefers-reduced-motion: reduce) { .failure-help > summary::before { transition: none; } }
+
 .hint { color: var(--text-soft); font-size: 0.9rem; }
 /* the figures of the dashboard: a strip of cells, label above and value below; the 1px gap shows the background as the lines between them */
 .stats { display: flex; flex-wrap: wrap; gap: 1px; margin: 1.5rem 0 2rem; overflow: hidden; background: var(--border); border: 1px solid var(--border); border-radius: var(--radius); }

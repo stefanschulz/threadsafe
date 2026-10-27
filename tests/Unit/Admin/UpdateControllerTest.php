@@ -171,6 +171,11 @@ final class UpdateControllerTest extends TestCase
         $page = $controller->section($this->context([], [], 'GET'));
         self::assertStringContainsString('did not start, so it was taken back', $page);
         self::assertStringContainsString('HTTP 500', $page);
+        self::assertStringContainsString('<section class="failure" role="alert">', $page, 'one card');
+        self::assertStringContainsString('What the check reported', $page);
+        self::assertStringContainsString('<details class="failure-help"><summary>What you can do</summary>', $page, 'the way on opens on request');
+        self::assertStringNotContainsString('<details class="failure-help" open', $page);
+        self::assertStringContainsString('error log', $page);
         self::assertStringContainsString('"event":"update.rolled_back"', (string) file_get_contents($this->data . '/audit.log'));
     }
 

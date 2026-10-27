@@ -81,7 +81,7 @@ final class Html
     /**
      * The symbol of a level: a circle with a check, a circle with an "i", a triangle with an exclamation mark, a circle with a cross.
      */
-    private static function symbol(string $level): string
+    public static function symbol(string $level): string
     {
         $shape = match ($level) {
             'ok' => '<circle cx="12" cy="12" r="9"/><path d="M7.5 12.5l3 3 6-6.5"/>',

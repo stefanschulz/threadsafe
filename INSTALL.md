@@ -118,6 +118,7 @@ ThreadSafe never looks for a new version on its own. All of it is in [docs/WEB.m
 | The installation stops with a message about a hash | The file `install.php` is damaged or was changed. Upload it again and compare its SHA-256. Nothing is activated before the last step, so the installation can be started again. |
 | After the setup every page says "not found" | The host has no rewrite rule. Set `web.prettyUrls` to `false` in `data/config.json` (`{"web": {"prettyUrls": false}}`); the pages are then `index.php?route=/login`. See [docs/WEB.md](docs/WEB.md). |
 | The installer is still there after the last page | Delete `install.php`, `install-key.php` and the directory `.threadsafe-install/` by hand. Do it now. |
+| An update "did not start, so it was taken back", with "no answer from ..." | The server could not ask the new version whether it started (the reason is in brackets: it cannot look up its own name, cannot connect, or does not trust the certificate). The page explains the cause and what to do under "What you can do"; the usual way out is the box **Do not start the new version to check it** on the update form. |
 | An update says the new version could not be started to check it | The host's PHP may not make requests to its own address. If the interface does not open after the update, go back with `update --rollback` or by writing the previous release into `current.php` ([docs/WEB.md](docs/WEB.md) "Updating"). |
 
 ## 7. Removing ThreadSafe
