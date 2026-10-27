@@ -217,7 +217,7 @@ $token = $m[1];
 $page = $wizard->handle($request('GET', ['step' => 'check'], [], $token));
 preg_match('/name="csrf" value="([0-9a-f]+)"/', $page->body, $m);
 $csrf = $m[1];
-$out['check'] = [$page->status, str_contains($page->body, 'value="install"'), str_contains($page->body, 'Next to this directory')];
+$out['check'] = [$page->status, str_contains($page->body, 'value="install"'), str_contains($page->body, 'Next to the document root')];
 $install = $wizard->handle($request('POST', [], ['csrf' => $csrf, 'action' => 'install', 'place' => 'outside'], $token));
 $out['install'] = [$install->status, $install->header('Location')];
 $ticks = 0;

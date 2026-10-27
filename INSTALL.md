@@ -36,12 +36,16 @@ the updates differ (section 5).
 
    It is a PHP file on purpose: a plain text file could be fetched by anyone. Without it the installer shows an explanation and does nothing.
 4. **Open** `https://your-site.example/install.php`, enter the key, and follow the pages:
-   - **Check and place.** The page lists what this host allows and what the release needs. Then you choose where the program goes:
-     - **next to the document root** (`../threadsafe`): nothing of the program can be fetched from outside. Recommended; it needs PHP to be
+   - **Check and place.** The page lists what this host allows and what the release needs. Then you choose where the program goes, from tiles; one is
+     marked, and a place that is not possible here is shown with the reason:
+     - **Next to the document root** (`../threadsafe`): nothing of the program can be fetched from outside. Recommended; it needs PHP to be
        able to write in the directory above the document root.
-     - **below the document root** (`threadsafe-home/`): closed by an `.htaccess`. This works on Apache; on nginx or IIS the directory would be
-       reachable unless you add a rule that denies it. The page makes you confirm this.
-     - or a directory of your own (a full path, new or empty).
+     - **In a directory this host allows**: on a host that lets PHP use only some directories (`open_basedir`) the installer offers one of them
+       outside the web root, often `private/`. Recommended as well.
+     - **Below the document root** (`threadsafe-home/`), marked "weaker choice": closed by an `.htaccess`. This works on Apache; on nginx or IIS the
+       directory would be reachable unless you add a rule that denies it. The tile has its own confirmation ("I run Apache, or I have added a
+       rule ..."), which you tick for this choice.
+     - **Another directory**: a full path, new or empty, that PHP may use and write in.
    - **Install.** The installation works in steps and shows a progress bar; each step fits the time limit of the host. Keep the page open; if
      it is closed, open the installer again and it goes on. Every file is checked against the manifest of the release while it is written.
    - **Remove the installer.** Press the button: it deletes `install.php`, `install-key.php` and its own work files. If PHP may not delete
@@ -51,7 +55,7 @@ the updates differ (section 5).
 5. Open **System → General** and look at the installation check. For scheduled backups put the command from **System → Cron** into your
    crontab, or call the address from there.
 
-**If the host does not let you install outside the document root** (no writable directory above it, and `open_basedir` allows nothing else), choose **Below this directory**. The home is then `threadsafe-home/` in the document root, closed by an `.htaccess` (and an empty `index.html`). That works on **Apache with `AllowOverride` set so that `.htaccess` files count** (the usual setting on shared hosting); the installer makes you confirm it. It does **not** work on nginx or IIS, which ignore `.htaccess`: there you must add a rule that denies the directory (`location ^~ /threadsafe-home/ { deny all; }` for nginx), or install elsewhere. The data directory holds the database passwords of your sites and the hash of your password, so **test it**: after the setup open *System → General*, which asks your browser for a file in `data/` at the address where it would be served ("Not reachable" is right), and try `https://your-site.example/threadsafe-home/data/probe.txt` yourself: it must give an error, not the text `threadsafe-data-probe`.
+**If the host does not let you install outside the document root** (no writable directory above it, and `open_basedir` allows nothing else), choose the tile **Below the document root**. The home is then `threadsafe-home/` in the document root, closed by an `.htaccess` (and an empty `index.html`). That works on **Apache with `AllowOverride` set so that `.htaccess` files count** (the usual setting on shared hosting); the installer makes you confirm it. It does **not** work on nginx or IIS, which ignore `.htaccess`: there you must add a rule that denies the directory (`location ^~ /threadsafe-home/ { deny all; }` for nginx), or install elsewhere. The data directory holds the database passwords of your sites and the hash of your password, so **test it**: after the setup open *System → General*, which asks your browser for a file in `data/` at the address where it would be served ("Not reachable" is right), and try `https://your-site.example/threadsafe-home/data/probe.txt` yourself: it must give an error, not the text `threadsafe-data-probe`.
 
 What the installer left: in the document root only `index.php` (a few lines that find the active release) and `.htaccess`; in the home
 `releases/X.Y.Z/` (the program), `data/` (everything that is yours: profiles, settings, the administrator, runs; mode 0700, closed to the web),

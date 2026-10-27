@@ -204,29 +204,49 @@ final class Wizard
         return $this->page('Check and place', $body, 200, 'check');
     }
 
+    /**
+     * The choice of the place as tiles: one box for each, with its name, what it means and the path; what belongs to one choice (the confirmation for
+     * the weaker one) stands inside its tile.
+     */
     private function placeForm(string $csrf): string
     {
-        $options = '';
+        $tiles = '';
         $first = true;
         foreach (Places::candidates($this->baseDirectory) as $place) {
-            $label = match ($place['kind']) {
-                'inside' => '<strong>Below this directory</strong> <code>' . Html::e($place['path']) . '</code> <span class="hint">closed by an <code>.htaccess</code>. This is the weaker choice: it works on Apache only; on nginx and IIS the program would be reachable from outside unless you add a rule that denies this directory.</span>',
-                'allowed' => '<strong>In a directory this host allows</strong> <code>' . Html::e($place['path']) . '</code> <span class="hint">outside the web root (this host lets PHP use only some directories, open_basedir): nothing of the program can be fetched. Recommended.</span>',
-                default => '<strong>Next to this directory</strong> <code>' . Html::e($place['path']) . '</code> <span class="hint">outside the web root: nothing of the program can be fetched. Recommended.</span>',
+            [$name, $badge, $text] = match ($place['kind']) {
+                'inside' => ['Below the document root', ['weak', 'Weaker choice'], 'Closed by an <code>.htaccess</code>, which only Apache reads. On nginx and IIS the program would be reachable from outside unless you add a rule that denies this directory.'],
+                'allowed' => ['In a directory this host allows', ['rec', 'Recommended'], 'This host lets PHP use only some directories (<code>open_basedir</code>). This one lies outside the web root: nothing of the program can be fetched.'],
+                default => ['Next to the document root', ['rec', 'Recommended'], 'Outside the web root: nothing of the program can be fetched.'],
             };
-            if (!$place['usable']) {
-                $options .= '<label class="hint"><input type="radio" disabled> ' . $label . '<br>Not possible: ' . Html::e($place['reason']) . '</label>';
-                continue;
-            }
-            $options .= '<label><input type="radio" name="place" value="' . Html::e($place['id']) . '"' . ($first ? ' checked' : '') . '> ' . $label . '</label>';
-            $first = false;
+            $extra = $place['kind'] === 'inside'
+                ? '<label class="confirm"><input type="checkbox" name="inside_ok" value="1"> I run Apache, or I have added a rule that denies this directory.</label>'
+                : '';
+            $tiles .= $this->tile($place['id'], $name, $badge, $place['path'], $text, $place['usable'], $place['usable'] && $first, $place['reason'], $extra);
+            $first = $first && !$place['usable'];
         }
-        $options .= '<label><input type="radio" name="place" value="custom"' . ($first ? ' checked' : '') . '> <strong>Another directory</strong> <span class="hint">(a full path; new or empty, writable for PHP)</span></label><input type="text" name="custom" autocomplete="off" placeholder="/home/user/threadsafe">';
-        $options .= '<label class="hint"><input type="checkbox" name="inside_ok" value="1"> If I chose a directory below this one: I run Apache, or I have added a rule that denies that directory.</label>';
+        $tiles .= $this->tile('custom', 'Another directory', null, '', 'A full path, new or empty, that PHP may use and write in. If it lies below the document root, the confirmation in the tile above is needed as well.', true, $first, '', '<input type="text" name="custom" aria-label="Path of the directory" autocomplete="off" placeholder="/home/user/threadsafe">');
 
-        return '<h3>Where the program goes</h3>' . $this->form($options . '<button name="action" value="install">Install</button>', $csrf);
+        return '<h3>Where the program goes</h3>' . $this->form('<div class="tiles">' . $tiles . '</div><button name="action" value="install">Install</button>', $csrf);
     }
 
+    /**
+     * One tile of the choice of the place. The radio button and its label cover the whole tile; what is inside the tile and must be reached by itself
+     * (a checkbox, a text field) lies above that.
+     *
+     * @param array{string, string}|null $badge a CSS class and the text of the label next to the name
+     */
+    private function tile(string $id, string $name, ?array $badge, string $path, string $text, bool $usable, bool $checked, string $reason, string $extra): string
+    {
+        // a place that is not possible has no radio button and no badge: it is shown so that the person sees why it is not offered
+        $head = $usable
+            ? '<label class="pick"><input type="radio" name="place" value="' . Html::e($id) . '"' . ($checked ? ' checked' : '') . '> <span class="name">' . Html::e($name) . '</span>'
+                . ($badge !== null ? ' <span class="badge ' . $badge[0] . '">' . Html::e($badge[1]) . '</span>' : '') . '</label>'
+            : '<span class="pick"><span class="name">' . Html::e($name) . '</span> <span class="badge off">Not possible</span></span>';
+
+        return '<div class="tile' . ($usable ? '' : ' off') . '">' . $head
+            . ($path !== '' ? '<code class="path">' . Html::e($path) . '</code>' : '')
+            . '<p class="hint">' . ($usable ? $text : 'Not possible here: ' . Html::e($reason)) . '</p>' . ($usable ? $extra : '') . '</div>';
+    }
     /**
      * @param array<string, mixed> $session
      */
@@ -246,7 +266,7 @@ final class Wizard
             default => Places::problem($home, $this->baseDirectory),
         };
         if ($problem === null && Places::isInside($home, $this->baseDirectory) && $request->post('inside_ok') !== '1') {
-            $problem = 'A home below the document root is closed by an .htaccess only. Tick the box that says you run Apache or have added a rule, or choose another place.';
+            $problem = 'A home below the document root is closed by an .htaccess only. Tick the confirmation in the tile "Below the document root" (you run Apache, or you have added a rule), or choose another place.';
         }
         if ($problem !== null) {
             return $this->checkPage($session, $problem);

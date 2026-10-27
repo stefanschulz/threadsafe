@@ -134,9 +134,12 @@ final class WizardTest extends TestCase
         $page = $this->send('GET', [], ['step' => 'check'], $token);
 
         self::assertStringContainsString('ThreadSafe <strong>0.1.0</strong>', $page->body);
-        self::assertStringContainsString('Next to this directory', $page->body);
-        self::assertStringContainsString('Below this directory', $page->body);
-        self::assertStringContainsString('weaker choice', $page->body);
+        self::assertStringContainsString('Next to the document root', $page->body);
+        self::assertStringContainsString('Below the document root', $page->body);
+        self::assertStringContainsString('Weaker choice', $page->body);
+        self::assertStringContainsString('<div class="tile">', $page->body, 'each choice is a tile');
+        self::assertSame(1, preg_match('#<div class="tile"><label class="pick"><input type="radio" name="place" value="inside"[^>]*>.*?name="inside_ok"#s', $page->body), 'the confirmation stands inside the tile of the weaker place');
+        self::assertSame(1, substr_count($page->body, 'name="inside_ok"'));
         self::assertStringContainsString('value="install"', $page->body);
     }
 
