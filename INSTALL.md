@@ -51,6 +51,8 @@ the updates differ (section 5).
 5. Open **System → General** and look at the installation check. For scheduled backups put the command from **System → Cron** into your
    crontab, or call the address from there.
 
+**If the host does not let you install outside the document root** (no writable directory above it, and `open_basedir` allows nothing else), choose **Below this directory**. The home is then `threadsafe-home/` in the document root, closed by an `.htaccess` (and an empty `index.html`). That works on **Apache with `AllowOverride` set so that `.htaccess` files count** (the usual setting on shared hosting); the installer makes you confirm it. It does **not** work on nginx or IIS, which ignore `.htaccess`: there you must add a rule that denies the directory (`location ^~ /threadsafe-home/ { deny all; }` for nginx), or install elsewhere. The data directory holds the database passwords of your sites and the hash of your password, so **test it**: after the setup open *System → General*, which asks your browser for a file in `data/` at the address where it would be served ("Not reachable" is right), and try `https://your-site.example/threadsafe-home/data/probe.txt` yourself: it must give an error, not the text `threadsafe-data-probe`.
+
 What the installer left: in the document root only `index.php` (a few lines that find the active release) and `.htaccess`; in the home
 `releases/X.Y.Z/` (the program), `data/` (everything that is yours: profiles, settings, the administrator, runs; mode 0700, closed to the web),
 `bin/threadsafe` (the command; use this one in cron jobs, it survives updates) and `current.php` (names the active release).

@@ -7,6 +7,7 @@ namespace ThreadSafe\Admin;
 use ThreadSafe\App\TriggerHelp;
 use ThreadSafe\App\TriggerStatus;
 use ThreadSafe\App\WorkerLauncher;
+use ThreadSafe\Core\Paths;
 use ThreadSafe\Profile\ProfileStore;
 use ThreadSafe\Schedule\CronSecret;
 use ThreadSafe\Schedule\Heartbeat;
@@ -213,15 +214,36 @@ final class SystemController
         return $html;
     }
 
+    /**
+     * The addresses where the data directory would be served if it could be fetched: below the directory of the program (a clone with its `public/` or the
+     * whole program below the web root), and - for an installation from a release whose home lies **below the directory of the stub** (the weaker layout,
+     * closed only by an `.htaccess`) - where the home really is.
+     *
+     * @param string      $base            the path of the directory `index.php` is in, without a trailing slash
+     * @param string|null $home            the home of the installation from a release, or null
+     * @param string      $scriptDirectory the directory on the disk that `index.php` is in
+     *
+     * @return list<string>
+     */
+    public static function probeUrls(string $base, ?string $home, string $scriptDirectory): array
+    {
+        $parent = $base === '' ? '' : substr($base, 0, (int) strrpos($base, '/'));
+        $urls = [$parent . '/data/probe.txt', $base . '/data/probe.txt'];
+        $directory = rtrim(str_replace('\\', '/', $scriptDirectory), '/');
+        if ($home !== null && $directory !== '' && str_starts_with($home . '/', $directory . '/')) {
+            $urls[] = $base . substr($home, strlen($directory)) . '/data/probe.txt';
+        }
+
+        return array_values(array_unique($urls));
+    }
+
     private function probe(Context $context, bool $written): string
     {
         if (!$written) {
             return '<p class="flash warning">The probe file could not be written to the data directory, so this cannot be tested.</p>';
         }
-        $base = $context->urls->base;
-        $parent = $base === '' ? '' : substr($base, 0, (int) strrpos($base, '/'));
         $items = '';
-        foreach (array_unique([$parent . '/data/probe.txt', $base . '/data/probe.txt']) as $url) {
+        foreach (self::probeUrls($context->urls->base, Paths::home(), dirname((string) ($_SERVER['SCRIPT_FILENAME'] ?? ''))) as $url) {
             $items .= '<li data-probe="' . Html::e($url) . '" data-expect="' . Html::e(SystemChecks::PROBE) . '"><code>' . Html::e($url) . '</code>: <span class="result">needs script to check</span></li>';
         }
 
