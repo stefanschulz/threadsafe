@@ -205,8 +205,8 @@ final class ConnectionTest
 
         $cli = PhpBinary::cli();
         $checks[] = $cli !== null
-            ? Check::info('PHP command line', "found: $cli (a cron job can run backups in one consistent snapshot)")
-            : Check::info('PHP command line', 'no PHP command line binary found; backups from cron then go through the web interface');
+            ? Check::info('PHP command line', "found: $cli (a scheduled backup can run as a process of its own, in one consistent snapshot)")
+            : Check::info('PHP command line', PhpBinary::missingNote());
 
         return $checks;
     }

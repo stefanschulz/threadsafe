@@ -60,8 +60,8 @@ final class Environment
 
         $cli = PhpBinary::cli();
         $checks[] = $cli !== null
-            ? Check::ok('PHP command line', "found: $cli (a cron job can run backups in one consistent snapshot)")
-            : Check::warning('PHP command line', 'No PHP command line binary was found. Backups from the web interface work, but a cron job (a later phase) and the command line need one.');
+            ? Check::ok('PHP command line', "found: $cli (a scheduled backup can run as a process of its own, in one consistent snapshot)")
+            : Check::warning('PHP command line', PhpBinary::missingNote());
 
         if (function_exists('posix_geteuid') && posix_geteuid() === 0) {
             $checks[] = Check::warning('Process', 'The web server runs this as root. A flaw would give access to the whole server; run it as an unprivileged user.');

@@ -32,6 +32,17 @@ final class PhpBinary
         return null;
     }
 
+    /**
+     * What the check says when there is no command line PHP: what is missing, what still works, and what to do. One text for every place that checks.
+     */
+    public static function missingNote(): string
+    {
+        return 'Not found: PHP may not start a process (the host blocks proc_open), or the host has no php program next to the one that runs the web. '
+            . 'Backups from the web interface, checks, downloads and updates work as before. What is missing is a scheduled backup that runs as a process of its own: '
+            . 'the trigger address then works in small steps (cron.mode "ticks"), has to be called every minute or so, and the backup it makes is consistent table by table, not as a whole. '
+            . 'To change that, ask the host to allow proc_open and where its PHP command line program is; if you back up by hand or rarely, you can ignore this.';
+    }
+
     private function __construct()
     {
     }
