@@ -12,17 +12,26 @@ use ThreadSafe\Core\PhpBinary;
  */
 final class PhpBinaryTest extends TestCase
 {
-    public function testTheNoteSaysWhatIsMissingWhatStillWorksAndWhatToDo(): void
+    public function testTheNoteSaysWhoseProgramItMeansWhatIsAffectedWhatIsNotAndWhatToDo(): void
     {
         $note = PhpBinary::missingNote();
 
+        self::assertStringStartsWith('Not found by the PHP of the web interface', $note, 'whose PHP it is about');
         self::assertStringContainsString('proc_open', $note, 'the cause');
-        self::assertStringContainsString('work as before', $note, 'what still works');
-        self::assertStringContainsString('scheduled backup that runs as a process of its own', $note, 'what is missing');
+        self::assertStringContainsString('only for the trigger address', $note, 'what is affected');
         self::assertStringContainsString('"ticks"', $note, 'what happens instead');
-        self::assertStringContainsString('ask the host', $note, 'what to do');
-        self::assertStringContainsString('you can ignore this', $note, 'and when nothing is needed');
+        self::assertStringContainsString('A cron job that runs bin/threadsafe cron itself is not affected', $note, 'what is not, and the better way');
+        self::assertStringContainsString('work as before', $note, 'what still works');
+        self::assertStringContainsString('ask the host', $note, 'what to do for the web');
         self::assertStringNotContainsString('later phase', $note);
+    }
+
+    public function testWithoutThePhpBinaryTheCheckOfTheInstallationIsANoteNotAWarning(): void
+    {
+        // the host of the tests has one (it is a shell), so the note is looked at in the code that makes the check
+        $source = (string) file_get_contents(dirname(__DIR__, 3) . '/src/Core/Environment.php');
+
+        self::assertStringContainsString("Check::info('PHP command line', PhpBinary::missingNote())", $source);
     }
 
     public function testInAShellTheProgramIsTheRunningOne(): void

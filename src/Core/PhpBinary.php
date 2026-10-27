@@ -37,10 +37,10 @@ final class PhpBinary
      */
     public static function missingNote(): string
     {
-        return 'Not found: PHP may not start a process (the host blocks proc_open), or the host has no php program next to the one that runs the web. '
-            . 'Backups from the web interface, checks, downloads and updates work as before. What is missing is a scheduled backup that runs as a process of its own: '
-            . 'the trigger address then works in small steps (cron.mode "ticks"), has to be called every minute or so, and the backup it makes is consistent table by table, not as a whole. '
-            . 'To change that, ask the host to allow proc_open and where its PHP command line program is; if you back up by hand or rarely, you can ignore this.';
+        return 'Not found by the PHP of the web interface: it may not start a process (the host blocks proc_open), or the host has no php program next to the one that runs the web. '
+            . 'This matters only for the trigger address, which then works in small steps (cron.mode "ticks"), has to be called every minute or so, and makes backups that are consistent table by table, not as a whole. '
+            . 'A cron job that runs bin/threadsafe cron itself is not affected: it uses the command line PHP of the system, has no time limit and makes consistent snapshots, which is the better way for scheduled backups. '
+            . 'Backups, checks, downloads and updates from the web interface work as before. To change it for the web, ask the host to allow proc_open and where its PHP command line program is.';
     }
 
     private function __construct()
