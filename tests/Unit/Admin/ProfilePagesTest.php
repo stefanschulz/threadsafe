@@ -383,7 +383,8 @@ final class ProfilePagesTest extends TestCase
         $rejected = $this->browser->post('/profiles', $fields);
         self::assertSame(400, $rejected->status);
         self::assertStringContainsString('was not stored', $rejected->body);
-        self::assertStringContainsString('Failed', $rejected->body);
+        self::assertStringContainsString('<tr class="error"><td class="level"><svg class="sym"', $rejected->body, 'a failed check is a row with the symbol of a problem');
+        self::assertStringContainsString('<span>Problem</span>', $rejected->body);
         self::assertStringContainsString('cannot be used or created', $rejected->body);
         self::assertSame([], $this->store()->ids());
 

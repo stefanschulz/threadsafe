@@ -307,11 +307,13 @@ button.danger, .button.danger { color: var(--on-danger); background: var(--dange
 button.danger:hover, .button.danger:hover { color: var(--on-danger); background: var(--danger-fill); filter: brightness(1.1); }
 .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
 .box { margin: 1rem 0; padding: 0.6rem 1rem; background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); }
-.checks { padding-left: 1.2rem; }
-.checks li { margin: 0.2rem 0; }
-.checks li.failure strong { color: var(--error); }
-.checks li.warning strong { color: var(--warning); }
-.checks li.ok strong { color: var(--ok); }
+/* the findings of a check: a symbol and the written level in the first column (the symbol carries the colour of the level), the finding next to it */
+table.checks td.level { width: 1%; white-space: nowrap; color: var(--text-soft); font: 600 0.7rem/1.5 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; }
+table.checks td.level .sym { margin-right: 0.45rem; vertical-align: -0.3em; }
+table.checks tr.ok td.level { color: var(--ok); }
+table.checks tr.info td.level { color: var(--brass); }
+table.checks tr.warning td.level { color: var(--warning); }
+table.checks tr.error td.level { color: var(--error); }
 table.facts th { width: 11rem; }
 
 /* backup runs */

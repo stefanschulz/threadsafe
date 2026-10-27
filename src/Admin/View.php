@@ -6,6 +6,7 @@ namespace ThreadSafe\Admin;
 
 use ThreadSafe\Core\Version;
 use ThreadSafe\Profile\Check;
+use ThreadSafe\Profile\CheckLevel;
 use ThreadSafe\Profile\TestReport;
 use ThreadSafe\Web\Html;
 use ThreadSafe\Web\Logo;
@@ -188,20 +189,22 @@ final class View
     }
 
     /**
-     * A list of checks; the level is written out, not only coloured.
+     * The checks as a table, as in the installer: a symbol and the written name of the level (never only a colour), the subject in bold and what was
+     * found next to it. Used by the installation check of the System page and by the test of a profile.
      *
      * @param list<Check> $checks
      */
     public static function checks(array $checks): string
     {
-        $labels = ['ok' => 'OK', 'info' => 'Info', 'warning' => 'Warning', 'failure' => 'Failed'];
-        $html = '<ul class="checks">';
+        if ($checks === []) {
+            return '<p class="flash ok">Nothing to report.</p>';
+        }
+        $rows = [];
         foreach ($checks as $check) {
-            $html .= '<li class="' . Html::e($check->level->value) . '"><strong>' . Html::e($labels[$check->level->value]) . '</strong> '
-                . Html::e($check->subject) . ': ' . Html::e($check->message) . '</li>';
+            $rows[] = ['level' => $check->level === CheckLevel::Failure ? 'error' : $check->level->value, 'subject' => $check->subject, 'message' => $check->message, 'hint' => ''];
         }
 
-        return $html . '</ul>';
+        return '<div class="scroll">' . Html::checkTable($rows) . '</div>';
     }
 
     /**

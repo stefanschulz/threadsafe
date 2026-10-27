@@ -176,6 +176,9 @@ final class SystemAndRestorePagesTest extends TestCase
 
         self::assertSame(200, $page->status);
         self::assertStringContainsString('Installation check', $page->body);
+        self::assertStringContainsString('<table class="checks"><thead><tr><th scope="col">Result</th><th scope="col">Finding</th></tr></thead>', $page->body, 'the checks are a table, as in the installer');
+        self::assertMatchesRegularExpression('#<tr class="(ok|info|warning|error)"><td class="level"><svg class="sym"#', $page->body, 'with a symbol for each level');
+        self::assertStringNotContainsString('<ul class="checks">', $page->body);
         self::assertStringContainsString('Data directory', $page->body);
         self::assertStringContainsString('Profile blog', $page->body);
         self::assertStringContainsString('PHP command line', $page->body);
