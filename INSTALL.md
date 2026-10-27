@@ -109,6 +109,7 @@ ThreadSafe never looks for a new version on its own. All of it is in [docs/WEB.m
 |---|---|
 | "This installer needs PHP 8.4 or newer" | Switch the PHP version of the site in your host's control panel, or ask the host. |
 | "This installer does nothing until you give it a key" | Create `install-key.php` next to `install.php` (step 3). |
+| "The secret in install-key.php is the example from the instructions" | You copied the example as it is. Choose a secret of your own (at least 8 characters) and put it into the file; the example is never accepted. |
 | "Too many wrong keys. Wait ..." | Wait the seconds it names; wrong keys are slowed down. |
 | A problem on the check page | The sentence says what to ask the host for (an extension, a writable directory). Press "check again" when it is done. |
 | `"index.php" exists in ... already` | The installer does not overwrite your files. Move the file away, or install into an empty directory. |

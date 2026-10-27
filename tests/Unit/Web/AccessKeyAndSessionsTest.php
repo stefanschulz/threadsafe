@@ -60,6 +60,19 @@ final class AccessKeyAndSessionsTest extends TestCase
         self::assertStringContainsString('too short', (string) $this->key("<?php return 'abc';")->problem());
     }
 
+    public function testTheExampleOfTheInstructionsIsNotAKey(): void
+    {
+        foreach (["<?php return 'a secret you choose';", "<?php return 'A Secret You Choose';", "<?php return '  a secret you choose ';"] as $content) {
+            $key = $this->key($content);
+
+            self::assertStringContainsString('example from the instructions', (string) $key->problem(), $content);
+            self::assertSame('This is not the key.', $key->check('a secret you choose', '203.0.113.9'), 'the example does not let anybody in: ' . $content);
+        }
+        self::assertNull($this->key("<?php return 'a secret you choose, really';")->problem(), 'a longer secret that merely starts like it is fine');
+        self::assertTrue(AccessKey::isExample(AccessKey::EXAMPLE));
+        self::assertFalse(AccessKey::isExample('correct horse battery'));
+    }
+
     public function testTheKeyFileIsPhpSoItPrintsNothingWhenFetched(): void
     {
         ob_start();

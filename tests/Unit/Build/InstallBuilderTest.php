@@ -192,7 +192,22 @@ final class InstallBuilderTest extends TestCase
         self::assertStringContainsString('--brass-fill:#e0a13d', $output, 'the palette of the wizard');
         self::assertStringContainsString('<h2>No access key yet</h2>', $output);
         self::assertStringNotContainsString(' style=', $output, 'the policy of the page allows a style element, no style attribute');
-        self::assertStringNotContainsString('<script', $output);
+        self::assertSame(1, substr_count($output, '<script'), 'one script: the copy button');
+        self::assertSame(1, preg_match('/<script nonce="([0-9a-f]{32})">/', $output, $nonce));
+        self::assertStringContainsString("button.textContent='Copy to clipboard'", $output);
+        self::assertStringContainsString('navigator.clipboard.writeText', $output);
+    }
+
+    public function testOnlyTheScriptWithTheNonceOfTheAnswerMayRun(): void
+    {
+        // a shell keeps no headers, so the policy is read from the source of the block: the same nonce goes into the header and into the script tag
+        $source = StubNotice::source('installer');
+
+        self::assertStringContainsString("default-src 'none'; style-src 'unsafe-inline'; img-src data:; script-src 'nonce-\" . \$threadsafeNonce . \"'", $source);
+        self::assertSame(1, substr_count($source, '<script nonce="'), 'one script, with the nonce');
+        self::assertStringContainsString('$threadsafeNonce . ', $source);
+        self::assertStringNotContainsString("'unsafe-inline'; img-src data:; script-src 'unsafe", $source);
+        self::assertStringNotContainsString('script-src \'unsafe-inline\'', $source, 'no script without the nonce');
     }
 
     public function testInAShellTheNoticeIsPlainText(): void

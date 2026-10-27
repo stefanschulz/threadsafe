@@ -18,6 +18,9 @@ final class AccessKey
 {
     public const int MIN_LENGTH = 8;
 
+    /** The secret that the instructions show as an example; it is never accepted. */
+    public const string EXAMPLE = 'a secret you choose';
+
     private readonly Throttle $throttle;
 
     /**
@@ -45,8 +48,17 @@ final class AccessKey
         if (strlen($key) < self::MIN_LENGTH) {
             return 'The secret in ' . basename($this->keyFile) . ' is too short: use at least ' . self::MIN_LENGTH . ' characters.';
         }
+        if (self::isExample($key)) {
+            return 'The secret in ' . basename($this->keyFile) . ' is the example from the instructions, which everybody knows. Choose a secret of your own.';
+        }
 
         return null;
+    }
+
+    /** Whether the secret is the example of the instructions (and of this class's description): it would let anybody in. */
+    public static function isExample(string $key): bool
+    {
+        return strtolower(trim($key)) === self::EXAMPLE;
     }
 
     /**
@@ -61,7 +73,7 @@ final class AccessKey
             return "Too many wrong keys. Wait $wait seconds before trying again.";
         }
         $key = $this->load();
-        if ($key !== null && strlen($key) >= self::MIN_LENGTH && hash_equals($key, $given)) {
+        if ($key !== null && strlen($key) >= self::MIN_LENGTH && !self::isExample($key) && hash_equals($key, $given)) {
             $this->throttle->reset();
 
             return null;
