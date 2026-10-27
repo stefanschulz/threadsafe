@@ -143,6 +143,19 @@ final class WizardTest extends TestCase
         self::assertStringContainsString('value="install"', $page->body);
     }
 
+    public function testWhatTheHostSaysIsATableWithASymbolForEachLevel(): void
+    {
+        [$token] = $this->login();
+        file_put_contents($this->docroot . '/index.php', '<?php // theirs');
+
+        $page = $this->send('GET', [], ['step' => 'check'], $token);
+
+        self::assertStringContainsString('<h3>This host</h3><table class="checks">', $page->body);
+        self::assertStringContainsString('<tr class="error"><td class="level"><svg class="sym"', $page->body);
+        self::assertStringContainsString('<span>Problem</span>', $page->body);
+        self::assertStringNotContainsString('<ul class="checks">', $page->body);
+    }
+
     public function testADocumentRootWithAnIndexPhpBlocksTheInstallation(): void
     {
         [$token] = $this->login();

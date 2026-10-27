@@ -50,18 +50,47 @@ final class Html
         if ($checks === []) {
             return '<p class="ok">Nothing to report.</p>';
         }
-        $html = '<ul class="checks">';
+        $rows = [];
         foreach ($checks as $check) {
-            $label = match ($check->level) {
-                Check::ERROR => 'Problem',
-                Check::WARNING => 'Warning',
-                default => 'Note',
-            };
-            $html .= '<li class="' . self::e($check->level) . '"><strong>' . $label . ':</strong> ' . self::e($check->message)
-                . ($check->hint !== '' ? ' <span class="hint">' . self::e($check->hint) . '</span>' : '') . '</li>';
+            $rows[] = ['level' => $check->level, 'subject' => '', 'message' => $check->message, 'hint' => $check->hint];
         }
 
-        return $html . '</ul>';
+        return self::checkTable($rows);
+    }
+
+    /**
+     * The findings as a table: a symbol and its written name in the first column (the level is never only a colour), the finding next to it.
+     * The symbols are drawn with presentation attributes only; the page allows no style attribute.
+     *
+     * @param list<array{level: string, subject: string, message: string, hint: string}> $rows level: ok, info, warning or error
+     */
+    public static function checkTable(array $rows): string
+    {
+        $names = ['ok' => 'OK', 'info' => 'Note', 'warning' => 'Warning', 'error' => 'Problem'];
+        $html = '<table class="checks"><thead><tr><th scope="col">Result</th><th scope="col">Finding</th></tr></thead><tbody>';
+        foreach ($rows as $row) {
+            $level = isset($names[$row['level']]) ? $row['level'] : 'info';
+            $subject = $row['subject'] !== '' ? '<strong>' . self::e($row['subject']) . ':</strong> ' : '';
+            $html .= '<tr class="' . $level . '"><td class="level">' . self::symbol($level) . '<span>' . $names[$level] . '</span></td><td>' . $subject . self::e($row['message'])
+                . ($row['hint'] !== '' ? ' <span class="hint">' . self::e($row['hint']) . '</span>' : '') . '</td></tr>';
+        }
+
+        return $html . '</tbody></table>';
+    }
+
+    /**
+     * The symbol of a level: a circle with a check, a circle with an "i", a triangle with an exclamation mark, a circle with a cross.
+     */
+    private static function symbol(string $level): string
+    {
+        $shape = match ($level) {
+            'ok' => '<circle cx="12" cy="12" r="9"/><path d="M7.5 12.5l3 3 6-6.5"/>',
+            'warning' => '<path d="M12 3.5l9.5 16.5h-19z"/><path d="M12 10v4.5M12 17.4v.2"/>',
+            'error' => '<circle cx="12" cy="12" r="9"/><path d="M8.7 8.7l6.6 6.6M15.3 8.7l-6.6 6.6"/>',
+            default => '<circle cx="12" cy="12" r="9"/><path d="M12 11v5.5M12 7.9v.2"/>',
+        };
+
+        return '<svg class="sym" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">' . $shape . '</svg>';
     }
 
     /**
@@ -87,7 +116,9 @@ final class Html
             . 'button,.button{font:600 .78rem/1.4 var(--mono);letter-spacing:.06em;text-transform:uppercase;padding:.55rem 1.1rem;border:1px solid var(--brass-edge);border-radius:6px;background:var(--brass-fill);color:var(--on-brass);cursor:pointer;margin:.3rem .3rem .3rem 0;text-decoration:none;display:inline-block}'
             . 'button:hover,.button:hover{background:var(--brass-fill-hover);color:var(--on-brass)}'
             . 'button.secondary,.button.secondary{background:var(--panel-2);border-color:var(--border-strong);color:var(--text)}button.secondary:hover,.button.secondary:hover{background:var(--panel-2);border-color:var(--brass);color:var(--text)}'
-            . '.tiles{display:grid;gap:.75rem;margin:.6rem 0 1.2rem}.tile{position:relative;background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:.85rem 1rem .85rem 2.7rem}.tile:has(input[name=place]:checked){border-color:var(--brass-edge);box-shadow:inset 0 0 0 1px var(--brass-edge);background:var(--panel-2)}.tile.off{background:var(--panel-2);color:var(--text-soft)}.tile label.pick{display:flex;align-items:center;flex-wrap:wrap;gap:.2rem .6rem;margin:0;font-weight:600;cursor:pointer}.tile.off label.pick{cursor:default}.badge.off{border-style:dashed}.tile label.pick::after{content:"";position:absolute;inset:0;border-radius:8px}.tile input[type=radio]{appearance:none;-webkit-appearance:none;position:absolute;left:1rem;top:1.05rem;margin:0;width:1.05rem;height:1.05rem;border:2px solid var(--border-strong);border-radius:50%;background:var(--panel)}.tile input[type=radio]:checked{border-color:var(--brass-edge);background:radial-gradient(circle,var(--brass-fill) 0 40%,var(--panel) 45%)}.tile input[type=radio]:disabled{border-color:var(--border);background:var(--recess)}.tile input[type=radio]:focus-visible{outline:2px solid var(--brass);outline-offset:2px}.tile .path{display:block;margin:.4rem 0 .1rem}.tile p{margin:.35rem 0 0}.tile .confirm{position:relative;z-index:1;display:flex;gap:.5rem;align-items:flex-start;margin:.7rem 0 0;padding:.5rem .7rem;font-weight:400;background:var(--recess);border:1px solid var(--border);border-radius:6px}.tile input[type=checkbox]{margin-top:.25rem}.tile input[type=text]{position:relative;z-index:1;margin-top:.5rem}.badge{font:600 .66rem/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;padding:.22rem .45rem;border-radius:4px;border:1px solid var(--border-strong);color:var(--text-soft)}.badge.rec{background:var(--brass-fill);border-color:var(--brass-edge);color:var(--on-brass)}.badge.weak{border-color:var(--warning);color:var(--warning)}.help,.hint{color:var(--text-soft);font-size:.88rem}.checks{padding-left:1.2rem}.checks .error{color:var(--error)}.checks .warning{color:var(--warning)}'
+            . '.tiles{display:grid;gap:.75rem;margin:.6rem 0 1.2rem}.tile{position:relative;background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:.85rem 1rem .85rem 2.7rem}.tile:has(input[name=place]:checked){border-color:var(--brass-edge);box-shadow:inset 0 0 0 1px var(--brass-edge);background:var(--panel-2)}.tile.off{background:var(--panel-2);color:var(--text-soft)}.tile label.pick{display:flex;align-items:center;flex-wrap:wrap;gap:.2rem .6rem;margin:0;font-weight:600;cursor:pointer}.tile.off label.pick{cursor:default}.badge.off{border-style:dashed}.tile label.pick::after{content:"";position:absolute;inset:0;border-radius:8px}.tile input[type=radio]{appearance:none;-webkit-appearance:none;position:absolute;left:1rem;top:1.05rem;margin:0;width:1.05rem;height:1.05rem;border:2px solid var(--border-strong);border-radius:50%;background:var(--panel)}.tile input[type=radio]:checked{border-color:var(--brass-edge);background:radial-gradient(circle,var(--brass-fill) 0 40%,var(--panel) 45%)}.tile input[type=radio]:disabled{border-color:var(--border);background:var(--recess)}.tile input[type=radio]:focus-visible{outline:2px solid var(--brass);outline-offset:2px}.tile .path{display:block;margin:.4rem 0 .1rem}.tile p{margin:.35rem 0 0}.tile .confirm{position:relative;z-index:1;display:flex;gap:.5rem;align-items:flex-start;margin:.7rem 0 0;padding:.5rem .7rem;font-weight:400;background:var(--recess);border:1px solid var(--border);border-radius:6px}.tile input[type=checkbox]{margin-top:.25rem}.tile input[type=text]{position:relative;z-index:1;margin-top:.5rem}.badge{font:600 .66rem/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;padding:.22rem .45rem;border-radius:4px;border:1px solid var(--border-strong);color:var(--text-soft)}.badge.rec{background:var(--brass-fill);border-color:var(--brass-edge);color:var(--on-brass)}.badge.weak{border-color:var(--warning);color:var(--warning)}.help,.hint{color:var(--text-soft);font-size:.88rem}'
+            . 'table.checks td.level{white-space:nowrap;width:1%;font:600 .7rem/1.5 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--text-soft)}table.checks td.level .sym{vertical-align:-.3em;margin-right:.45rem}'
+            . 'table.checks tr.ok td.level{color:var(--ok)}table.checks tr.info td.level{color:var(--brass)}table.checks tr.warning td.level{color:var(--warning)}table.checks tr.error td.level{color:var(--error)}'
             . '.box{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:.8rem 1rem;margin:1rem 0}.bar{height:1.2rem;background:var(--recess);border:1px solid var(--border);border-radius:4px;overflow:hidden}'
             . '.bar div{height:100%;width:0;background:var(--brass-fill);transition:width .3s}.fail{color:var(--error)}table{border-collapse:collapse;width:100%;background:var(--panel)}'
             . 'td,th{text-align:left;padding:.25rem .5rem;border-bottom:1px solid var(--border);vertical-align:top}th{font:500 .7rem/1.5 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--text-faint)}'

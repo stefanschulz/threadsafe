@@ -188,17 +188,16 @@ final class Wizard
         $checks = $this->checks($package);
         $blocked = array_filter($checks, static fn (Check $check): bool => $check->level === CheckLevel::Failure) !== [];
 
-        $items = '';
+        $rows = [];
         foreach ($checks as $check) {
             if ($check->level === CheckLevel::Ok && !$blocked) {
                 continue;
             }
-            $label = ['ok' => 'OK', 'info' => 'Note', 'warning' => 'Warning', 'failure' => 'Problem'][$check->level->value];
-            $items .= '<li class="' . ($check->level === CheckLevel::Failure ? 'error' : ($check->level === CheckLevel::Warning ? 'warning' : '')) . '"><strong>' . $label . ':</strong> ' . Html::e($check->subject . ': ' . $check->message) . '</li>';
+            $rows[] = ['level' => $check->level === CheckLevel::Failure ? 'error' : $check->level->value, 'subject' => $check->subject, 'message' => $check->message, 'hint' => ''];
         }
         $body = ($error !== '' ? '<p class="fail">' . Html::e($error) . '</p>' : '')
             . '<p>This installs ThreadSafe <strong>' . Html::e($package->manifest->version) . '</strong> into <code>' . Html::e($this->baseDirectory) . '</code>: the small <code>index.php</code> goes here, the program goes into a home directory of its own.</p>'
-            . '<h3>This host</h3><ul class="checks">' . $items . '</ul>'
+            . '<h3>This host</h3>' . ($rows === [] ? '<p class="ok">Nothing to report.</p>' : Html::checkTable($rows))
             . ($blocked ? '<p class="fail">Fix the problems above, then <a href="?step=check">check again</a>.</p>' : $this->placeForm((string) $session['csrf']));
 
         return $this->page('Check and place', $body, 200, 'check');
