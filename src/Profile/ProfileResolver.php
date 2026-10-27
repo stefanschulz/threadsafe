@@ -28,10 +28,7 @@ final class ProfileResolver
             throw new ProfileException("Profile \"{$profile->id}\": " . $e->getMessage(), 0, $e);
         }
 
-        $root = is_dir($profile->path) ? realpath($profile->path) : false;
-        if ($root === false || !is_readable($root)) {
-            throw new ProfileException("The site path \"{$profile->path}\" is not a readable directory.");
-        }
+        $root = SitePath::resolve($profile->path);
         $site = $type->detect($root);
         if ($site === null) {
             throw new ProfileException("\"{$profile->path}\" is not an installation of the website type \"{$profile->type}\".");

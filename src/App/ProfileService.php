@@ -11,6 +11,7 @@ use ThreadSafe\Plugin\PluginRegistry;
 use ThreadSafe\Profile\ConnectionTest;
 use ThreadSafe\Profile\ProfileException;
 use ThreadSafe\Profile\ProfileStore;
+use ThreadSafe\Profile\SitePath;
 use ThreadSafe\Profile\SiteProfile;
 use ThreadSafe\Profile\TestReport;
 use ThreadSafe\Schedule\ScheduleException;
@@ -103,10 +104,7 @@ final class ProfileService
         } catch (PluginError $e) {
             throw new ProfileException($e->getMessage(), 0, $e);
         }
-        $root = is_dir($path) ? realpath($path) : false;
-        if ($root === false || !is_readable($root)) {
-            throw new ProfileException("The site path \"$path\" is not a readable directory.");
-        }
+        $root = SitePath::resolve($path);
         $site = $backupable->detect($root) ?? throw new ProfileException("\"$path\" is not an installation of the website type \"$type\".");
         try {
             $database = $backupable->databaseSettings($root);
