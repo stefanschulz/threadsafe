@@ -126,8 +126,10 @@ final class View
     }
 
     /**
-     * A labelled input. A required field (the attribute `required`, or `data-required-when-active`, which the script turns into `required` while the
-     * field is active) carries a mark in its label: the star, with the word for a screen reader.
+     * A labelled input. In a form that has optional fields too, a required field carries a mark in its label (the star, with the word for a screen
+     * reader): the form asks for it with the attribute `mark` (which is not written to the page), for a field with `required` or with
+     * `data-required-when-active`, which the script turns into `required` while the field is active. A form in which every field is required (the
+     * login) says nothing: the star would mark everything.
      *
      * @param array<string, string> $attributes more attributes (autocomplete, autofocus ...), values are escaped
      */
@@ -144,7 +146,7 @@ final class View
     {
         $html = '';
         foreach ($attributes as $attribute => $content) {
-            if (preg_match('/^[a-z-]+$/', $attribute) === 1) {
+            if ($attribute !== 'mark' && preg_match('/^[a-z-]+$/', $attribute) === 1) {
                 $html .= ' ' . $attribute . '="' . Html::e($content) . '"';
             }
         }
@@ -157,7 +159,7 @@ final class View
      */
     private static function requiredMark(array $attributes): string
     {
-        return isset($attributes['required']) || isset($attributes['data-required-when-active'])
+        return isset($attributes['mark']) && (isset($attributes['required']) || isset($attributes['data-required-when-active']))
             ? ' <span class="req" aria-hidden="true">*</span><span class="visually-hidden"> (required)</span>'
             : '';
     }

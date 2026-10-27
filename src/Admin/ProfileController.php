@@ -424,14 +424,14 @@ final class ProfileController
         $summary = self::summaries($values);
         // the fields of the database are active only while the access is entered here (the script switches them; without script they are all there)
         $manual = ['data-active-when' => 'db_mode=manual'];
-        $manualRequired = $manual + ['data-required-when-active' => '1'];
+        $manualRequired = $manual + ['data-required-when-active' => '1', 'mark' => '1'];
         $inner .= '<p class="hint required-note">Fields marked <span class="req" aria-hidden="true">*</span><span class="visually-hidden">with a star</span> are required.</p>'
             . '<section class="form-section"><h2>Site</h2>'
-            . ($creating ? View::field('id', 'Id', 'text', $values['id'], ['required' => 'required', 'maxlength' => '40', 'autocapitalize' => 'none', 'spellcheck' => 'false'], 'Lower-case letters, digits, hyphens and underscores; part of the names of the backup files. It cannot be changed later.')
+            . ($creating ? View::field('id', 'Id', 'text', $values['id'], ['mark' => '1', 'required' => 'required', 'maxlength' => '40', 'autocapitalize' => 'none', 'spellcheck' => 'false'], 'Lower-case letters, digits, hyphens and underscores; part of the names of the backup files. It cannot be changed later.')
                 : '<p>Id: <code>' . Html::e($currentId) . '</code></p>')
             . View::field('name', 'Name', 'text', $values['name'], [], 'Shown in the lists; the id if left empty.')
             . View::select('type', 'Website type', $types, $values['type'], 'PrestaShop 9 and Joomla (5 and 6) know their own files and read their database from their configuration. Other website is any site: the files of its directory and, if you enter one, a database.')
-            . View::field('path', 'Site directory', 'text', $values['path'], ['required' => 'required', 'spellcheck' => 'false'], 'The absolute path of the application on this server.')
+            . View::field('path', 'Site directory', 'text', $values['path'], ['mark' => '1', 'required' => 'required', 'spellcheck' => 'false'], 'The absolute path of the application on this server.')
             . '<p><button type="submit" name="action" value="detect" class="secondary" formnovalidate>Look at the site</button></p>'
             . View::field('note', 'Note', 'text', $values['note'])
             . '</section><section class="form-section"><h2>Storage</h2>'

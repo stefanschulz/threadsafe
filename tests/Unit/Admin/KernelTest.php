@@ -250,6 +250,10 @@ final class KernelTest extends TestCase
         $login = $this->send('GET', '/login');
         self::assertSame(200, $login->status);
         self::assertStringContainsString('name="password"', $login->body);
+        // both fields of the login are needed, so no star marks one of them: the star is for forms that have optional fields too
+        self::assertStringContainsString('required="required"', $login->body, 'the browser still insists on the field');
+        self::assertStringNotContainsString('class="req"', $login->body);
+        self::assertStringNotContainsString('(required)', $login->body);
 
         $dashboard = $this->send('GET', '/');
         self::assertSame(303, $dashboard->status);
