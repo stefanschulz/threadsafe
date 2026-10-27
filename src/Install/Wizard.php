@@ -490,7 +490,10 @@ JS;
             'Cache-Control: no-store',
             'X-Content-Type-Options: nosniff',
             'X-Frame-Options: DENY',
-            'Referrer-Policy: no-referrer',
+            // not "no-referrer": under that policy a browser sends "Origin: null" with every POST, also to this site, and the form that ends the
+            // installation posts to the interface, which refuses an origin it cannot compare ("The request came from another site"). Nothing
+            // is sent to other sites with "same-origin" either.
+            'Referrer-Policy: same-origin',
             "Content-Security-Policy: default-src 'none'; img-src data:; style-src 'nonce-{$this->nonce}'; script-src 'nonce-{$this->nonce}'; connect-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'",
         ], $response->body);
     }

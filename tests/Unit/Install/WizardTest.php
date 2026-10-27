@@ -143,6 +143,13 @@ final class WizardTest extends TestCase
         self::assertStringContainsString('value="install"', $page->body);
     }
 
+    public function testTheReferrerPolicyLetsABrowserNameItsOriginToTheInterface(): void
+    {
+        // field test: under "no-referrer" a browser posts "Origin: null" from the last page of the installer to the setup page of the interface,
+        // and the interface refused it as a request from another site
+        self::assertSame('same-origin', $this->send()->header('Referrer-Policy'));
+    }
+
     public function testWhatTheHostSaysIsATableWithASymbolForEachLevel(): void
     {
         [$token] = $this->login();
