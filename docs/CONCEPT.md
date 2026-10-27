@@ -331,13 +331,23 @@ Phase 1 deliberately comes before the engine: it solves the actual problem (the 
 ## 9. Risks
 - **Reliability of a custom implementation** (ticks, ZIP streaming, large tables, files > 2 GB): test early with artificial limits and large shops; use the Akeeba source as a cross-check.
 - **Scope:** backup engine plus UI is large – hence restore core first, CLI before UI.
-- **Multi-site on one server:** shared disk space, load and `open_basedir`/permissions; queue, space check and connection test limit this. Sites on other servers are out of scope.
+- **Multi-site on one server:** shared disk space, load and `open_basedir`/permissions; queue, space check and connection test limit this. Sites on other servers are out of scope (see "A remote source" below for the idea). On a host where every site has its own system user (HestiaCP, Plesk: field test 2026-10-27), one instance cannot read the other sites at all: PHP's `open_basedir` and the file permissions both stand in the way. The ways out, by size: one installation per site user (nothing to change, one update each), a read-only ACL for the user of the instance plus a custom `open_basedir` for its PHP pool (`setfacl -m u:INSTANCE:rX ...`, a few minutes, but the instance then reads every site), or backups by the command line from a user that may read them.
 - **PHP 8.4 requirement:** works only if the production hosting provides PHP 8.4.
 - **Unknown domain occurrences** in third-party modules (dry run + generic, serialisation-safe replacement).
 - **PrestaShop version drift** (new tables/configuration keys in 9.x) – test matrix.
 - **Data protection/security** of archives with customer data (the examined shop contains real customers, orders, mail logs) – encryption and the dev mode reduce the risk.
 - **Dev copy with live connections:** without neutralisation (4.4) a dev instance would send mails to customers or contact live services (PayPal, Facebook, PrestaShop Account).
 - **License:** GPLv3+ requires source disclosure on distribution; adopted Akeeba code only with notices.
+
+### A remote source (idea, not planned)
+
+A profile that reads its site over **SFTP** (or FTP) instead of from the local file system: for sites on other servers, and, less convincingly, for sites of other users on the same server. Written down so that the considerations are not lost; nothing is built.
+
+- **Why it is not the answer for one server:** it is a new feature, not a setting. `Scanner`, `ArchivePacker`, the resumable reading in ticks, the detection of the website type and the reading of its configuration (`parameters.php`, `configuration.php`) all work on the local file system today; each would need a remote source behind one interface. A library is needed (`phpseclib` in plain PHP; the extension `ssh2` is often missing). A shop with tens of thousands of small files is much slower over SFTP, also to `localhost`. The credentials of every site would be stored in the instance, which is no safer than the ACL: whoever breaks into the instance reaches every site.
+- **Why it is worth it for other servers:** it is the only way to back up a site where nothing can be installed, and it fits the deferred "sites on other servers" and the `Postproc` family (SFTP export is the same library in the other direction).
+- **The database is not part of the problem.** A dump is read through a database connection and needs only the credentials, not file permissions. They come from the site's configuration (which needs the file access) or are entered in the profile (`database` overrides the type's reading). Connect to `127.0.0.1`, not `localhost`: under `localhost` PHP uses the Unix socket, and `open_basedir` can block its path.
+- **Restore** to a remote target (the other direction, with the adaptation of the application) is a second, larger step: the adaptation steps read and rewrite files, which would then happen over the connection or on a local copy.
+- **If it is built:** one phase of its own, an interface for the source first (local is the first implementation, so the engine does not change twice), SFTP second, then the type plugins' detection against that interface.
 
 ## 10. Decision log and open points
 

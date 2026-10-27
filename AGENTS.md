@@ -144,7 +144,7 @@ starts a **detached worker with a clean environment** (`env -i`, `docs/PHASE5.md
 Building blocks: `TriggerService` (the one class behind both doors of the trigger), `BackupService` (a run in ticks, the rule for active and interrupted runs: a
 web run is active while its last tick is recent), `Executor`/`RunStore`/`Lock`, `Overview`, `Config` and the System page, `Postproc` (for remote storage).
 
-What is not planned in detail: **remote storage** (SFTP/S3; the `transfers` list of the sidecar file is reserved, `Postproc` is the hook), further website types
+What is not planned in detail: **remote storage** (SFTP/S3; the `transfers` list of the sidecar file is reserved, `Postproc` is the hook), a **remote source** (a profile that reads its site over SFTP, for sites on other servers; the considerations are in [docs/CONCEPT.md](docs/CONCEPT.md) section 9, "A remote source"), further website types
 (WordPress; Joomla is done, [docs/JOOMLA.md](docs/JOOMLA.md); rules for single Joomla extensions wait for the owner's field test), restoring over an existing installation.
 Open items for the owner (not blocking): the download of a few hundred MB
 through the live host's FastCGI (`tools/spikes/web-download.php`, PHASE4.md section 8, finding 1); a **private test with a real backup** of the live shop (`docs/BACKUP.md` section 10); the web-server modes `X-Sendfile` /
