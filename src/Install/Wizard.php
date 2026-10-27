@@ -237,11 +237,9 @@ final class Wizard
      */
     private function tile(string $id, string $name, ?array $badge, string $path, string $text, bool $usable, bool $checked, string $reason, string $extra): string
     {
-        // a place that is not possible has no radio button and no badge: it is shown so that the person sees why it is not offered
-        $head = $usable
-            ? '<label class="pick"><input type="radio" name="place" value="' . Html::e($id) . '"' . ($checked ? ' checked' : '') . '> <span class="name">' . Html::e($name) . '</span>'
-                . ($badge !== null ? ' <span class="badge ' . $badge[0] . '">' . Html::e($badge[1]) . '</span>' : '') . '</label>'
-            : '<span class="pick"><span class="name">' . Html::e($name) . '</span> <span class="badge off">Not possible</span></span>';
+        // a place that is not possible is shown with its radio button disabled and the reason, so that the person sees why it is not offered
+        $head = '<label class="pick"><input type="radio" name="place" value="' . Html::e($id) . '"' . ($checked ? ' checked' : '') . ($usable ? '' : ' disabled') . '> <span class="name">' . Html::e($name) . '</span>'
+            . ($usable ? ($badge !== null ? ' <span class="badge ' . $badge[0] . '">' . Html::e($badge[1]) . '</span>' : '') : ' <span class="badge off">Not possible</span>') . '</label>';
 
         return '<div class="tile' . ($usable ? '' : ' off') . '">' . $head
             . ($path !== '' ? '<code class="path">' . Html::e($path) . '</code>' : '')
