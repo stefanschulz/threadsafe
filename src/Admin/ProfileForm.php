@@ -84,12 +84,22 @@ final class ProfileForm
     }
 
     /**
+     * The directory below which the storage of a profile is suggested: `backups` in the home of the installation (beside `data/`), or beside the data
+     * directory in a clone. The suggestion for a profile is that directory and the id of the profile.
+     */
+    public static function storageBase(?string $home, string $data): string
+    {
+        return rtrim($home ?? dirname($data), '/\\') . '/backups';
+    }
+
+    /**
      * @param array<string, string> $values
      * @param string                $password the content of the password field
+     * @param string                $storageBase where an empty storage field points: see {@see storageBase()}; empty for no suggestion
      *
      * @return array{data: array<string, mixed>, errors: list<string>} the input for {@see SiteProfile::fromArray()} and what is wrong already
      */
-    public static function toData(array $values, string $password, ?SiteProfile $current): array
+    public static function toData(array $values, string $password, ?SiteProfile $current, string $storageBase = ''): array
     {
         $errors = [];
         $data = [
@@ -105,6 +115,10 @@ final class ProfileForm
         ];
         if ($data['name'] === '') {
             $data['name'] = $data['id'];
+        }
+        // an empty storage field means the suggestion: the directory of this site below the base the form named
+        if ($data['storage'] === '' && $storageBase !== '' && $data['id'] !== '') {
+            $data['storage'] = rtrim($storageBase, '/\\') . '/' . $data['id'];
         }
         // the schedule and the retention come from the form when the form has them; what it does not send, and the encryption, stay as
         // they are: editing a profile must not drop what the form does not show

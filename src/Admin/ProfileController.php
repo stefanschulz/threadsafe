@@ -9,6 +9,7 @@ use ThreadSafe\App\BackupService;
 use ThreadSafe\App\Overview;
 use ThreadSafe\App\ProfileService;
 use ThreadSafe\Core\Exception\GuardFailed;
+use ThreadSafe\Core\Paths;
 use ThreadSafe\Database\DatabaseSettings;
 use ThreadSafe\Engine\RunStore;
 use ThreadSafe\Plugin\PluginRegistry;
@@ -343,7 +344,7 @@ final class ProfileController
             return $this->form($context, $current, $values, $messages, $detection, null, $messages === [] ? 200 : 400);
         }
 
-        ['data' => $data, 'errors' => $errors] = ProfileForm::toData($values, $password, $current);
+        ['data' => $data, 'errors' => $errors] = ProfileForm::toData($values, $password, $current, $this->storageBase());
         $profile = null;
         if ($errors === []) {
             try {
@@ -430,7 +431,8 @@ final class ProfileController
             . '<p><button type="submit" name="action" value="detect" class="secondary" formnovalidate>Look at the site</button></p>'
             . View::field('note', 'Note', 'text', $values['note'])
             . '</section><section class="form-section"><h2>Storage</h2>'
-            . View::field('storage', 'Storage directory', 'text', $values['storage'], ['required' => 'required', 'spellcheck' => 'false'], 'Where the backups of this site are kept: an absolute path, best outside the web root, e.g. /var/backups/threadsafe/shop.')
+            . View::field('storage', 'Storage directory', 'text', $values['storage'], ['placeholder' => $this->storageSuggestion($values['id'] !== '' ? $values['id'] : $currentId), 'spellcheck' => 'false'],
+                'Where the backups of this site are kept: an absolute path, best outside the web root. Leave it empty to use the suggestion in grey: the directory of this site in ' . $this->storageBase() . '. A directory in the home of ThreadSafe is removed with it.')
             . View::field('compression', 'Compression', 'text', $values['compression'], ['inputmode' => 'numeric', 'maxlength' => '1'], '0 (store) to 9; 6 is a good balance.')
             . View::field('part_size', 'Part size', 'text', $values['part_size'], ['spellcheck' => 'false'], 'Split archives into parts of this size, e.g. 500M or 2G. Empty = one archive.')
             . '</section>' . self::fold('Database', $summary['database'], $open)
@@ -530,6 +532,18 @@ final class ProfileController
     }
 
     // ------------------------------------------------------------------------------------------------- helpers
+
+    /** Below this directory the storage of a profile is suggested: `backups` in the home of the installation. */
+    private function storageBase(): string
+    {
+        return ProfileForm::storageBase(Paths::home(), $this->services->data);
+    }
+
+    /** The suggestion shown in the empty storage field; the id is written as "id" until one is typed. */
+    private function storageSuggestion(string $id): string
+    {
+        return $this->storageBase() . '/' . ($id !== '' ? $id : 'id');
+    }
 
     private function service(): ProfileService
     {

@@ -62,7 +62,7 @@ Everything the installation keeps is in `data/` next to the program (or in `THRE
 | `cache/` | the `restore.php` built for the page |
 | `probe.txt` | the file for the test whether the data directory can be fetched |
 
-The **storage directory** of a profile (where its backups are) is a directory you name; keep it outside the web root. ThreadSafe puts protection files into it (`.htaccess`, `web.config`, an empty `index.php`) for the case that it is not.
+The **storage directory** of a profile (where its backups are) is a directory you name; keep it outside the web root. Left empty in the form it is `backups/<id>` in the home of the installation (beside `data/`; the grey suggestion in the field says where), which is removed with the home when ThreadSafe is removed. On a host with `open_basedir` the directory must lie inside the allowed ones, and the test of the profile says so when it does not. ThreadSafe puts protection files into it (`.htaccess`, `web.config`, an empty `index.php`) for the case that it is not.
 
 ## Switching it on
 

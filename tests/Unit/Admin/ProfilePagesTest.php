@@ -365,6 +365,28 @@ final class ProfilePagesTest extends TestCase
         self::assertSame([], $this->store()->ids());
     }
 
+    public function testAnEmptyStorageFieldMeansTheSuggestionAndTheFormSaysSo(): void
+    {
+        $form = $this->browser->get('/new-profile')->body;
+
+        // the field is not required, shows the suggestion in grey, and the hint names the directory it is below
+        self::assertMatchesRegularExpression('~<input id="f-storage" name="storage" type="text" value="" placeholder="' . preg_quote($this->base, '~') . '/backups/id" spellcheck="false">~', $form);
+        self::assertStringContainsString('Leave it empty to use the suggestion in grey', $form);
+        self::assertStringContainsString($this->base . '/backups. A directory in the home of ThreadSafe is removed with it.', $form);
+
+        $response = $this->browser->post('/profiles', $this->fields(['storage' => '']));
+
+        self::assertSame(303, $response->status, $response->body);
+        self::assertSame($this->base . '/backups/blog', $this->store()->load('blog')->storage, 'the id of the profile is the last part');
+    }
+
+    public function testAStorageThatWasTypedIsKept(): void
+    {
+        $this->create();
+
+        self::assertSame($this->base . '/storage/blog', $this->store()->load('blog')->storage);
+    }
+
     public function testATakenIdIsRefused(): void
     {
         $this->create();

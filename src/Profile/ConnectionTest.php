@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace ThreadSafe\Profile;
 
 use ThreadSafe\Backup\SchemaReader;
+use ThreadSafe\Core\OpenBasedir;
 use ThreadSafe\Core\PhpBinary;
 use ThreadSafe\Database\Connection;
 use ThreadSafe\Database\ConnectionFailed;
@@ -137,18 +138,29 @@ final class ConnectionTest
     }
 
     /**
+     * The storage directory: can it be used or made, and is there room. A path that `open_basedir` does not allow is named as that, and no path outside
+     * the allowed ones is touched (it would be a warning, and say nothing useful: "/" is not a directory).
+     *
+     * @param string|null $openBasedir for tests: the setting to check against; default: the one in force
+     *
      * @return list<Check>
      */
-    private function storage(SiteProfile $profile, ?string $siteRoot): array
+    public function storage(SiteProfile $profile, ?string $siteRoot, ?string $openBasedir = null): array
     {
         $checks = [];
         $storage = $profile->storage;
         $existing = $storage;
-        while (!file_exists($existing) && dirname($existing) !== $existing) {
+        if (!OpenBasedir::permits($storage, $openBasedir)) {
+            return [Check::failure('Storage', "\"$storage\" is outside the directories that this host lets PHP use (open_basedir: " . implode(', ', OpenBasedir::allowed($openBasedir)) . '). '
+                . 'Choose a directory inside one of them, outside the web root (a "private" directory next to the document root is common), or ask the host to allow this one.')];
+        }
+        while (!@file_exists($existing) && dirname($existing) !== $existing && OpenBasedir::permits(dirname($existing), $openBasedir)) {
             $existing = dirname($existing);
         }
 
-        if (!is_dir($existing)) {
+        if (!OpenBasedir::permits($existing, $openBasedir)) {
+            $checks[] = Check::failure('Storage', "PHP cannot make \"$storage\": \"$existing\" is outside the directories that this host lets PHP use (open_basedir: " . implode(', ', OpenBasedir::allowed($openBasedir)) . ').');
+        } elseif (!is_dir($existing)) {
             $checks[] = Check::failure('Storage', "\"$storage\" cannot be used or created: \"$existing\" is not a directory.");
         } elseif (is_dir($storage)) {
             $probe = @tempnam($storage, '.ts-probe-');
