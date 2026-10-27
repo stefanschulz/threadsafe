@@ -262,6 +262,25 @@ button.link:hover { color: var(--brass-bright); background: none; }
 .failure-help code { word-break: normal; overflow-wrap: anywhere; }
 @media (prefers-reduced-motion: reduce) { .failure-help > summary::before { transition: none; } }
 
+/* a required field: the star in its label (the words are for a screen reader); a field that does not apply now: dimmed and disabled */
+.req { color: var(--error); font-weight: 700; }
+.required-note { margin: 0 0 0.5rem; }
+.field.inactive label, .field.inactive .hint { color: var(--text-faint); }
+.field.inactive input, .field.inactive select, .field.inactive textarea { opacity: 0.5; background: transparent; border-style: dashed; cursor: not-allowed; }
+.field.inactive .req { opacity: 0.4; }
+
+/* a part of a form that explains itself on request: a small "?" button that opens the text */
+details.help { margin: 0.5rem 0 1rem; }
+details.help > summary { display: inline-flex; align-items: center; gap: 0.45rem; padding: 0.2rem 0.6rem 0.2rem 0.3rem; color: var(--text-soft); font-size: 0.9rem; font-weight: 500; list-style: none; cursor: pointer; border: 1px solid var(--border); border-radius: 999px; background: var(--panel-2); }
+details.help > summary::-webkit-details-marker { display: none; }
+details.help > summary:hover { color: var(--text); border-color: var(--border-strong); }
+.help-mark { display: inline-flex; align-items: center; justify-content: center; width: 1.3rem; height: 1.3rem; color: var(--on-brass); font: 700 0.8rem/1 var(--mono); background: var(--brass-fill); border-radius: 50%; }
+details.help[open] > summary { color: var(--text); border-color: var(--brass-edge); }
+.help-body { margin-top: 0.6rem; padding: 0.4rem 1rem 0.6rem; background: var(--panel-2); border: 1px solid var(--border); border-left: 4px solid var(--brass-edge); border-radius: var(--radius); }
+.help-body p, .help-body ul, .help-body ol { margin: 0.5rem 0; }
+.help-body li { margin: 0.3rem 0; }
+.help-body table { margin: 0.5rem 0; font-size: 0.92rem; }
+
 .hint { color: var(--text-soft); font-size: 0.9rem; }
 /* the figures of the dashboard: a strip of cells, label above and value below; the 1px gap shows the background as the lines between them */
 .stats { display: flex; flex-wrap: wrap; gap: 1px; margin: 1.5rem 0 2rem; overflow: hidden; background: var(--border); border: 1px solid var(--border); border-radius: var(--radius); }

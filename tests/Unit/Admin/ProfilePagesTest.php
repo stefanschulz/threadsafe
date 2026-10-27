@@ -380,6 +380,63 @@ final class ProfilePagesTest extends TestCase
         self::assertSame($this->base . '/backups/blog', $this->store()->load('blog')->storage, 'the id of the profile is the last part');
     }
 
+    public function testTheFormMarksItsRequiredFields(): void
+    {
+        $form = $this->browser->get('/new-profile')->body;
+
+        self::assertStringContainsString('Fields marked <span class="req" aria-hidden="true">*</span>', $form);
+        // the id, the site directory and (while the access is entered here) the name and the user of the database
+        self::assertSame(4, substr_count($form, '<span class="req" aria-hidden="true">*</span><span class="visually-hidden"> (required)</span>'));
+        foreach (['Id', 'Site directory', 'Database', 'User'] as $label) {
+            self::assertMatchesRegularExpression('~<label for="f-[a-z_]+">' . $label . ' <span class="req"~', $form, $label);
+        }
+        self::assertStringNotContainsString('Storage directory <span class="req"', $form, 'the storage is optional');
+        self::assertStringNotContainsString('Name <span class="req"', $form);
+    }
+
+    public function testTheDatabaseFieldsFollowTheChoiceOfTheAccess(): void
+    {
+        $form = $this->browser->get('/new-profile')->body;
+
+        // seven fields are active only for "Enter it here"; the script switches them, and the two that must be filled in become required with it
+        self::assertSame(7, substr_count($form, 'data-active-when="db_mode=manual"'));
+        self::assertSame(2, substr_count($form, 'data-required-when-active="1"'));
+        foreach (['db_host', 'db_port', 'db_name', 'db_user', 'db_password', 'db_prefix', 'db_driver'] as $name) {
+            self::assertMatchesRegularExpression('~name="' . $name . '"[^>]*data-active-when="db_mode=manual"~', $form, $name);
+        }
+        self::assertStringNotContainsString('name="db_mode" disabled', $form);
+    }
+
+    public function testTheFiltersAreExplainedWithAndWithoutTheTick(): void
+    {
+        $form = $this->browser->get('/new-profile')->body;
+
+        self::assertStringContainsString('With the tick these are left out; without it nothing is left out except what you list below', $form);
+        self::assertStringContainsString('on top of the filters of the type when the box above is ticked, and on their own when it is not', $form);
+        self::assertStringContainsString('on top of the type&apos;s own list when the box is ticked, on their own when it is not', $form);
+        self::assertStringContainsString('<details class="help"><summary><span class="help-mark" aria-hidden="true">?</span> How the filters work</summary>', $form);
+        self::assertStringContainsString('the type\'s paths <strong>and</strong> "Leave out also"', $form);
+        self::assertStringContainsString('<td>not ticked</td><td>only "Leave out also"</td><td>only yours</td>', $form);
+    }
+
+    public function testThePublicKeysHaveAHelpThatSaysWhatToMake(): void
+    {
+        $new = $this->browser->get('/new-profile')->body;
+
+        self::assertStringContainsString('<summary><span class="help-mark" aria-hidden="true">?</span> Which keys? How do I get them?</summary>', $new);
+        self::assertStringContainsString('<code>age1...</code>', $new);
+        self::assertStringContainsString('AGE-SECRET-KEY-1...', $new);
+        self::assertStringContainsString('age-keygen', $new);
+        self::assertStringContainsString('threadsafe keys generate', $new);
+        self::assertStringContainsString('Save the profile without a key first', $new, 'a new profile has no page of keys yet');
+        self::assertStringNotContainsString('href="/profiles/blog/keys"', $new);
+
+        $this->create();
+        $edit = $this->browser->get('/profiles/blog/edit')->body;
+
+        self::assertStringContainsString('href="/profiles/blog/keys">Make a key pair</a> on the page <em>Keys</em>', $edit);
+    }
+
     public function testAStorageThatWasTypedIsKept(): void
     {
         $this->create();

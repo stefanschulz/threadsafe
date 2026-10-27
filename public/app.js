@@ -193,6 +193,39 @@
     });
   });
 
+  // The profile form: <input data-active-when="db_mode=manual"> is switched on and off by the field of that name (a select): while it does not
+  // have that value the input is disabled (and its label dimmed). An input with data-required-when-active is also required while it is active.
+  // Before the form is sent every field is switched on again, so that what was typed into a switched-off field is not lost when the page comes back
+  // with a message. Without script all fields are active.
+  var conditional = document.querySelectorAll('[data-active-when]');
+  if (conditional.length > 0) {
+    var refresh = function () {
+      conditional.forEach(function (element) {
+        var parts = element.getAttribute('data-active-when').split('=');
+        var control = element.form ? element.form.elements[parts[0]] : null;
+        var active = !control || control.value === parts[1];
+        element.disabled = !active;
+        if (element.hasAttribute('data-required-when-active')) { element.required = active; }
+        var field = element.closest('.field');
+        if (field) { field.classList.toggle('inactive', !active); }
+      });
+    };
+    var watched = {};
+    conditional.forEach(function (element) {
+      var name = element.getAttribute('data-active-when').split('=')[0];
+      var control = element.form ? element.form.elements[name] : null;
+      if (control && !watched[name]) { watched[name] = true; control.addEventListener('change', refresh); }
+      if (element.form && !element.form.hasAttribute('data-conditional')) {
+        element.form.setAttribute('data-conditional', '');
+        element.form.addEventListener('submit', function () {
+          conditional.forEach(function (each) { each.disabled = false; });
+        });
+      }
+    });
+    window.addEventListener('pageshow', refresh);
+    refresh();
+  }
+
   // <form data-confirm="Delete this backup?"> asks first
   document.addEventListener('submit', function (event) {
     var form = event.target;

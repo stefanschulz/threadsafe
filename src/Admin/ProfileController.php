@@ -422,7 +422,11 @@ final class ProfileController
         // an error shows every section, so that nothing that may have caused it stays folded
         $open = $messages !== [];
         $summary = self::summaries($values);
-        $inner .= '<section class="form-section"><h2>Site</h2>'
+        // the fields of the database are active only while the access is entered here (the script switches them; without script they are all there)
+        $manual = ['data-active-when' => 'db_mode=manual'];
+        $manualRequired = $manual + ['data-required-when-active' => '1'];
+        $inner .= '<p class="hint required-note">Fields marked <span class="req" aria-hidden="true">*</span><span class="visually-hidden">with a star</span> are required.</p>'
+            . '<section class="form-section"><h2>Site</h2>'
             . ($creating ? View::field('id', 'Id', 'text', $values['id'], ['required' => 'required', 'maxlength' => '40', 'autocapitalize' => 'none', 'spellcheck' => 'false'], 'Lower-case letters, digits, hyphens and underscores; part of the names of the backup files. It cannot be changed later.')
                 : '<p>Id: <code>' . Html::e($currentId) . '</code></p>')
             . View::field('name', 'Name', 'text', $values['name'], [], 'Shown in the lists; the id if left empty.')
@@ -437,17 +441,23 @@ final class ProfileController
             . View::field('part_size', 'Part size', 'text', $values['part_size'], ['spellcheck' => 'false'], 'Split archives into parts of this size, e.g. 500M or 2G. Empty = one archive.')
             . '</section>' . self::fold('Database', $summary['database'], $open)
             . View::select('db_mode', 'Access', ['site' => 'Read it from the site\'s own configuration (or the site has none)', 'manual' => 'Enter it here'], $values['db_mode'], 'PrestaShop keeps its database access in app/config/parameters.php; reading it from there means no second copy of the password. Types without such a file need the entries below.')
-            . View::field('db_host', 'Host', 'text', $values['db_host'], ['spellcheck' => 'false'])
-            . View::field('db_port', 'Port', 'text', $values['db_port'], ['inputmode' => 'numeric'])
-            . View::field('db_name', 'Database', 'text', $values['db_name'], ['spellcheck' => 'false'])
-            . View::field('db_user', 'User', 'text', $values['db_user'], ['autocomplete' => 'off', 'spellcheck' => 'false'])
-            . View::field('db_password', 'Password', 'password', '', ['autocomplete' => 'new-password'], $current?->database !== null ? 'Leave empty to keep the stored password. It is never shown.' : 'Stored in the profile file (mode 0600).')
-            . View::field('db_prefix', 'Table prefix', 'text', $values['db_prefix'], ['spellcheck' => 'false'])
-            . View::select('db_driver', 'PHP interface', array_combine(DatabaseSettings::DRIVERS, DatabaseSettings::DRIVERS), $values['db_driver'])
+            . View::field('db_host', 'Host', 'text', $values['db_host'], ['spellcheck' => 'false'] + $manual)
+            . View::field('db_port', 'Port', 'text', $values['db_port'], ['inputmode' => 'numeric'] + $manual)
+            . View::field('db_name', 'Database', 'text', $values['db_name'], ['spellcheck' => 'false'] + $manualRequired)
+            . View::field('db_user', 'User', 'text', $values['db_user'], ['autocomplete' => 'off', 'spellcheck' => 'false'] + $manualRequired)
+            . View::field('db_password', 'Password', 'password', '', ['autocomplete' => 'new-password'] + $manual, $current?->database !== null ? 'Leave empty to keep the stored password. It is never shown.' : 'Stored in the profile file (mode 0600).')
+            . View::field('db_prefix', 'Table prefix', 'text', $values['db_prefix'], ['spellcheck' => 'false'] + $manual)
+            . View::select('db_driver', 'PHP interface', array_combine(DatabaseSettings::DRIVERS, DatabaseSettings::DRIVERS), $values['db_driver'], '', $manual)
             . '</div></details>' . self::fold('What to back up', $summary['filters'], $open)
-            . View::checkbox('default_filters', 'Use the filters of the website type', $values['default_filters'] === '1', 'Caches, logs and the tables of statistics are left out; the type knows which.')
-            . View::textarea('exclude', 'Leave out also', $values['exclude'], 4, 'Paths relative to the site directory, one per line.')
-            . View::textarea('structure_only', 'Tables of which only the structure is kept', $values['structure_only'], 3, 'One per line, with or without the table prefix.')
+            . View::checkbox('default_filters', 'Use the filters of the website type', $values['default_filters'] === '1', 'The type knows what a backup does not need: caches, logs, temporary files and the tables of statistics. With the tick these are left out; without it nothing is left out except what you list below, and the backup gets larger.')
+            . View::textarea('exclude', 'Leave out also', $values['exclude'], 4, 'Paths and patterns relative to the site directory, one per line, e.g. var/cache or *.log. They are left out on top of the filters of the type when the box above is ticked, and on their own when it is not.')
+            . View::textarea('structure_only', 'Tables of which only the structure is kept', $values['structure_only'], 3, 'The table is made again empty by a restore: its rows are not backed up. One per line, with or without the table prefix. Like the paths above: on top of the type\'s own list when the box is ticked, on their own when it is not.')
+            . View::help('How the filters work', '<p>A backup contains everything in the site directory and every table of the database, <strong>minus what is filtered</strong>. There are two lists, and each is the sum of two parts:</p>'
+                . '<table><thead><tr><th>Box "Use the filters of the website type"</th><th>Left out of the files</th><th>Only the structure of these tables</th></tr></thead><tbody>'
+                . '<tr><td>ticked</td><td>the type\'s paths <strong>and</strong> "Leave out also"</td><td>the type\'s tables <strong>and</strong> yours</td></tr>'
+                . '<tr><td>not ticked</td><td>only "Leave out also"</td><td>only yours</td></tr></tbody></table>'
+                . '<p>So your own lists always count; the box decides only whether the type\'s lists are added. The type\'s lists are not shown here; "Look at the site" (above) says how many paths and tables they hold. Other website has no lists of its own, so there the box makes no difference. The storage directory is always left out of the files.</p>'
+                . '<p><strong>Patterns</strong> for paths: <code>var/cache</code> is that directory and everything below it, <code>*.log</code> a file name at any depth, <code>**/</code> before a pattern any depth, <code>*</code> within one name, <code>**</code> across directories, a trailing <code>/</code> directories only. No <code>..</code>, no absolute paths.</p>')
             . '</div></details>' . self::fold('Automation', $summary['automation'], $open)
             . '<h3>Schedule</h3>'
             . View::field('schedule', 'Back up by itself at', 'text', $values['schedule'] ?? '', ['spellcheck' => 'false', 'placeholder' => '30 3 * * *'], 'A cron expression: minute hour day-of-month month day-of-week, e.g. 30 3 * * * for 03:30 every day, or @daily. Read in the time zone ' . $this->services->config->scheduleZone()->getName() . ' (System page). Empty: no scheduled backups. Something must call the trigger, see the System page.')
@@ -456,8 +466,9 @@ final class ProfileController
             . View::field('max_age_days', 'Delete backups older than this many days', 'text', $values['max_age_days'] ?? '', ['inputmode' => 'numeric'])
             . View::field('max_size', 'Keep the backups under this size together', 'text', $values['max_size'] ?? '', ['spellcheck' => 'false'], 'For example 20G or 500M. The oldest ones are deleted first.')
             . '</div></details>' . self::fold('Encryption', $summary['encryption'], $open)
-            . View::textarea('recipients', 'Public keys', $values['recipients'] ?? '', 3, 'One per line (age1...). Backups are encrypted for these keys; only the matching secret keys open them, this server cannot. Empty: not encrypted.' . ($creating ? ' Make a key pair on the profile page after saving, or with the command "threadsafe keys generate".' : ''))
+            . View::textarea('recipients', 'Public keys', $values['recipients'] ?? '', 3, 'Optional. A public key is one line that starts with age1. Backups are encrypted for the keys listed, one per line; only the matching secret keys open them, and this server does not have them. Empty: backups are not encrypted.')
             . ($creating ? '' : '<p><a href="' . Html::e($context->urls->to('/profiles/' . $currentId . '/keys')) . '">Make a key pair</a> (the secret key is shown once; the profile is not saved by following this link)</p>')
+            . View::help('Which keys? How do I get them?', $this->keysHelp($creating, $currentId, $context))
             . '</div></details>'
             . '<div class="form-bar"><button type="submit" name="action" value="save">' . ($creating ? 'Test and create' : 'Test and save') . '</button> '
             . '<button type="submit" name="action" value="test" class="secondary">Only test</button> '
@@ -532,6 +543,26 @@ final class ProfileController
     }
 
     // ------------------------------------------------------------------------------------------------- helpers
+
+    /**
+     * The help for the public keys: what a key pair is, the ways to get one, and what to do with the two halves. The text of docs/ENCRYPTION.md section 3,
+     * in short.
+     */
+    private function keysHelp(bool $creating, string $profileId, Context $context): string
+    {
+        $make = $creating
+            ? '<li><strong>In this program, after saving.</strong> Save the profile without a key first. Then open the profile, <em>Keys</em>, <em>Make a key pair</em>: the page shows the secret key once, with buttons to copy, save and print it, and puts the public key into the profile when you confirm that the secret key is stored elsewhere.</li>'
+            : '<li><strong>In this program.</strong> <a href="' . Html::e($context->urls->to('/profiles/' . $profileId . '/keys')) . '">Make a key pair</a> on the page <em>Keys</em> of this profile: it shows the secret key once, with buttons to copy, save and print it, and puts the public key into the profile when you confirm that the secret key is stored elsewhere.</li>';
+
+        return '<p>Encryption uses a <strong>key pair</strong> of two lines of text:</p>'
+            . '<ul><li>the <strong>public key</strong>, <code>age1...</code>. It is not secret. <strong>This is what goes into the field above.</strong> It lets this server encrypt a backup, not open one.</li>'
+            . '<li>the <strong>secret key</strong>, <code>AGE-SECRET-KEY-1...</code>. It opens the backups. <strong>Keep it away from this server</strong> (a password manager, a printout in a safe, another computer). If it is lost, the encrypted backups are lost: nobody can open them.</li></ul>'
+            . '<p>Ways to make a pair:</p><ol>' . $make
+            . '<li><strong>On your own computer</strong> with the tool <code>age-keygen</code> (age-encryption.org): the secret key never touches this server, and you paste only the public key here.</li>'
+            . '<li><strong>On the command line</strong> of this server: <code>threadsafe keys generate --output=FILE</code> writes the key file (mode 0600) that you then take away.</li></ol>'
+            . '<p>You can enter <strong>several public keys</strong>, one per line: every backup is encrypted for all of them, and any one of the secret keys opens it (a second person, a spare key kept elsewhere). A new key applies to the <em>next</em> backup; earlier backups stay readable only for the keys they were made for. A mistyped key is refused when you save.</p>'
+            . '<p>Backups of encrypted profiles are checked and restored with the secret key: see the pages <em>Restore</em> of a backup.</p>';
+    }
 
     /** Below this directory the storage of a profile is suggested: `backups` in the home of the installation. */
     private function storageBase(): string

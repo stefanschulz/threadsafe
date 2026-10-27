@@ -62,6 +62,8 @@ Everything the installation keeps is in `data/` next to the program (or in `THRE
 | `cache/` | the `restore.php` built for the page |
 | `probe.txt` | the file for the test whether the data directory can be fetched |
 
+The profile form marks its required fields with a star (the id, the site directory, and the name and user of the database while the access is entered here). The fields of the database are switched off (dimmed, dashed) while the access is read from the site's own configuration; they keep what was typed in them. Two parts explain themselves on request, with a small "?" button: **How the filters work** (the two lists, "Leave out also" and "Tables of which only the structure is kept", are always applied; the box "Use the filters of the website type" only decides whether the type's own lists are added on top) and **Which keys? How do I get them?** (public and secret key, the three ways to make a pair, several keys; the text of [ENCRYPTION.md](ENCRYPTION.md) section 3 in short).
+
 The **storage directory** of a profile (where its backups are) is a directory you name; keep it outside the web root. Left empty in the form it is `backups/<id>` in the home of the installation (beside `data/`; the grey suggestion in the field says where), which is removed with the home when ThreadSafe is removed. On a host with `open_basedir` the directory must lie inside the allowed ones, and the test of the profile says so when it does not. ThreadSafe puts protection files into it (`.htaccess`, `web.config`, an empty `index.php`) for the case that it is not.
 
 ## Switching it on

@@ -126,21 +126,49 @@ final class View
     }
 
     /**
-     * A labelled input.
+     * A labelled input. A required field (the attribute `required`, or `data-required-when-active`, which the script turns into `required` while the
+     * field is active) carries a mark in its label: the star, with the word for a screen reader.
      *
      * @param array<string, string> $attributes more attributes (autocomplete, autofocus ...), values are escaped
      */
     public static function field(string $name, string $label, string $type = 'text', string $value = '', array $attributes = [], string $hint = ''): string
     {
-        $extra = '';
+        return '<div class="field"><label for="f-' . Html::e($name) . '">' . Html::e($label) . self::requiredMark($attributes) . '</label><input id="f-' . Html::e($name) . '" name="' . Html::e($name) . '" type="' . Html::e($type) . '"'
+            . ($type === 'password' ? '' : ' value="' . Html::e($value) . '"') . self::attributes($attributes) . '>' . self::hintText($hint) . '</div>';
+    }
+
+    /**
+     * @param array<string, string> $attributes
+     */
+    private static function attributes(array $attributes): string
+    {
+        $html = '';
         foreach ($attributes as $attribute => $content) {
             if (preg_match('/^[a-z-]+$/', $attribute) === 1) {
-                $extra .= ' ' . $attribute . '="' . Html::e($content) . '"';
+                $html .= ' ' . $attribute . '="' . Html::e($content) . '"';
             }
         }
 
-        return '<div class="field"><label for="f-' . Html::e($name) . '">' . Html::e($label) . '</label><input id="f-' . Html::e($name) . '" name="' . Html::e($name) . '" type="' . Html::e($type) . '"'
-            . ($type === 'password' ? '' : ' value="' . Html::e($value) . '"') . $extra . '>' . self::hintText($hint) . '</div>';
+        return $html;
+    }
+
+    /**
+     * @param array<string, string> $attributes
+     */
+    private static function requiredMark(array $attributes): string
+    {
+        return isset($attributes['required']) || isset($attributes['data-required-when-active'])
+            ? ' <span class="req" aria-hidden="true">*</span><span class="visually-hidden"> (required)</span>'
+            : '';
+    }
+
+    /**
+     * A part of a form that explains itself on request: a small "?" button with a title that opens the text below it (a details element, so it needs
+     * no script and can be used with the keyboard). The text is HTML written by the caller.
+     */
+    public static function help(string $title, string $html): string
+    {
+        return '<details class="help"><summary><span class="help-mark" aria-hidden="true">?</span> ' . Html::e($title) . '</summary><div class="help-body">' . $html . '</div></details>';
     }
 
     /**
@@ -155,16 +183,17 @@ final class View
     /**
      * A choice from a list.
      *
-     * @param array<string, string> $options value => label
+     * @param array<string, string> $options    value => label
+     * @param array<string, string> $attributes more attributes, as for {@see field()}
      */
-    public static function select(string $name, string $label, array $options, string $selected, string $hint = ''): string
+    public static function select(string $name, string $label, array $options, string $selected, string $hint = '', array $attributes = []): string
     {
         $html = '';
         foreach ($options as $value => $text) {
             $html .= '<option value="' . Html::e((string) $value) . '"' . ((string) $value === $selected ? ' selected' : '') . '>' . Html::e($text) . '</option>';
         }
 
-        return '<div class="field"><label for="f-' . Html::e($name) . '">' . Html::e($label) . '</label><select id="f-' . Html::e($name) . '" name="' . Html::e($name) . '">' . $html . '</select>' . self::hintText($hint) . '</div>';
+        return '<div class="field"><label for="f-' . Html::e($name) . '">' . Html::e($label) . self::requiredMark($attributes) . '</label><select id="f-' . Html::e($name) . '" name="' . Html::e($name) . '"' . self::attributes($attributes) . '>' . $html . '</select>' . self::hintText($hint) . '</div>';
     }
 
     public static function checkbox(string $name, string $label, bool $checked, string $hint = ''): string
