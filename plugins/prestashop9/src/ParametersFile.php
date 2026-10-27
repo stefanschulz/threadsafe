@@ -134,6 +134,10 @@ final class ParametersFile
         };
 
         $port = $this->get('database_port', '3306');
+        if ($port === '') {
+            // PrestaShop writes an empty port when the installer was left at the default one
+            $port = '3306';
+        }
         if (!is_int($port) && !(is_string($port) && ctype_digit($port))) {
             throw new InvalidParametersFile('Parameter "database_port" must be a number.');
         }
@@ -152,15 +156,20 @@ final class ParametersFile
     public function withDatabase(DatabaseSettings $settings): self
     {
         $portIsInt = is_int($this->get('database_port'));
-
-        return $this->withMany([
+        $values = [
             'database_host' => $settings->host,
             'database_port' => $portIsInt ? $settings->port : (string) $settings->port,
             'database_name' => $settings->name,
             'database_user' => $settings->user,
             'database_password' => $settings->password,
             'database_prefix' => $settings->prefix,
-        ]);
+        ];
+        if ($this->get('database_port') === '' && $settings->port === 3306) {
+            // an empty port means the default one: it stays empty as long as the port is the default (so that a plan without a change writes nothing)
+            unset($values['database_port']);
+        }
+
+        return $this->withMany($values);
     }
 
     /**

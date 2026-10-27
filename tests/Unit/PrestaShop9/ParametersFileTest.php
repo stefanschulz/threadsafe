@@ -214,6 +214,41 @@ final class ParametersFileTest extends TestCase
         ParametersFile::fromString(self::source($data))->database();
     }
 
+    public function testAnEmptyDatabasePortIsTheDefaultPort(): void
+    {
+        // field test: PrestaShop 9 writes 'database_port' => '' when the installer was left at the default port
+        $data = self::sample();
+        $data['database_port'] = '';
+        $file = ParametersFile::fromString(self::source($data));
+
+        self::assertSame(3306, $file->database()->port);
+    }
+
+    public function testAnEmptyPortStaysEmptyWhileThePortIsTheDefaultOne(): void
+    {
+        $data = self::sample();
+        $data['database_port'] = '';
+        $file = ParametersFile::fromString(self::source($data));
+
+        $same = $file->withDatabase($file->database());
+        $moved = $file->withDatabase(new DatabaseSettings('other', 3306, 'b', 'c', 'd', 'ps_'));
+        $other = $file->withDatabase(new DatabaseSettings('db', 3307, 'b', 'c', 'd', 'ps_'));
+
+        self::assertSame($file->toString(), $same->toString(), 'nothing changes, so nothing is written');
+        self::assertSame('', $moved->get('database_port'), 'the default port keeps the empty value when only the host changes');
+        self::assertSame('3307', $other->get('database_port'), 'another port is written');
+    }
+
+    public function testAPortThatIsNotANumberIsStillRefused(): void
+    {
+        $data = self::sample();
+        $data['database_port'] = 'abc';
+
+        $this->expectException(InvalidParametersFile::class);
+
+        ParametersFile::fromString(self::source($data))->database();
+    }
+
     public function testDatabasePortDefaultsTo3306(): void
     {
         $data = self::sample();
