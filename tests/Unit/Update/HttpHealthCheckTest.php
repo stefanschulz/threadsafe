@@ -50,6 +50,47 @@ final class HttpHealthCheckTest extends TestCase
         self::assertFileDoesNotExist($data . '/health.json', 'the token does not stay');
     }
 
+    public function testAHostWithoutTheRewriteRuleIsAskedThroughIndexPhp(): void
+    {
+        $data = $this->tempDirectory();
+        $seen = [];
+
+        $result = $this->check($data, function (string $url, string $host, string $data) use (&$seen): array {
+            $seen[] = $url;
+            if (!str_contains($url, '/index.php?route=')) {
+                return [404, [], 'Not found'];
+            }
+            $token = (string) substr($url, (int) strrpos($url, '/') + 1);
+
+            return [200, [], (string) json_encode(HttpHealthCheck::answer($data, $token, '0.2.0', 1800000001))];
+        });
+
+        self::assertSame(HealthResult::OK, $result->status);
+        self::assertCount(2, $seen);
+        self::assertMatchesRegularExpression('#^https://example\.org/threadsafe/index\.php\?route=/health/[0-9a-f]{32}$#', $seen[1]);
+    }
+
+    public function testAnAddressThatAnswersNeitherWayIsNotHealthyAndReportsTheFirstAnswer(): void
+    {
+        $result = $this->check($this->tempDirectory(), [404, [], 'Not found']);
+
+        self::assertSame(HealthResult::FAILED, $result->status);
+        self::assertStringContainsString('HTTP 404', $result->message);
+    }
+
+    public function testNoSecondQuestionWhenTheFirstWasAnAnswerOfAVersion(): void
+    {
+        $calls = 0;
+        $result = $this->check($this->tempDirectory(), function () use (&$calls): array {
+            ++$calls;
+
+            return [200, [], '{"ok":true,"version":"0.1.0"}'];
+        });
+
+        self::assertSame(HealthResult::FAILED, $result->status);
+        self::assertSame(1, $calls);
+    }
+
     public function testAVersionThatIsNotTheNewOneIsNotHealthy(): void
     {
         $result = $this->check($this->tempDirectory(), [200, [], '{"ok":true,"version":"0.1.0"}']);

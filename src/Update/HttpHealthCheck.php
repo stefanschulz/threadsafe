@@ -7,6 +7,7 @@ namespace ThreadSafe\Update;
 use Closure;
 use ThreadSafe\Core\AtomicFile;
 use ThreadSafe\Http\HttpClient;
+use ThreadSafe\Http\HttpResult;
 
 /**
  * The health check after the switch (docs/PHASE7.md 3.5): stores a token the new version alone is asked about, requests
@@ -51,15 +52,21 @@ final class HttpHealthCheck
         }
         try {
             $client = new HttpClient(false, 30, 3, $this->transport);
-            $result = $client->get(rtrim($this->address, '/') . '/health/' . $token, $this->hostHeader);
+            $base = rtrim($this->address, '/');
+            $result = $client->get($base . '/health/' . $token, $this->hostHeader);
+            if ($result->status >= 400 && $result->status < 500 && self::answerOf($result) === null) {
+                // a host without the rewrite rule (web.prettyUrls is false) hands the path to nobody: ask the way that needs none
+                $plain = $client->get($base . '/index.php?route=/health/' . $token, $this->hostHeader);
+                $result = self::answerOf($plain) !== null ? $plain : $result;
+            }
         } finally {
             @unlink($file);
         }
         if ($result->status === 0) {
             return HealthResult::failed('The new version did not answer: ' . ($result->problem ?? 'no answer') . '.');
         }
-        $answer = json_decode($result->body, true);
-        if ($result->status !== 200 || !is_array($answer) || ($answer['ok'] ?? null) !== true) {
+        $answer = self::answerOf($result);
+        if ($answer === null) {
             return HealthResult::failed("The new version answered with HTTP {$result->status} and not as expected; it did not start properly.");
         }
         if (($answer['version'] ?? null) !== $expectedVersion) {
@@ -67,6 +74,18 @@ final class HttpHealthCheck
         }
 
         return HealthResult::ok('The new version started and answered as version ' . $expectedVersion . '.');
+    }
+
+    /**
+     * The decoded answer if the response is the one of a started version: HTTP 200 and `{"ok":true,...}`.
+     *
+     * @return array<string, mixed>|null
+     */
+    private static function answerOf(HttpResult $result): ?array
+    {
+        $answer = json_decode($result->body, true);
+
+        return $result->status === 200 && is_array($answer) && ($answer['ok'] ?? null) === true ? $answer : null;
     }
 
     /**
