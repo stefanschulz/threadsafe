@@ -7,6 +7,7 @@ namespace ThreadSafe\Install;
 use Closure;
 use Throwable;
 use ThreadSafe\Core\Environment;
+use ThreadSafe\Core\OpenBasedir;
 use ThreadSafe\Engine\Budget;
 use ThreadSafe\Engine\EngineException;
 use ThreadSafe\Engine\Executor;
@@ -168,7 +169,7 @@ final class Wizard
         }
         $placed = array_filter(Places::candidates($this->baseDirectory), static fn (array $place): bool => $place['usable']);
         if ($placed === []) {
-            $checks[] = Check::failure('Home', 'PHP cannot make a directory for ThreadSafe next to or below this one. Ask your host to make this directory writable for PHP, or give a directory that is (below).');
+            $checks[] = Check::failure('Home', 'PHP cannot make a directory for ThreadSafe next to, below or in an allowed directory of this one.' . (OpenBasedir::restricted() ? ' This host restricts PHP to a few directories (open_basedir: ' . implode(', ', OpenBasedir::allowed()) . ').' : '') . ' Ask your host to make this directory writable for PHP' . (OpenBasedir::restricted() ? ' and to allow a directory outside the web root' : '') . ', or give a directory that PHP may use and write in (below).');
         }
 
         return $checks;
@@ -208,14 +209,16 @@ final class Wizard
         $options = '';
         $first = true;
         foreach (Places::candidates($this->baseDirectory) as $place) {
-            $label = $place['inside']
-                ? '<strong>Below this directory</strong> <code>' . Html::e($place['path']) . '</code> <span class="hint">closed by an <code>.htaccess</code>. This is the weaker choice: it works on Apache only; on nginx and IIS the program would be reachable from outside unless you add a rule that denies this directory.</span>'
-                : '<strong>Next to this directory</strong> <code>' . Html::e($place['path']) . '</code> <span class="hint">outside the web root: nothing of the program can be fetched. Recommended.</span>';
+            $label = match ($place['kind']) {
+                'inside' => '<strong>Below this directory</strong> <code>' . Html::e($place['path']) . '</code> <span class="hint">closed by an <code>.htaccess</code>. This is the weaker choice: it works on Apache only; on nginx and IIS the program would be reachable from outside unless you add a rule that denies this directory.</span>',
+                'allowed' => '<strong>In a directory this host allows</strong> <code>' . Html::e($place['path']) . '</code> <span class="hint">outside the web root (this host lets PHP use only some directories, open_basedir): nothing of the program can be fetched. Recommended.</span>',
+                default => '<strong>Next to this directory</strong> <code>' . Html::e($place['path']) . '</code> <span class="hint">outside the web root: nothing of the program can be fetched. Recommended.</span>',
+            };
             if (!$place['usable']) {
                 $options .= '<label class="hint"><input type="radio" disabled> ' . $label . '<br>Not possible: ' . Html::e($place['reason']) . '</label>';
                 continue;
             }
-            $options .= '<label><input type="radio" name="place" value="' . ($place['inside'] ? 'inside' : 'outside') . '"' . ($first ? ' checked' : '') . '> ' . $label . '</label>';
+            $options .= '<label><input type="radio" name="place" value="' . Html::e($place['id']) . '"' . ($first ? ' checked' : '') . '> ' . $label . '</label>';
             $first = false;
         }
         $options .= '<label><input type="radio" name="place" value="custom"' . ($first ? ' checked' : '') . '> <strong>Another directory</strong> <span class="hint">(a full path; new or empty, writable for PHP)</span></label><input type="text" name="custom" autocomplete="off" placeholder="/home/user/threadsafe">';
@@ -233,14 +236,10 @@ final class Wizard
         $choice = (string) $request->post('place');
         $candidates = [];
         foreach (Places::candidates($this->baseDirectory) as $place) {
-            $candidates[$place['inside'] ? 'inside' : 'outside'] = $place;
+            $candidates[$place['id']] = $place;
         }
         $place = $candidates[$choice] ?? null;
-        $home = match ($choice) {
-            'inside', 'outside' => $place['path'] ?? '',
-            'custom' => rtrim(str_replace('\\', '/', trim((string) $request->post('custom'))), '/'),
-            default => '',
-        };
+        $home = $place !== null ? $place['path'] : ($choice === 'custom' ? rtrim(str_replace('\\', '/', trim((string) $request->post('custom'))), '/') : '');
         $problem = match (true) {
             $home === '' => 'Choose where the program goes.',
             $place !== null && !$place['usable'] => $place['reason'],

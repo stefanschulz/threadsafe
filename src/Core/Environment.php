@@ -86,10 +86,13 @@ final class Environment
      */
     public static function dataDirectory(string $data): array
     {
-        if (!is_dir($data)) {
+        if (!OpenBasedir::permits($data)) {
+            return [Check::failure('Data directory', "\"$data\" is outside the directories that this host lets PHP use (open_basedir: " . implode(', ', OpenBasedir::allowed()) . '); profiles, runs and sessions cannot be stored there.')];
+        }
+        if (!@is_dir($data)) {
             $parent = dirname($data);
 
-            return is_dir($parent) && is_writable($parent)
+            return OpenBasedir::permits($parent) && @is_dir($parent) && @is_writable($parent)
                 ? [Check::info('Data directory', "\"$data\" does not exist yet; it is made when something is stored (profiles, runs, sessions).")]
                 : [Check::failure('Data directory', "\"$data\" does not exist and cannot be made; profiles, runs and sessions cannot be stored.")];
         }

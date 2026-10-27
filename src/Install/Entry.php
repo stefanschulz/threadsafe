@@ -25,6 +25,8 @@ final class Entry
 
             return 1;
         }
+        // a warning of PHP (a path that open_basedir does not allow, say) must never reach the page: it would end the headers
+        @ini_set('display_errors', '0');
         (new Wizard($script))->handle(Request::fromGlobals())->send();
 
         return 0;

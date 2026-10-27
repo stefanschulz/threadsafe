@@ -106,6 +106,7 @@ ThreadSafe never looks for a new version on its own. All of it is in [docs/WEB.m
 | "Too many wrong keys. Wait ..." | Wait the seconds it names; wrong keys are slowed down. |
 | A problem on the check page | The sentence says what to ask the host for (an extension, a writable directory). Press "check again" when it is done. |
 | `"index.php" exists in ... already` | The installer does not overwrite your files. Move the file away, or install into an empty directory. |
+| The check page says a place is "outside the directories that this host lets PHP use (open_basedir: ...)" | The host restricts PHP to a few directories (the setting `open_basedir`; common on managed hosts). The installer then offers an allowed directory outside the web root by itself, often `private/`: choose it. Do not choose a place that is not in the list the message names. |
 | "PHP cannot make ..." for the home | The directory above the document root is not writable for PHP. Choose the place below the document root, or a directory of your own that PHP can write in. |
 | The installation stops with a message about a hash | The file `install.php` is damaged or was changed. Upload it again and compare its SHA-256. Nothing is activated before the last step, so the installation can be started again. |
 | After the setup every page says "not found" | The host has no rewrite rule. Set `web.prettyUrls` to `false` in `data/config.json` (`{"web": {"prettyUrls": false}}`); the pages are then `index.php?route=/login`. See [docs/WEB.md](docs/WEB.md). |

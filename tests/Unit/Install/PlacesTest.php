@@ -45,6 +45,87 @@ final class PlacesTest extends TestCase
         self::assertTrue($places[1]['usable']);
     }
 
+    /**
+     * A host like a managed shared host: PHP may use the document root, a "private" directory next to it, and a few others - not their parent.
+     *
+     * @return array{string, string, string} the document root, the directory above it, and the open_basedir setting
+     */
+    private function restrictedHost(): array
+    {
+        $docroot = $this->host();
+        $base = dirname($docroot);
+        mkdir($base . '/private');
+        mkdir($base . '/tmp');
+        mkdir($base . '/.composer');
+
+        return [$docroot, $base, $docroot . ':' . $base . '/private:' . $base . '/tmp:' . $base . '/.composer:/usr/bin'];
+    }
+
+    public function testWhereOpenBasedirForbidsTheDirectoryNextToTheDocumentRootAnAllowedOneIsProposed(): void
+    {
+        [$docroot, $base, $setting] = $this->restrictedHost();
+
+        $places = Places::candidates($docroot, $setting);
+
+        self::assertSame(['outside', 'allowed-1', 'inside'], array_column($places, 'id'));
+        self::assertFalse($places[0]['usable']);
+        self::assertStringContainsString('open_basedir', $places[0]['reason']);
+        self::assertSame('allowed', $places[1]['kind']);
+        self::assertSame($base . '/private/threadsafe', $places[1]['path']);
+        self::assertTrue($places[1]['usable'], $places[1]['reason']);
+        self::assertFalse($places[1]['inside']);
+        self::assertTrue($places[2]['usable']);
+    }
+
+    public function testTemporaryHiddenAndSystemDirectoriesAreNoHomes(): void
+    {
+        [$docroot, $base, $setting] = $this->restrictedHost();
+
+        $homes = Places::allowedHomes($docroot, $setting);
+
+        self::assertSame([$base . '/private'], $homes, 'not tmp, not .composer, not /usr/bin, not the document root itself');
+    }
+
+    public function testWithoutARestrictionThereIsNoExtraPlace(): void
+    {
+        self::assertSame(['outside', 'inside'], array_column(Places::candidates($this->host(), ''), 'id'));
+    }
+
+    public function testAPathOutsideWhatPhpMayUseIsRefusedWithTheAllowedDirectoriesNamed(): void
+    {
+        [$docroot, $base, $setting] = $this->restrictedHost();
+
+        $problem = (string) Places::problem($base . '/elsewhere', $docroot, $setting);
+
+        self::assertStringContainsString('outside the directories that this host lets PHP use (open_basedir: ', $problem);
+        self::assertStringContainsString($base . '/private', $problem);
+    }
+
+    public function testNothingOutsideOpenBasedirIsTouchedAndNoWarningIsPrinted(): void
+    {
+        [$docroot, $base] = $this->restrictedHost();
+        $root = dirname(__DIR__, 3);
+        $code = 'require $argv[1] . "/vendor/autoload.php"; echo json_encode([array_column(ThreadSafe\Install\Places::candidates($argv[2]), "usable", "id"), array_map(static fn ($c) => $c->message, ThreadSafe\Core\Environment::dataDirectory("/etc/threadsafe-data")), ThreadSafe\Install\Places::problem("/home/nobody/threadsafe", $argv[2])]);';
+        $process = proc_open(
+            [PHP_BINARY, '-d', 'open_basedir=' . $root . ':' . $docroot . ':' . $base . '/private', '-d', 'display_errors=1', '-d', 'error_reporting=-1', '-r', $code, $root, $docroot],
+            [1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+            $pipes,
+        );
+        self::assertIsResource($process);
+        $output = (string) stream_get_contents($pipes[1]);
+        $errors = (string) stream_get_contents($pipes[2]);
+        proc_close($process);
+
+        self::assertStringNotContainsString('Warning', $output . $errors, 'a warning would end the headers of the page');
+        $result = json_decode($output, true);
+        self::assertIsArray($result, $output . $errors);
+        self::assertFalse($result[0]['outside'], 'the directory above the document root is not allowed');
+        self::assertTrue($result[0]['allowed-1'], 'the private directory is');
+        self::assertTrue($result[0]['inside']);
+        self::assertStringContainsString('open_basedir', $result[1][0]);
+        self::assertStringContainsString('open_basedir', $result[2]);
+    }
+
     public function testAPlaceThatExistsAndIsNotEmptyIsNotUsableAndSaysWhy(): void
     {
         $docroot = $this->host();

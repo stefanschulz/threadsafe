@@ -36,6 +36,8 @@ final class Entry
             return (new Application([new RestoreCommand()]))->run($arguments, StreamOutput::standard());
         }
 
+        // a warning of PHP (a path that open_basedir does not allow, say) must never reach the page: it would end the headers
+        @ini_set('display_errors', '0');
         (new Wizard(dirname($script), null, basename($script)))->handle(Request::fromGlobals())->send();
 
         return 0;
