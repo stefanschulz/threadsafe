@@ -194,7 +194,10 @@ final class InstallBuilderTest extends TestCase
         self::assertStringNotContainsString(' style=', $output, 'the policy of the page allows a style element, no style attribute');
         self::assertSame(1, substr_count($output, '<script'), 'one script: the copy button');
         self::assertSame(1, preg_match('/<script nonce="([0-9a-f]{32})">/', $output, $nonce));
-        self::assertStringContainsString("button.textContent='Copy to clipboard'", $output);
+        self::assertStringContainsString("say('Copy to clipboard',COPY)", $output, 'the words are the tooltip and the name of the button');
+        self::assertStringContainsString('button.title=text', $output);
+        self::assertStringNotContainsString('textContent=', $output, 'the button shows a symbol and no text');
+        self::assertStringContainsString("row.className='copyrow'", $output, 'the button stands right of the block');
         self::assertStringContainsString('navigator.clipboard.writeText', $output);
     }
 

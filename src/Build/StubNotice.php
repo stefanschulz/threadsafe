@@ -16,16 +16,30 @@ use ThreadSafe\Web\Logo;
 final class StubNotice
 {
     /**
-     * The script of the page: a button "Copy to clipboard" after every code block. It uses the clipboard API where the page is a secure context (https,
-     * localhost) and selects the text and copies it as the fallback; without a script the block can still be selected by hand. The page allows this one
-     * script by its nonce.
+     * The script of the page: a button to the right of every code block, with the symbol "copy" and no text (the words "Copy to clipboard" are its tooltip
+     * and its name for a screen reader; after a click they say what happened, and the symbol turns into a check mark for a moment). It uses the clipboard
+     * API where the page is a secure context (https, localhost) and selects the text and copies it as the fallback; without a script the block can still
+     * be selected by hand. The page allows this one script by its nonce.
      */
-    private const string COPY = "(function(){var blocks=document.getElementsByTagName('pre');for(var i=0;i<blocks.length;i++){(function(block){"
-        . "var button=document.createElement('button');button.type='button';button.className='secondary';button.textContent='Copy to clipboard';"
-        . "var report=function(ok){button.textContent=ok?'Copied':'Selected: press Ctrl+C';setTimeout(function(){button.textContent='Copy to clipboard';},2500);};"
-        . "var select=function(){var range=document.createRange();range.selectNodeContents(block);var selection=window.getSelection();selection.removeAllRanges();selection.addRange(range);var ok=false;try{ok=document.execCommand('copy');}catch(e){}report(ok);};"
-        . "button.onclick=function(){if(navigator.clipboard&&window.isSecureContext){navigator.clipboard.writeText(block.textContent).then(function(){report(true);},select);}else{select();}};"
-        . "block.parentNode.insertBefore(button,block.nextSibling);})(blocks[i]);}})();";
+    private const string COPY = <<<'JS'
+(function(){
+var SVG='<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">';
+var COPY=SVG+'<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></svg>';
+var DONE=SVG+'<path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+var blocks=document.getElementsByTagName('pre');
+for(var i=0;i<blocks.length;i++){(function(block){
+var row=document.createElement('div');row.className='copyrow';
+block.parentNode.insertBefore(row,block);row.appendChild(block);
+var button=document.createElement('button');button.type='button';button.className='secondary copy';
+var say=function(text,icon){button.title=text;button.setAttribute('aria-label',text);button.innerHTML=icon;};
+say('Copy to clipboard',COPY);
+var report=function(ok){say(ok?'Copied':'Selected: press Ctrl+C',DONE);setTimeout(function(){say('Copy to clipboard',COPY);},2500);};
+var select=function(){var range=document.createRange();range.selectNodeContents(block);var selection=window.getSelection();selection.removeAllRanges();selection.addRange(range);var ok=false;try{ok=document.execCommand('copy');}catch(e){}report(ok);};
+button.onclick=function(){if(navigator.clipboard&&window.isSecureContext){navigator.clipboard.writeText(block.textContent).then(function(){report(true);},select);}else{select();}};
+row.appendChild(button);
+})(blocks[i]);}
+})();
+JS;
 
     /**
      * The block of PHP source for the stub.
