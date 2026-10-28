@@ -204,7 +204,7 @@ final class ProfilePagesTest extends TestCase
         $this->create();
 
         $backups = $this->browser->get('/profiles/blog')->body;
-        self::assertStringContainsString('<details class="start-options"><summary>Back up with options</summary>', $backups);
+        self::assertStringContainsString('<details class="form-section start-options"><summary><h2>Back up with options</h2>', $backups);
         self::assertStringNotContainsString('Test the connection', $backups);
         self::assertStringNotContainsString('Remove the profile', $backups);
 

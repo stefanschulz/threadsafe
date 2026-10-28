@@ -402,8 +402,16 @@ details.form-section > summary h2 { margin: 0; }
 .profile-summary ul.warnings { margin-bottom: 0.25rem; }
 .facts.roomy { margin-bottom: 1.5rem; }
 .facts.roomy .fact { grid-template-columns: 9rem minmax(0, 1fr); }
-.start-options { margin: 0 0 1rem; }
-.start-options summary { cursor: pointer; }
+.start-options { margin: 0 0 1.5rem; }
+.start-options .field-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+.start-options .field-row input { flex: 1 1 18rem; max-width: 26rem; }
+.start-options .field-row button { margin: 0; }
+.start-options .optional { font-weight: 400; color: var(--text-soft); }
+/* every option is a block of its own, set off by a line, so that the label of one does not look like the heading of the next */
+.start-options .option { margin: 0; padding: 1rem 0; border-top: 1px solid var(--border); }
+.start-options .option label { font-weight: 400; }
+.start-options .option:first-child { border-top: 0; padding-top: 0.25rem; }
+.start-options .actions { margin-top: 0; padding-top: 1rem; border-top: 1px solid var(--border); }
 /* the title of a page with its main action at the right */
 .page-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem 1rem; }
 .page-actions { margin: 1rem 0; }

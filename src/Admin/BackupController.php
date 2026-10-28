@@ -268,14 +268,18 @@ final class BackupController
             return '<p class="hint">A backup is running: <a href="' . Html::e($context->urls->to('/runs/' . $active->id)) . '">follow it</a>. Only one backup runs at a time.</p>';
         }
 
-        return View::form($context, "/profiles/$profileId/backup", '<button type="submit">Back up now</button> '
-            . '<label class="inline-check"><input type="checkbox" name="force" value="1"> Go on although the storage seems to have too little room</label>'
-            . '<details class="passphrase"><summary>Encrypt this backup with a passphrase</summary>'
-            . '<div class="field"><label for="f-passphrase">Passphrase</label><input id="f-passphrase" name="passphrase" type="text" autocomplete="off" spellcheck="false" autocapitalize="none"> '
+        return View::form(
+            $context,
+            "/profiles/$profileId/backup",
+            '<div class="field option"><label for="f-passphrase">Encrypt this backup with a passphrase <span class="optional">(optional)</span></label>'
+            . '<div class="field-row"><input id="f-passphrase" name="passphrase" type="text" autocomplete="off" spellcheck="false" autocapitalize="none"> '
             . '<button type="button" class="secondary" data-suggest="#f-passphrase" data-alphabet="' . Html::e(Passphrases::ALPHABET) . '">Suggest one</button> '
-            . '<button type="button" class="secondary" data-copy="#f-passphrase">Copy</button>'
-            . '<p class="hint">Optional. This one backup is then encrypted for the passphrase only - not for the public keys of the profile - and only the passphrase opens it. It is not stored anywhere: write it down before you start, and keep it apart from the backup. If it is lost, the backup is lost. At least 12 characters; a suggested one is easy to read aloud and has about 99 bits.</p></div></details>'
-            . '<p class="hint">The backup is made in steps while this page is open. The database is read table by table, not in one snapshot, as in a command line run.</p>');
+            . '<button type="button" class="secondary" data-copy="#f-passphrase">Copy</button></div>'
+            . '<p class="hint">This one backup is then encrypted for the passphrase only - not for the public keys of the profile - and only the passphrase opens it. It is not stored anywhere: write it down before you start, and keep it apart from the backup. If it is lost, the backup is lost. At least 12 characters; a suggested one is easy to read aloud and has about 99 bits.</p></div>'
+            . '<div class="field option check"><label><input type="checkbox" name="force" value="1"> Go on although the storage seems to have too little room</label></div>'
+            . '<div class="actions"><button type="submit">Back up now</button></div>'
+            . '<p class="hint">The backup is made in steps while this page is open. The database is read table by table, not in one snapshot, as in a command line run.</p>',
+        );
     }
 
     // ------------------------------------------------------------------------------------------------- helpers

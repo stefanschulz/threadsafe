@@ -185,7 +185,7 @@ final class ProfileController
                 . '<p><a class="button danger" href="' . Html::e($context->urls->to("/profiles/$id/delete")) . '">Remove the profile</a></p>';
         } else {
             $content = $backups->runsBox($context, $id) . $catalog->checksBox($context, $id)
-                . '<details class="start-options"><summary>Back up with options</summary>' . $backups->startForm($context, $id) . '</details>'
+                . '<details class="form-section start-options"><summary><h2>Back up with options</h2><span class="summary-value">a passphrase for this backup, skip the check of the room</span></summary><div class="form-section-body">' . $backups->startForm($context, $id) . '</div></details>'
                 . '<h2>Backups</h2>' . $catalog->table($context, $id);
         }
 
