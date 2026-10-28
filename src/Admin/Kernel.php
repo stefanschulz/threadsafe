@@ -154,6 +154,7 @@ final class Kernel
         $system = new SystemController($services);
         $retention = new RetentionController($services);
         $keys = new KeysController($services);
+        $schedule = new ScheduleController($services);
         $router = new Router();
         $router->add('GET', '/login', $auth->loginPage(...), public: true);
         $router->add('POST', '/login', $auth->login(...), public: true);
@@ -184,6 +185,10 @@ final class Kernel
         $router->add('GET', '/profiles/{id}/backups/{name}/restore-help', $restore->help(...));
         $router->add('GET', '/restore-php', $restore->tool(...));
         $router->add('POST', '/restore-key', $restore->key(...));
+        $router->add('GET', '/schedule', $schedule->index(...));
+        $router->add('GET', '/schedule/edit', $schedule->editForm(...));
+        $router->add('POST', '/schedule/edit', $schedule->edit(...));
+        $router->add('POST', '/schedule/action', $schedule->act(...));
         $router->add('GET', '/system', $system->index(...));
         $router->add('POST', '/system/settings', $system->save(...));
         $router->add('POST', '/system/cron-secret', $system->cronSecret(...));

@@ -28,7 +28,7 @@ final class CronCommandTest extends TestCase
     protected function setUp(): void
     {
         $this->fixture = new BackupFixture($this->tempDirectory());
-        $this->fixture->profiles->save($this->fixture->profiles->load('blog')->with(['schedule' => ['cron' => '0 * * * *']]));
+        $this->fixture->profiles->save($this->fixture->profiles->load('blog')->with(['schedule' => ['every' => 'hours', 'interval' => 1, 'minute' => 0]]));
         // the schedule has counted for two hours: this hour's time is due
         (new Scheduler(new ScheduleStore($this->fixture->data . '/schedule'), new DateTimeZone('UTC')))->reset('blog', new DateTimeImmutable('-2 hours'));
     }

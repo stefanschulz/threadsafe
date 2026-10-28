@@ -25,7 +25,7 @@ use ThreadSafe\Web\Response;
 final class View
 {
     /** The entries of the navigation: route => [label, icon]. */
-    private const array NAVIGATION = ['/' => ['Dashboard', 'dashboard'], '/profiles' => ['Profiles', 'profiles'], '/system' => ['System', 'system']];
+    private const array NAVIGATION = ['/' => ['Dashboard', 'dashboard'], '/profiles' => ['Profiles', 'profiles'], '/schedule' => ['Schedule', 'clock'], '/system' => ['System', 'system']];
 
     /** The settings of the colour scheme, in the order of the switch: value => [label, icon]. */
     private const array THEMES = ['auto' => ['Auto (follows the system)', 'auto'], 'light' => ['Light', 'light'], 'dark' => ['Dark', 'dark']];
@@ -185,7 +185,7 @@ final class View
     /**
      * A choice from a list.
      *
-     * @param array<string, string> $options    value => label
+     * @param array<int|string, string> $options value => label (a value that looks like a number is a number as a key)
      * @param array<string, string> $attributes more attributes, as for {@see field()}
      */
     public static function select(string $name, string $label, array $options, string $selected, string $hint = '', array $attributes = []): string

@@ -308,7 +308,7 @@ final class SystemAndRestorePagesTest extends TestCase
 
     public function testTheDashboardShowsTheNextRunAndWarnsWhenTheTriggerStaysAway(): void
     {
-        $this->fixture->profiles->save($this->fixture->profiles->load('blog')->with(['schedule' => ['cron' => '30 3 * * *']]));
+        $this->fixture->profiles->save($this->fixture->profiles->load('blog')->with(['schedule' => ['every' => 'day', 'at' => '03:30']]));
         $now = $this->browser->now;
 
         $page = $this->browser->get('/');

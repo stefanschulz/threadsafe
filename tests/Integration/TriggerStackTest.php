@@ -68,7 +68,7 @@ final class TriggerStackTest extends IntegrationTestCase
         (new ProfileStore($data . '/profiles'))->save(SiteProfile::fromArray([
             'id' => 'sched', 'name' => 'Scheduled', 'type' => 'generic', 'path' => self::SITE, 'storage' => $storage,
             'database' => ['host' => 'db', 'port' => 3306, 'name' => 'prestashop', 'user' => 'prestashop', 'password' => getenv('DB_PASSWORD') ?: 'prestashop', 'prefix' => 'ps_', 'driver' => 'auto'],
-            'schedule' => ['cron' => '0 * * * *'],
+            'schedule' => ['every' => 'hours', 'interval' => 1, 'minute' => 0],
         ] + $more));
         self::due($data);
     }

@@ -62,19 +62,19 @@ final class SiteProfileTest extends TestCase
         $data = [
             ...self::minimal(),
             'name' => 'shop',
-            'schedule' => ['cron' => '30 3 * * *'],
+            'schedule' => ['every' => 'day', 'at' => '03:30'],
             'retention' => ['keep' => 14, 'maxAgeDays' => 90, 'maxBytes' => 21474836480],
             'encryption' => ['recipients' => [self::KEY]],
         ];
 
         $profile = SiteProfile::fromArray($data);
 
-        self::assertSame('30 3 * * *', $profile->schedule?->cron);
+        self::assertSame('30 3 * * *', $profile->schedule?->cron());
         self::assertSame([14, 90, 21474836480], [$profile->retention?->keep, $profile->retention?->maxAgeDays, $profile->retention?->maxBytes]);
         self::assertSame([self::KEY], $profile->encryption?->recipients);
         self::assertSame(['schedule', 'retention', 'encryption'], array_slice(array_keys($profile->toArray()), -3));
         self::assertSame($profile->toArray(), SiteProfile::fromArray(json_decode((string) json_encode($profile->toArray()), true))->toArray());
-        self::assertSame('0 4 * * *', $profile->with(['schedule' => ['cron' => '0 4 * * *']])->schedule?->cron);
+        self::assertSame('0 4 * * *', $profile->with(['schedule' => ['every' => 'day', 'at' => '04:00']])->schedule?->cron());
         self::assertSame([self::KEY], $profile->with(['note' => 'x'])->encryption?->recipients, 'with() keeps what it is not asked to change');
     }
 
@@ -92,7 +92,7 @@ final class SiteProfileTest extends TestCase
 
     public function testNothingToApplyMeansNoRule(): void
     {
-        $profile = SiteProfile::fromArray([...self::minimal(), 'schedule' => ['cron' => null], 'retention' => [], 'encryption' => ['recipients' => []]]);
+        $profile = SiteProfile::fromArray([...self::minimal(), 'schedule' => ['every' => null], 'retention' => [], 'encryption' => ['recipients' => []]]);
         $other = SiteProfile::fromArray([...self::minimal(), 'schedule' => null, 'retention' => ['keep' => null], 'encryption' => null]);
 
         foreach ([$profile, $other] as $each) {
@@ -102,9 +102,9 @@ final class SiteProfileTest extends TestCase
         }
     }
 
-    public function testTheExpressionIsStoredTrimmed(): void
+    public function testTheScheduleBecomesTheCronExpressionOfTheEngine(): void
     {
-        self::assertSame('0 3 * * *', SiteProfile::fromArray([...self::minimal(), 'schedule' => ['cron' => '  0 3 * * * ']])->schedule?->cron);
+        self::assertSame('0 3 * * *', SiteProfile::fromArray([...self::minimal(), 'schedule' => ['every' => 'day', 'at' => '3:00']])->schedule?->cron());
     }
 
     /** @return iterable<string, array{array<string, mixed>, string}> */
@@ -112,10 +112,15 @@ final class SiteProfileTest extends TestCase
     {
         yield 'a schedule that is a string' => [['schedule' => '30 3 * * *'], '"schedule" must be'];
         yield 'a schedule that is a list' => [['schedule' => ['30 3 * * *']], '"schedule" must be'];
-        yield 'an unknown schedule field' => [['schedule' => ['cron' => '0 3 * * *', 'zone' => 'UTC']], 'Unknown field "zone" in "schedule"'];
-        yield 'a cron expression that is a number' => [['schedule' => ['cron' => 3]], '"schedule.cron" must be'];
-        yield 'a cron expression that is wrong' => [['schedule' => ['cron' => '61 3 * * *']], '"schedule.cron": '];
-        yield 'a cron expression that never matches' => [['schedule' => ['cron' => '0 0 31 2 *']], 'never matches'];
+        yield 'an unknown schedule field' => [['schedule' => ['every' => 'day', 'at' => '03:00', 'zone' => 'UTC']], 'Unknown field "zone" in "schedule"'];
+        yield 'a field of another kind of schedule' => [['schedule' => ['every' => 'day', 'at' => '03:00', 'interval' => 6]], 'Unknown field "interval" in "schedule" (known for "day"'];
+        yield 'the old cron expression' => [['schedule' => ['cron' => '0 3 * * *']], '"schedule.every" is missing'];
+        yield 'an unknown kind' => [['schedule' => ['every' => 'fortnight']], '"schedule.every" must be one of'];
+        yield 'hours that do not divide a day' => [['schedule' => ['every' => 'hours', 'interval' => 5, 'minute' => 0]], '"schedule.interval" must be one of'];
+        yield 'a time of day that is wrong' => [['schedule' => ['every' => 'day', 'at' => '25:00']], 'The hour of "schedule.at"'];
+        yield 'a day of the month that some months lack' => [['schedule' => ['every' => 'month', 'day' => 31, 'at' => '03:00']], '"schedule.day" must be a day from 1 to 28'];
+        yield 'weekly without a day' => [['schedule' => ['every' => 'week', 'on' => [], 'at' => '03:00']], 'at least one day of the week'];
+        yield 'a paused flag that is text' => [['schedule' => ['every' => 'day', 'at' => '03:00', 'paused' => 'yes']], '"schedule.paused" must be true or false'];
         yield 'keep zero' => [['retention' => ['keep' => 0]], '"retention.keep" must be a whole number from 1'];
         yield 'keep as text' => [['retention' => ['keep' => '5']], '"retention.keep"'];
         yield 'an age of a century and more' => [['retention' => ['maxAgeDays' => 40000]], '"retention.maxAgeDays"'];

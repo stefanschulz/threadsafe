@@ -25,7 +25,7 @@
 | Same-domain restore | A backup must also be restorable on the **same domain** (disaster recovery, rollback after a failed update). The same restore core handles it as a migration in which nothing has to be rewritten (4.6) |
 | Module knowledge | Support for individual (third-party) modules is an **extension point**: per-module rules as **data only** (no code), addable later without changing the core (4.7) |
 | Website type plugins | Website types become **plugins** (`plugins/<type>/` with a manifest) loaded by the tool. Plugins come only from the author, live in the repository and are code with the tool's rights: no installation from the web interface, no signatures, no stable API or developer documentation yet. Extracted together with the `generic` type ([PHASE1B.md](PHASE1B.md)). |
-| Schedule | **cron-driven backups belong in the core** (Akeeba offers them only in the Pro edition). Design (phase 5): the schedule is part of the site profile (cron expression, editable in the web interface) and **one trigger cron job** calls `threadsafe cron` every 1-15 minutes; per-task crontab entries remain possible (`backup <profile>`), but are not the way. See 5.6 |
+| Schedule | **cron-driven backups belong in the core** (Akeeba offers them only in the Pro edition). Design (phase 5): the schedule is part of the site profile (plain settings - every few hours, daily, weekly, monthly - edited on a page for all schedules in the web interface; phase 8) and **one trigger cron job** calls `threadsafe cron` every 1-15 minutes; per-task crontab entries remain possible (`backup <profile>`), but are not the way. See 5.6 |
 | Users | initially **one admin**; download warning from **500 MB** |
 | Encryption | wanted, firmly planned (phase 5): **key pair** for cron backups (public key on the server, private key with the owner) **and password** for manual backups |
 | Remote storage | not used today, later (SFTP and similar) |
@@ -263,7 +263,7 @@ ThreadSafe is designed as a **multi-webapp tool**: one instance, many sites. Ter
 | Storage path | directory for this profile's backups. Checks: exists, writable, enough free space, **not** reachable from outside (outside the web root or blocked); if it lies inside the site path it is excluded from the backup |
 | Filters | directories/tables to exclude ("structure only"); defaults come from the type, adjustable |
 | Retention | last *n* backups, maximum age, storage cap (phase 5) |
-| Schedule | cron expression (phase 5) |
+| Schedule | plain settings in the profile (phase 5; the page of all schedules phase 8) |
 | Encryption | key pair or password (phase 5) |
 | Note | free text (e.g. "live, shared hosting") |
 

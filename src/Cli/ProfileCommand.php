@@ -18,6 +18,7 @@ use ThreadSafe\Profile\CheckLevel;
 use ThreadSafe\Profile\ConnectionTest;
 use ThreadSafe\Profile\ProfileException;
 use ThreadSafe\Profile\ProfileStore;
+use ThreadSafe\Profile\ScheduleSettings;
 use ThreadSafe\Profile\SiteProfile;
 use ThreadSafe\Profile\TestReport;
 use ThreadSafe\Schedule\ScheduleException;
@@ -77,8 +78,10 @@ final class ProfileCommand implements Command
             new OptionSpec('compression', 'Deflate level 0 (store) to 9, default 6', takesValue: true, valueName: 'LEVEL'),
             new OptionSpec('part-size', 'Split archives into parts of this size, e.g. 2G or 500M (at least 1M)', takesValue: true, valueName: 'SIZE'),
             new OptionSpec('no-part-size', 'edit: do not split archives'),
-            new OptionSpec('schedule', 'Back up by itself: a cron expression such as "30 3 * * *" (minute hour day-of-month month day-of-week), read in the time zone of the installation', takesValue: true, valueName: 'CRON'),
+            new OptionSpec('schedule', 'Back up by itself: "every 6 hours at :15" (1, 2, 3, 4, 6, 8 or 12 hours), "daily at 03:30", "weekly on mon,thu at 02:15" or "monthly on 1 at 04:00" (day 1 to 28); read in the time zone of the installation', takesValue: true, valueName: 'WHEN'),
             new OptionSpec('no-schedule', 'edit: no scheduled backups any more'),
+            new OptionSpec('pause-schedule', 'edit: keep the schedule, but make no backups by it until it is resumed'),
+            new OptionSpec('resume-schedule', 'edit: make backups by the schedule again (counted from now)'),
             new OptionSpec('keep', 'Retention: keep at most this many backups', takesValue: true, valueName: 'N'),
             new OptionSpec('max-age-days', 'Retention: remove backups older than this many days', takesValue: true, valueName: 'DAYS'),
             new OptionSpec('max-bytes', 'Retention: remove the oldest backups until the rest is below this size, e.g. 20G', takesValue: true, valueName: 'SIZE'),
@@ -250,13 +253,31 @@ final class ProfileCommand implements Command
     private function schedulingFields(Input $input, ?SiteProfile $current): array
     {
         $data = [];
-        if ($input->has('schedule') && $input->has('no-schedule')) {
-            throw new UsageError('--schedule and --no-schedule contradict each other.');
+        $wanted = array_values(array_filter(['schedule', 'pause-schedule', 'resume-schedule'], $input->has(...)));
+        if ($input->has('no-schedule') && $wanted !== []) {
+            throw new UsageError('--no-schedule contradicts --' . implode(', --', $wanted) . '.');
         }
-        if ($input->has('schedule')) {
-            $data['schedule'] = ['cron' => (string) $input->value('schedule')];
-        } elseif ($input->has('no-schedule')) {
+        if ($input->has('pause-schedule') && $input->has('resume-schedule')) {
+            throw new UsageError('--pause-schedule and --resume-schedule contradict each other.');
+        }
+        if ($input->has('no-schedule')) {
             $data['schedule'] = null;
+        } elseif ($wanted !== []) {
+            try {
+                $schedule = $input->has('schedule') ? ScheduleSettings::parse((string) $input->value('schedule')) : $current?->schedule;
+            } catch (ProfileException $e) {
+                throw new UsageError($e->getMessage());
+            }
+            if ($schedule === null) {
+                throw new UsageError('The profile has no schedule to pause or resume; give one with --schedule.');
+            }
+            // a new time keeps a paused schedule paused, unless it is resumed in the same breath
+            $paused = match (true) {
+                $input->has('pause-schedule') => true,
+                $input->has('resume-schedule') => false,
+                default => $input->has('schedule') ? $current?->schedule?->paused === true : $schedule->paused,
+            };
+            $data['schedule'] = $schedule->withPaused($paused)->toArray();
         }
 
         $rules = array_values(array_filter(['keep', 'max-age-days', 'max-bytes'], $input->has(...)));
@@ -386,11 +407,11 @@ final class ProfileCommand implements Command
     private function showScheduling(SiteProfile $profile, Output $output): void
     {
         if ($profile->schedule !== null) {
-            $text = "  schedule:   {$profile->schedule->cron}";
+            $text = "  schedule:   {$profile->schedule->text()}" . ($profile->schedule->paused ? ' (paused)' : '');
             try {
                 $zone = Config::load(($this->dataDirectory ?? Paths::data()) . '/config.json')->scheduleZone();
-                $next = $profile->schedule->expression()->next(new DateTimeImmutable('now', $zone));
-                $text .= ' (time zone ' . $zone->getName() . ', next run ' . $next->format('Y-m-d H:i T') . ')';
+                $next = $profile->schedule->paused ? null : $profile->schedule->expression()->next(new DateTimeImmutable('now', $zone));
+                $text .= ' (time zone ' . $zone->getName() . ($next === null ? '' : ', next run ' . $next->format('Y-m-d H:i T')) . ')';
             } catch (ConfigException|ScheduleException $e) {
                 $text .= ' (' . $e->getMessage() . ')';
             }

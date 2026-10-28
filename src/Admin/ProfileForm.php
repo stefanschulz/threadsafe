@@ -17,10 +17,10 @@ use ThreadSafe\Web\Request;
  */
 final class ProfileForm
 {
-    public const array FIELDS = ['id', 'name', 'type', 'path', 'storage', 'note', 'db_mode', 'db_host', 'db_port', 'db_name', 'db_user', 'db_prefix', 'db_driver', 'exclude', 'structure_only', 'default_filters', 'compression', 'part_size', 'schedule', 'keep', 'max_age_days', 'max_size', 'recipients'];
+    public const array FIELDS = ['id', 'name', 'type', 'path', 'storage', 'note', 'db_mode', 'db_host', 'db_port', 'db_name', 'db_user', 'db_prefix', 'db_driver', 'exclude', 'structure_only', 'default_filters', 'compression', 'part_size', 'keep', 'max_age_days', 'max_size', 'recipients'];
 
     /** The fields that a form without the schedule and retention sections does not send; absent, they leave the profile as it is. */
-    private const array OPTIONAL = ['schedule', 'keep', 'max_age_days', 'max_size', 'recipients'];
+    private const array OPTIONAL = ['keep', 'max_age_days', 'max_size', 'recipients'];
 
     /**
      * @return array<string, string> the values for a new profile
@@ -28,7 +28,7 @@ final class ProfileForm
     public static function defaults(string $type = ''): array
     {
         return ['id' => '', 'name' => '', 'type' => $type, 'path' => '', 'storage' => '', 'note' => '', 'db_mode' => 'site', 'db_host' => 'localhost', 'db_port' => '3306',
-            'db_name' => '', 'db_user' => '', 'db_prefix' => '', 'db_driver' => DatabaseSettings::AUTO, 'exclude' => '', 'structure_only' => '', 'default_filters' => '1', 'compression' => '6', 'part_size' => '', 'schedule' => '', 'keep' => '', 'max_age_days' => '', 'max_size' => '', 'recipients' => ''];
+            'db_name' => '', 'db_user' => '', 'db_prefix' => '', 'db_driver' => DatabaseSettings::AUTO, 'exclude' => '', 'structure_only' => '', 'default_filters' => '1', 'compression' => '6', 'part_size' => '', 'keep' => '', 'max_age_days' => '', 'max_size' => '', 'recipients' => ''] + ScheduleFields::values(null);
     }
 
     /**
@@ -47,7 +47,7 @@ final class ProfileForm
         $values['default_filters'] = $profile->useDefaultFilters ? '1' : '0';
         $values['compression'] = (string) $profile->compression;
         $values['part_size'] = $profile->partSize === null ? '' : self::formatSize($profile->partSize);
-        $values['schedule'] = $profile->schedule === null ? '' : $profile->schedule->cron;
+        $values = ScheduleFields::values($profile->schedule) + $values;
         $values['keep'] = $profile->retention?->keep === null ? '' : (string) $profile->retention->keep;
         $values['max_age_days'] = $profile->retention?->maxAgeDays === null ? '' : (string) $profile->retention->maxAgeDays;
         $values['max_size'] = $profile->retention?->maxBytes === null ? '' : self::formatSize($profile->retention->maxBytes);
@@ -80,7 +80,7 @@ final class ProfileForm
         }
         $values['default_filters'] = $request->post('default_filters') === '1' ? '1' : '0';
 
-        return $values;
+        return $values + ScheduleFields::fromRequest($request);
     }
 
     /**
@@ -122,9 +122,10 @@ final class ProfileForm
         }
         // the schedule and the retention come from the form when the form has them; what it does not send, and the encryption, stay as
         // they are: editing a profile must not drop what the form does not show
-        if (array_key_exists('schedule', $values)) {
-            $cron = trim($values['schedule']);
-            $data['schedule'] = $cron === '' ? null : ['cron' => $cron];
+        if (array_key_exists('schedule_every', $values)) {
+            $schedule = ScheduleFields::read($values, $current?->schedule);
+            $errors = [...$errors, ...$schedule['errors']];
+            $data['schedule'] = $schedule['settings']?->toArray();
         }
         if (array_key_exists('keep', $values) || array_key_exists('max_age_days', $values) || array_key_exists('max_size', $values)) {
             $retention = [];

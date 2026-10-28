@@ -412,6 +412,22 @@ details.form-section > summary h2 { margin: 0; }
 .start-options .option label { font-weight: 400; }
 .start-options .option:first-child { border-top: 0; padding-top: 0.25rem; }
 .start-options .actions { margin-top: 0; padding-top: 1rem; border-top: 1px solid var(--border); }
+/* the page of all schedules: the table with a tick box in front of each line, the sort links in the head, the fields of a schedule */
+table.schedule th.select, table.schedule td.select { width: 1%; padding-right: 0; }
+table.schedule th[scope="row"] { color: var(--text); font: inherit; letter-spacing: normal; text-transform: none; }
+table.schedule th a.sort { color: inherit; text-decoration: none; }
+table.schedule th a.sort:hover { color: var(--text); text-decoration: underline; }
+table.schedule td.row-actions { white-space: nowrap; }
+table.schedule td .hint { display: block; margin: 0.2rem 0 0; }
+table.schedule .when { white-space: nowrap; }
+.actions.bulk { margin: 0.5rem 0 0.75rem; }
+button.small, .button.small { padding: 0.25rem 0.7rem; font-size: 0.72rem; margin: 0.1rem 0.2rem 0.1rem 0; }
+.badge.paused { color: var(--warning); }
+.schedule-fields fieldset.schedule-group { margin: 1rem 0; padding: 0 1rem 0.5rem; border: 1px solid var(--border); border-radius: var(--radius); }
+.schedule-fields fieldset.schedule-group legend { padding: 0 0.4rem; color: var(--text-soft); font: 500 0.7rem/1.5 var(--mono); letter-spacing: 0.1em; text-transform: uppercase; }
+.schedule-fields .schedule-group[hidden] { display: none; }
+.schedule-fields .weekdays { display: flex; flex-wrap: wrap; gap: 0.25rem 1rem; margin: 0.6rem 0; }
+.schedule-fields .weekdays .inline-check { margin-left: 0; }
 /* the title of a page with its main action at the right */
 .page-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem 1rem; }
 .page-actions { margin: 1rem 0; }

@@ -99,7 +99,7 @@ final class ProfileController
         $facts = self::fact('Site', '<code class="path">' . self::breakable($profile->path) . '</code>')
             . self::fact('Backups', '<code class="path">' . self::breakable($profile->storage) . '</code>');
         if ($profile->schedule !== null) {
-            $facts .= $option('clock', 'Schedule', '<code>' . Html::e($profile->schedule->cron) . '</code>');
+            $facts .= $option('clock', 'Schedule', Html::e($profile->schedule->describe()) . ($profile->schedule->paused ? ' (paused)' : ''));
         }
         if ($profile->retention !== null) {
             $keep = array_filter([
@@ -460,7 +460,8 @@ final class ProfileController
                 . '<p><strong>Patterns</strong> for paths: <code>var/cache</code> is that directory and everything below it, <code>*.log</code> a file name at any depth, <code>**/</code> before a pattern any depth, <code>*</code> within one name, <code>**</code> across directories, a trailing <code>/</code> directories only. No <code>..</code>, no absolute paths.</p>')
             . '</div></details>' . self::fold('Automation', $summary['automation'], $open)
             . '<h3>Schedule</h3>'
-            . View::field('schedule', 'Back up by itself at', 'text', $values['schedule'] ?? '', ['spellcheck' => 'false', 'placeholder' => '30 3 * * *'], 'A cron expression: minute hour day-of-month month day-of-week, e.g. 30 3 * * * for 03:30 every day, or @daily. Read in the time zone ' . $this->services->config->scheduleZone()->getName() . ' (System page). Empty: no scheduled backups. Something must call the trigger, see the System page.')
+            . '<p class="hint">Times are read in the time zone ' . Html::e($this->services->config->scheduleZone()->getName()) . ' (System page). Something must call the trigger, see the System page. All schedules together are on the <a href="' . Html::e($context->urls->to('/schedule')) . '">Schedule page</a>.</p>'
+            . ScheduleFields::render($values)
             . '<h3>Retention</h3><p class="hint">What is kept in the storage. The newest usable backup and pinned backups are never deleted. Every rule is optional.</p>'
             . View::field('keep', 'Keep at most this many backups', 'text', $values['keep'] ?? '', ['inputmode' => 'numeric'])
             . View::field('max_age_days', 'Delete backups older than this many days', 'text', $values['max_age_days'] ?? '', ['inputmode' => 'numeric'])
@@ -517,7 +518,8 @@ final class ProfileController
             trim($values['max_age_days'] ?? '') === '' ? null : 'up to ' . trim($values['max_age_days']) . ' days',
             trim($values['max_size'] ?? '') === '' ? null : 'up to ' . trim($values['max_size']),
         ]);
-        $automation = (trim($values['schedule'] ?? '') === '' ? 'no schedule' : 'schedule ' . trim($values['schedule'])) . ', ' . ($keeps === [] ? 'keeps everything' : implode(', ', $keeps));
+        $schedule = ScheduleFields::read($values)['settings'];
+        $automation = ($schedule === null ? 'no schedule' : lcfirst($schedule->describe()) . ($schedule->paused ? ' (paused)' : '')) . ', ' . ($keeps === [] ? 'keeps everything' : implode(', ', $keeps));
 
         $keys = $lines($values['recipients'] ?? '');
 

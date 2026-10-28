@@ -183,33 +183,34 @@ final class RetentionPagesTest extends TestCase
 
     public function testTheFormTakesAScheduleAndRetentionRulesAndShowsThemAgain(): void
     {
-        $response = $this->browser->post('/profiles', $this->fields(['schedule' => ' 30 3 * * * ', 'keep' => '14', 'max_age_days' => '90', 'max_size' => '20G']));
+        $response = $this->browser->post('/profiles', $this->fields(['schedule_every' => 'day', 'schedule_time' => '03:30', 'keep' => '14', 'max_age_days' => '90', 'max_size' => '20G']));
 
         self::assertSame(303, $response->status, $response->body);
         $profile = (new ProfileStore($this->fixture->data . '/profiles'))->load('news');
-        self::assertSame('30 3 * * *', $profile->schedule?->cron);
+        self::assertSame('30 3 * * *', $profile->schedule?->cron());
         self::assertSame([14, 90, 21474836480], [$profile->retention?->keep, $profile->retention?->maxAgeDays, $profile->retention?->maxBytes]);
 
         $edit = $this->browser->get('/profiles/news/edit');
-        self::assertStringContainsString('name="schedule" type="text" value="30 3 * * *"', $edit->body);
+        self::assertStringContainsString('<option value="day" selected>Every day</option>', $edit->body);
+        self::assertStringContainsString('name="schedule_time" type="time" value="03:30"', $edit->body);
         self::assertStringContainsString('name="keep" type="text" value="14"', $edit->body);
         self::assertStringContainsString('name="max_size" type="text" value="20G"', $edit->body);
-        self::assertStringContainsString('Read in the time zone ' . date_default_timezone_get(), $edit->body);
+        self::assertStringContainsString('Times are read in the time zone ' . date_default_timezone_get(), $edit->body);
     }
 
     public function testEmptyFieldsTakeTheRulesAwayAndMistakesComeBackWithTheForm(): void
     {
-        $this->browser->post('/profiles', $this->fields(['schedule' => '@daily', 'keep' => '5']));
+        $this->browser->post('/profiles', $this->fields(['schedule_every' => 'day', 'schedule_time' => '00:00', 'keep' => '5']));
         $store = new ProfileStore($this->fixture->data . '/profiles');
         self::assertNotNull($store->load('news')->schedule);
 
-        $this->browser->post('/profiles/news', $this->fields(['schedule' => '', 'keep' => '', 'max_age_days' => '', 'max_size' => '']));
+        $this->browser->post('/profiles/news', $this->fields(['schedule_every' => '', 'keep' => '', 'max_age_days' => '', 'max_size' => '']));
         self::assertNull($store->load('news')->schedule);
         self::assertNull($store->load('news')->retention);
 
-        $wrong = $this->browser->post('/profiles/news', $this->fields(['schedule' => '61 3 * * *']));
+        $wrong = $this->browser->post('/profiles/news', $this->fields(['schedule_every' => 'day', 'schedule_time' => '25:00']));
         self::assertSame(400, $wrong->status);
-        self::assertStringContainsString('out of range', $wrong->body);
+        self::assertStringContainsString('The time of day is a time such as 03:30', $wrong->body);
         self::assertNull($store->load('news')->schedule, 'nothing was stored');
 
         $wrong = $this->browser->post('/profiles/news', $this->fields(['keep' => 'ten', 'max_size' => 'lots']));

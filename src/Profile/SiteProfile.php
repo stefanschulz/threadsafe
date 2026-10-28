@@ -25,7 +25,7 @@ use ThreadSafe\Database\DatabaseSettings;
  *     "compression": 6,
  *     "partSize": null,
  *     "note": "live, shared hosting",
- *     "schedule": {"cron": "30 3 * * *"},
+ *     "schedule": {"every": "day", "at": "03:30"},
  *     "retention": {"keep": 14, "maxAgeDays": 90, "maxBytes": 21474836480},
  *     "encryption": {"recipients": ["age1..."]}
  * }

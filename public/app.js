@@ -281,6 +281,27 @@
     refresh();
   }
 
+  // The fields of a schedule: only those of the chosen choice are shown. Without script all of them are, each under the name of its choice.
+  document.querySelectorAll('[data-schedule-fields]').forEach(function (box) {
+    var every = box.querySelector('[data-schedule-every]');
+    if (!every) { return; }
+    var update = function () {
+      box.querySelectorAll('.schedule-group').forEach(function (group) {
+        group.hidden = group.getAttribute('data-for').split(' ').indexOf(every.value) === -1;
+      });
+    };
+    every.addEventListener('change', update);
+    update();
+  });
+
+  // The tick box in the head of a table ticks every line of it
+  document.querySelectorAll('[data-select-all]').forEach(function (all) {
+    all.addEventListener('change', function () {
+      var table = all.closest('table');
+      if (table) { table.querySelectorAll('tbody input[type="checkbox"]').forEach(function (box) { box.checked = all.checked; }); }
+    });
+  });
+
   // <form data-confirm="Delete this backup?"> asks first
   document.addEventListener('submit', function (event) {
     var form = event.target;

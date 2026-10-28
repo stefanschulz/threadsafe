@@ -103,7 +103,7 @@ final class TriggerAddressTest extends TestCase
     public function testEachCallDoesOneTickUntilTheScheduledBackupIsMade(): void
     {
         $secret = $this->secret();
-        $profile = $this->fixture->profiles->load('blog')->with(['schedule' => ['cron' => '0 3 * * *']]);
+        $profile = $this->fixture->profiles->load('blog')->with(['schedule' => ['every' => 'day', 'at' => '03:00']]);
         $this->fixture->profiles->save($profile);
         (new Scheduler(new ScheduleStore($this->fixture->data . '/schedule'), new DateTimeZone('UTC')))->reset('blog', new DateTimeImmutable('2026-10-21 12:00:00', new DateTimeZone('UTC')));
 

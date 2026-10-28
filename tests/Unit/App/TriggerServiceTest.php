@@ -47,7 +47,7 @@ final class TriggerServiceTest extends TestCase
         $this->fixture = new BackupFixture($this->tempDirectory());
         $this->states = new ScheduleStore($this->fixture->data . '/schedule');
         $this->now = (new DateTimeImmutable('2026-10-22 03:05:00', new DateTimeZone('UTC')))->getTimestamp();
-        $this->fixture->profiles->save($this->fixture->profiles->load('blog')->with(['schedule' => ['cron' => '0 3 * * *']]));
+        $this->fixture->profiles->save($this->fixture->profiles->load('blog')->with(['schedule' => ['every' => 'day', 'at' => '03:00']]));
         $this->scheduler()->reset('blog', new DateTimeImmutable('2026-10-21 12:00:00', new DateTimeZone('UTC')));
     }
 

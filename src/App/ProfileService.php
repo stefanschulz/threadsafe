@@ -169,7 +169,7 @@ final class ProfileService
         try {
             if ($profile->schedule === null) {
                 $this->scheduleStates()->delete($profile->id);
-            } elseif ($previous?->schedule?->cron !== $profile->schedule->cron) {
+            } elseif ($previous?->schedule === null || !$previous->schedule->sameTimes($profile->schedule) || $previous->schedule->paused !== $profile->schedule->paused) {
                 $this->scheduleStates()->save($profile->id, new ScheduleState((new DateTimeImmutable())->getTimestamp()));
             }
         } catch (ScheduleException) {

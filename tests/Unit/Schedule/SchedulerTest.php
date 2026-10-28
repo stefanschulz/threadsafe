@@ -10,6 +10,7 @@ use PHPUnit\Framework\TestCase;
 use ThreadSafe\Profile\SiteProfile;
 use ThreadSafe\Schedule\DueRun;
 use ThreadSafe\Schedule\Scheduler;
+use ThreadSafe\Schedule\ScheduleState;
 use ThreadSafe\Schedule\ScheduleStore;
 use ThreadSafe\Tests\Support\TempDirectory;
 
@@ -36,9 +37,9 @@ final class SchedulerTest extends TestCase
         $this->cleanUpTempDirectories();
     }
 
-    private static function profile(string $id, ?string $cron): SiteProfile
+    private static function profile(string $id, ?string $time, bool $paused = false): SiteProfile
     {
-        return SiteProfile::fromArray(['id' => $id, 'type' => 'generic', 'path' => '/var/www/' . $id, 'storage' => '/var/backups/' . $id] + ($cron === null ? [] : ['schedule' => ['cron' => $cron]]));
+        return SiteProfile::fromArray(['id' => $id, 'type' => 'generic', 'path' => '/var/www/' . $id, 'storage' => '/var/backups/' . $id] + ($time === null ? [] : ['schedule' => ['every' => 'day', 'at' => $time] + ($paused ? ['paused' => true] : [])]));
     }
 
     private static function at(string $time, string $zone = 'UTC'): DateTimeImmutable
@@ -70,10 +71,24 @@ final class SchedulerTest extends TestCase
         self::assertNull($this->store->load('shop'));
     }
 
+    public function testAPausedScheduleIsNeverDueAndHasNoNextRunButKeepsItsStateForTheResume(): void
+    {
+        $scheduler = $this->scheduler();
+        $paused = self::profile('shop', '03:00', paused: true);
+        $this->store->save('shop', new ScheduleState(self::at('2026-10-20 00:00:00')->getTimestamp()));
+
+        $plan = $scheduler->plan([$paused], self::at('2026-10-22 03:30:00'));
+
+        self::assertSame([], $plan->due, 'the time of 03:00 passed while it was paused');
+        self::assertSame([], $plan->skipped, 'and it is not reported as given up either');
+        self::assertNull($scheduler->next($paused, self::at('2026-10-22 12:00:00')));
+        self::assertNotNull($this->store->load('shop'));
+    }
+
     public function testTheScheduleCountsFromTheFirstSightingAndNothingIsMadeUp(): void
     {
         $scheduler = $this->scheduler();
-        $shop = [self::profile('shop', '0 3 * * *')];
+        $shop = [self::profile('shop', '03:00')];
 
         // first seen at 05:00: the 03:00 of today lies before, and is within the grace, but nobody asked for it
         self::assertSame([], $scheduler->plan($shop, self::at('2026-10-22 05:00:00'))->due);
@@ -86,7 +101,7 @@ final class SchedulerTest extends TestCase
     public function testARunIsDueUntilItIsStartedAndNotAgainAfterItIsDone(): void
     {
         $scheduler = $this->scheduler();
-        $shop = [self::profile('shop', '0 3 * * *')];
+        $shop = [self::profile('shop', '03:00')];
         $scheduler->reset('shop', self::at('2026-10-21 12:00:00'));
 
         $due = $scheduler->plan($shop, self::at('2026-10-22 03:00:20'))->due;
@@ -105,7 +120,7 @@ final class SchedulerTest extends TestCase
     public function testAMissedInstantIsMadeUpWithinTheGraceAndGivenUpAfterIt(): void
     {
         $scheduler = $this->scheduler(grace: 360);
-        $shop = [self::profile('shop', '0 3 * * *')];
+        $shop = [self::profile('shop', '03:00')];
         $scheduler->reset('shop', self::at('2026-10-21 12:00:00'));
 
         self::assertSame(['shop@2026-10-22 03:00'], self::names($scheduler->plan($shop, self::at('2026-10-22 08:59:00'))->due), 'five hours and 59 minutes late');
@@ -124,7 +139,7 @@ final class SchedulerTest extends TestCase
     public function testAfterDaysWithoutATriggerExactlyOneRunIsMadeUp(): void
     {
         $scheduler = $this->scheduler();
-        $shop = [self::profile('shop', '0 3 * * *')];
+        $shop = [self::profile('shop', '03:00')];
         $scheduler->reset('shop', self::at('2026-10-19 12:00:00'));
 
         $plan = $scheduler->plan($shop, self::at('2026-10-23 05:00:00'));
@@ -136,7 +151,7 @@ final class SchedulerTest extends TestCase
     public function testAFailedRunIsTriedAgainTwiceAndThenGivenUp(): void
     {
         $scheduler = $this->scheduler();
-        $shop = [self::profile('shop', '0 3 * * *')];
+        $shop = [self::profile('shop', '03:00')];
         $scheduler->reset('shop', self::at('2026-10-21 12:00:00'));
         $instant = self::at('2026-10-22 03:00:00');
 
@@ -165,7 +180,7 @@ final class SchedulerTest extends TestCase
     public function testARetryThatWouldComeAfterTheGraceIsGivenUp(): void
     {
         $scheduler = $this->scheduler(grace: 30);
-        $shop = [self::profile('shop', '0 3 * * *')];
+        $shop = [self::profile('shop', '03:00')];
         $scheduler->reset('shop', self::at('2026-10-21 12:00:00'));
         $instant = self::at('2026-10-22 03:00:00');
         $scheduler->started('shop', $instant, self::at('2026-10-22 03:00:00'));
@@ -181,7 +196,7 @@ final class SchedulerTest extends TestCase
     public function testTheQueueIsOrderedByTheScheduledInstantThenByProfile(): void
     {
         $scheduler = $this->scheduler();
-        $profiles = [self::profile('zeta', '0 3 * * *'), self::profile('alpha', '30 3 * * *'), self::profile('beta', '0 3 * * *'), self::profile('idle', null)];
+        $profiles = [self::profile('zeta', '03:00'), self::profile('alpha', '03:30'), self::profile('beta', '03:00'), self::profile('idle', null)];
         foreach ($profiles as $profile) {
             $scheduler->reset($profile->id, self::at('2026-10-21 12:00:00'));
         }
@@ -194,7 +209,7 @@ final class SchedulerTest extends TestCase
     public function testChangingTheScheduleDropsTheInstantsBeforeTheChange(): void
     {
         $scheduler = $this->scheduler();
-        $shop = [self::profile('shop', '0 3 * * *')];
+        $shop = [self::profile('shop', '03:00')];
         $scheduler->reset('shop', self::at('2026-10-21 12:00:00'));
         self::assertCount(1, $scheduler->plan($shop, self::at('2026-10-22 04:00:00'))->due);
 
@@ -206,7 +221,7 @@ final class SchedulerTest extends TestCase
     public function testALostOrDamagedStateIsLikeANewProfile(): void
     {
         $scheduler = $this->scheduler();
-        $shop = [self::profile('shop', '0 3 * * *')];
+        $shop = [self::profile('shop', '03:00')];
         $scheduler->reset('shop', self::at('2026-10-21 12:00:00'));
         file_put_contents($this->stateDirectory . '/shop.json', '{"since": "yesterday"');
 
@@ -218,7 +233,7 @@ final class SchedulerTest extends TestCase
     public function testTheTimeZoneOfTheInstallationDecidesWhatThreeOClockIs(): void
     {
         $scheduler = $this->scheduler('Europe/Berlin');
-        $shop = [self::profile('shop', '30 3 * * *')];
+        $shop = [self::profile('shop', '03:30')];
         $scheduler->reset('shop', self::at('2026-10-21 12:00:00'));
 
         self::assertSame([], $scheduler->plan($shop, self::at('2026-10-22 01:29:00'))->due, '03:29 in Berlin');
@@ -230,7 +245,7 @@ final class SchedulerTest extends TestCase
     public function testTheSecondPassOfARepeatedHourDoesNotRunAgain(): void
     {
         $scheduler = $this->scheduler('Europe/Berlin');
-        $shop = [self::profile('shop', '30 2 * * *')];
+        $shop = [self::profile('shop', '02:30')];
         $scheduler->reset('shop', self::at('2026-10-24 12:00:00', 'UTC'));
 
         $due = $scheduler->plan($shop, self::at('2026-10-25 00:31:00', 'UTC'))->due;   // 02:31 CEST
@@ -245,7 +260,7 @@ final class SchedulerTest extends TestCase
     {
         $scheduler = $this->scheduler('Europe/Berlin');
 
-        $next = $scheduler->next(self::profile('shop', '30 3 * * *'), self::at('2026-10-22 12:00:00'));
+        $next = $scheduler->next(self::profile('shop', '03:30'), self::at('2026-10-22 12:00:00'));
 
         self::assertSame('2026-10-23 03:30 +02:00', $next?->format('Y-m-d H:i P'));
         self::assertNull($scheduler->next(self::profile('shop', null), self::at('2026-10-22 12:00:00')));

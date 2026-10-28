@@ -42,7 +42,7 @@ final class Scheduler
         $due = [];
         $skipped = [];
         foreach ($profiles as $profile) {
-            if ($profile->schedule === null) {
+            if ($profile->schedule === null || $profile->schedule->paused) {
                 continue;
             }
             $state = $this->store->load($profile->id);
@@ -71,10 +71,10 @@ final class Scheduler
         return new SchedulePlan($due, $skipped);
     }
 
-    /** The next scheduled instant of a profile, on the clock of the configured time zone; null without a schedule. */
+    /** The next scheduled instant of a profile, on the clock of the configured time zone; null without a schedule or while it is paused. */
     public function next(SiteProfile $profile, DateTimeImmutable $now): ?DateTimeImmutable
     {
-        return $profile->schedule?->expression()->next($now->setTimezone($this->zone));
+        return $profile->schedule === null || $profile->schedule->paused ? null : $profile->schedule->expression()->next($now->setTimezone($this->zone));
     }
 
     /** A run for the scheduled instant has begun; $runId is the backup run that was made for it. */

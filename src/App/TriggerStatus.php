@@ -43,8 +43,10 @@ final class TriggerStatus
         $now = ($this->clock)();
         $next = [];
         foreach ($profiles as $profile) {
-            if ($profile->schedule !== null) {
-                $next[$profile->id] = $this->scheduler->next($profile, new DateTimeImmutable('@' . $now)) ?? throw new \LogicException('A schedule always has a next time.');
+            // a paused schedule is not kept by the trigger, so it neither has a next run nor makes the trigger's absence a problem
+            $when = $profile->schedule === null ? null : $this->scheduler->next($profile, new DateTimeImmutable('@' . $now));
+            if ($when !== null) {
+                $next[$profile->id] = $when;
             }
         }
         $beat = $this->heartbeat->read();

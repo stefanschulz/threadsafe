@@ -1,13 +1,14 @@
 # Scheduled backups and retention
 
-How ThreadSafe makes backups by itself and keeps the storage in order: the **schedule** of a profile, the **trigger** that must call it, and **retention**. The commands are in [BACKUP.md](BACKUP.md) (4.5 `cron`, 4.6 `retention`), the pages in [WEB.md](WEB.md); this page is the whole story in one place. The design and the reasons are in [PHASE5.md](PHASE5.md).
+How ThreadSafe makes backups by itself and keeps the storage in order: the **schedule** of a profile (set on the **Schedule** page, for all profiles together), the **trigger** that must call it, and **retention**. The commands are in [BACKUP.md](BACKUP.md) (4.5 `cron`, 4.6 `retention`), the pages in [WEB.md](WEB.md); this page is the whole story in one place. The design and the reasons are in [PHASE5.md](PHASE5.md).
 
 ## 1. Quick start
 
 ```bash
 # 1. say when (here: every day at 03:30, in the time zone of the installation) and what to keep
 php bin/threadsafe admin set schedule.timezone Europe/Berlin
-php bin/threadsafe profile edit shop --schedule="30 3 * * *" --keep=14 --max-age-days=90
+php bin/threadsafe profile edit shop --schedule="daily at 03:30" --keep=14 --max-age-days=90
+# (or in the browser: menu "Schedule", the line of the profile, "Change")
 
 # 2. make something call the trigger: either a cron job that runs the command ...
 php bin/threadsafe admin cron-secret          # (only for the address: makes the secret and prints a crontab line for it)
@@ -21,24 +22,25 @@ Nothing happens without step 2: **a schedule is only a promise; the trigger keep
 
 ## 2. The schedule of a profile
 
-`schedule` is a cron expression, as in `crontab`: five fields, **minute hour day-of-month month day-of-week**.
+A profile has **no schedule**, or **one**, in one of four plain forms. There is no cron syntax to learn.
 
-| Field | Values | Also |
+| Form | What you choose | Examples (in words) |
 |---|---|---|
-| minute | 0-59 | `*`, lists `0,30`, ranges `9-17`, steps `*/15`, `10-50/10` |
-| hour | 0-23 | |
-| day of month | 1-31 | |
-| month | 1-12 | names `jan`-`dec` |
-| day of week | 0-7 (0 and 7 are Sunday) | names `mon`-`sun` |
+| **Every few hours** | every 1, 2, 3, 4, 6, 8 or 12 hours, at a minute of the hour | Every 6 hours at :15 |
+| **Every day** | a time of day | Every day at 03:30 |
+| **On chosen days of the week** | any of Monday to Sunday (at least one), a time of day | Every Monday and Thursday at 02:15 |
+| **On a day of the month** | the 1st to the 28th (the 29th to the 31st would skip months), a time of day | On the 1st of every month at 04:00 |
 
-Shortcuts: `@hourly`, `@daily`, `@weekly`, `@monthly`. Examples: `30 3 * * *` every day 03:30 · `0 */6 * * *` every six hours · `15 2 * * mon-fri` working days · `0 4 1 * *` the first of the month. If both day fields are restricted a date matches when **either** does (the rule of Vixie cron). An expression that never matches a date (the 31st of February) is refused when you enter it, with a message that names the field.
+A schedule can also be **paused**: it keeps its settings, no backup is made by it, it has no next run and the trigger's absence is no reason for a warning, until it is **resumed**.
 
-- **Time zone.** Expressions are read in `schedule.timezone` (`admin set schedule.timezone Europe/Berlin`, or the System page); empty means the time zone of PHP, which is UTC where nobody set one. The pages show times in the time zone of the browser, the file names of backups are UTC.
-- **Daylight saving time.** A time that does not exist (02:30 on the day the clock jumps forward) runs at the first moment after the gap; a time that exists twice (the hour when the clock goes back) runs **once**, at its first occurrence. This is ThreadSafe's own rule, tested for Berlin, New York and Lord Howe (a half-hour shift).
-- **A schedule counts from the moment it is set.** Setting or changing it - on the command line or in the form - starts counting at that moment, so a schedule `0 3 * * *` set at 05:00 does not make a backup at once because 03:00 is not long ago. A profile that has a schedule but no saved state (the state was lost, or the profile was copied in) is treated the same way at the first call of the trigger.
-
-Set in the profile form (section *Schedule*) or with `profile add|edit --schedule=... | --no-schedule`.
-
+- **Where to set it.**
+  - The **Schedule** page (menu): one table with all profiles - profile, website type, when it runs, the next run, what became of the last scheduled run. It can be sorted by profile, type and time (the next run; paused and unscheduled profiles stay behind), filtered by website type, and the schedule of **one or of several ticked profiles at once** can be changed, paused or resumed. The form shows the **next three runs** of what you enter before you save. Profiles whose next runs lie within ten minutes of each other are marked: only one backup runs at a time, so the second starts when the first has ended.
+  - The **profile form**, section *Automation*, has the same fields.
+  - The command line: `profile add|edit --schedule="TEXT" | --no-schedule | --pause-schedule | --resume-schedule`. The text is `every 6 hours at :15` (or `hourly`), `daily at 03:30`, `weekly on mon,thu at 02:15`, `monthly on 1 at 04:00`; the words `on` and `at` may be left out. A new time keeps a paused schedule paused unless `--resume-schedule` is given. `profile show` prints the schedule in the same text, the time zone and the next run.
+- **In the profile file** the schedule is a plain object: `"schedule": {"every": "week", "on": ["mon", "thu"], "at": "02:15"}` (`{"every": "hours", "interval": 6, "minute": 15}`, `{"every": "day", "at": "03:30"}`, `{"every": "month", "day": 1, "at": "04:00"}`, and `"paused": true` next to any of them). The engine turns it into a cron expression of five fields itself; a profile file of an older version with `{"cron": ...}` is refused with a message that says so and has to be changed (there was no release with it).
+- **Time zone.** Times are read in `schedule.timezone` (`admin set schedule.timezone Europe/Berlin`, or the System page); empty means the time zone of PHP, which is UTC where nobody set one. The Schedule page names the zone and shows its times in it; other pages show times in the time zone of the browser, the file names of backups are UTC.
+- **Daylight saving time.** A time that does not exist (02:30 on the day the clock jumps forward) runs at the first moment after the gap; a time that exists twice (the hour when the clock goes back) runs **once**, at its first occurrence. "Every N hours" counts on the wall clock from midnight, so on the two days of a change the gap between two runs is one hour longer or shorter. This is ThreadSafe's own rule, tested for Berlin, New York and Lord Howe (a half-hour shift).
+- **A schedule counts from the moment it is set or resumed.** Setting, changing, pausing or resuming it starts counting at that moment, so a schedule `daily at 03:00` set at 05:00 does not make a backup at once because 03:00 is not long ago. A save that changes nothing does not start it again. A profile that has a schedule but no saved state (the state was lost, or the profile was copied in) is treated the same way at the first call of the trigger.
 ## 3. When is a backup made?
 
 The scheduler looks only at the moment of a call of the trigger. It takes the **latest scheduled time that is not in the future**; the profile is **due** if that time has not been handled and the call comes at most `schedule.graceMinutes` (default 360, six hours) after it.
@@ -128,7 +130,7 @@ The profile page shows the same list before anything is deleted. Every deletion 
 
 | Setting | Default | Meaning |
 |---|---|---|
-| `schedule.timezone` | empty (PHP's) | the time zone of the cron expressions, e.g. `Europe/Berlin` |
+| `schedule.timezone` | empty (PHP's) | the time zone in which the times of the schedules are read, e.g. `Europe/Berlin` |
 | `schedule.graceMinutes` | 360 | how late a scheduled backup may still be made up (1 to 10080) |
 | `schedule.expectedIntervalMinutes` | 15 | how often the trigger is meant to come (1 to 1440); the warning is derived from it |
 | `cron.mode` | `auto` | `auto`, `worker` or `ticks` |

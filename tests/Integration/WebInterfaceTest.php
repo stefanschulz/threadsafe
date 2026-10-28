@@ -488,6 +488,43 @@ final class WebInterfaceTest extends IntegrationTestCase
     // ------------------------------------------------------------------------------------------------- security
 
     #[Depends('testTheJourneyFromTheFirstSetupToAVerifiedBackup')]
+    public function testTheSchedulePageSetsSortsAndPausesAScheduleBehindApache(): void
+    {
+        $ui = self::ui();
+        $store = new ProfileStore('/web-data/profiles');
+
+        // the page is behind the login like every other, and is in the menu
+        self::assertSame(303, (new WebUi())->get('/schedule')['status']);
+        $page = $ui->get('/schedule');
+        self::assertSame(200, $page['status']);
+        self::assertStringContainsString('aria-current="page"', $page['body']);
+        self::assertStringContainsString('name="p_shop" value="1"', $page['body'], 'the profile of the journey is a line of the table');
+
+        // set a schedule through the form, read it in words, sort, pause, resume
+        $save = $ui->post('/schedule/edit', ['p_shop' => '1', 'action' => 'save', 'schedule_every' => 'week', 'schedule_on_mon' => '1', 'schedule_on_thu' => '1', 'schedule_time' => '02:15']);
+        self::assertSame(303, $save['status'], $save['body']);
+        self::assertSame('15 2 * * mon,thu', $store->load('shop')->schedule?->cron());
+        $table = $ui->follow($save);
+        self::assertStringContainsString('Every Monday and Thursday at 02:15', $table['body']);
+        self::assertStringContainsString('aria-sort="ascending"', $table['body']);
+        self::assertSame(200, $ui->get('/schedule?sort=name&dir=desc')['status']);
+        self::assertSame(200, $ui->get('/schedule?sort=type&dir=asc')['status']);
+
+        $ui->post('/schedule/action', ['do' => 'pause:shop']);
+        self::assertTrue($store->load('shop')->schedule?->paused);
+        self::assertStringContainsString('<span class="badge paused">Paused</span>', $ui->get('/schedule')['body']);
+
+        // the trigger keeps what the page promises: a paused schedule is not due, a resumed one counts from now
+        $ui->post('/schedule/action', ['do' => 'resume:shop']);
+        self::assertFalse($store->load('shop')->schedule?->paused);
+        self::assertFileExists('/web-data/schedule/shop.json', 'a resumed schedule has a state that counts from now');
+
+        $ui->post('/schedule/edit', ['p_shop' => '1', 'action' => 'save', 'schedule_every' => '']);
+        self::assertNull($store->load('shop')->schedule, 'not scheduled: the schedule is gone again, as the other tests of the journey expect');
+        self::assertFileDoesNotExist('/web-data/schedule/shop.json');
+    }
+
+    #[Depends('testTheJourneyFromTheFirstSetupToAVerifiedBackup')]
     public function testAStrangerAForgedRequestAndTheTwoLayoutsOfTheInstallation(): void
     {
         $ui = self::ui();

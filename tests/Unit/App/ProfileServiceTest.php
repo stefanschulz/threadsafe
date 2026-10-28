@@ -50,18 +50,18 @@ final class ProfileServiceTest extends TestCase
 
     public function testASchedulePutsTheStateOfTheSchedulerAtNowAndAChangeMovesItAndRemovalClearsIt(): void
     {
-        self::assertTrue($this->service->store($this->profile()->with(['schedule' => ['cron' => '0 3 * * *']]), test: false)->stored);
+        self::assertTrue($this->service->store($this->profile()->with(['schedule' => ['every' => 'day', 'at' => '03:00']]), test: false)->stored);
         $first = $this->states()->load('blog');
         self::assertNotNull($first, 'a profile with a schedule has a state');
         self::assertEqualsWithDelta(time(), $first->since, 5, 'its schedule counts from now');
 
         // the same expression again (any other edit): the state stays as the scheduler left it
         $this->states()->save('blog', new ScheduleState(1000, 2000, ScheduleState::DONE, 1));
-        $this->service->store($this->profile()->with(['schedule' => ['cron' => '0 3 * * *'], 'note' => 'changed']), test: false);
+        $this->service->store($this->profile()->with(['schedule' => ['every' => 'day', 'at' => '03:00'], 'note' => 'changed']), test: false);
         self::assertEquals(new ScheduleState(1000, 2000, ScheduleState::DONE, 1), $this->states()->load('blog'));
 
         // another expression: instants before the change do not count
-        $this->service->store($this->profile()->with(['schedule' => ['cron' => '0 4 * * *']]), test: false);
+        $this->service->store($this->profile()->with(['schedule' => ['every' => 'day', 'at' => '04:00']]), test: false);
         self::assertEqualsWithDelta(time(), $this->states()->load('blog')?->since, 5);
         self::assertNull($this->states()->load('blog')?->instant);
 
@@ -69,10 +69,27 @@ final class ProfileServiceTest extends TestCase
         $this->service->store($this->profile(), test: false);
         self::assertNull($this->states()->load('blog'));
 
-        $this->service->store($this->profile()->with(['schedule' => ['cron' => '0 3 * * *']]), test: false);
+        $this->service->store($this->profile()->with(['schedule' => ['every' => 'day', 'at' => '03:00']]), test: false);
         self::assertNotNull($this->states()->load('blog'));
         $this->service->remove('blog');
         self::assertNull($this->states()->load('blog'), 'a removed profile leaves no state');
+    }
+
+    public function testPausingAndResumingMoveTheStateOfTheSchedulerButASaveWithoutAChangeDoesNot(): void
+    {
+        $day = ['every' => 'day', 'at' => '03:00'];
+        $this->service->store($this->profile()->with(['schedule' => $day]), test: false);
+        $this->states()->save('blog', new ScheduleState(1000, 2000, ScheduleState::DONE, 1));
+
+        $this->service->store($this->profile()->with(['schedule' => $day, 'note' => 'again']), test: false);
+        self::assertEquals(new ScheduleState(1000, 2000, ScheduleState::DONE, 1), $this->states()->load('blog'), 'nothing changed');
+
+        $this->service->store($this->profile()->with(['schedule' => $day + ['paused' => true]]), test: false);
+        self::assertNotNull($this->states()->load('blog'), 'the state is kept while it is paused');
+
+        $this->states()->save('blog', new ScheduleState(1000, 2000, ScheduleState::DONE, 1));
+        $this->service->store($this->profile()->with(['schedule' => $day]), test: false);
+        self::assertEqualsWithDelta(time(), $this->states()->load('blog')?->since, 5, 'resumed: it counts from now, nothing is made up');
     }
 
     public function testAProfileWithoutAScheduleLeavesNoStateFile(): void

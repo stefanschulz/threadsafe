@@ -78,7 +78,7 @@ final class ProfilePagesTest extends TestCase
     {
         $this->create();
         $this->store()->save($this->store()->load('blog')->with([
-            'schedule' => ['cron' => '30 3 * * *'],
+            'schedule' => ['every' => 'day', 'at' => '03:30'],
             'retention' => ['keep' => 14, 'maxAgeDays' => 30],
             'encryption' => ['recipients' => [AgeKeys::generate()['public']]],
         ]));
@@ -90,7 +90,7 @@ final class ProfilePagesTest extends TestCase
         self::assertStringContainsString('<dt>Site</dt><dd><code class="path">' . str_replace('/', '/<wbr>', $this->base . '/my-site') . '</code></dd>', $page, 'a path may break after a slash');
         self::assertStringContainsString('<dt>Backups</dt><dd><code class="path">' . str_replace('/', '/<wbr>', $this->base . '/storage/blog') . '</code></dd>', $page);
         // the options have an icon in place of the label, with a tooltip and a name for a screen reader
-        self::assertMatchesRegularExpression('~<dt title="Schedule"><svg class="icon"[^>]*>.*?</svg><span class="visually-hidden">Schedule</span></dt><dd><code>30 3 \* \* \*</code></dd>~', $page);
+        self::assertMatchesRegularExpression('~<dt title="Schedule"><svg class="icon"[^>]*>.*?</svg><span class="visually-hidden">Schedule</span></dt><dd>Every day at 03:30</dd>~', $page);
         self::assertMatchesRegularExpression('~<dt title="Retention"><svg.*?<span class="visually-hidden">Retention</span></dt><dd>keeps the last 14, up to 30 days</dd>~', $page);
         self::assertMatchesRegularExpression('~<dt title="Encryption"><svg.*?<span class="visually-hidden">Encryption</span></dt><dd>Encrypted</dd>~', $page);
         self::assertStringNotContainsString('<table', $page);
@@ -239,7 +239,7 @@ final class ProfilePagesTest extends TestCase
     {
         $this->create();
         $this->store()->save($this->store()->load('blog')->with([
-            'schedule' => ['cron' => '30 3 * * *'],
+            'schedule' => ['every' => 'day', 'at' => '03:30'],
             'retention' => ['keep' => 14, 'maxAgeDays' => 30],
             'encryption' => ['recipients' => [AgeKeys::generate()['public'], AgeKeys::generate()['public']]],
             'excludePaths' => ['cache', '*.log'],
@@ -247,7 +247,7 @@ final class ProfilePagesTest extends TestCase
 
         $page = $this->browser->get('/profiles/blog/edit')->body;
 
-        self::assertStringContainsString('<span class="summary-value">schedule 30 3 * * *, keeps the last 14, up to 30 days</span>', $page);
+        self::assertStringContainsString('<span class="summary-value">every day at 03:30, keeps the last 14, up to 30 days</span>', $page);
         self::assertStringContainsString('<span class="summary-value">for 2 public keys</span>', $page);
         self::assertStringContainsString('<span class="summary-value">defaults of the type, 2 more left out</span>', $page);
         self::assertStringContainsString('<p>Id: <code>blog</code></p>', $page, 'the id is shown, not asked for');
@@ -518,14 +518,14 @@ final class ProfilePagesTest extends TestCase
         $this->create();
         $key = 'age1ql3z7hjy54pw3hyww5ayyfg7zqgvc7w3j2elw8zmrj2kg5sfn9aqmcac8p';
         $this->store()->save($this->store()->load('blog')->with([
-            'schedule' => ['cron' => '30 3 * * *'], 'retention' => ['keep' => 7], 'encryption' => ['recipients' => [$key]],
+            'schedule' => ['every' => 'day', 'at' => '03:30'], 'retention' => ['keep' => 7], 'encryption' => ['recipients' => [$key]],
         ]));
 
         $this->browser->post('/profiles/blog', $this->fields(['note' => 'changed in the browser', 'skip_test' => '1']));
 
         $profile = $this->store()->load('blog');
         self::assertSame('changed in the browser', $profile->note);
-        self::assertSame('30 3 * * *', $profile->schedule?->cron);
+        self::assertSame('30 3 * * *', $profile->schedule?->cron());
         self::assertSame(7, $profile->retention?->keep);
         self::assertSame([$key], $profile->encryption?->recipients);
     }
