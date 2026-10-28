@@ -317,13 +317,9 @@ final class BackupController
                 $warnings[] = $warning;
             }
         }
-        $list = '';
-        foreach (array_slice($warnings, 0, 20) as $warning) {
-            $list .= '<li>' . Html::e($warning) . '</li>';
-        }
 
         return '<p class="flash ok" role="status">The backup of ' . $profileLink . ' is complete.</p>' . $table
-            . ($warnings === [] ? '' : '<h2>Warnings (' . count($warnings) . ')</h2><ul>' . $list . (count($warnings) > 20 ? '<li>... and ' . (count($warnings) - 20) . ' more</li>' : '') . '</ul>');
+            . ($warnings === [] ? '' : View::warnings($warnings, 20));
     }
 
     private static function reason(Run $run): string

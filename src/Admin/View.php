@@ -168,6 +168,26 @@ final class View
      * A part of a form that explains itself on request: a small "?" button with a title that opens the text below it (a details element, so it needs
      * no script and can be used with the keyboard). The text is HTML written by the caller.
      */
+    /**
+     * The warnings of a backup as a table of findings (the same table as the checks), at most `$limit` of them. A warning that begins with a
+     * short name and a colon ("PHP: ...") has the name in the column of the subject.
+     *
+     * @param list<string> $warnings
+     */
+    public static function warnings(array $warnings, int $limit): string
+    {
+        $rows = [];
+        foreach (array_slice($warnings, 0, $limit) as $warning) {
+            [$subject, $message] = preg_match('/^([A-Za-z][A-Za-z0-9 ]{0,28}): (.+)$/s', $warning, $m) === 1 ? [$m[1], $m[2]] : ['', $warning];
+            $rows[] = ['level' => 'warning', 'subject' => $subject, 'message' => $message, 'hint' => ''];
+        }
+        if (count($warnings) > $limit) {
+            $rows[] = ['level' => 'info', 'subject' => '', 'message' => '... and ' . (count($warnings) - $limit) . ' more', 'hint' => ''];
+        }
+
+        return '<h2>Warnings (' . count($warnings) . ')</h2><div class="scroll">' . Html::checkTable($rows) . '</div>';
+    }
+
     public static function help(string $title, string $html): string
     {
         return '<details class="help"><summary><span class="help-mark" aria-hidden="true">?</span> ' . Html::e($title) . '</summary><div class="help-body">' . $html . '</div></details>';

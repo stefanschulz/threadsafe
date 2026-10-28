@@ -64,4 +64,18 @@ final class ConnectionTestStorageTest extends TestCase
 
         self::assertSame(CheckLevel::Ok, $checks[0]->level);
     }
-}
+
+    public function testOpenBasedirIsANoteAndNeverAWarningBecauseThePathsAreCheckedAgainstItAbove(): void
+    {
+        // field test: "open_basedir is set (...); the site path and the storage must be inside it." came with every backup, although they were
+        $base = $this->tempDirectory();
+        $test = new ConnectionTest(PluginRegistry::load(), $base . '/data');
+
+        $restricted = array_filter($test->environment(false, $base . ':/tmp'), static fn ($check): bool => str_contains($check->message, 'open_basedir'));
+        $free = array_filter($test->environment(false, ''), static fn ($check): bool => str_contains($check->message, 'open_basedir'));
+
+        self::assertCount(1, $restricted);
+        self::assertSame(CheckLevel::Info, array_values($restricted)[0]->level, 'no warning: it would be repeated at the end of every backup');
+        self::assertSame([], $free, 'without a restriction there is nothing to say');
+        self::assertSame([], array_filter($test->environment(false, $base), static fn ($check): bool => $check->level === CheckLevel::Warning && $check->subject === 'PHP'));
+    }}

@@ -55,7 +55,8 @@ final class Environment
         }
         $basedir = (string) ini_get('open_basedir');
         if ($basedir !== '') {
-            $checks[] = Check::warning('PHP', "open_basedir is set ($basedir); the site directories and the storage directories must be inside it.");
+            // a note, not a warning: the data directory is checked against it here, and the site and storage of every profile when it is tested
+            $checks[] = Check::info('PHP', "open_basedir is set ($basedir); PHP may use only these directories. The data directory, and the site and the storage of every profile, are checked against it.");
         }
 
         $cli = PhpBinary::cli();

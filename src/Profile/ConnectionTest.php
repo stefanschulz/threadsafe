@@ -189,9 +189,13 @@ final class ConnectionTest
     }
 
     /**
+     * What PHP and the host allow, for the test of a profile. Public for the tests of `open_basedir`.
+     *
+     * @param string|null $openBasedir the setting to look at; default: the one in force
+     *
      * @return list<Check>
      */
-    private function environment(bool $needsDatabase): array
+    public function environment(bool $needsDatabase, ?string $openBasedir = null): array
     {
         $checks = [Check::info('PHP', sprintf('%s (%s), memory_limit %s, max_execution_time %s', PHP_VERSION, PHP_SAPI, ini_get('memory_limit') ?: '?', ini_get('max_execution_time') ?: '0'))];
 
@@ -204,9 +208,10 @@ final class ConnectionTest
             $checks[] = Check::failure('PHP', 'Neither pdo_mysql nor mysqli is loaded.');
         }
 
-        $basedir = (string) ini_get('open_basedir');
+        // not a warning: the site path and the storage are checked against it above, and one outside it is a failure there
+        $basedir = $openBasedir ?? (string) ini_get('open_basedir');
         if ($basedir !== '') {
-            $checks[] = Check::warning('PHP', "open_basedir is set ($basedir); the site path and the storage must be inside it.");
+            $checks[] = Check::info('PHP', "open_basedir is set ($basedir); the site path and the storage are checked against it.");
         }
 
         $disabled = array_map('trim', explode(',', (string) ini_get('disable_functions')));

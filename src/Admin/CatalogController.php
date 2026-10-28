@@ -191,11 +191,7 @@ final class CatalogController
             $body .= '<h2>Tables kept without their rows</h2><p><code>' . implode('</code> <code>', array_map(Html::e(...), array_slice($m->filters['structureOnlyTables'], 0, 40))) . '</code></p>';
         }
         if ($m->warnings !== []) {
-            $items = '';
-            foreach (array_slice($m->warnings, 0, 30) as $warning) {
-                $items .= '<li>' . Html::e($warning) . '</li>';
-            }
-            $body .= '<h2>Warnings (' . count($m->warnings) . ')</h2><ul>' . $items . (count($m->warnings) > 30 ? '<li>... and ' . (count($m->warnings) - 30) . ' more</li>' : '') . '</ul>';
+            $body .= View::warnings($m->warnings, 30);
         }
         if ($m->unsupportedObjects !== []) {
             $items = '';
