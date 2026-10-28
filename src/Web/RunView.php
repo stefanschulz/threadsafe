@@ -44,7 +44,8 @@ final class RunView
 
         return '<div class="bar"><div id="bar" data-percent="' . $percent . '"></div></div>'
             . '<p id="status">' . Html::e((string) $run->progress) . '</p>'
-            . '<p id="live" class="help" data-elapsed="' . $elapsed . '"><span id="note"></span> <span id="clock">All together: ' . self::clock($elapsed) . '</span></p>'
+            . '<p id="note" class="help" aria-live="polite"></p>'
+            . '<p id="clock" class="clock" data-elapsed="' . $elapsed . '">All together: ' . self::clock($elapsed) . '</p>'
             . '<p id="error" class="fail">' . ($failed ? Html::e((string) $run->error) : '') . '</p>';
     }
 
@@ -75,7 +76,7 @@ final class RunView
   var csrf = $token, noun = $nounJs, hint403 = $hintJs, statusUrl = $statusJs;
   var bar = document.getElementById('bar'), status = document.getElementById('status'), error = document.getElementById('error');
   var go = document.getElementById('go'), retry = document.getElementById('retry'), note = document.getElementById('note'), clock = document.getElementById('clock');
-  var stopped = $failedJs, lost = 0, working = false, stepStart = 0, pageStart = Date.now(), base = parseInt(document.getElementById('live').getAttribute('data-elapsed'), 10) || 0, poll = 0;
+  var stopped = $failedJs, lost = 0, working = false, stepStart = 0, pageStart = Date.now(), base = parseInt(clock.getAttribute('data-elapsed'), 10) || 0, poll = 0;
   bar.style.width = bar.getAttribute('data-percent') + '%';
   function two(n) { return (n < 10 ? '0' : '') + n; }
   function span(s) { s = Math.max(0, Math.floor(s)); return s >= 3600 ? Math.floor(s / 3600) + ':' + two(Math.floor(s / 60) % 60) + ':' + two(s % 60) : Math.floor(s / 60) + ':' + two(s % 60); }
@@ -83,7 +84,7 @@ final class RunView
   function buttons(failed) { go.disabled = working || failed; retry.disabled = !failed || working; }
   function tickClock() {
     var total = base + (Date.now() - pageStart) / 1000;
-    clock.textContent = (working ? 'This step: ' + span((Date.now() - stepStart) / 1000) + '. ' : '') + 'All together: ' + span(total);
+    clock.textContent = (working ? 'This step: ' + span((Date.now() - stepStart) / 1000) + ' \u00b7 ' : '') + 'All together: ' + span(total);
   }
   setInterval(tickClock, 1000);
   // while a step is working the page asks what it is doing: the step itself can take half a minute

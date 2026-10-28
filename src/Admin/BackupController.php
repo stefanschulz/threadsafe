@@ -78,7 +78,8 @@ final class BackupController
                 . '<p>Backing up ' . $profileLink . '. You can leave this page open or close it: a backup that stops can be continued from where it was.</p>'
                 . $this->progressBar($progress)
                 . '<p id="run-label" class="hint" aria-live="polite">' . Html::e($progress['label']) . '</p>'
-                . '<p id="run-live" class="hint" data-elapsed="' . max(0, time() - $run->created) . '"><span id="run-activity"></span> <span id="run-clock">All together: ' . RunView::clock(max(0, time() - $run->created)) . '</span></p>'
+                . '<p id="run-activity" class="hint" aria-live="polite"></p>'
+                . '<p id="run-clock" class="clock" data-elapsed="' . max(0, time() - $run->created) . '">All together: ' . RunView::clock(max(0, time() - $run->created)) . '</p>'
                 . '<p id="run-note" class="hint"></p>'
                 . '<div class="actions" id="run-actions">' . View::form($context, "/runs/$id/continue", '<button type="submit">Do the next step</button>', 'inline')
                 . ' ' . View::form($context, "/runs/$id/abandon", '<button type="submit" class="secondary">Cancel the backup</button>', 'inline') . '</div>'

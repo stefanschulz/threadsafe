@@ -319,7 +319,9 @@ textarea { font-family: var(--mono); font-size: 0.9rem; }
 .field .hint { margin: 0.25rem 0 0; }
 form.wide { max-width: 40rem; }
 form.inline { display: inline; }
+form.inline[hidden] { display: none; }
 form.inline button { margin: 0; }
+.clock { margin: 0.2rem 0 1rem; font: 0.85rem var(--mono); }
 button:disabled, button:disabled:hover { opacity: 0.45; cursor: not-allowed; filter: grayscale(0.4); }
 button.secondary, .button.secondary { color: var(--text); background: var(--panel-2); border-color: var(--border-strong); }
 button.secondary:hover, .button.secondary:hover { color: var(--text); background: var(--panel-2); border-color: var(--brass); }

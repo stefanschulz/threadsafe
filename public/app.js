@@ -29,10 +29,9 @@
     var note = document.getElementById('run-note');
     var actions = document.getElementById('run-actions');
     var failures = 0;
-    var live = document.getElementById('run-live');
     var activity = document.getElementById('run-activity');
     var clock = document.getElementById('run-clock');
-    var base = live ? parseInt(live.getAttribute('data-elapsed'), 10) || 0 : 0;
+    var base = clock ? parseInt(clock.getAttribute('data-elapsed'), 10) || 0 : 0;
     var pageStart = Date.now();
     var stepStart = Date.now();
     var statusUrl = run.getAttribute('data-status-url');
@@ -47,7 +46,7 @@
       return s >= 3600 ? Math.floor(s / 3600) + ':' + two(Math.floor(s / 60) % 60) + ':' + two(s % 60) : Math.floor(s / 60) + ':' + two(s % 60);
     };
     var tickClock = function () {
-      if (clock) { clock.textContent = (working ? 'This step: ' + span((Date.now() - stepStart) / 1000) + '. ' : '') + 'All together: ' + span(base + (Date.now() - pageStart) / 1000); }
+      if (clock) { clock.textContent = (working ? 'This step: ' + span((Date.now() - stepStart) / 1000) + ' \u00b7 ' : '') + 'All together: ' + span(base + (Date.now() - pageStart) / 1000); }
     };
     var watch = function () {
       if (!statusUrl) { return; }

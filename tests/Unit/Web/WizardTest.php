@@ -434,7 +434,7 @@ final class WizardTest extends TestCase
         // field test: "Continue" and "Try the failed step again" could be pressed whenever; nothing showed that a step was working
         self::assertStringContainsString('id="go">Continue</button>', $run->body, 'nothing failed: "Continue" can be pressed (the script holds it while a step works)');
         self::assertStringContainsString('id="retry" disabled>Try the failed step again</button>', $run->body, 'nothing failed: there is nothing to try again');
-        self::assertStringContainsString('<span id="clock">All together: 0:0', $run->body);
+        self::assertStringContainsString('<p id="clock" class="clock" data-elapsed="0">All together: 0:0', $run->body, 'the clock has a line of its own, apart from the note');
         self::assertStringContainsString('id="note"', $run->body);
         self::assertStringContainsString("var csrf = ", $run->body);
         self::assertStringContainsString("statusUrl = \"?step=status\"", $run->body);

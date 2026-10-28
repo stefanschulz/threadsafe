@@ -365,7 +365,7 @@ final class CatalogController
             $body = '<div id="run" data-tick-url="' . Html::e($context->urls->to("/checks/$id/tick")) . '" data-status-url="' . Html::e($context->urls->to("/checks/$id/status")) . '">'
                 . '<p>Checking <code>' . Html::e($backup) . '</code>: every part is read and compared with its checksum' . (($run->state['full'] ?? true) === true ? ', and read as an archive' : '') . '. This takes as long as reading the files.</p>'
                 . '<progress id="run-progress" max="100"' . ($progress['percent'] !== null ? ' value="' . $progress['percent'] . '"' : '') . '></progress>'
-                . '<p id="run-label" class="hint" aria-live="polite">' . Html::e($progress['label']) . '</p><p id="run-live" class="hint" data-elapsed="' . max(0, time() - $run->created) . '"><span id="run-activity"></span> <span id="run-clock">All together: ' . RunView::clock(max(0, time() - $run->created)) . '</span></p><p id="run-note" class="hint"></p>'
+                . '<p id="run-label" class="hint" aria-live="polite">' . Html::e($progress['label']) . '</p><p id="run-activity" class="hint" aria-live="polite"></p><p id="run-clock" class="clock" data-elapsed="' . max(0, time() - $run->created) . '">All together: ' . RunView::clock(max(0, time() - $run->created)) . '</p><p id="run-note" class="hint"></p>'
                 . '<div class="actions" id="run-actions">' . View::form($context, "/checks/$id/continue", '<button type="submit">Do the next step</button>', 'inline')
                 . ' ' . View::form($context, "/checks/$id/discard", '<button type="submit" class="secondary">Stop the check</button>', 'inline') . '</div></div>';
             $title = 'Check running';
