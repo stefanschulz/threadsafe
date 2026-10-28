@@ -107,6 +107,16 @@ final class CatalogPagesTest extends TestCase
         self::assertStringContainsString('Check that it is intact', $page->body);
     }
 
+    public function testTheQuestionToRemoveAProfileNamesTheBoxForItsBackups(): void
+    {
+        $this->backup();
+
+        $page = $this->browser->get('/profiles/blog/delete')->body;
+
+        self::assertStringContainsString('name="delete_backups"', $page);
+        self::assertStringContainsString('unless you tick <em>Also delete its 1 backup</em> below', $page, 'the sentence names the box that is there');
+    }
+
     public function testWhatWasLeftOutIsAListAndNotARunOfCode(): void
     {
         $this->fixture->profiles->save($this->fixture->profiles->load('blog')->with(['excludePaths' => ['var/cache', '*.log'], 'structureOnlyTables' => ['ps_log', 'ps_connections']]));

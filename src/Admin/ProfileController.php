@@ -270,10 +270,12 @@ final class ProfileController
             return $this->missing($context);
         }
 
+        $unreadable = false;
         try {
             $entries = (new CatalogController($this->services))->service()->backups($profile->id);
         } catch (\Throwable) {
             $entries = [];   // the storage cannot be read: the profile can still be removed, its backups stay
+            $unreadable = true;
         }
         $bytes = 0;
         foreach ($entries as $entry) {
@@ -285,7 +287,11 @@ final class ProfileController
                 . '<p class="hint">This cannot be undone. Without the tick the backups stay where they are.</p></div>';
 
         $body = '<p>Remove the profile <strong>' . Html::e($profile->name) . '</strong>?</p>'
-            . '<p>The site <code>' . Html::e($profile->path) . '</code> is not touched. Its backups in <code>' . Html::e($profile->storage) . '</code> stay where they are unless you tick the box.</p>'
+            . '<p>The site <code>' . Html::e($profile->path) . '</code> is not touched. ' . match (true) {
+                $entries !== [] => 'Its backups in <code>' . Html::e($profile->storage) . '</code> stay where they are unless you tick <em>Also delete its ' . count($entries) . ' backup' . (count($entries) === 1 ? '' : 's') . '</em> below.',
+                $unreadable => 'The storage <code>' . Html::e($profile->storage) . '</code> cannot be read from here, so there is nothing to choose: whatever is in it stays where it is.',
+                default => 'ThreadSafe finds no backups of this profile in <code>' . Html::e($profile->storage) . '</code>, so there is no box to tick; a file that is in it anyway stays where it is.',
+            } . '</p>'
             . View::form($context, '/profiles/' . $profile->id . '/delete', $choice . '<button type="submit" class="danger">Remove the profile</button> <a href="' . Html::e($context->urls->to('/profiles/' . $profile->id)) . '">Cancel</a>');
 
         return View::page($context, 'Remove ' . $profile->name, $body, '/profiles');

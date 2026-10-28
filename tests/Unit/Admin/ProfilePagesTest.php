@@ -560,7 +560,7 @@ final class ProfilePagesTest extends TestCase
 
         $confirm = $this->browser->get('/profiles/blog/delete');
         self::assertSame(200, $confirm->status);
-        self::assertStringContainsString('stay where they are', $confirm->body);
+        self::assertStringContainsString('stays where it is', $confirm->body);
         self::assertSame(['blog'], $this->store()->ids(), 'looking at the question removes nothing');
 
         $forged = $this->browser->send('POST', '/profiles/blog/delete');
@@ -573,6 +573,16 @@ final class ProfilePagesTest extends TestCase
         self::assertFileExists($this->base . '/storage/blog/blog_1.zip');
         self::assertStringContainsString('was removed', $this->browser->get('/profiles')->body);
         self::assertSame('profile.removed', (new AuditLog($this->base . '/data/audit.log'))->recent(1)[0]['event']);
+    }
+
+    public function testTheQuestionOnlyMentionsTheBoxWhenThereIsOne(): void
+    {
+        // field test: "unless you tick the box" - and there was no box, because the profile had no backups
+        $this->create();
+        $page = $this->browser->get('/profiles/blog/delete')->body;
+        self::assertStringNotContainsString('name="delete_backups"', $page, 'no backups, no box');
+        self::assertStringNotContainsString('unless you tick', $page, 'it does not point at a box that is not there');
+        self::assertStringContainsString('finds no backups of this profile in', $page);
     }
 
     public function testUnknownProfilesAreNotFoundAndGetsDoNotChangeAnything(): void
