@@ -46,7 +46,7 @@ the updates differ (section 5).
        directory would be reachable unless you add a rule that denies it. The tile has its own confirmation ("I run Apache, or I have added a
        rule ..."), which you tick for this choice.
      - **Another directory**: a full path, new or empty, that PHP may use and write in.
-   - **Install.** The installation works in steps and shows a progress bar; each step fits the time limit of the host. Keep the page open; if
+   - **Install.** The installation works in steps and shows a progress bar, the clock and what the step does now; each step fits the time limit of the host. Keep the page open; if
      it is closed, open the installer again and it goes on. Every file is checked against the manifest of the release while it is written.
    - **Remove the installer.** Press the button: it deletes `install.php`, `install-key.php` and its own work files. If PHP may not delete
      them, the page says which to delete by hand. **Do not leave the installer on the server.**

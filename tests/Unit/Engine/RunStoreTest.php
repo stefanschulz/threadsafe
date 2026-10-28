@@ -157,4 +157,34 @@ final class RunStoreTest extends TestCase
 
         $this->store->create('Bad Task', []);
     }
+
+    public function testTheLiveNoteIsReadBackAndTheSavedTickTakesItAway(): void
+    {
+        $run = $this->store->create('demo', ['n' => 1]);
+        self::assertNull($this->store->live($run->id), 'no tick is working');
+
+        $this->store->saveLive($run->id, 1000.5, 'packing files (12 so far)');
+        $live = $this->store->live($run->id);
+
+        self::assertNotNull($live);
+        self::assertSame(1000.5, $live['started']);
+        self::assertSame('packing files (12 so far)', $live['note']);
+        self::assertSame([$run->id], array_map(static fn ($r) => $r->id, $this->store->all()), 'the live file is no run');
+
+        $this->store->save($run->with(RunStatus::Running, ['n' => 2]));
+        self::assertNull($this->store->live($run->id), 'a saved tick says it all');
+    }
+
+    public function testDeletingARunDeletesItsLiveNoteAndADamagedOneReadsAsNone(): void
+    {
+        $run = $this->store->create('demo', []);
+        $this->store->saveLive($run->id, 1.0, 'x');
+        file_put_contents($this->directory . '/' . $run->id . '.live', '{not json');
+        self::assertNull($this->store->live($run->id));
+
+        $this->store->saveLive($run->id, 1.0, 'x');
+        $this->store->delete($run->id);
+
+        self::assertFileDoesNotExist($this->directory . '/' . $run->id . '.live');
+    }
 }

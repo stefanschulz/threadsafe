@@ -21,6 +21,7 @@ use ThreadSafe\Web\Cleanup;
 use ThreadSafe\Web\Html;
 use ThreadSafe\Web\Request;
 use ThreadSafe\Web\Response;
+use ThreadSafe\Web\RunView;
 use ThreadSafe\Web\Sessions;
 
 /**
@@ -104,6 +105,7 @@ final class Wizard
             $action === 'cleanup' => $this->cleanup($session),
             default => match ($request->query('step') ?? 'check') {
                 'run' => $this->runPage($session),
+                'status' => $this->statusAnswer($session),
                 'done' => $this->donePage($session),
                 default => $this->checkPage($session),
             },
@@ -333,43 +335,24 @@ final class Wizard
         }
         $failed = $run->status === RunStatus::Failed;
         $body = '<p>The installation works in steps; this page keeps it going. <strong>Keep this page open.</strong> If it is closed or the connection is lost, open the installer again and continue here.</p>'
-            . '<div class="bar"><div id="bar" data-percent="' . $this->percent($run) . '"></div></div><p id="status">' . Html::e((string) $run->progress) . '</p>'
-            . '<p id="error" class="fail">' . ($failed ? Html::e((string) $run->error) : '') . '</p>'
-            . $this->form('<button name="action" value="tick" id="go">Continue</button><button name="action" value="retry" class="secondary" id="retry"' . ($failed ? '' : ' hidden') . '>Try the failed step again</button>', (string) $session['csrf'])
+            . RunView::panel($run, $this->percent($run), $failed)
+            . $this->form(RunView::buttons($failed), (string) $session['csrf'])
             . '<noscript><p class="help">Without JavaScript press "Continue" again and again until the page says it is done.</p></noscript>';
 
-        return $this->page('Installing', $body, 200, 'run', $this->runScript((string) $session['csrf'], $failed));
+        return $this->page('Installing', $body, 200, 'run', RunView::script((string) $session['csrf'], $failed, 'installation', 'HTTP 403 means that a rule of the web server or of the host refuses this file. Look in the .htaccess of this directory and of the ones above it, then press "Continue".'));
     }
 
-    private function runScript(string $csrf, bool $failed): string
+    /**
+     * What the step that is working does right now (the page asks while the step runs), as JSON.
+     *
+     * @param array<string, mixed> $session
+     */
+    private function statusAnswer(array $session): Response
     {
-        $token = json_encode($csrf, JSON_THROW_ON_ERROR);
-        $failedJs = $failed ? 'true' : 'false';
+        $run = $this->currentRun($session);
 
-        return <<<JS
-(function () {
-  var csrf = $token, bar = document.getElementById('bar'), status = document.getElementById('status'), error = document.getElementById('error');
-  var go = document.getElementById('go'), retry = document.getElementById('retry'), stopped = $failedJs;
-  go.hidden = true;
-  bar.style.width = bar.getAttribute('data-percent') + '%';
-  function post(action) {
-    return fetch('?', {method: 'POST', credentials: 'same-origin', headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-      body: 'csrf=' + encodeURIComponent(csrf) + '&action=' + action + '&format=json'}).then(function (r) { return r.json(); });
-  }
-  function show(d) {
-    if (d.percent !== undefined) { bar.style.width = d.percent + '%'; }
-    if (d.progress) { status.textContent = d.progress; }
-    if (d.status === 'finished') { window.location = '?step=done'; return; }
-    if (d.status === 'failed') { error.textContent = d.error; stopped = true; retry.hidden = false; return; }
-    setTimeout(tick, d.status === 'busy' ? 2000 : 50);
-  }
-  function tick() { if (!stopped) { post('tick').then(show).catch(function () { status.textContent = 'No answer from the server; trying again ...'; setTimeout(tick, 3000); }); } }
-  retry.addEventListener('click', function (e) { e.preventDefault(); retry.hidden = true; error.textContent = ''; stopped = false; post('retry').then(function () { tick(); }); });
-  if (!stopped) { tick(); }
-})();
-JS;
+        return Response::json($run === null ? ['working' => false, 'note' => '', 'seconds' => 0, 'elapsed' => 0] : RunView::live($this->store(), $run));
     }
-
     /**
      * One tick of the installation. With `format=json` (the page's script) the answer is data, otherwise a redirect back to the page.
      *

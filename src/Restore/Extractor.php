@@ -129,6 +129,7 @@ final class Extractor
                     }
                     $this->handle($reader, $entry, $run, $budget);
                     ++$work;
+                    $budget->note(sprintf('unpacking the backup: %d files so far, part %d of %d, now %s', $run->files, $run->part + 1, count($parts), $entry->name));
                     if ($run->current !== null) {
                         $finishedPart = false;   // a stored entry was stopped in the middle
 

@@ -46,6 +46,8 @@ final class Wizard
 
     private const string KEY_FILE = 'restore-key.php';
 
+    /** What to do when the web server refuses a step of the restore with HTTP 403. */
+    private const string HINT_403 = 'HTTP 403 usually means that a rule of the web server refuses this file: the .htaccess of the restored site (a security extension such as Admin Tools refuses direct requests for PHP files) or the host. Rename the .htaccess in this directory (for example to .htaccess.off), then press "Continue"; put it back when the restore is done.';
 
     private readonly string $stateDirectory;
 
@@ -191,6 +193,9 @@ final class Wizard
     {
         if ($step === 'run') {
             return $this->runPage($session);
+        }
+        if ($step === 'status') {
+            return $this->statusAnswer($session);
         }
         if ($step === 'done') {
             return $this->donePage($session);
@@ -646,64 +651,23 @@ final class Wizard
         $csrf = (string) $session['csrf'];
         $failed = $run->status === RunStatus::Failed;
         $body = '<p>The restore works in steps; this page keeps it going. <strong>Keep this page open.</strong> If it is closed or the connection is lost, open the tool again and continue here.</p>'
-            . '<div class="bar"><div id="bar" data-percent="' . $this->percent($run) . '"></div></div><p id="status">' . Html::e((string) $run->progress) . '</p>'
-            . '<p id="error" class="fail">' . ($failed ? Html::e((string) $run->error) : '') . '</p>'
-            . $this->form('<button name="action" value="tick" id="go">Continue</button><button name="action" value="retry" class="secondary" id="retry"' . ($failed ? '' : ' hidden') . '>Try the failed step again</button><button type="button" class="secondary" id="again" hidden>Try again</button>', $csrf)
+            . RunView::panel($run, $this->percent($run), $failed)
+            . $this->form(RunView::buttons($failed), $csrf)
             . '<noscript><p class="help">Without JavaScript press "Continue" again and again until the page says it is done.</p></noscript>';
 
-        return $this->page('Restoring', $body, 200, 'run', $this->runScript($csrf, $failed));
+        return $this->page('Restoring', $body, 200, 'run', RunView::script($csrf, $failed, 'restore', self::HINT_403));
     }
 
-    private function runScript(string $csrf, bool $failed): string
+    /**
+     * What the step that is working does right now (the page asks while the step runs), as JSON.
+     *
+     * @param array<string, mixed> $session
+     */
+    private function statusAnswer(array $session): Response
     {
-        $token = json_encode($csrf, JSON_THROW_ON_ERROR);
-        $failedJs = $failed ? 'true' : 'false';
+        $run = $this->currentRun($session);
 
-        return <<<JS
-(function () {
-  var csrf = $token, bar = document.getElementById('bar'), status = document.getElementById('status'), error = document.getElementById('error');
-  var go = document.getElementById('go'), retry = document.getElementById('retry'), again = document.getElementById('again'), stopped = $failedJs, lost = 0;
-  go.hidden = true;
-  bar.style.width = bar.getAttribute('data-percent') + '%';
-  // the answer of a step is data; anything else (a page of the web server, HTTP 403, 500) is said out loud and stops the loop: it will not get better by itself
-  function post(action) {
-    return fetch('?', {method: 'POST', credentials: 'same-origin', headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-      body: 'csrf=' + encodeURIComponent(csrf) + '&action=' + action + '&format=json'}).then(function (r) {
-      var type = r.headers.get('Content-Type') || '';
-      if (!r.ok || type.indexOf('json') === -1) { var e = new Error('HTTP ' + r.status); e.http = r.status; throw e; }
-      return r.json();
-    });
-  }
-  function refused(code) {
-    stopped = true;
-    status.textContent = 'The restore stopped: the web server answered HTTP ' + code + ' instead of the next step.';
-    error.textContent = 'Nothing is lost: the state is saved and the restore goes on where it was. ' + (code === 403
-      ? 'HTTP 403 usually means that a rule of the web server refuses this file: the .htaccess of the restored site (a security extension such as Admin Tools refuses direct requests for PHP files) or the host. Rename the .htaccess in this directory (for example to .htaccess.off), then press "Try again"; put it back when the restore is done.'
-      : 'Look at the error log of the host. Then press "Try again".');
-    again.hidden = false;
-  }
-  function show(d) {
-    lost = 0;
-    if (d.percent !== undefined) { bar.style.width = d.percent + '%'; }
-    if (d.progress) { status.textContent = d.progress; }
-    if (d.status === 'finished') { window.location = '?step=done'; return; }
-    if (d.status === 'failed') { error.textContent = d.error; stopped = true; retry.hidden = false; return; }
-    setTimeout(tick, d.status === 'busy' ? 2000 : 50);
-  }
-  function tick() {
-    if (stopped) { return; }
-    post('tick').then(show).catch(function (e) {
-      if (e && e.http) { refused(e.http); return; }
-      lost += 1;
-      status.textContent = 'No answer from the server (' + lost + '); trying again ...';
-      setTimeout(tick, 3000);
-    });
-  }
-  retry.addEventListener('click', function (e) { e.preventDefault(); retry.hidden = true; error.textContent = ''; stopped = false; post('retry').then(function () { tick(); }); });
-  again.addEventListener('click', function (e) { e.preventDefault(); again.hidden = true; error.textContent = ''; status.textContent = 'Trying again ...'; stopped = false; lost = 0; tick(); });
-  if (!stopped) { tick(); }
-})();
-JS;
+        return Response::json($run === null ? ['working' => false, 'note' => '', 'seconds' => 0, 'elapsed' => 0] : RunView::live($this->store(), $run));
     }
 
     /**

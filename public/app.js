@@ -29,6 +29,35 @@
     var note = document.getElementById('run-note');
     var actions = document.getElementById('run-actions');
     var failures = 0;
+    var live = document.getElementById('run-live');
+    var activity = document.getElementById('run-activity');
+    var clock = document.getElementById('run-clock');
+    var base = live ? parseInt(live.getAttribute('data-elapsed'), 10) || 0 : 0;
+    var pageStart = Date.now();
+    var stepStart = Date.now();
+    var statusUrl = run.getAttribute('data-status-url');
+    var working = false;
+    var poll = 0;
+
+    // The clock and the note: a step of a few seconds up to half a minute shows nothing new by itself. The clock runs on the page; what the
+    // step does right now is asked from the server while the step works (the task leaves notes in a small file next to the run).
+    var two = function (n) { return (n < 10 ? '0' : '') + n; };
+    var span = function (seconds) {
+      var s = Math.max(0, Math.floor(seconds));
+      return s >= 3600 ? Math.floor(s / 3600) + ':' + two(Math.floor(s / 60) % 60) + ':' + two(s % 60) : Math.floor(s / 60) + ':' + two(s % 60);
+    };
+    var tickClock = function () {
+      if (clock) { clock.textContent = (working ? 'This step: ' + span((Date.now() - stepStart) / 1000) + '. ' : '') + 'All together: ' + span(base + (Date.now() - pageStart) / 1000); }
+    };
+    var watch = function () {
+      if (!statusUrl) { return; }
+      fetch(statusUrl, { credentials: 'same-origin', cache: 'no-store', headers: { 'Accept': 'application/json' } })
+        .then(function (response) { return response.json(); })
+        .then(function (d) { if (working && d.working && d.note && activity) { activity.textContent = d.note + '.'; } })
+        .catch(function () {});
+    };
+    window.setInterval(tickClock, 1000);
+    tickClock();
 
     // with script the "next step" button is not needed
     var next = actions ? actions.querySelector('form') : null;
@@ -38,6 +67,11 @@
     var again = function (milliseconds) { window.setTimeout(tick, milliseconds); };
 
     var tick = function () {
+      working = true;
+      stepStart = Date.now();
+      if (activity) { activity.textContent = 'Working ...'; }
+      window.clearInterval(poll);
+      poll = window.setInterval(watch, 2000);
       fetch(run.getAttribute('data-tick-url'), { method: 'POST', credentials: 'same-origin', headers: { 'X-CSRF-Token': token } })
         .then(function (response) {
           return response.json().then(function (data) { return { http: response.status, data: data }; });
@@ -46,6 +80,7 @@
           var data = answer.data;
           failures = 0;
           if (data.status === 'busy') { show(data.label || 'Waiting ...'); again(1500); return; }
+          if (data.status === 'running' && activity) { activity.textContent = ''; }
           if (data.status === 'running') {
             show('');
             if (label && data.label) { label.textContent = data.label; }
@@ -55,12 +90,15 @@
             again(100);
             return;
           }
-          if (data.status === 'login') { show('The session has ended. Log in again; the backup stays where it is and can be continued.'); return; }
+          if (data.status === 'login') { working = false; window.clearInterval(poll); if (activity) { activity.textContent = ''; } show('The session has ended. Log in again; the backup stays where it is and can be continued.'); return; }
           // finished, failed or gone: the page shows the result
           window.location.reload();
         })
         .catch(function () {
           failures += 1;
+          working = false;
+          window.clearInterval(poll);
+          if (activity) { activity.textContent = ''; }
           if (failures > 20) { show('The connection is lost. Reload the page to go on.'); return; }
           show('The connection was lost; trying again ...');
           again(Math.min(15000, 1000 * failures));

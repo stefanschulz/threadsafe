@@ -320,6 +320,7 @@ textarea { font-family: var(--mono); font-size: 0.9rem; }
 form.wide { max-width: 40rem; }
 form.inline { display: inline; }
 form.inline button { margin: 0; }
+button:disabled, button:disabled:hover { opacity: 0.45; cursor: not-allowed; filter: grayscale(0.4); }
 button.secondary, .button.secondary { color: var(--text); background: var(--panel-2); border-color: var(--border-strong); }
 button.secondary:hover, .button.secondary:hover { color: var(--text); background: var(--panel-2); border-color: var(--brass); }
 button.danger, .button.danger { color: var(--on-danger); background: var(--danger-fill); border-color: var(--danger-fill); }

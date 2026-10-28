@@ -188,6 +188,7 @@ final class VerifyRun implements Task
                 }
                 hash_update($context, $block);
                 $offset += strlen($block);
+                $budget->note(sprintf('reading part %d of %d: %d %%', $s->part + 1, count($sidecar->parts), $part->size > 0 ? (int) floor(100 * $offset / $part->size) : 100));
                 $s->done += strlen($block);
                 if ($budget->exhausted()) {
                     $finished = $offset >= $part->size;
@@ -271,6 +272,7 @@ final class VerifyRun implements Task
                     $zip['from'] = $index + 1;
                     $zip['position'] = $entry->nextRecord;
                     $s->done = $this->zipDone($sidecar, $s->part, $zip['from'] / max(1, $count));
+                    $budget->note(sprintf('checking part %d of %d: entry %d of %d', $s->part + 1, count($sidecar->parts), $zip['from'], $count));
                     if ($budget->exhausted() && $zip['from'] < $count) {
                         $s->zip = $zip;
 

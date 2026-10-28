@@ -65,6 +65,7 @@ final class Unpacker
                 $this->store($reader, $entry, $target . '/' . $path, $expected);
                 $state['files'] = (int) $state['files'] + 1;
                 $state['bytes'] = (int) $state['bytes'] + $entry->size;
+                $budget->note(sprintf('unpacking the program: %d of %d files, now %s', $state['files'], $state['expected'], $path));
             }
         } catch (ZipException $e) {
             throw new InstallException('The package in this file is damaged: ' . $e->getMessage(), 0, $e);

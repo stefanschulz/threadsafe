@@ -15,6 +15,13 @@ final class Budget
 {
     private float $started;
 
+    /** @var (Closure(string): void)|null */
+    private ?Closure $sink = null;
+
+    private string $note = '';
+
+    private float $noted = -INF;
+
     /** @var Closure(): float */
     private readonly Closure $clock;
 
@@ -82,6 +89,40 @@ final class Budget
     public function start(): void
     {
         $this->started = ($this->clock)();
+    }
+
+    /**
+     * Where the notes of {@see note()} go: the executor writes them to a file that the page of the run reads while the tick is still working.
+     *
+     * @param Closure(string): void $sink
+     */
+    public function notify(Closure $sink): void
+    {
+        $this->sink = $sink;
+    }
+
+    /**
+     * Says what the tick is doing right now ("packing files: 1200 of 37000"). A tick of a web request can take half a minute during which
+     * nothing else is known outside; the note is the only sign of life. Cheap to call between units of work: it passes a note on at most
+     * once a second, and the last one is what a reader sees.
+     */
+    public function note(string $text): void
+    {
+        $this->note = $text;
+        if ($this->sink === null) {
+            return;
+        }
+        $now = ($this->clock)();
+        if ($now - $this->noted >= 1.0) {
+            $this->noted = $now;
+            ($this->sink)($text);
+        }
+    }
+
+    /** The last note, empty if the tick made none. */
+    public function lastNote(): string
+    {
+        return $this->note;
     }
 
     public function elapsed(): float

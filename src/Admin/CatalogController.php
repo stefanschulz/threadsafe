@@ -20,6 +20,7 @@ use ThreadSafe\Storage\SpaceCheck;
 use ThreadSafe\Storage\StorageException;
 use ThreadSafe\Web\Html;
 use ThreadSafe\Web\Response;
+use ThreadSafe\Web\RunView;
 
 /**
  * The backups that exist (docs/PHASE4.md 3.7): the table on the profile page, the details of one, checking that it is intact (in
@@ -361,10 +362,10 @@ final class CatalogController
         $progress = $service->progress($run);
 
         if ($state === 'active') {
-            $body = '<div id="run" data-tick-url="' . Html::e($context->urls->to("/checks/$id/tick")) . '">'
+            $body = '<div id="run" data-tick-url="' . Html::e($context->urls->to("/checks/$id/tick")) . '" data-status-url="' . Html::e($context->urls->to("/checks/$id/status")) . '">'
                 . '<p>Checking <code>' . Html::e($backup) . '</code>: every part is read and compared with its checksum' . (($run->state['full'] ?? true) === true ? ', and read as an archive' : '') . '. This takes as long as reading the files.</p>'
                 . '<progress id="run-progress" max="100"' . ($progress['percent'] !== null ? ' value="' . $progress['percent'] . '"' : '') . '></progress>'
-                . '<p id="run-label" class="hint" aria-live="polite">' . Html::e($progress['label']) . '</p><p id="run-note" class="hint"></p>'
+                . '<p id="run-label" class="hint" aria-live="polite">' . Html::e($progress['label']) . '</p><p id="run-live" class="hint" data-elapsed="' . max(0, time() - $run->created) . '"><span id="run-activity"></span> <span id="run-clock">All together: ' . RunView::clock(max(0, time() - $run->created)) . '</span></p><p id="run-note" class="hint"></p>'
                 . '<div class="actions" id="run-actions">' . View::form($context, "/checks/$id/continue", '<button type="submit">Do the next step</button>', 'inline')
                 . ' ' . View::form($context, "/checks/$id/discard", '<button type="submit" class="secondary">Stop the check</button>', 'inline') . '</div></div>';
             $title = 'Check running';
@@ -400,6 +401,18 @@ final class CatalogController
         }
 
         return View::page($context, $title, $body, '/profiles');
+    }
+
+    /**
+     * What the working step of a check does right now, for the script of the page (JSON).
+     *
+     * @param array<string, string> $params
+     */
+    public function statusCheck(Context $context, array $params): Response
+    {
+        $run = $this->findCheck($params['run'] ?? '');
+
+        return $run === null ? Response::json(['working' => false, 'note' => '', 'seconds' => 0, 'elapsed' => 0], 404) : Response::json($this->service()->live($run));
     }
 
     /**

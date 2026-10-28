@@ -274,6 +274,16 @@ final class BackupService
     }
 
     /**
+     * What the step that is working right now does and how long the run has lasted, for the page that watches it.
+     *
+     * @return array{working: bool, note: string, seconds: int, elapsed: int}
+     */
+    public function live(Run $run): array
+    {
+        return \ThreadSafe\Web\RunView::live($this->runs, $run);
+    }
+
+    /**
      * How far a run is: the phase, a percentage (null where it cannot be told) and a sentence.
      *
      * @return array{phase: string, percent: int|null, label: string}

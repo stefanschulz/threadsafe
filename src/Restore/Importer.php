@@ -199,6 +199,7 @@ final class Importer
                         $offset = $statement->end;
                         $delimiter = $statement->delimiter;
                         ++$statements;
+                        $budget->note(sprintf('importing the database: file %d of %d, %d statements in this step%s', $file + 1, count($files), $statements - $statementsAtStart, is_string($lastTable) ? ', last table ' . $lastTable : ''));
                         if ($budget->exhausted()) {
                             break 2;
                         }

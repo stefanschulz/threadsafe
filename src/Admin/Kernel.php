@@ -195,10 +195,12 @@ final class Kernel
         $router->add('POST', '/system/update/discard', $update->discard(...));
         $router->add('POST', '/system/update/rollback', $update->rollback(...));
         $router->add('GET', '/checks/{run}', $catalog->showCheck(...));
+        $router->add('GET', '/checks/{run}/status', $catalog->statusCheck(...));
         $router->add('POST', '/checks/{run}/tick', $catalog->tickCheck(...));
         $router->add('POST', '/checks/{run}/continue', $catalog->nextCheck(...));
         $router->add('POST', '/checks/{run}/discard', $catalog->discardCheck(...));
         $router->add('GET', '/runs/{run}', $backups->show(...));
+        $router->add('GET', '/runs/{run}/status', $backups->status(...));
         $router->add('POST', '/runs/{run}/tick', $backups->tick(...));
         $router->add('POST', '/runs/{run}/continue', $backups->next(...));
         $router->add('POST', '/runs/{run}/abandon', $backups->abandon(...));

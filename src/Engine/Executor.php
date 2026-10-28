@@ -74,6 +74,9 @@ final class Executor
 
             $budget = ($this->budgets)();
             $budget->start();
+            $began = microtime(true);
+            $this->store->saveLive($id, $began);
+            $budget->notify(fn (string $note) => $this->store->saveLive($id, $began, $note));
             try {
                 $outcome = $this->task->tick($run->state, $budget);
                 $next = $run->with($outcome->finished ? RunStatus::Finished : RunStatus::Running, $outcome->state, null, $outcome->progress);

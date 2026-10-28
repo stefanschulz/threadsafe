@@ -97,11 +97,50 @@ final class RunStore
 
             throw new EngineException("Cannot replace \"$path\".");
         }
+        @unlink($this->path($run->id, '.live'));
+    }
+
+    /**
+     * Notes that a tick of the run has begun, or what it is doing ("note"): a small file next to the run that a page reads while the tick is
+     * still working. It is for the eyes only and never decides anything; {@see save()} removes it, because a saved tick says it all.
+     */
+    public function saveLive(string $id, float $started, string $note = ''): void
+    {
+        $path = $this->path($id, '.live');
+        if (!is_dir($this->directory)) {
+            return;
+        }
+        $json = json_encode(['started' => $started, 'note' => $note, 'at' => microtime(true)], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
+        $temporary = $path . '.' . bin2hex(random_bytes(4)) . '.tmp';
+        if ($json === false || @file_put_contents($temporary, $json) === false) {
+            return;
+        }
+        @chmod($temporary, 0600);
+        if (!@rename($temporary, $path)) {
+            @unlink($temporary);
+        }
+    }
+
+    /**
+     * What {@see saveLive()} left: when the tick that is working began, its last note and when it was made; null if no tick is working.
+     *
+     * @return array{started: float, note: string, at: float}|null
+     */
+    public function live(string $id): ?array
+    {
+        $text = @file_get_contents($this->path($id, '.live'));
+        $data = $text === false ? null : json_decode($text, true);
+        if (!is_array($data) || !is_numeric($data['started'] ?? null)) {
+            return null;
+        }
+
+        return ['started' => (float) $data['started'], 'note' => is_string($data['note'] ?? null) ? $data['note'] : '', 'at' => is_numeric($data['at'] ?? null) ? (float) $data['at'] : (float) $data['started']];
     }
 
     public function delete(string $id): void
     {
         @unlink($this->path($id));
+        @unlink($this->path($id, '.live'));
         @unlink($this->lockPath($id));
     }
 

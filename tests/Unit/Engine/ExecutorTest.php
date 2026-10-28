@@ -257,4 +257,46 @@ final class ExecutorTest extends TestCase
 
         self::assertSame(3, $budgets);
     }
+
+    public function testAWorkingTickLeavesItsNotesWhereAPageCanReadThemAndTheSavedTickRemovesThem(): void
+    {
+        /** @var \ArrayObject<string, array{started: float, note: string, at: float}|null> $seen */
+        $seen = new \ArrayObject();
+        $store = $this->store;
+        $task = new class ($store, $seen) implements Task {
+            /** @param \ArrayObject<string, array{started: float, note: string, at: float}|null> $seen */
+            public function __construct(private readonly RunStore $store, private readonly \ArrayObject $seen)
+            {
+            }
+
+            public function id(): string
+            {
+                return 'noting';
+            }
+
+            public function initialState(array $parameters): array
+            {
+                return ['id' => ''];
+            }
+
+            public function tick(array $state, Budget $budget): TickOutcome
+            {
+                $id = (string) ($this->store->all('noting')[0]->id ?? '');
+                $this->seen['at start'] = $this->store->live($id);
+                $budget->note('doing the one thing');
+                $this->seen['after note'] = $this->store->live($id);
+
+                return new TickOutcome($state, true, 'done');
+            }
+        };
+        $executor = new Executor($this->store, $task, static fn (): Budget => new Budget(null));
+        $run = $executor->start([]);
+
+        $executor->execute($run->id);
+
+        self::assertNotNull($seen['at start'], 'the page can tell that a step is working from its first moment');
+        self::assertSame('', $seen['at start']['note']);
+        self::assertSame('doing the one thing', $seen['after note']['note'] ?? null);
+        self::assertNull($this->store->live($run->id), 'the step is saved: nothing is working');
+    }
 }

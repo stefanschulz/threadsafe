@@ -157,6 +157,7 @@ final class TickedRunner
             }
             $worked = true;
             $step = $this->steps[$i];
+            $budget->note(sprintf('adapting the site (step %d of %d): %s', $i + 1, count($this->steps), $step->title()));
             $plan = Plan::fromArray((array) ($state['plans'][$step->id()] ?? []));
 
             if (!$plan->hasChanges() && !$step instanceof AlwaysRuns) {

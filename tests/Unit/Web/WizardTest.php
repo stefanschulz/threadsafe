@@ -418,7 +418,45 @@ final class WizardTest extends TestCase
         self::assertStringContainsString('the web server answered HTTP', $run->body);
         self::assertStringContainsString('HTTP 403 usually means that a rule of the web server refuses this file', $run->body);
         self::assertStringContainsString('Rename the .htaccess in this directory', $run->body);
-        self::assertStringContainsString('id="again" hidden>Try again</button>', $run->body);
+        self::assertStringContainsString('press "Continue"', $run->body, 'the way out after a refusal is the button that is always there');
+    }
+
+    public function testTheRunPageOffersOnlyTheButtonsThatMakeSenseAndShowsTheClock(): void
+    {
+        $this->upload();
+        $this->key();
+        $client = $this->loggedIn();
+        $client->post(['action' => 'choose-backup', 'choice' => basename($this->parts[0]), 'path' => '']);
+        $client->post(['action' => 'save-target', 'root' => $this->base . '/restored']);
+
+        $run = $client->post(['action' => 'start']);
+
+        // field test: "Continue" and "Try the failed step again" could be pressed whenever; nothing showed that a step was working
+        self::assertStringContainsString('id="go">Continue</button>', $run->body, 'nothing failed: "Continue" can be pressed (the script holds it while a step works)');
+        self::assertStringContainsString('id="retry" disabled>Try the failed step again</button>', $run->body, 'nothing failed: there is nothing to try again');
+        self::assertStringContainsString('<span id="clock">All together: 0:0', $run->body);
+        self::assertStringContainsString('id="note"', $run->body);
+        self::assertStringContainsString("var csrf = ", $run->body);
+        self::assertStringContainsString("statusUrl = \"?step=status\"", $run->body);
+        self::assertStringContainsString('function buttons(failed) { go.disabled = working || failed; retry.disabled = !failed || working; }', $run->body);
+    }
+
+    public function testTheStatusAddressSaysWhatTheWorkingStepIsDoing(): void
+    {
+        $this->upload();
+        $this->key();
+        $client = $this->loggedIn();
+        $client->post(['action' => 'choose-backup', 'choice' => basename($this->parts[0]), 'path' => '']);
+        $client->post(['action' => 'save-target', 'root' => $this->base . '/restored']);
+        $client->post(['action' => 'start']);
+
+        $idle = json_decode($client->get(['step' => 'status'])->body, true);
+
+        self::assertIsArray($idle);
+        self::assertFalse($idle['working'], 'no step is working between two requests');
+        self::assertSame('', $idle['note']);
+        self::assertSame(0, $idle['seconds']);
+        self::assertGreaterThanOrEqual(0, $idle['elapsed']);
     }
 
     public function testTheNewDomainStartsWithTheHostThePageIsServedAt(): void

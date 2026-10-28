@@ -120,6 +120,7 @@ final class Dumper implements Task
                 $s->phase = DumpState::VIEWS;
                 break;
             }
+            $budget->note($this->progress($s));
             $this->dumpTable($s, $budget);
             if ($budget->exhausted()) {
                 return $this->progress($s);
@@ -179,6 +180,7 @@ final class Dumper implements Task
                 if ($definition->isKeyed()) {
                     do {
                         $more = $this->keyedPage($s, $definition, $out, $current);
+                        $budget->note(sprintf('dumping table %s (%d of %d), %d rows so far', $name, $s->index + 1, count($s->tables), $current['rows']));
                     } while ($more && !$budget->exhausted());
                 } else {
                     $this->wholeTable($s, $definition, $out, $current);

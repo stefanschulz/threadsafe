@@ -273,6 +273,7 @@ final class BackupRun implements Task
             }
             $s->warnAll($batch->warnings);
             $state = $batch->state;
+            $budget->note(sprintf('scanning the site (%d files and %d directories so far)', $s->scanFiles, $s->scanDirectories));
         } while (!$batch->done && !$budget->exhausted());
 
         $s->scan = $state;
@@ -601,7 +602,7 @@ final class BackupRun implements Task
     private function progress(BackupState $s): string
     {
         return match ($s->phase) {
-            BackupState::SCAN => sprintf('scanning the site (%d files and %d directories so far)', $s->scanFiles, $s->scanDirectories),
+            BackupState::SCAN => $s->scanFiles + $s->scanDirectories === 0 ? 'scanning the site (about to start)' : sprintf('scanning the site (%d files and %d directories so far)', $s->scanFiles, $s->scanDirectories),
             BackupState::DUMP => 'dumping the database' . ($s->dump !== null ? ' (' . count(DumpState::fromArray($s->dump)->done) . ' tables done)' : ''),
             BackupState::PACK => $this->packProgress($s),
             BackupState::CLOSE, BackupState::SEAL => 'encrypting the last part of the archive',

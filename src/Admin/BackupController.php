@@ -18,6 +18,7 @@ use ThreadSafe\Profile\ProfileStore;
 use ThreadSafe\Storage\SpaceCheck;
 use ThreadSafe\Web\Html;
 use ThreadSafe\Web\Response;
+use ThreadSafe\Web\RunView;
 
 /**
  * Backups started and followed in the browser (docs/PHASE4.md 3.4): starting a run, the page that shows it, the request that does
@@ -73,10 +74,11 @@ final class BackupController
 
         $body = '';
         if ($state === 'active') {
-            $body = '<div id="run" data-tick-url="' . Html::e($context->urls->to("/runs/$id/tick")) . '">'
+            $body = '<div id="run" data-tick-url="' . Html::e($context->urls->to("/runs/$id/tick")) . '" data-status-url="' . Html::e($context->urls->to("/runs/$id/status")) . '">'
                 . '<p>Backing up ' . $profileLink . '. You can leave this page open or close it: a backup that stops can be continued from where it was.</p>'
                 . $this->progressBar($progress)
                 . '<p id="run-label" class="hint" aria-live="polite">' . Html::e($progress['label']) . '</p>'
+                . '<p id="run-live" class="hint" data-elapsed="' . max(0, time() - $run->created) . '"><span id="run-activity"></span> <span id="run-clock">All together: ' . RunView::clock(max(0, time() - $run->created)) . '</span></p>'
                 . '<p id="run-note" class="hint"></p>'
                 . '<div class="actions" id="run-actions">' . View::form($context, "/runs/$id/continue", '<button type="submit">Do the next step</button>', 'inline')
                 . ' ' . View::form($context, "/runs/$id/abandon", '<button type="submit" class="secondary">Cancel the backup</button>', 'inline') . '</div>'
@@ -101,6 +103,18 @@ final class BackupController
         }
 
         return View::page($context, $title, $body, '/profiles');
+    }
+
+    /**
+     * What the working step does right now, for the script of the page (JSON).
+     *
+     * @param array<string, string> $params
+     */
+    public function status(Context $context, array $params): Response
+    {
+        $run = $this->find($params['run'] ?? '');
+
+        return $run === null ? Response::json(['working' => false, 'note' => '', 'seconds' => 0, 'elapsed' => 0], 404) : Response::json($this->service()->live($run));
     }
 
     /**

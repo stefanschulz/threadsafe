@@ -64,6 +64,7 @@ final class ArchivePacker
                 return false;
             }
             $worked = true;
+            $budget->note(sprintf('packing files into the archive (%d files so far%s)', $s->files, $s->open !== null ? ', now ' . $this->display($s->open['name']) : ''));
 
             if ($s->open !== null) {
                 $this->continueEntry($s, $writer, $budget);

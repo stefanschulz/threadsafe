@@ -293,6 +293,16 @@ final class CatalogService
     }
 
     /**
+     * What the step that is working right now does and how long the run has lasted, for the page that watches it.
+     *
+     * @return array{working: bool, note: string, seconds: int, elapsed: int}
+     */
+    public function live(Run $run): array
+    {
+        return \ThreadSafe\Web\RunView::live($this->runs, $run);
+    }
+
+    /**
      * @return array{percent: int|null, label: string}
      */
     public function progress(Run $run): array

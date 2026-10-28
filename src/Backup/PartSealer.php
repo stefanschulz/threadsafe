@@ -89,6 +89,7 @@ final class PartSealer
                 hash_update($sha, $sealed);
                 $job['written'] += strlen($sealed);
                 ++$index;
+                $budget->note(sprintf('encrypting %s (%d of %d blocks)', basename($plain), $index, $chunks));
                 $job['index'] = $index;
                 $job['sha'] = base64_encode(serialize($sha));
                 if ($index < $chunks && $budget->exhausted()) {

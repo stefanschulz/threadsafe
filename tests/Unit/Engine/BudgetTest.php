@@ -111,4 +111,34 @@ final class BudgetTest extends TestCase
     {
         self::assertSame($expected, Budget::isCommandLine($sapi, $server));
     }
+
+    public function testANoteGoesToTheSinkAtMostOncePerSecondAndTheLastOneIsKept(): void
+    {
+        $now = 10.0;
+        $budget = new Budget(null, null, 0.8, static function () use (&$now): float {
+            return $now;
+        });
+        $seen = [];
+        $budget->notify(static function (string $text) use (&$seen): void {
+            $seen[] = $text;
+        });
+
+        $budget->note('first');
+        $now = 10.4;
+        $budget->note('second');
+        $now = 11.1;
+        $budget->note('third');
+
+        self::assertSame(['first', 'third'], $seen);
+        self::assertSame('third', $budget->lastNote());
+    }
+
+    public function testANoteWithoutASinkIsHarmless(): void
+    {
+        $budget = new Budget(null);
+
+        $budget->note('nobody listens');
+
+        self::assertSame('nobody listens', $budget->lastNote());
+    }
 }
