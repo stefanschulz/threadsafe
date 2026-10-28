@@ -101,8 +101,21 @@ final class CatalogPagesTest extends TestCase
         self::assertStringContainsString('4 files', $page->body);
         self::assertStringContainsString('<h2>Parts</h2>', $page->body);
         self::assertStringContainsString($name->base() . '-p01.zip', $page->body);
-        self::assertMatchesRegularExpression('/<code>[0-9a-f]{64}<\/code>/', $page->body, 'the SHA-256 of a part');
+        self::assertMatchesRegularExpression('/<code class="hash" id="hash-\d+" title="([0-9a-f]{64})">\1<\/code> <button type="button" class="secondary small" data-copy="#hash-\d+">Copy<\/button>/', $page->body, 'the SHA-256 of a part: whole in the tooltip and in what is copied, cut by the style sheet');
+        self::assertStringContainsString('<table class="parts">', $page->body);
+        self::assertStringContainsString('<code>sha256sum FILE</code> must give the same value', $page->body, 'what the hash is for');
         self::assertStringContainsString('Check that it is intact', $page->body);
+    }
+
+    public function testWhatWasLeftOutIsAListAndNotARunOfCode(): void
+    {
+        $this->fixture->profiles->save($this->fixture->profiles->load('blog')->with(['excludePaths' => ['var/cache', '*.log'], 'structureOnlyTables' => ['ps_log', 'ps_connections']]));
+        $name = $this->backup();
+
+        $page = $this->browser->get('/profiles/blog/backups/' . $name->base());
+
+        self::assertStringContainsString('<h2>Left out of the files</h2><ul class="listing"><li><code>var/cache</code></li><li><code>*.log</code></li></ul>', $page->body);
+        self::assertStringContainsString('<h2>Tables kept without their rows</h2><ul class="listing"><li><code>ps_log</code></li><li><code>ps_connections</code></li></ul>', $page->body);
     }
 
     public function testCheckingAnIntactBackupGoesInTicksAndEndsWithAnOk(): void

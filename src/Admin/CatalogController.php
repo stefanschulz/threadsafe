@@ -175,20 +175,22 @@ final class CatalogController
         $body .= $this->facts($rows);
 
         $parts = '';
-        foreach ($sidecar->parts as $part) {
-            $parts .= '<tr><td><code>' . Html::e($part->file) . '</code></td><td>' . Html::e(SpaceCheck::format($part->size)) . '</td><td>' . $part->entries . '</td><td><code>' . Html::e($part->sha256) . '</code></td></tr>';
+        foreach ($sidecar->parts as $number => $part) {
+            $parts .= '<tr><td><code>' . Html::e($part->file) . '</code></td><td class="num">' . Html::e(SpaceCheck::format($part->size)) . '</td><td class="num">' . $part->entries . '</td><td class="hash-cell">'
+                . '<code class="hash" id="hash-' . $number . '" title="' . Html::e($part->sha256) . '">' . Html::e($part->sha256) . '</code> <button type="button" class="secondary small" data-copy="#hash-' . $number . '">Copy</button></td></tr>';
         }
-        $body .= '<h2>Parts</h2><div class="scroll"><table><thead><tr><th>File</th><th>Size</th><th>Entries</th><th>SHA-256</th></tr></thead><tbody>' . $parts . '</tbody></table></div>';
+        $body .= '<h2>Parts</h2><div class="scroll"><table class="parts"><thead><tr><th>File</th><th>Size</th><th>Entries</th><th>SHA-256</th></tr></thead><tbody>' . $parts . '</tbody></table></div>'
+            . '<p class="hint">The SHA-256 is the fingerprint of the part file, taken when the backup was written (the tooltip shows it whole, <em>Copy</em> copies it). <em>Check</em> compares it with the file in the storage; after a download, <code>sha256sum FILE</code> must give the same value, or the file did not arrive intact.</p>';
 
         $domains = $this->domains($m->extras);
         if ($domains !== []) {
             $body .= '<h2>Shop addresses</h2><ul>' . implode('', array_map(static fn (string $d): string => '<li><code>' . Html::e($d) . '</code></li>', $domains)) . '</ul>';
         }
         if ($m->filters['excludePaths'] !== []) {
-            $body .= '<h2>Left out of the files</h2><p><code>' . implode('</code> <code>', array_map(Html::e(...), array_slice($m->filters['excludePaths'], 0, 40))) . '</code></p>';
+            $body .= '<h2>Left out of the files</h2>' . self::listing($m->filters['excludePaths'], 40);
         }
         if ($m->filters['structureOnlyTables'] !== []) {
-            $body .= '<h2>Tables kept without their rows</h2><p><code>' . implode('</code> <code>', array_map(Html::e(...), array_slice($m->filters['structureOnlyTables'], 0, 40))) . '</code></p>';
+            $body .= '<h2>Tables kept without their rows</h2>' . self::listing($m->filters['structureOnlyTables'], 40);
         }
         if ($m->warnings !== []) {
             $body .= View::warnings($m->warnings, 30);
@@ -202,6 +204,21 @@ final class CatalogController
         }
 
         return View::page($context, 'Backup ' . $base, $body, '/profiles');
+    }
+
+    /**
+     * Names as a list of code, in columns when it is long; the ones beyond the limit are counted.
+     *
+     * @param list<string> $names
+     */
+    private static function listing(array $names, int $limit): string
+    {
+        $items = '';
+        foreach (array_slice($names, 0, $limit) as $name) {
+            $items .= '<li><code>' . Html::e($name) . '</code></li>';
+        }
+
+        return '<ul class="listing">' . $items . (count($names) > $limit ? '<li>... and ' . (count($names) - $limit) . ' more</li>' : '') . '</ul>';
     }
 
     /**

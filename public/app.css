@@ -337,6 +337,15 @@ table.checks tr.info td.level { color: var(--text-soft); }
 table.checks tr.warning td.level { color: var(--warning); }
 table.checks tr.error td.level { color: var(--error); }
 table.facts th { width: 11rem; }
+table.facts td { overflow-wrap: anywhere; }
+/* the parts of a backup: the hash is cut to fit, whole in the tooltip and in what the button copies */
+table.parts code { overflow-wrap: anywhere; }
+table.parts td.num { white-space: nowrap; }
+table.parts code.hash { display: inline-block; max-width: 9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; overflow-wrap: normal; }
+table.parts td.hash-cell { white-space: nowrap; }
+/* a list of names (paths, tables): in columns when it is long */
+ul.listing { columns: 16rem; column-gap: 1.5rem; margin: 0.5rem 0 1rem; padding-left: 1.1rem; }
+ul.listing li { break-inside: avoid; overflow-wrap: anywhere; }
 
 /* backup runs */
 progress { width: 100%; height: 1.25rem; accent-color: var(--brass-fill); }
@@ -436,7 +445,7 @@ button.small, .button.small { padding: 0.25rem 0.7rem; font-size: 0.72rem; margi
 .card.profile { border-left-color: var(--border-strong); }
 .card.profile.problem { border-left-color: var(--error); }
 .card.profile header { align-items: center; padding-bottom: 0.6rem; border-bottom: 1px solid var(--border); }
-.facts { display: grid; grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr)); gap: 0.75rem 1.5rem; margin: 0.85rem 0 0.25rem; }
+dl.facts { display: grid; grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr)); gap: 0.75rem 1.5rem; margin: 0.85rem 0 0.25rem; }
 .fact { display: grid; grid-template-columns: 5rem minmax(0, 1fr); align-items: baseline; gap: 0.5rem; min-width: 0; margin: 0; }
 .fact.wide { grid-column: 1 / -1; }
 .fact dt { color: var(--text-soft); font: 500 0.7rem/1.5 var(--mono); letter-spacing: 0.1em; text-transform: uppercase; }
