@@ -246,6 +246,9 @@ final class BackupService
     public function abandon(string $runId): void
     {
         $run = $this->find($runId);
+        if ($run->status === RunStatus::Finished) {
+            throw new GuardFailed('The backup is finished; dismiss the page instead (giving up would remove the backup).');
+        }
         $lock = Lock::tryAcquire($this->runs->lockPath($runId), 'giving up run ' . $runId);
         if ($lock === null) {
             throw new GuardFailed('The backup is being worked on right now; try again in a moment.');

@@ -59,8 +59,25 @@
     tickClock();
 
     // with script the "next step" button is not needed
-    var next = actions ? actions.querySelector('form') : null;
-    if (next) { next.hidden = true; }
+    var forms = actions ? actions.querySelectorAll('form') : [];
+    if (forms.length > 0) { forms[0].hidden = true; }
+
+    // "Cancel": the page itself holds the lock of the run while a step works, so a request for giving up would be turned away. The page
+    // stops asking for the next step, waits for the answer of the working one and only then sends the form.
+    var cancel = forms.length > 1 ? forms[1] : null;
+    var cancelling = false;
+    var stopped = false;
+    if (cancel) {
+      cancel.addEventListener('submit', function (event) {
+        if (cancelling) { return; }
+        event.preventDefault();
+        cancelling = true;
+        var button = cancel.querySelector('button');
+        if (button) { button.disabled = true; }
+        if (stopped) { cancel.submit(); return; }
+        show('Cancelling: the step that is working ends first, then the backup is given up ...');
+      });
+    }
 
     var show = function (text) { if (note) { note.textContent = text; } };
     var again = function (milliseconds) { window.setTimeout(tick, milliseconds); };
@@ -81,6 +98,7 @@
           if (data.status === 'busy') { show(data.label || 'Waiting ...'); again(1500); return; }
           if (data.status === 'running' && activity) { activity.textContent = ''; }
           if (data.status === 'running') {
+            if (cancelling) { cancel.submit(); return; }
             show('');
             if (label && data.label) { label.textContent = data.label; }
             if (bar) {
@@ -89,7 +107,7 @@
             again(100);
             return;
           }
-          if (data.status === 'login') { working = false; window.clearInterval(poll); if (activity) { activity.textContent = ''; } show('The session has ended. Log in again; the backup stays where it is and can be continued.'); return; }
+          if (data.status === 'login') { working = false; stopped = true; if (cancelling) { cancel.submit(); return; } window.clearInterval(poll); if (activity) { activity.textContent = ''; } show('The session has ended. Log in again; the backup stays where it is and can be continued.'); return; }
           // finished, failed or gone: the page shows the result
           window.location.reload();
         })
@@ -98,7 +116,7 @@
           working = false;
           window.clearInterval(poll);
           if (activity) { activity.textContent = ''; }
-          if (failures > 20) { show('The connection is lost. Reload the page to go on.'); return; }
+          if (failures > 20) { stopped = true; if (cancelling) { cancel.submit(); return; } show('The connection is lost. Reload the page to go on.'); return; }
           show('The connection was lost; trying again ...');
           again(Math.min(15000, 1000 * failures));
         });

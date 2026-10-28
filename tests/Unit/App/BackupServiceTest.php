@@ -217,6 +217,24 @@ final class BackupServiceTest extends TestCase
         self::assertSame([], glob($this->fixture->storageDirectory . '/*.zip') ?: []);
     }
 
+    public function testAFinishedRunCannotBeGivenUpBecauseThatWouldRemoveTheBackup(): void
+    {
+        $service = $this->service();
+        $run = $service->startWeb('blog');
+        for ($i = 0; $i < 200 && $run->status !== RunStatus::Finished; ++$i) {
+            $run = $service->tick($run->id);
+        }
+        self::assertSame(RunStatus::Finished, $run->status);
+
+        try {
+            $service->abandon($run->id);
+            self::fail('a finished backup must not be removed by giving up the run');
+        } catch (GuardFailed $e) {
+            self::assertStringContainsString('finished', $e->getMessage());
+        }
+        self::assertNotSame([], glob($this->fixture->storageDirectory . '/*.zip') ?: []);
+    }
+
     public function testARunThatAProcessIsWorkingOnCannotBeGivenUp(): void
     {
         $service = $this->service();
