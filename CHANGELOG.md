@@ -10,6 +10,7 @@ Nothing is released yet. Rename this heading to the version (`## [0.1.0] - date`
 
 ### Added
 
+- Restore: the option to delete the existing tables of the target database first (`--drop-tables`; a box with a warning in the wizard), for a database that is not empty and has tables with the prefix of the restore.
 - The pages of a running backup, check, restore and installation show what the step that is working does right now and a clock, and the buttons "Continue" and "Try the failed step again" can be pressed only where they make sense.
 - Restoring a backup into an empty directory and database, on another domain, path or database, with the adaptation of the application
   (PrestaShop 9, Joomla 5 and 6, and any site by the domain in its database): the command `threadsafe restore` and the single file

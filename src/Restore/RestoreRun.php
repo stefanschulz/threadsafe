@@ -38,7 +38,7 @@ use ThreadSafe\Web\StateDirectory;
  *
  * Parameters ({@see initialState()}): `archive` (any part of the backup), `root` (target directory), `settings` (the request
  * settings of the website type, see {@see \ThreadSafe\Migration\RequestBuilder}, without `root`; `database` holds the target
- * database, the password included), `type` (override the website type of the backup), `allowLeftovers`, `work` (default
+ * database, the password included), `type` (override the website type of the backup), `allowLeftovers`, `dropTables` (delete the tables of the target's table prefix before the import instead of refusing a database that has some), `work` (default
  * `<root>/.threadsafe-restore`), `unlock` (what opens an encrypted backup: {@see Unlock::toArray()}), `journalDirectory` (default `<work>/journal`), `protected` (paths below the root that are
  * never written: default `restore.php`, `restore-key.php`, the work directory), `guard` (paths of the tool's files below the root that the
  * `.htaccess` of the restored site must not lock out, see {@see ToolGuard}; the wizard names its own script, the command none).
@@ -97,6 +97,8 @@ final class RestoreRun implements Task
             'settings' => $settings,
             'type' => isset($parameters['type']) ? (string) $parameters['type'] : null,
             'allowLeftovers' => (bool) ($parameters['allowLeftovers'] ?? false),
+            'dropTables' => (bool) ($parameters['dropTables'] ?? false),
+            'cleared' => false,
             'protected' => array_values(array_map('strval', (array) ($parameters['protected'] ?? ['restore.php', 'restore-key.php']))),
             'guard' => array_values(array_map('strval', (array) ($parameters['guard'] ?? []))),
             'parts' => [],
@@ -168,7 +170,7 @@ final class RestoreRun implements Task
         }
         $own = array_map(static fn (string $p): string => explode('/', $p)[0], $own);
 
-        $checks = (new Preflight())->run($source, $root, $database, (bool) $state['allowLeftovers'], $own, $type);
+        $checks = (new Preflight())->run($source, $root, $database, (bool) $state['allowLeftovers'], $own, $type, (bool) ($state['dropTables'] ?? false));
         // the settings are checked on a directory that exists; nothing is read from it
         try {
             $type->requestBuilder()->build(['root' => sys_get_temp_dir()] + $settings);
@@ -292,6 +294,9 @@ final class RestoreRun implements Task
     private function import(array $state, Budget $budget): TickOutcome
     {
         $database = self::databaseSettings((array) $state['settings']['database']);
+        if ((bool) ($state['dropTables'] ?? false) && !(bool) ($state['cleared'] ?? false)) {
+            return $this->clear($state, $database, $budget);
+        }
         try {
             $outcome = (new Importer($this->connection($database)))->tick((array) $state['import'], $budget);
         } catch (ImportException $e) {
@@ -305,6 +310,25 @@ final class RestoreRun implements Task
         $state['phase'] = 'adapt';
 
         return new TickOutcome($state, false, $this->progress('import', (string) $outcome->progress));
+    }
+
+    /**
+     * The tables of the target's prefix are deleted, after the files are unpacked (a restore that fails early leaves the database alone) and before
+     * the first statement of the import. Only asked for by the person; the preflight named what goes.
+     *
+     * @param array<string, mixed> $state
+     */
+    private function clear(array $state, DatabaseSettings $database, Budget $budget): TickOutcome
+    {
+        $db = $this->connection($database);
+        try {
+            $left = TableDropper::drop($db, $database->prefix, $budget);
+        } catch (\ThreadSafe\Database\DatabaseError $e) {
+            throw new RestoreException('Cannot delete the existing tables: ' . $e->getMessage() . ' The files are restored; run the same command again to continue.', ExitCode::StepFailed, $e);
+        }
+        $state['cleared'] = $left === 0;
+
+        return new TickOutcome($state, false, $this->progress('import', $left === 0 ? 'the existing tables are deleted' : sprintf('deleting the existing tables (%d left)', $left)));
     }
 
     /**

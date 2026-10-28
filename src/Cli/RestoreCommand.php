@@ -92,6 +92,7 @@ final class RestoreCommand implements Command
             new OptionSpec('type', 'Website type to restore as (default: the type of the backup)', takesValue: true, valueName: 'TYPE'),
             new OptionSpec('work-dir', 'Directory for the unpacked SQL files and the journal (default: <root>/.threadsafe-restore)', takesValue: true, valueName: 'DIR'),
             new OptionSpec('allow-leftovers', 'Let web server placeholders (.htaccess, index.html ...) in the target directory pass'),
+            new OptionSpec('drop-tables', 'DELETE the tables of the database that begin with the table prefix before the import (default: refuse a database that has some). Cannot be undone'),
             new OptionSpec('tick-seconds', 'Work in steps of this many seconds, saving the state in between (default: no limit)', takesValue: true, valueName: 'N'),
             new OptionSpec('resume', 'Continue the interrupted or failed run with this id', takesValue: true, valueName: 'RUN'),
             new OptionSpec('report', 'Write the result as JSON to this file', takesValue: true, valueName: 'FILE'),
@@ -158,6 +159,7 @@ final class RestoreCommand implements Command
             'root' => self::absolute($root),
             'type' => $input->value('type'),
             'allowLeftovers' => $input->has('allow-leftovers'),
+            'dropTables' => $input->has('drop-tables'),
             'settings' => $this->settings($input, $type),
         ];
         if ($input->has('work-dir')) {

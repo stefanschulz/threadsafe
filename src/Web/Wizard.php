@@ -377,6 +377,8 @@ final class Wizard
             }
         }
         $html .= '<h3>Options</h3><label><input type="checkbox" name="allow_leftovers" value="1"' . (($values['allow_leftovers'] ?? '') === '1' ? ' checked' : '') . '>Let placeholder files of the web server (.htaccess, index.html) stay in the directory</label>'
+            . '<label class="danger"><input type="checkbox" name="drop_tables" value="1"' . (($values['drop_tables'] ?? '') === '1' ? ' checked' : '') . '>Delete the existing tables of the database first (only if it is not empty)</label>'
+            . '<p class="help"><strong>Warning:</strong> with this box ticked the restore <strong>deletes every table and view</strong> of the database whose name begins with the table prefix above, with all their data, before it imports the backup. It cannot be undone. Leave it off for an empty database; use it only for a database whose tables you want to replace, and only if you have a copy of what you still need.</p>'
             . '<label><input type="checkbox" name="self_test" value="1"' . (($values['self_test'] ?? '') === '1' ? ' checked' : '') . '>Check the restored site over HTTP at the end (the new domain must already reach this server)</label>'
             . '<p><button name="action" value="save-target">Next: summary</button> <a class="button secondary" href="?step=requirements">Back</a></p>';
 
@@ -421,7 +423,7 @@ final class Wizard
         }
         $values = [];
         foreach ($request->post as $name => $value) {
-            if (preg_match('/^(root|db_[a-z]+|f_[A-Za-z]+|allow_leftovers|self_test)$/', $name) === 1) {
+            if (preg_match('/^(root|db_[a-z]+|f_[A-Za-z]+|allow_leftovers|drop_tables|self_test)$/', $name) === 1) {
                 $values[$name] = trim($value);
             }
         }
@@ -522,6 +524,7 @@ final class Wizard
             'work' => $this->stateDirectory,
             'journalDirectory' => $this->stateDirectory . '/journal',
             'allowLeftovers' => ($values['allow_leftovers'] ?? '') === '1',
+            'dropTables' => ($values['drop_tables'] ?? '') === '1',
             'protected' => [$this->script, self::KEY_FILE],
             // the .htaccess of the restored site must not lock the tool out (a security extension refuses every PHP file but index.php)
             'guard' => rtrim($root, '/\\') === $base ? [$this->script] : [],
@@ -564,7 +567,7 @@ final class Wizard
             : '<p class="fail">Fix the problems and look at this page again.</p>';
         $body = ($error !== '' ? '<p class="fail">' . Html::e($error) . '</p>' : '')
             . '<div class="box">' . $table . '</div>' . Html::checks($inspection->checks)
-            . '<p class="help">Nothing has been written yet. The restore never overwrites or deletes anything that is already there.' . ($plain ? ' This connection is not encrypted.' : '') . '</p>'
+            . '<p class="help">Nothing has been written yet. ' . (((bool) ($state['dropTables'] ?? false)) ? 'The restore never overwrites or deletes files that are already there; the tables named above are the one thing it deletes, because you asked.' : 'The restore never overwrites or deletes anything that is already there.') . ($plain ? ' This connection is not encrypted.' : '') . '</p>'
             . $this->form($start . ' <a class="button secondary" href="?step=target">Back</a>', (string) $session['csrf']);
 
         return $this->page('Summary', $body, 200, 'summary');

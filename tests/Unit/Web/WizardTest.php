@@ -459,6 +459,25 @@ final class WizardTest extends TestCase
         self::assertGreaterThanOrEqual(0, $idle['elapsed']);
     }
 
+    public function testTheTargetPageOffersToDeleteTheExistingTablesWithAWarningAndRemembersTheChoice(): void
+    {
+        $this->upload();
+        $this->key();
+        $client = $this->loggedIn();
+        $client->post(['action' => 'choose-backup', 'choice' => basename($this->parts[0]), 'path' => '']);
+
+        $page = $client->get(['step' => 'target']);
+
+        // field test: "the database must be empty" - what if it is not? The answer is an option, off by default, with a warning
+        self::assertStringContainsString('name="drop_tables" value="1">Delete the existing tables of the database first', $page->body);
+        self::assertStringContainsString('deletes every table and view</strong> of the database whose name begins with the table prefix', $page->body);
+        self::assertStringContainsString('It cannot be undone.', $page->body);
+        self::assertStringNotContainsString('name="drop_tables" value="1" checked', $page->body, 'off by default');
+
+        $client->post(['action' => 'save-target', 'root' => $this->base . '/restored', 'drop_tables' => '1']);
+        self::assertStringContainsString('name="drop_tables" value="1" checked', $client->get(['step' => 'target'])->body, 'the choice is kept when the page is shown again');
+    }
+
     public function testTheNewDomainStartsWithTheHostThePageIsServedAt(): void
     {
         $wizard = new Wizard($this->web, PluginRegistry::load(), 'restore.php', fn (): int => $this->now, static fn (): Budget => new Budget(0.0));

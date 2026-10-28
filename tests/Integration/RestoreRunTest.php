@@ -188,6 +188,89 @@ final class RestoreRunTest extends IntegrationTestCase
         self::assertDirectoryDoesNotExist($root, 'not even the directory was made');
     }
 
+    public function testADatabaseThatIsNotEmptyIsReplacedWhenThePersonAsksForIt(): void
+    {
+        $source = $this->tortureDatabase();
+        $archive = $this->backup($source);
+        $copy = $this->newDatabase('copy');
+        $this->admin->exec("CREATE TABLE `$copy`.somebody_elses_table (id INT PRIMARY KEY)");
+        $this->admin->exec("CREATE TABLE `$copy`.items (id INT PRIMARY KEY, old_column TEXT)");
+        $this->admin->exec("CREATE VIEW `$copy`.somebody_elses_view AS SELECT id FROM `$copy`.somebody_elses_table");
+        $root = $this->base . '/restored';
+        $executor = $this->executor(true);
+
+        $run = $executor->start($this->parameters($archive, $root, ['database' => $this->databaseSettings($copy)]) + ['dropTables' => true]);
+        $labels = [];
+        $final = $executor->execute($run->id, null, static function (Run $r) use (&$labels): void {
+            $labels[] = (string) $r->progress;
+        });
+
+        self::assertSame(RunStatus::Finished, $final->status);
+        self::assertStringContainsString('the existing tables are deleted', implode("\n", $labels));
+        self::assertSame('0', $this->value("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = '$copy' AND TABLE_NAME IN ('somebody_elses_table', 'somebody_elses_view')"), 'what was in the way is gone');
+        foreach (['binkey', 'blobs', 'docs', 'items', 'log', 'nopk', 'types'] as $table) {
+            self::assertSame($this->checksum($source, $table), $this->checksum($copy, $table), "CHECKSUM TABLE $table");
+        }
+        self::assertContains('[3/5 import] the existing tables are deleted', $labels, 'the deletion is a part of the import phase');
+    }
+
+    public function testTheTablesAreDeletedOnlyAfterTheFilesAreUnpacked(): void
+    {
+        $source = $this->tortureDatabase();
+        $archive = $this->backup($source);
+        $copy = $this->newDatabase('copy');
+        $this->admin->exec("CREATE TABLE `$copy`.keep_me (id INT)");
+        // a file where the restore wants a directory: the extraction fails
+        $root = $this->base . '/restored';
+        mkdir($root, 0777, true);
+        file_put_contents($root . '/assets', 'a file where the backup has a directory');
+        $executor = $this->executor(false);
+        $run = $executor->start($this->parameters($archive, $root, ['database' => $this->databaseSettings($copy)]) + ['dropTables' => true, 'allowLeftovers' => true]);
+
+        try {
+            $executor->execute($run->id);
+        } catch (RestoreException) {
+            // the directory is in the way: the preflight or the extraction refuses
+        }
+
+        self::assertSame('1', $this->value("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = '$copy' AND TABLE_NAME = 'keep_me'"), 'a restore that fails before the import leaves the database alone');
+    }
+
+    public function testWithoutTheOptionADatabaseThatIsNotEmptyStaysRefusedAndTheMessageNamesTheWay(): void
+    {
+        $source = $this->tortureDatabase();
+        $archive = $this->backup($source);
+        $copy = $this->newDatabase('copy');
+        $this->admin->exec("CREATE TABLE `$copy`.somebody_elses_table (id INT)");
+        $executor = $this->executor(false);
+        $run = $executor->start($this->parameters($archive, $this->base . '/restored', ['database' => $this->databaseSettings($copy)]));
+
+        try {
+            $executor->execute($run->id);
+            self::fail('The restore should have been refused.');
+        } catch (RestoreException $e) {
+            self::assertStringContainsString('--drop-tables', $e->getMessage());
+            self::assertStringContainsString('delete the existing tables first', $e->getMessage());
+        }
+        self::assertSame('1', $this->value("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = '$copy'"), 'nothing was deleted');
+    }
+
+    public function testTheTableDropperDeletesOnlyTheObjectsThatBeginWithThePrefix(): void
+    {
+        $name = $this->newDatabase('drop');
+        foreach (['a_one (id INT PRIMARY KEY)', 'a_two (id INT, one_id INT, FOREIGN KEY (one_id) REFERENCES a_one (id))', 'aXnot (id INT)', 'b_other (id INT)'] as $definition) {
+            $this->admin->exec("CREATE TABLE `$name`.$definition");
+        }
+        $this->admin->exec("CREATE VIEW `$name`.a_view AS SELECT id FROM `$name`.a_one");
+        $db = \ThreadSafe\Database\Connection::open(\ThreadSafe\Database\DatabaseSettings::fromArray($this->databaseSettings($name, 'a_')));
+
+        self::assertSame(3, \ThreadSafe\Restore\TableDropper::count($db, 'a_'), 'two tables and a view; the underscore of the prefix means itself, so aXnot is not counted');
+        $left = \ThreadSafe\Restore\TableDropper::drop($db, 'a_', new Budget(null));
+
+        self::assertSame(0, $left);
+        self::assertSame('aXnot,b_other', $this->value("SELECT GROUP_CONCAT(TABLE_NAME ORDER BY TABLE_NAME) FROM information_schema.TABLES WHERE TABLE_SCHEMA = '$name'"), 'the tables of other names stay (the foreign key did not stop the deletion)');
+    }
+
     public function testAWrongPasswordIsFoundInThePreflight(): void
     {
         $source = $this->tortureDatabase();

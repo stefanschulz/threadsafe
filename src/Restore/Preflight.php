@@ -46,10 +46,11 @@ final class Preflight
      * @param string       $root           the directory the site is restored into
      * @param list<string> $ownNames       names in the root that belong to the restore itself (the tool, its work directory, the archive)
      * @param bool         $allowLeftovers let web server placeholders (.htaccess, index.html ...) in the root pass
+     * @param bool         $dropTables     the person asked to delete the tables of the prefix first: they are no obstacle, but a warning that says what goes
      *
      * @return list<Check>
      */
-    public function run(BackupSource $source, string $root, ?DatabaseSettings $database, bool $allowLeftovers, array $ownNames, ?Restorable $type): array
+    public function run(BackupSource $source, string $root, ?DatabaseSettings $database, bool $allowLeftovers, array $ownNames, ?Restorable $type, bool $dropTables = false): array
     {
         $manifest = $source->manifest;
         $checks = [];
@@ -63,7 +64,7 @@ final class Preflight
         if ($manifest->database !== []) {
             array_push($checks, ...($database === null
                 ? [Check::error('The backup holds a database, but no database settings were given.', 'Give host, name, user and password of an empty database.')]
-                : $this->databaseChecks($source, $database)));
+                : $this->databaseChecks($source, $database, $dropTables)));
         } elseif ($database !== null) {
             $checks[] = Check::warning('The backup holds no database; the database settings are not used.');
         }
@@ -158,7 +159,7 @@ final class Preflight
     /**
      * @return list<Check>
      */
-    private function databaseChecks(BackupSource $source, DatabaseSettings $settings): array
+    private function databaseChecks(BackupSource $source, DatabaseSettings $settings, bool $dropTables): array
     {
         $manifest = $source->manifest;
         try {
@@ -178,10 +179,19 @@ final class Preflight
                 'SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME LIKE ? ORDER BY TABLE_NAME LIMIT 6',
                 [$like],
             ));
-            if ($names !== []) {
+            if ($names !== [] && $dropTables) {
+                $count = TableDropper::count($db, $settings->prefix);
+                $checks[] = Check::warning(sprintf(
+                    'ALL %d tables and views %s of the database "%s" will be DELETED before the import, with everything in them (for example %s). This cannot be undone.',
+                    $count,
+                    $settings->prefix === '' ? '(the database has no table prefix: everything in it)' : "whose names begin with \"{$settings->prefix}\"",
+                    $settings->name,
+                    implode(', ', array_slice($names, 0, 3)),
+                ), 'You asked for this ("delete the existing tables first"). Make sure this is the right database and that you have a copy of what you still need.');
+            } elseif ($names !== []) {
                 $checks[] = Check::error(
                     sprintf('The database "%s" already has tables%s: %s.', $settings->name, $settings->prefix === '' ? '' : " with the prefix \"{$settings->prefix}\"", implode(', ', $names)),
-                    'A restore never overwrites or drops tables. Use an empty database or another table prefix, or empty it by hand.',
+                    'A restore never overwrites or drops tables unless you ask it to. Use an empty database or another table prefix, empty it by hand, or choose "delete the existing tables first" (the wizard: a box on the page "Where to restore"; the command: --drop-tables).',
                 );
             }
             $charset = $db->scalar('SELECT DEFAULT_CHARACTER_SET_NAME FROM information_schema.SCHEMATA WHERE SCHEMA_NAME = DATABASE()');
