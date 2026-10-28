@@ -32,7 +32,7 @@ Names are those of the-loom (`--ink`, `--panel`, `--brass` ...) plus the additio
 
 The dark column is the-loom's own (`--ok` is its `#5cb87a`; `--error` is its `#e2685c` made a little lighter so that it keeps 4.5:1 on a card). The light column is derived: the surfaces are the dark panel turned inside out (cool greys, white boxes, a darker inset), the text is the dark panel's colour, and brass is **two colours**, because the brass of the dark theme is 2.2:1 on white: the **fill** of the primary button stays brass (dark text on it is 7.9:1), the **text** of links and focus rings is a dark brass.
 
-**Status colours.** Green for success, a yellow (dark) or burnt orange (light) for warnings, red for errors. A warning is kept away from the brass of the accent by hue and by use: brass is interactive (links, buttons, the focus ring), a status colour is never a link. Colour is never the only carrier: every status has a word ("OK", "Warning", "Problem", "faulty", "incomplete"), and messages and cards have a coloured **left edge** plus text in the normal text colour, not coloured text.
+**Status colours.** Green for success, a yellow (dark) or burnt orange (light) for warnings, red for errors. A warning is kept away from the brass of the accent by hue and by use: brass is interactive (links, buttons, the focus ring), a status colour is never a link. A **note** (the level "info" of a check) is neutral, in `--text-soft`: it says something, it asks for nothing, and brass would make it look more urgent than a warning. Colour is never the only carrier: every status has a word ("OK", "Warning", "Problem", "faulty", "incomplete"), and messages and cards have a coloured **left edge** plus text in the normal text colour, not coloured text.
 
 ## Contrast (WCAG)
 

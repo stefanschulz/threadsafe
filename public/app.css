@@ -333,7 +333,7 @@ button.danger:hover, .button.danger:hover { color: var(--on-danger); background:
 table.checks td.level { width: 1%; white-space: nowrap; color: var(--text-soft); font: 600 0.7rem/1.5 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; }
 table.checks td.level .sym { margin-right: 0.45rem; vertical-align: -0.3em; }
 table.checks tr.ok td.level { color: var(--ok); }
-table.checks tr.info td.level { color: var(--brass); }
+table.checks tr.info td.level { color: var(--text-soft); }
 table.checks tr.warning td.level { color: var(--warning); }
 table.checks tr.error td.level { color: var(--error); }
 table.facts th { width: 11rem; }
