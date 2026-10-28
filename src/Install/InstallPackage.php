@@ -10,7 +10,7 @@ use ThreadSafe\Archive\ZipReader;
 use ThreadSafe\Build\ReleaseManifest;
 
 /**
- * The release package inside `install.php`: the file itself is the ZIP archive ({@see \ThreadSafe\Build\ZipShift}). The manifest is its
+ * The release package inside `threadsafe-install.php`: the file itself is the ZIP archive ({@see \ThreadSafe\Build\ZipShift}). The manifest is its
  * first entry; what the installer extracts is checked against it.
  */
 final readonly class InstallPackage

@@ -299,7 +299,7 @@ php bin/threadsafe migrate generic --root=/var/www/blog --from=blog.example --to
 ## 13. The Joomla website type
 
 `migrate joomla` adapts a restored or copied **Joomla 5 or 6** site to its new host (the same steps run at the end of `restore` and in the
-`restore.php` wizard). Joomla stores its own address nowhere as one value, so **`--from` is required** with `--to`; a restore proposes one
+`threadsafe-restore.php` wizard). Joomla stores its own address nowhere as one value, so **`--from` is required** with `--to`; a restore proposes one
 from the backup (the `live_site` of the site, else the host that its content points to most often).
 
 ```bash
@@ -320,7 +320,7 @@ php bin/threadsafe migrate joomla --root=/var/www/site --from=www.example.org --
 - **`live_site`**: a stale value makes the front page redirect, so it follows the move, and it is **cleared** if it names a host that is
   not part of the move. **`dbtype`**: `mysqli` or `pdomysql` - the one that `--db-driver` names (`pdo` or `mysqli`), else whichever this PHP has.
   The PHP of a command line is not always the PHP of the web server (the Docker target of the tests has `pdo_mysql` and no `mysqli` in the
-  web server, but both in the command line): then name the driver. The `restore.php` wizard runs in the web server's PHP, so `auto` is right there.
+  web server, but both in the command line): then name the driver. The `threadsafe-restore.php` wizard runs in the web server's PHP, so `auto` is right there.
 - **`--mode=dev`** makes a development or staging copy, in a small first cut: the configuration gets `mailonline = false` (the site sends no
   mail), `robots = noindex, nofollow` (the robots meta tag) and the site name gets the mark `[DEV] ` in front; `robots.txt` is replaced by
   `Disallow: /`; and a block at the top of `.htaccess` (between `# BEGIN ThreadSafe dev mode` and `# END ThreadSafe dev mode`, made again on every

@@ -1,7 +1,7 @@
 <?php
 
 /**
- * Builds the release (docs/PHASE7.md 3.1): threadsafe-X.Y.Z.zip, the web installer install.php (the same package behind a stub) and the
+ * Builds the release (docs/PHASE7.md 3.1): threadsafe-X.Y.Z.zip, the web installer threadsafe-install.php (the same package behind a stub) and the
  * file of checksums SHA256SUMS.
  *
  *   php tools/build-release.php [--version=X.Y.Z] [--output=DIR] [--keep] [--composer=PATH]
@@ -99,19 +99,19 @@ try {
     }
 
     // the installer: built from the tree the package was made from, so that its code and the package's code are the same
-    $installPath = rtrim($output, '/') . '/install.php';
+    $installPath = rtrim($output, '/') . '/threadsafe-install.php';
     (new InstallBuilder($stage))->build($installPath, $zipPath, $version);
     $installed = ZipReader::open($installPath);
     $installFirst = $installed->entries()->current();
     if ($installFirst->name !== $top . ReleaseManifest::FILE || ReleaseManifest::fromJson($installed->contents($installFirst))->problems($installed, $top) !== []) {
-        throw new RuntimeException('install.php does not hold the package it was built with.');
+        throw new RuntimeException('threadsafe-install.php does not hold the package it was built with.');
     }
 
     // the generic restore tool of this version, built from the same tree (its Version.php is the stamped one)
-    $restorePath = rtrim($output, '/') . '/restore.php';
+    $restorePath = rtrim($output, '/') . '/threadsafe-restore.php';
     (new RestoreBuilder($stage, $version))->build($restorePath);
 
-    $sums = ReleaseBuilder::checksums([ReleaseBuilder::packageName($version) => $zipPath, 'install.php' => $installPath, 'restore.php' => $restorePath]);
+    $sums = ReleaseBuilder::checksums([ReleaseBuilder::packageName($version) => $zipPath, 'threadsafe-install.php' => $installPath, 'threadsafe-restore.php' => $restorePath]);
     file_put_contents(rtrim($output, '/') . '/SHA256SUMS', $sums);
 } catch (RuntimeException $e) {
     fwrite(STDERR, 'error: ' . $e->getMessage() . "\n");
@@ -127,5 +127,5 @@ if ($options['keep']) {
     $remove($stage);
 }
 @chmod($zipPath, 0644);
-printf("%s: %d files, %.2f MB; install.php: %.2f MB; restore.php: %d KB (built %s)\n", ReleaseBuilder::packageName($version), count($manifest->files) + 1, filesize($zipPath) / 1048576, filesize($installPath) / 1048576, filesize($restorePath) / 1024, gmdate('Y-m-d H:i:s', $epoch) . ' UTC');
+printf("%s: %d files, %.2f MB; threadsafe-install.php: %.2f MB; threadsafe-restore.php: %d KB (built %s)\n", ReleaseBuilder::packageName($version), count($manifest->files) + 1, filesize($zipPath) / 1048576, filesize($installPath) / 1048576, filesize($restorePath) / 1024, gmdate('Y-m-d H:i:s', $epoch) . ' UTC');
 echo $sums;

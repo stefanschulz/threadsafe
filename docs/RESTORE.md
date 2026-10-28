@@ -1,6 +1,6 @@
 # Restoring a backup – reference
 
-How to put a ThreadSafe backup back: with the single file `restore.php` on a host where nothing is installed, with `threadsafe restore` in a shell, or by hand with ordinary tools. What the restore checks, what it does, what to do when it stops, and what it cannot do. For the design and the reasons see [PHASE3.md](PHASE3.md); for making backups see [BACKUP.md](BACKUP.md); for what happens to the site after the files and the database are back see [MIGRATE.md](MIGRATE.md).
+How to put a ThreadSafe backup back: with the single file `threadsafe-restore.php` on a host where nothing is installed, with `threadsafe restore` in a shell, or by hand with ordinary tools. What the restore checks, what it does, what to do when it stops, and what it cannot do. For the design and the reasons see [PHASE3.md](PHASE3.md); for making backups see [BACKUP.md](BACKUP.md); for what happens to the site after the files and the database are back see [MIGRATE.md](MIGRATE.md).
 
 ## 1. The rules of a restore
 
@@ -11,28 +11,28 @@ How to put a ThreadSafe backup back: with the single file `restore.php` on a hos
 
 What the host needs: **PHP 8.4 or newer** with `zlib`, `mbstring` and `json`, and `pdo_mysql` or `mysqli` if the backup holds a database. Nothing else: no Composer, no `exec`, no command line, no `mysql` client.
 
-## 2. Quick start: on a host without ThreadSafe (`restore.php`)
+## 2. Quick start: on a host without ThreadSafe (`threadsafe-restore.php`)
 
-(If you run the web interface, the page of a backup has **How to restore it**: it builds `restore.php` from your installation and makes a new `restore-key.php` for you - [WEB.md](WEB.md). Otherwise build them as below.)
+(If you run the web interface, the page of a backup has **How to restore it**: it builds `threadsafe-restore.php` from your installation and makes a new `threadsafe-restore-key.php` for you - [WEB.md](WEB.md). Otherwise build them as below.)
 
 You need three things next to each other in the (empty) web directory of the new site: the tool, a key file and the backup.
 
 ```bash
 # on a machine with ThreadSafe (once; the same file restores every backup of every website type - keep a copy with your backups)
-php tools/build-restore.php                # writes dist/dev/restore.php (about 350 KB), a development build without a version
+php tools/build-restore.php                # writes dist/dev/threadsafe-restore.php (about 350 KB), a development build without a version
 php tools/build-restore.php --key          # prints a random key and the line for the key file
 ```
 
-The file to keep and to hand out is the one of a release: `dist/release/restore.php` (made by `vendor/bin/phing`, with the version of the release, listed in `SHA256SUMS`), or the one that the page *Restore* of the web interface builds from the installed version. The development build is for trying out the source; its first page, the checks and the wizard are those of the current source, an older copy is not.
+The file to keep and to hand out is the one of a release: `dist/release/threadsafe-restore.php` (made by `vendor/bin/phing`, with the version of the release, listed in `SHA256SUMS`), or the one that the page *Restore* of the web interface builds from the installed version. The development build is for trying out the source; its first page, the checks and the wizard are those of the current source, an older copy is not.
 
-1. Upload `restore.php` and **all parts of the backup** (`shop_20261020-123456_ab12cd34.zip`, or `...-p01.zip`, `-p02.zip` ...; the `.json` file next to them is not needed) into the web directory of the new site.
-2. Create `restore-key.php` next to it with the key (at least 8 characters):
+1. Upload `threadsafe-restore.php` and **all parts of the backup** (`shop_20261020-123456_ab12cd34.zip`, or `...-p01.zip`, `-p02.zip` ...; the `.json` file next to them is not needed) into the web directory of the new site.
+2. Create `threadsafe-restore-key.php` next to it with the key (at least 8 characters):
    ```php
    <?php return 'the key you chose';
    ```
    It is a PHP file on purpose: asked for over HTTP it prints nothing, where a text file would be served to whoever asks. **Without this file the tool does nothing at all.**
 3. Create an empty database and a database user for it, at your host.
-4. Open `https://new-site.example/restore.php` and follow the wizard (section 3).
+4. Open `https://new-site.example/threadsafe-restore.php` and follow the wizard (section 3).
 5. At the end press **Delete the tool now**.
 
 If the host runs an older PHP, the tool says so (`This restore tool needs PHP 8.4 or newer; this server runs PHP 7.4.33`) and stops; many hosts let you choose the PHP version in their control panel.
@@ -47,7 +47,7 @@ If the host runs an older PHP, the tool says so (`This restore tool needs PHP 8.
 | **Where to restore** | The directory (by default the one of the tool), host, port, name, user and password of the **empty** database, the table prefix (by default the one of the backup), and the fields of the website type: for PrestaShop the new domain (required), a new base path, SSL mode (none / login / all), production or dev mode and a mail catcher for dev mode; for `generic` an old and a new domain, both optional. "Test the connection" shows what the database holds. Three options: let placeholder files of the web server (`.htaccess`, `index.html` ...) stay in the directory; **delete the existing tables of the database first** (off by default, with a warning on the page: every table and view whose name begins with the table prefix is deleted with its data before the import; the summary page names how many); check the restored site over HTTP at the end (**off by default**: the new domain often does not reach this server yet). | Nothing yet. |
 | **Summary** | Read it. | Everything that can be checked before writing (section 6). Problems are listed with the way out and block the start. **Nothing has been written up to here.** |
 | **Restoring** | Press "Restore now" and keep the page open. | The page keeps the restore going, one request per step (60 % of the host's time limit each), with a progress bar, the clock, and a line that says what the step does right now ("unpacking the backup: 1200 files so far, now ...", "importing the database: file 3 of 12"). The two buttons say what is possible: "Continue" is pressed only when nothing is working and nothing failed (the page presses it itself; you need it after the connection was lost or the web server refused a step), "Try the failed step again" only after a failure. If you close the page, open the tool again and log in: **the restore continues where it was**. |
-| **Done** | Read the result and the warnings. Press **Delete the tool now**, and tick the box if the backup files may go too. | The tool deletes `restore.php`, `restore-key.php` and `.threadsafe-restore/` (state, journal, session files). What it cannot delete is listed - delete that by hand, now. When it is gone the page offers buttons to **open the site** and, where the website type knows it, the **login of the administration** (Joomla: `/administrator/`; PrestaShop: the back office folder of the restored shop). The address is the new domain you entered (the host of the wizard page if it was left empty), with the scheme of the wizard page and the base path (the one you entered; else the one of the backup for PrestaShop, the directory of the wizard for Joomla and other sites). |
+| **Done** | Read the result and the warnings. Press **Delete the tool now**, and tick the box if the backup files may go too. | The tool deletes `threadsafe-restore.php`, `threadsafe-restore-key.php` and `.threadsafe-restore/` (state, journal, session files). What it cannot delete is listed - delete that by hand, now. When it is gone the page offers buttons to **open the site** and, where the website type knows it, the **login of the administration** (Joomla: `/administrator/`; PrestaShop: the back office folder of the restored shop). The address is the new domain you entered (the host of the wizard page if it was left empty), with the scheme of the wizard page and the base path (the one you entered; else the one of the backup for PrestaShop, the directory of the wizard for Joomla and other sites). |
 
 ## 4. The command line (`threadsafe restore`)
 
@@ -79,7 +79,7 @@ The archive is **any one part** of the backup (for an encrypted backup a `.zip.a
 
 The state of a run is a file in the data directory (`runs/`, mode 0600); it holds the database password until the run is done and is deleted when it succeeded.
 
-**The same file works in a shell:** `php restore.php restore <archive> --root=...` does what `threadsafe restore` does, and needs no key (shell access is trusted). On a host where only a CGI build of PHP 8 exists: `php8.4 -q restore.php restore ...`.
+**The same file works in a shell:** `php threadsafe-restore.php restore <archive> --root=...` does what `threadsafe restore` does, and needs no key (shell access is trusted). On a host where only a CGI build of PHP 8 exists: `php8.4 -q threadsafe-restore.php restore ...`.
 
 ## 5. What a restore does
 
@@ -120,13 +120,13 @@ The state of a run is a file in the data directory (`runs/`, mode 0600); it hold
 
 | Situation | What to do |
 |---|---|
-| The browser was closed or the connection lost | Open `restore.php` again, enter the key: the restore goes on where it was. |
-| The page says "The restore stopped: the web server answered HTTP 403" (or the next step answers "Access forbidden") | A rule of the web server refuses `restore.php`. The usual cause is the `.htaccess` of the restored site: a security extension (Admin Tools of Akeeba) refuses every direct request for a PHP file but `index.php`. The tool puts a block at the top of that file that lets it through (`RewriteRule ^restore\.php$ - [L]`) and takes it out when it is deleted; a server that refuses PHP files in another way, or a host rule outside the site, is not met by it. Rename the `.htaccess` (for example to `.htaccess.off`), press "Continue" (the state is saved), put the file back when the restore is done. |
+| The browser was closed or the connection lost | Open `threadsafe-restore.php` again, enter the key: the restore goes on where it was. |
+| The page says "The restore stopped: the web server answered HTTP 403" (or the next step answers "Access forbidden") | A rule of the web server refuses `threadsafe-restore.php`. The usual cause is the `.htaccess` of the restored site: a security extension (Admin Tools of Akeeba) refuses every direct request for a PHP file but `index.php`. The tool puts a block at the top of that file that lets it through (`RewriteRule ^threadsafe-restore\.php$ - [L]`) and takes it out when it is deleted; a server that refuses PHP files in another way, or a host rule outside the site, is not met by it. Rename the `.htaccess` (for example to `.htaccess.off`), press "Continue" (the state is saved), put the file back when the restore is done. |
 | The restored site sends you back to the old site (the administration, the links) | The field "New domain" was empty: the site then keeps the old domain in its settings, redirects and links. The wizard starts the field with the host it is served at; check it, and restore again into an empty directory and database with the right domain. |
 | A step failed (message on the page, or exit code 3) | Remove the cause the message names (disk full, wrong password, a limit) and press "Try the failed step again", or run `threadsafe restore --resume=<run>`. A file that was half extracted or imported starts again from its beginning; nothing is done twice that could do harm. |
 | The database was emptied or replaced while the restore waited | The import starts over from the first file by itself. |
 | Too many wrong keys | Wait the time the message names. |
-| You want to start completely again | Delete the content of the directory (or use another one) and empty the database (or drop and create it), then restore. **There is no rollback by design: the tool deletes nothing that is not its own.** If the tool itself is still there, keep `restore.php`, the key and the backup. |
+| You want to start completely again | Delete the content of the directory (or use another one) and empty the database (or drop and create it), then restore. **There is no rollback by design: the tool deletes nothing that is not its own.** If the tool itself is still there, keep `threadsafe-restore.php`, the key and the backup. |
 | The restore stopped at the self-test (exit code 4) | The files and the database are restored; the site does not answer as expected. The message and the report say which page; the journal in `.threadsafe-restore/journal/` lists what the adaptation changed. |
 
 `.threadsafe-restore/` holds the journal (old and new values of everything the adaptation changed, **passwords included**) and, until the end, the state of the run. On the web it is closed (mode 0700, an `.htaccess` that denies everything, an empty `index.html`); with the command line it stays after the restore. **Delete it when you no longer need the journal.**
@@ -149,16 +149,16 @@ The state of a run is a file in the data directory (`runs/`, mode 0600); it hold
 ## 11. Trying it (for developers)
 
 ```bash
-tests/stack/run.sh        # five phases incl. disaster recovery: the target stack is destroyed, made again empty, and restore.php brings the shop back
+tests/stack/run.sh        # five phases incl. disaster recovery: the target stack is destroyed, made again empty, and threadsafe-restore.php brings the shop back
 tests/stack/cross.sh      # a backup from MySQL onto MariaDB (refused) and from MariaDB onto MySQL
-composer check            # lint, PHPStan, unit tests, and the unit tests again against the bundle that restore.php is made of
+composer check            # lint, PHPStan, unit tests, and the unit tests again against the bundle that threadsafe-restore.php is made of
 ```
 
 ## 12. Encrypted backups
 
 A backup that was made for public keys, or for a passphrase, consists of `<id>.zip.age` (or `<id>-p01.zip.age` ...) files: standard files of the [age](https://age-encryption.org/) format around the ZIP parts ([BACKUP.md](BACKUP.md) section 5). Only the **secret key** that belongs to one of the public keys, or the **passphrase**, opens them - the server that made the backup does not have it, and nobody can make it again.
 
-- **Command line:** `php restore.php restore shop_..._p01.zip.age --root=DIR --identity-file=key.txt ...` (the key file of `keys generate` or `age-keygen`), or `--passphrase-file=FILE` / `THREADSAFE_PASSPHRASE` for a passphrase. The key is never an option value. Without it the command says that the backup is encrypted and stops; with a key that does not fit it says so with the name of the part.
+- **Command line:** `php threadsafe-restore.php restore shop_..._p01.zip.age --root=DIR --identity-file=key.txt ...` (the key file of `keys generate` or `age-keygen`), or `--passphrase-file=FILE` / `THREADSAFE_PASSPHRASE` for a passphrase. The key is never an option value. Without it the command says that the backup is encrypted and stops; with a key that does not fit it says so with the name of the part.
 - **Wizard:** the field *Secret key or passphrase* on the page where the backup is chosen. The wizard keeps it in its private session file for the one step, then in the state of the run (mode 0600, like the database password) **until the files are unpacked**, and blanks it there; the connection carries it, so the confirmation of plain `http` applies to it too.
 - **How it is read:** the parts are not decrypted to disk. The ZIP reader reads each part through a decrypting stream, one 64 KiB block at a time, every block authenticated: a part that was changed or cut stops the restore with a message instead of producing wrong files. So the free space needed is the same as for a plain backup.
 - **The target PHP needs `ext-sodium`** (part of PHP 8.4 builds; the message names the extension when it is missing). Without it, or for a very large passphrase work factor, decrypt the parts on another machine (`age -d -i key.txt -o part.zip part.zip.age`) and restore the `.zip` files.

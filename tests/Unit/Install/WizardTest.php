@@ -31,8 +31,8 @@ final class WizardTest extends TestCase
         $base = $this->tempDirectory();
         $this->docroot = $base . '/public_html';
         mkdir($this->docroot);
-        // the package is the file the wizard reads; a plain package archive stands in for install.php
-        $this->script = $this->docroot . '/install.php';
+        // the package is the file the wizard reads; a plain package archive stands in for threadsafe-install.php
+        $this->script = $this->docroot . '/threadsafe-install.php';
         copy(ReleasePackage::build($base), $this->script);
         $this->wizard = new Wizard($this->script, null, static fn (): Budget => new Budget(0.0));
     }
@@ -50,7 +50,7 @@ final class WizardTest extends TestCase
     {
         $cookies = $token === null ? [] : [Wizard::COOKIE => $token];
 
-        return $this->wizard->handle(new Request($method, $query, $post, $cookies, false, '127.0.0.1', '/install.php'));
+        return $this->wizard->handle(new Request($method, $query, $post, $cookies, false, '127.0.0.1', '/threadsafe-install.php'));
     }
 
     /**
@@ -60,7 +60,7 @@ final class WizardTest extends TestCase
      */
     private function login(): array
     {
-        file_put_contents($this->docroot . '/install-key.php', "<?php return 'a long secret key';");
+        file_put_contents($this->docroot . '/threadsafe-install-key.php', "<?php return 'a long secret key';");
         $response = $this->send('POST', ['action' => 'login', 'key' => 'a long secret key']);
         self::assertSame(303, $response->status);
         preg_match('/threadsafe_install=([0-9a-f]{64})/', (string) $response->header('Set-Cookie'), $cookie);
@@ -81,7 +81,7 @@ final class WizardTest extends TestCase
 
     public function testAKeyThatIsTooShortIsRefused(): void
     {
-        file_put_contents($this->docroot . '/install-key.php', "<?php return 'short';");
+        file_put_contents($this->docroot . '/threadsafe-install-key.php', "<?php return 'short';");
 
         $response = $this->send();
 
@@ -91,7 +91,7 @@ final class WizardTest extends TestCase
 
     public function testTheKeyIsAskedForAndAWrongOneIsRefusedAndSlowedDown(): void
     {
-        file_put_contents($this->docroot . '/install-key.php', "<?php return 'a long secret key';");
+        file_put_contents($this->docroot . '/threadsafe-install-key.php', "<?php return 'a long secret key';");
 
         self::assertStringContainsString('type="password" name="key"', $this->send()->body);
         $statuses = [];
@@ -105,7 +105,7 @@ final class WizardTest extends TestCase
 
     public function testEveryPageNeedsTheLogin(): void
     {
-        file_put_contents($this->docroot . '/install-key.php', "<?php return 'a long secret key';");
+        file_put_contents($this->docroot . '/threadsafe-install-key.php', "<?php return 'a long secret key';");
 
         foreach (['check', 'run', 'done'] as $step) {
             $page = $this->send('GET', [], ['step' => $step]);

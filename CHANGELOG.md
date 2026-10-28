@@ -15,14 +15,14 @@ Nothing is released yet. Rename this heading to the version (`## [0.1.0] - date`
 - The pages of a running backup, check, restore and installation show what the step that is working does right now and a clock, and the buttons "Continue" and "Try the failed step again" can be pressed only where they make sense.
 - Restoring a backup into an empty directory and database, on another domain, path or database, with the adaptation of the application
   (PrestaShop 9, Joomla 5 and 6, and any site by the domain in its database): the command `threadsafe restore` and the single file
-  `restore.php` with a wizard for a host where nothing else is installed.
+  `threadsafe-restore.php` with a wizard for a host where nothing else is installed.
 - Site profiles and the backup engine: standard ZIP archives with plain SQL dumps, in steps that fit a web request; verify, delete,
   download, pin.
 - The web interface: profiles, backups with progress, checks, downloads, the dashboard and the System page.
 - One trigger (`threadsafe cron` or an address), schedules, retention, and backups encrypted in the format of `age`.
 - The Joomla website type, with a dev mode for a live to dev copy.
-- A logo (a safe with a restore arrow) in the menu and the login of the web interface, in the heading of the installer and of `restore.php`, as favicon, and in
+- A logo (a safe with a restore arrow) in the menu and the login of the web interface, in the heading of the installer and of `threadsafe-restore.php`, as favicon, and in
   the README.
-- Release packages: `threadsafe-X.Y.Z.zip`, the web installer `install.php` (also a ZIP archive), `restore.php` and `SHA256SUMS`,
+- Release packages: `threadsafe-X.Y.Z.zip`, the web installer `threadsafe-install.php` (also a ZIP archive), `threadsafe-restore.php` and `SHA256SUMS`,
   reproducible, built by the release workflow; `threadsafe doctor`; updates from a package checked by its SHA-256, switched by a pointer
   and taken back by themselves if the new version does not start.

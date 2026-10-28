@@ -7,9 +7,9 @@
  *   php tools/test-release.php <directory with the release files> <version>
  *
  * It checks that the checksums in SHA256SUMS are those of the files, that `unzip` opens the package and the installer, that the
- * unpacked package runs (`bin/threadsafe --version`, `doctor`), that `install.php` installs it through its own wizard into a new document
+ * unpacked package runs (`bin/threadsafe --version`, `doctor`), that `threadsafe-install.php` installs it through its own wizard into a new document
  * root (key, check, install, remove the installer, hand over to the setup), that the installed command and stub run, and that
- * `restore.php` carries the version. This file uses no class of ThreadSafe and needs no `vendor/`.
+ * `threadsafe-restore.php` carries the version. This file uses no class of ThreadSafe and needs no `vendor/`.
  */
 declare(strict_types=1);
 
@@ -60,7 +60,7 @@ $package = "threadsafe-$version.zip";
 echo "PHP " . PHP_VERSION . ", release files in $dir, version $version\n\n";
 
 // ---------------------------------------------------------------------------------------------------- the files and their checksums
-foreach ([$package, 'install.php', 'restore.php', 'SHA256SUMS'] as $name) {
+foreach ([$package, 'threadsafe-install.php', 'threadsafe-restore.php', 'SHA256SUMS'] as $name) {
     $check("$name is there", is_file("$dir/$name"));
 }
 if ($failures !== []) {
@@ -72,14 +72,14 @@ foreach (file("$dir/SHA256SUMS", FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) 
         $listed[$m[2]] = $m[1];
     }
 }
-foreach ([$package, 'install.php', 'restore.php'] as $name) {
+foreach ([$package, 'threadsafe-install.php', 'threadsafe-restore.php'] as $name) {
     $check("SHA256SUMS lists $name with its checksum", ($listed[$name] ?? '') === hash_file('sha256', "$dir/$name"));
 }
 
 // ---------------------------------------------------------------------------------------------------- unzip opens the package and the installer
 $haveUnzip = $run('command -v unzip')[1] !== '';
 if ($haveUnzip) {
-    foreach ([$package, 'install.php'] as $name) {
+    foreach ([$package, 'threadsafe-install.php'] as $name) {
         [$code, $out] = $run('unzip -tq ' . escapeshellarg("$dir/$name"));
         $check("unzip -t $name", $code === 0, trim($out));
     }
@@ -117,20 +117,20 @@ if (is_file("$tree/release.json")) {
 // ---------------------------------------------------------------------------------------------------- the installer installs it
 $docroot = "$work/site/public_html";
 mkdir($docroot, 0777, true);
-copy("$dir/install.php", "$docroot/install.php");
-[$code, $out] = $run($php . ' -r ' . escapeshellarg('$_SERVER["REQUEST_METHOD"] = "GET"; include $argv[1];') . ' ' . escapeshellarg("$docroot/install.php"));
-$check('without install-key.php the installer only explains', str_contains($out, 'does nothing until you give it a key') && !is_dir("$docroot/.threadsafe-install"));
-[$code, $out, $err] = $run("$php " . escapeshellarg("$docroot/install.php"));
-$check('install.php in a shell says to use a browser or unzip', $code === 1 && str_contains($err, 'unzip install.php'), trim($err));
-file_put_contents("$docroot/install-key.php", "<?php return 'a long secret key for the test';");
-$run($php . ' -r ' . escapeshellarg('$_SERVER["REQUEST_METHOD"] = "GET"; $_SERVER["REMOTE_ADDR"] = "127.0.0.1"; $_SERVER["REQUEST_URI"] = "/install.php"; include $argv[1];') . ' ' . escapeshellarg("$docroot/install.php"));
+copy("$dir/threadsafe-install.php", "$docroot/threadsafe-install.php");
+[$code, $out] = $run($php . ' -r ' . escapeshellarg('$_SERVER["REQUEST_METHOD"] = "GET"; include $argv[1];') . ' ' . escapeshellarg("$docroot/threadsafe-install.php"));
+$check('without threadsafe-install-key.php the installer only explains', str_contains($out, 'does nothing until you give it a key') && !is_dir("$docroot/.threadsafe-install"));
+[$code, $out, $err] = $run("$php " . escapeshellarg("$docroot/threadsafe-install.php"));
+$check('threadsafe-install.php in a shell says to use a browser or unzip', $code === 1 && str_contains($err, 'unzip threadsafe-install.php'), trim($err));
+file_put_contents("$docroot/threadsafe-install-key.php", "<?php return 'a long secret key for the test';");
+$run($php . ' -r ' . escapeshellarg('$_SERVER["REQUEST_METHOD"] = "GET"; $_SERVER["REMOTE_ADDR"] = "127.0.0.1"; $_SERVER["REQUEST_URI"] = "/threadsafe-install.php"; include $argv[1];') . ' ' . escapeshellarg("$docroot/threadsafe-install.php"));
 $bundles = glob("$docroot/.threadsafe-install/bundle-*.php") ?: [];
 $check('the installer unpacks its code next to itself', count($bundles) === 1);
 if (count($bundles) === 1) {
     $flow = <<<'PHP'
 require $argv[1];
 $wizard = new ThreadSafe\Install\Wizard($argv[2]);
-$request = static fn (string $method, array $query, array $post, ?string $token) => new ThreadSafe\Web\Request($method, $query, $post, $token === null ? [] : [ThreadSafe\Install\Wizard::COOKIE => $token], false, '127.0.0.1', '/install.php');
+$request = static fn (string $method, array $query, array $post, ?string $token) => new ThreadSafe\Web\Request($method, $query, $post, $token === null ? [] : [ThreadSafe\Install\Wizard::COOKIE => $token], false, '127.0.0.1', '/threadsafe-install.php');
 $out = [];
 $login = $wizard->handle($request('POST', [], ['action' => 'login', 'key' => 'a long secret key for the test'], null));
 preg_match('/threadsafe_install=([0-9a-f]{64})/', (string) $login->header('Set-Cookie'), $m);
@@ -153,7 +153,7 @@ $out['key'] = strlen($m[1] ?? '');
 $out['error'] = $answer['error'] ?? '';
 echo json_encode($out);
 PHP;
-    [$code, $out, $err] = $run($php . ' -r ' . escapeshellarg($flow) . ' ' . escapeshellarg($bundles[0]) . ' ' . escapeshellarg("$docroot/install.php"));
+    [$code, $out, $err] = $run($php . ' -r ' . escapeshellarg($flow) . ' ' . escapeshellarg($bundles[0]) . ' ' . escapeshellarg("$docroot/threadsafe-install.php"));
     $result = json_decode($out, true);
     $check('the wizard checks, installs, and hands over', is_array($result) && ($result['check'] ?? null) === [200, true] && ($result['install'] ?? null) === 303 && ($result['ticks'] ?? null) === 'finished' && ($result['key'] ?? 0) === 24, trim($out . $err));
     $home = "$work/site/threadsafe";
@@ -169,11 +169,11 @@ PHP;
     $check('the stub starts the interface (switched off: not found)', $code === 0 && $err === '' && stripos($out, 'fatal') === false, trim(substr($out . $err, 0, 200)));
 }
 
-// ---------------------------------------------------------------------------------------------------- restore.php
-$head = (string) file_get_contents("$dir/restore.php", false, null, 0, 200);
-$check('restore.php carries the version', str_contains($head, "ThreadSafe restore tool $version"), trim(strtok($head, "\n") . ' / ' . strtok("\n")));
-[$code, $out, $err] = $run("$php $dir/restore.php restore");
-$check('restore.php runs as the restore command in a shell', $code === 1 && str_contains($err . $out, 'archive'), trim(substr($out . $err, 0, 200)));
+// ---------------------------------------------------------------------------------------------------- threadsafe-restore.php
+$head = (string) file_get_contents("$dir/threadsafe-restore.php", false, null, 0, 200);
+$check('threadsafe-restore.php carries the version', str_contains($head, "ThreadSafe restore tool $version"), trim(strtok($head, "\n") . ' / ' . strtok("\n")));
+[$code, $out, $err] = $run("$php $dir/threadsafe-restore.php restore");
+$check('threadsafe-restore.php runs as the restore command in a shell', $code === 1 && str_contains($err . $out, 'archive'), trim(substr($out . $err, 0, 200)));
 
 $remove($work);
 echo "\n" . ($failures === [] ? "The release is in order.\n" : count($failures) . " check(s) failed.\n");

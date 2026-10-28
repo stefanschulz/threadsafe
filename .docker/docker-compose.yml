@@ -93,7 +93,7 @@ services:
       - "${TARGET_PORT:-8290}:80"
     volumes:
       - target_ps_data:/var/www/html
-      # tight limits for restore.php only, see the file
+      # tight limits for threadsafe-restore.php only, see the file
       - ./target-restore-limits.conf:/etc/apache2/conf-enabled/threadsafe-restore-limits.conf:ro
     networks: [target]
 
@@ -119,7 +119,7 @@ services:
         condition: service_healthy
 
   # A host with nothing on it (profile "fresh"; docs/PHASE7.md 4.2): Apache and PHP 8.4 of the shop image, and no Composer, no repository, no
-  # ThreadSafe. The tests put the built install.php and a key file into /var/www/html (the tools container mounts the volume as /shops/fresh)
+  # ThreadSafe. The tests put the built threadsafe-install.php and a key file into /var/www/html (the tools container mounts the volume as /shops/fresh)
   # and install and update ThreadSafe through the browser interface only. /var/www is writable for PHP so that the home can go next to the
   # document root; the limits are those of a modest shared host: 5 seconds and 64 MB, for every request.
   fresh:

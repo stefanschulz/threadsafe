@@ -1,7 +1,7 @@
 # Local settings of the Phing build (build.xml). Copy this file to build.properties, which is not in the repository.
 # A -Dname=value on the command line wins over this file; what is not set here has the default of build.xml.
 
-# The version stamped into the package, the installer and restore.php: X.Y.Z or X.Y.Z-suffix. It must be higher than the installed one
+# The version stamped into the package, the installer and threadsafe-restore.php: X.Y.Z or X.Y.Z-suffix. It must be higher than the installed one
 # for an update from the System page.
 version=0.1.1
 

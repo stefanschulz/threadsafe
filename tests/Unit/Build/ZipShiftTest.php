@@ -40,7 +40,7 @@ final class ZipShiftTest extends TestCase
     public function testTheArchiveBehindAStubIsReadAfterTheShift(): void
     {
         $stub = "<?php exit; __halt_compiler();" . str_repeat('x', 1234);
-        $file = $this->tempDirectory() . '/install.php';
+        $file = $this->tempDirectory() . '/threadsafe-install.php';
         file_put_contents($file, $stub . ZipShift::shift($this->archive(), strlen($stub)));
 
         $zip = ZipReader::open($file);
@@ -57,7 +57,7 @@ final class ZipShiftTest extends TestCase
     public function testWithoutTheShiftTheReaderRefusesAndUnzipWarns(): void
     {
         $stub = '<?php exit; __halt_compiler();';
-        $file = $this->tempDirectory() . '/install.php';
+        $file = $this->tempDirectory() . '/threadsafe-install.php';
         file_put_contents($file, $stub . $this->archive());
 
         try {
@@ -75,7 +75,7 @@ final class ZipShiftTest extends TestCase
             self::markTestSkipped('unzip is not installed.');
         }
         $stub = "<?php exit; __halt_compiler();" . str_repeat('y', 77);
-        $file = $this->tempDirectory() . '/install.php';
+        $file = $this->tempDirectory() . '/threadsafe-install.php';
         file_put_contents($file, $stub . ZipShift::shift($this->archive(), strlen($stub)));
 
         $output = [];

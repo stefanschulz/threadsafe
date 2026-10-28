@@ -66,11 +66,11 @@ final class FreshHostTest extends IntegrationTestCase
      */
     private function install(string $place = 'outside', string $version = '0.1.0'): array
     {
-        FreshHost::upload(self::$releases . "/$version/install.php");
+        FreshHost::upload(self::$releases . "/$version/threadsafe-install.php");
         $browser = new FreshHost();
-        $login = $browser->request('POST', '/install.php', ['action' => 'login', 'key' => FreshHost::KEY, 'plain' => '1']);
+        $login = $browser->request('POST', '/threadsafe-install.php', ['action' => 'login', 'key' => FreshHost::KEY, 'plain' => '1']);
         self::assertSame(303, $login['status'], substr($login['body'], 0, 300));
-        $check = $browser->get('/install.php?step=check');
+        $check = $browser->get('/threadsafe-install.php?step=check');
         self::assertSame(200, $check['status'], substr(strip_tags($check['body']), 0, 400));
         self::assertStringContainsString('value="install"', $check['body']);
 
@@ -84,7 +84,7 @@ final class FreshHostTest extends IntegrationTestCase
             self::assertIsArray($answer, $response['body']);
         }
         self::assertSame('finished', $answer['status'], (string) ($answer['error'] ?? ''));
-        self::assertStringContainsString('is installed', $browser->get('/install.php?step=done')['body']);
+        self::assertStringContainsString('is installed', $browser->get('/threadsafe-install.php?step=done')['body']);
 
         $clean = $browser->installer(['action' => 'cleanup']);
         self::assertStringContainsString('The installer is gone', $clean['body']);
@@ -190,20 +190,20 @@ final class FreshHostTest extends IntegrationTestCase
 
     public function testWithoutAKeyFileTheInstallerOnlyExplains(): void
     {
-        FreshHost::upload(self::$releases . '/0.1.0/install.php', key: false);
+        FreshHost::upload(self::$releases . '/0.1.0/threadsafe-install.php', key: false);
 
-        $response = (new FreshHost())->get('/install.php');
+        $response = (new FreshHost())->get('/threadsafe-install.php');
 
         self::assertSame(403, $response['status']);
         self::assertStringContainsString('does nothing until you give it a key', $response['body']);
-        self::assertSame(['install.php'], array_values(array_diff(scandir(FreshHost::WWW . '/html') ?: [], ['.', '..'])), 'nothing was written');
+        self::assertSame(['threadsafe-install.php'], array_values(array_diff(scandir(FreshHost::WWW . '/html') ?: [], ['.', '..'])), 'nothing was written');
     }
 
     public function testAWrongKeyIsRefused(): void
     {
-        FreshHost::upload(self::$releases . '/0.1.0/install.php');
+        FreshHost::upload(self::$releases . '/0.1.0/threadsafe-install.php');
 
-        $response = (new FreshHost())->request('POST', '/install.php', ['action' => 'login', 'key' => 'not the key', 'plain' => '1']);
+        $response = (new FreshHost())->request('POST', '/threadsafe-install.php', ['action' => 'login', 'key' => 'not the key', 'plain' => '1']);
 
         self::assertSame(403, $response['status']);
         self::assertStringContainsString('This is not the key', $response['body']);

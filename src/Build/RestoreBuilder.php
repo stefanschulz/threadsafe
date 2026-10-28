@@ -11,7 +11,7 @@ use RuntimeException;
 use ThreadSafe\Core\Version;
 
 /**
- * Builds the universal restore tool, `dist/restore.php` (docs/PHASE3.md 3.1): the stub ({@see RestoreStub}) followed by the
+ * Builds the universal restore tool, `dist/threadsafe-restore.php` (docs/PHASE3.md 3.1): the stub ({@see RestoreStub}) followed by the
  * deflated payload, which is the bundle of all the code ({@see Bundler}) and the plugins' data files. It is the same file for every
  * backup and every website type; it is built once and kept with the backups.
  *

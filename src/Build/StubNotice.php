@@ -8,7 +8,7 @@ use ThreadSafe\Web\Html;
 use ThreadSafe\Web\Logo;
 
 /**
- * The page that the stub of `install.php` and of `restore.php` shows when it cannot go on: PHP too old, the key file missing, a directory it cannot make.
+ * The page that the stub of `threadsafe-install.php` and of `threadsafe-restore.php` shows when it cannot go on: PHP too old, the key file missing, a directory it cannot make.
  * The stub is written for PHP 5.2 and runs before any code of the program is loaded, so this is source text for it: the same palette and logo as the
  * pages of the wizards ({@see Html}, {@see Logo}), in one block that reads `$threadsafeNotice` - `array(status line, title, HTML)` - and ends the run.
  * On the command line only the text of the notice is printed.

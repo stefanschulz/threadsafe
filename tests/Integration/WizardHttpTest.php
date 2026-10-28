@@ -15,7 +15,7 @@ use ThreadSafe\Tests\Support\WizardJourney;
  * The wizard behind a real web server (PHP's built-in one, started on a free port, running the development entry
  * tools/restore-web.php): the whole way a person goes - key, backup, target, database, summary, ticks from the page's own script,
  * deletion of the tool - with real requests, real cookies and real headers, and a real database server. The same journey through
- * the built `restore.php` is RestorePhpTest.
+ * the built `threadsafe-restore.php` is RestorePhpTest.
  */
 final class WizardHttpTest extends IntegrationTestCase
 {
@@ -61,8 +61,8 @@ final class WizardHttpTest extends IntegrationTestCase
         TortureDatabase::create($this->admin, $source);
         $this->admin->exec("CREATE DATABASE `$copy` CHARACTER SET utf8mb4");
         $parts = UploadedBackup::make($base . '/work', $web, $source, self::password());
-        file_put_contents($web . '/restore-key.php', "<?php return 'a long secret from the test';");
-        file_put_contents($web . '/restore.php', '<?php // the tool');
+        file_put_contents($web . '/threadsafe-restore-key.php', "<?php return 'a long secret from the test';");
+        file_put_contents($web . '/threadsafe-restore.php', '<?php // the tool');
 
         $this->wizard = new WebWizard(dirname(__DIR__, 2) . '/tools/restore-web.php', [], ['THREADSAFE_RESTORE_BASE' => $web]);
         $this->wizard->start();
@@ -85,8 +85,8 @@ final class WizardHttpTest extends IntegrationTestCase
 
         $gone = $this->wizard->request('POST', '/', ['action' => 'cleanup', 'csrf' => $this->wizard->csrf()]);
         self::assertStringContainsString('The tool is gone', $gone['body']);
-        self::assertFileDoesNotExist($web . '/restore.php');
-        self::assertFileDoesNotExist($web . '/restore-key.php');
+        self::assertFileDoesNotExist($web . '/threadsafe-restore.php');
+        self::assertFileDoesNotExist($web . '/threadsafe-restore-key.php');
         self::assertDirectoryDoesNotExist($web . '/.threadsafe-restore');
         foreach ($parts as $part) {
             self::assertFileExists($part, 'the backup stays unless the person asks');

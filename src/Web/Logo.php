@@ -6,7 +6,7 @@ namespace ThreadSafe\Web;
 
 /**
  * The logo (`.design/logo.svg`, docs/DESIGN.md "The logo") as markup the pages can carry: the graphite tile, the door of a safe in brass outline, and the brass
- * disc with the restore arrow that steps out of it. The wizards (`restore.php`, `install.php`) are single files and the interface is served under a policy
+ * disc with the restore arrow that steps out of it. The wizards (`threadsafe-restore.php`, `threadsafe-install.php`) are single files and the interface is served under a policy
  * that allows no inline style, so the logo is written with presentation attributes only - never a `style` attribute - and lives here, in the code, where
  * every page can reach it.
  */

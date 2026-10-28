@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace ThreadSafe\Build;
 
 /**
- * The first part of `restore.php`: the only part that every PHP version has to be able to read. It is written in the syntax of PHP
+ * The first part of `threadsafe-restore.php`: the only part that every PHP version has to be able to read. It is written in the syntax of PHP
  * 5.2 - no namespaces, closures, short arrays, `__DIR__`, `?:` or types, and no name with a backslash in it - because a parse
  * error in an old PHP would show nothing but a white page. It
  *
@@ -39,9 +39,9 @@ if (!function_exists('gzinflate')) {
     $threadsafeNotice = array('500 Internal Server Error', 'The PHP extension zlib is missing', "<p>This restore tool cannot unpack itself without the PHP extension <code>zlib</code>.</p><p>Ask your host to enable it and load this page again.</p>");
     break;
 }
-if (isset($_SERVER['REQUEST_METHOD']) && !is_file($threadsafeBase . '/restore-key.php')) {
+if (isset($_SERVER['REQUEST_METHOD']) && !is_file($threadsafeBase . '/threadsafe-restore-key.php')) {
     // on the web nothing happens, and nothing is written, until the person has put a key file next to this one
-    $threadsafeNotice = array('403 Forbidden', 'No access key yet', "<p>This restore tool does nothing until you give it a key.</p><p>Create a file named <code>restore-key.php</code> next to <code>" . htmlspecialchars(basename(__FILE__)) . "</code> with this content (choose your own secret of at least 8 characters):</p><pre><code>&lt;?php return 'a secret you choose';</code></pre><p class='help'>It is a PHP file on purpose: a plain text file would be served to anyone who asks for it. Then reload this page.</p>");
+    $threadsafeNotice = array('403 Forbidden', 'No access key yet', "<p>This restore tool does nothing until you give it a key.</p><p>Create a file named <code>threadsafe-restore-key.php</code> next to <code>" . htmlspecialchars(basename(__FILE__)) . "</code> with this content (choose your own secret of at least 8 characters):</p><pre><code>&lt;?php return 'a secret you choose';</code></pre><p class='help'>It is a PHP file on purpose: a plain text file would be served to anyone who asks for it. Then reload this page.</p>");
     break;
 }
 $threadsafeDir = $threadsafeBase . '/.threadsafe-restore';

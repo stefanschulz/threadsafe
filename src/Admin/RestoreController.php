@@ -18,7 +18,7 @@ use ThreadSafe\Web\Html;
 use ThreadSafe\Web\Response;
 
 /**
- * The restore help (docs/PHASE4.md 3.8): the steps for one backup, `restore.php` built from this installation, and a key file with a
+ * The restore help (docs/PHASE4.md 3.8): the steps for one backup, `threadsafe-restore.php` built from this installation, and a key file with a
  * new key. The restore itself is not done here - it is done by the separate tool, on the other server, which deletes itself.
  */
 final class RestoreController
@@ -58,19 +58,19 @@ final class RestoreController
         $application = trim($manifest->application['name'] . ' ' . ($manifest->application['version'] ?? ''));
 
         $body = '<p>Restoring <strong>' . Html::e($base) . '</strong> (' . Html::e($application) . ', ' . Html::e(SpaceCheck::format($entry->sidecar->size())) . ') onto a server of your choice takes four steps. '
-            . 'The restore is done by a separate tool, <code>restore.php</code>, which you put on the <em>target</em> server; it removes itself when it is done.</p>'
+            . 'The restore is done by a separate tool, <code>threadsafe-restore.php</code>, which you put on the <em>target</em> server; it removes itself when it is done.</p>'
             . '<ol class="steps">'
             . '<li><strong>Get the tool and a key.</strong> ' . $this->tools($context) . '</li>'
-            . '<li><strong>Upload</strong> <code>restore.php</code>, <code>restore-key.php</code> and ' . (count($entry->sidecar->parts) === 1 ? 'the archive' : 'all ' . count($entry->sidecar->parts) . ' parts of the backup') . ' into the (empty) directory of the new site on the target server.'
+            . '<li><strong>Upload</strong> <code>threadsafe-restore.php</code>, <code>threadsafe-restore-key.php</code> and ' . (count($entry->sidecar->parts) === 1 ? 'the archive' : 'all ' . count($entry->sidecar->parts) . ' parts of the backup') . ' into the (empty) directory of the new site on the target server.'
             . ' <a href="' . Html::e($context->urls->to("/profiles/$profileId/backups/$base/download")) . '">Download the backup</a>, or copy it from the storage directory by SFTP.</li>'
-            . '<li><strong>Open</strong> <code>restore.php</code> in the browser of the target server and enter the key.' . ($entry->sidecar->encryption !== null ? ' The backup is <strong>encrypted</strong>: on the page where you choose the backup, enter its <strong>secret key</strong> (the line <code>AGE-SECRET-KEY-1...</code> of the key file)' . ($entry->sidecar->encryption['passphrase'] ? ' or the <strong>passphrase</strong> you gave when you made it' : '') . '. This server does not have it, and without it nobody can open the backup. The target PHP needs the <code>sodium</code> extension.' : '') . '</li>'
+            . '<li><strong>Open</strong> <code>threadsafe-restore.php</code> in the browser of the target server and enter the key.' . ($entry->sidecar->encryption !== null ? ' The backup is <strong>encrypted</strong>: on the page where you choose the backup, enter its <strong>secret key</strong> (the line <code>AGE-SECRET-KEY-1...</code> of the key file)' . ($entry->sidecar->encryption['passphrase'] ? ' or the <strong>passphrase</strong> you gave when you made it' : '') . '. This server does not have it, and without it nobody can open the backup. The target PHP needs the <code>sodium</code> extension.' : '') . '</li>'
             . '<li><strong>Answer the questions</strong> (the new address, the new database) and let it run. It checks the target first and refuses to write into a directory or a database that is not empty.</li></ol>'
             . '<h2>The parts to upload</h2><div class="scroll"><table><thead><tr><th>File</th><th>Size</th><th>SHA-256</th></tr></thead><tbody>' . $parts . '</tbody></table></div>'
             . '<h2>What the target needs</h2><ul>'
             . '<li>PHP 8.4 or newer with <code>zlib</code>' . ($manifest->counts['tables'] > 0 ? ' and <code>pdo_mysql</code> or <code>mysqli</code>' : '') . '.</li>'
             . ($manifest->counts['tables'] > 0 ? '<li>An <strong>empty database</strong> and a user who may use it. The restore does not create it.</li>' : '')
             . '<li>An <strong>empty directory</strong> as the web root of the new site, with room for about ' . Html::e(SpaceCheck::format((int) ceil(($manifest->counts['fileBytes'] + $manifest->counts['databaseBytes']) * 1.1))) . '.</li></ul>'
-            . '<p class="hint">With shell access the same restore runs on the command line: <code>php restore.php restore ARCHIVE --root=DIR ...</code> (no key needed' . ($entry->sidecar->encryption !== null ? ' for the tool; the encrypted backup needs <code>--identity-file=KEYFILE</code> or <code>--passphrase-file=FILE</code>' : '') . '). See docs/RESTORE.md for everything it checks and what to do when it refuses.</p>'
+            . '<p class="hint">With shell access the same restore runs on the command line: <code>php threadsafe-restore.php restore ARCHIVE --root=DIR ...</code> (no key needed' . ($entry->sidecar->encryption !== null ? ' for the tool; the encrypted backup needs <code>--identity-file=KEYFILE</code> or <code>--passphrase-file=FILE</code>' : '') . '). See docs/RESTORE.md for everything it checks and what to do when it refuses.</p>'
             . '<p><a href="' . Html::e($context->urls->to("/profiles/$profileId/backups/$base")) . '">Back to the backup</a></p>';
 
         return View::page($context, 'Restore ' . $base, $body, '/profiles');
@@ -79,8 +79,8 @@ final class RestoreController
     private function tools(Context $context): string
     {
         return '<div class="actions">'
-            . '<a class="button" href="' . Html::e($context->urls->to('/restore-php')) . '">Download restore.php</a> '
-            . View::form($context, '/restore-key', '<button type="submit" name="mode" value="file">Download restore-key.php with a new key</button>', 'inline')
+            . '<a class="button" href="' . Html::e($context->urls->to('/restore-php')) . '">Download threadsafe-restore.php</a> '
+            . View::form($context, '/restore-key', '<button type="submit" name="mode" value="file">Download threadsafe-restore-key.php with a new key</button>', 'inline')
             . ' ' . View::form($context, '/restore-key', '<button type="submit" name="mode" value="show" class="secondary">Show a new key instead</button>', 'inline')
             . '</div><p class="hint">The key is not stored on this server. Keep it until the restore is done; then delete the key file.</p>';
     }
@@ -99,7 +99,7 @@ final class RestoreController
         }
         $this->services->audit->record('restore.tool', $context->user() ?? '-', $context->request->remoteAddress);
 
-        return Download::response($context->request, $path, 'restore.php', (string) hash_file('sha256', $path), contentType: 'application/octet-stream');
+        return Download::response($context->request, $path, 'threadsafe-restore.php', (string) hash_file('sha256', $path), contentType: 'application/octet-stream');
     }
 
     /**
@@ -114,7 +114,7 @@ final class RestoreController
 
         if ($context->request->post('mode') === 'show') {
             $body = '<p>Your new key (shown once; it is not stored here):</p><pre><code>' . Html::e($key) . '</code></pre>'
-                . '<p>Put it into a file named <code>restore-key.php</code> next to <code>restore.php</code>, with exactly this content:</p>'
+                . '<p>Put it into a file named <code>threadsafe-restore-key.php</code> next to <code>threadsafe-restore.php</code>, with exactly this content:</p>'
                 . '<pre><code>' . Html::e(RestoreKit::keyFile($key)) . '</code></pre>'
                 . '<p class="hint">It is a PHP file on purpose: a plain text file would be handed out to anyone who asks for it. Delete it when the restore is done.</p>'
                 . '<p><a href="' . Html::e($context->urls->to('/profiles')) . '">Back to the profiles</a></p>';
@@ -124,7 +124,7 @@ final class RestoreController
 
         return new Response(200, [
             'Content-Type: application/octet-stream',
-            'Content-Disposition: attachment; filename="restore-key.php"',
+            'Content-Disposition: attachment; filename="threadsafe-restore-key.php"',
             'Cache-Control: no-store',
         ], RestoreKit::keyFile($key));
     }

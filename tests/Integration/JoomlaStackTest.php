@@ -24,7 +24,7 @@ use ThreadSafe\Tests\Support\WizardJourney;
 /**
  * Phase 6 on the real thing: the two seeded Joomla sites of the stack (Joomla 5.4 on port 8195, Joomla 6 on port 8196; tests/stack/seed-joomla.sh)
  * are backed up through their profiles, and the backups are restored into the empty target stack - by one command on another domain, by
- * one command into a sub-directory, and through the `restore.php` wizard under limits of 5 seconds and 64 MB - and the restored site must
+ * one command into a sub-directory, and through the `threadsafe-restore.php` wizard under limits of 5 seconds and 64 MB - and the restored site must
  * serve: its pages answer, its content points to the new domain and to nothing of the old one, what must not change did not change, and
  * its configuration is right for the host (database, interface, paths).
  *
@@ -425,14 +425,14 @@ final class JoomlaStackTest extends IntegrationTestCase
         $this->emptyTarget('joomla_target');
 
         // what the person puts into the empty directory: the tool, the key, the backup
-        (new RestoreBuilder(dirname(__DIR__, 2)))->build(self::TARGET . '/restore.php');
-        file_put_contents(self::TARGET . '/restore-key.php', "<?php return 'a long secret from the joomla test';");
+        (new RestoreBuilder(dirname(__DIR__, 2)))->build(self::TARGET . '/threadsafe-restore.php');
+        file_put_contents(self::TARGET . '/threadsafe-restore-key.php', "<?php return 'a long secret from the joomla test';");
         copy($archive, self::TARGET . '/' . basename($archive));
         foreach (glob(self::TARGET . '/*') ?: [] as $file) {
             chmod($file, 0644);
         }
 
-        $wizard = new WebWizard(baseUrl: Stack::TARGET_URL, scriptPath: '/restore.php');
+        $wizard = new WebWizard(baseUrl: Stack::TARGET_URL, scriptPath: '/threadsafe-restore.php');
         $journey = WizardJourney::restore($wizard, 'a long secret from the joomla test', [
             'root' => '/var/www/html', 'db_host' => 'target-db', 'db_port' => '3306', 'db_name' => 'joomla_target', 'db_user' => 'root', 'db_password' => self::password(), 'db_prefix' => 'joom_',
             'f_from' => '', 'f_to' => Stack::TARGET_HOST, 'f_path' => '',
@@ -440,7 +440,7 @@ final class JoomlaStackTest extends IntegrationTestCase
         self::assertGreaterThan(3, $journey['ticks'], 'a restore of 9,000 files in requests of 5 seconds takes several of them');
         $gone = $wizard->request('POST', '/', ['action' => 'cleanup', 'csrf' => $wizard->csrf()]);
         self::assertStringContainsString('The tool is gone', $gone['body']);
-        foreach (['restore.php', 'restore-key.php', '.threadsafe-restore'] as $name) {
+        foreach (['threadsafe-restore.php', 'threadsafe-restore-key.php', '.threadsafe-restore'] as $name) {
             self::assertFileDoesNotExist(self::TARGET . '/' . $name, "$name is deleted");
         }
         @unlink(self::TARGET . '/' . basename($archive));

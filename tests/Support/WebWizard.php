@@ -21,12 +21,12 @@ final class WebWizard
     private string $csrf = '';
 
     /**
-     * @param string                $router   the script the server runs for every request (restore.php, or tools/restore-web.php)
+     * @param string                $router   the script the server runs for every request (threadsafe-restore.php, or tools/restore-web.php)
      * @param array<string, string> $settings php.ini settings for the server, e.g. ['max_execution_time' => '5']
      * @param array<string, string> $env      environment of the server process
      * @param string|null           $baseUrl  a web server that is running already (the target stack's Apache, `http://target-prestashop`); then
      *                                        nothing is started and the tool is at $scriptPath
-     * @param string                $scriptPath the path of the tool on that server, e.g. `/restore.php`
+     * @param string                $scriptPath the path of the tool on that server, e.g. `/threadsafe-restore.php`
      */
     public function __construct(private readonly string $router = '', private readonly array $settings = [], private readonly array $env = [], private readonly ?string $baseUrl = null, private readonly string $scriptPath = '')
     {

@@ -68,17 +68,17 @@ final class WizardTest extends TestCase
             copy($part, $this->web . '/' . basename($part));
             $this->parts[] = $this->web . '/' . basename($part);
         }
-        file_put_contents($this->web . '/restore.php', '<?php // the tool');
+        file_put_contents($this->web . '/threadsafe-restore.php', '<?php // the tool');
     }
 
     private function key(string $key = self::KEY): void
     {
-        file_put_contents($this->web . '/restore-key.php', "<?php return '$key';");
+        file_put_contents($this->web . '/threadsafe-restore-key.php', "<?php return '$key';");
     }
 
     private function wizard(): Wizard
     {
-        return new Wizard($this->web, PluginRegistry::load(), 'restore.php', fn (): int => $this->now, static fn (): Budget => new Budget(0.0));
+        return new Wizard($this->web, PluginRegistry::load(), 'threadsafe-restore.php', fn (): int => $this->now, static fn (): Budget => new Budget(0.0));
     }
 
     private function loggedIn(bool $https = false, string $address = '127.0.0.1', string $host = ''): WizardClient
@@ -99,7 +99,7 @@ final class WizardTest extends TestCase
         $response = (new WizardClient($this->wizard()))->get();
 
         self::assertSame(403, $response->status);
-        self::assertStringContainsString('restore-key.php', $response->body);
+        self::assertStringContainsString('threadsafe-restore-key.php', $response->body);
         self::assertStringContainsString('&lt;?php return', $response->body);
         self::assertSame(['.', '..'], scandir($this->web), 'not even the state directory is made');
     }
@@ -139,7 +139,7 @@ final class WizardTest extends TestCase
         }
         $response = $client->post(['action' => 'cleanup'], [], true, false);
         self::assertStringContainsString('name="key"', $response->body);
-        self::assertFileExists($this->web . '/restore.php', 'nothing was deleted');
+        self::assertFileExists($this->web . '/threadsafe-restore.php', 'nothing was deleted');
     }
 
     public function testAWrongKeyIsRefusedAndThrottled(): void
@@ -208,7 +208,7 @@ final class WizardTest extends TestCase
 
         self::assertSame(403, $response->status);
         self::assertStringContainsString('expired', $response->body);
-        self::assertFileExists($this->web . '/restore.php');
+        self::assertFileExists($this->web . '/threadsafe-restore.php');
 
         $wrong = $client->post(['action' => 'cleanup', 'csrf' => 'not-the-token'], [], true, false);
         self::assertSame(403, $wrong->status);
@@ -343,12 +343,12 @@ final class WizardTest extends TestCase
         $done = $client->get(['step' => 'done']);
         self::assertStringContainsString('The backup is restored', $done->body);
         self::assertStringContainsString('Delete the tool now', $done->body);
-        self::assertFileExists($this->web . '/restore.php');
+        self::assertFileExists($this->web . '/threadsafe-restore.php');
 
         $gone = $client->post(['action' => 'cleanup']);
         self::assertStringContainsString('The tool is gone', $gone->body);
-        self::assertFileDoesNotExist($this->web . '/restore.php');
-        self::assertFileDoesNotExist($this->web . '/restore-key.php');
+        self::assertFileDoesNotExist($this->web . '/threadsafe-restore.php');
+        self::assertFileDoesNotExist($this->web . '/threadsafe-restore-key.php');
         self::assertDirectoryDoesNotExist($this->web . '/.threadsafe-restore');
         foreach ($this->parts as $part) {
             self::assertFileExists($part, 'the backup stays unless the person asks');
@@ -434,14 +434,14 @@ final class WizardTest extends TestCase
 
         $content = (string) file_get_contents($this->web . '/.htaccess');
         self::assertStringStartsWith(ToolGuard::BEGIN, $content, 'the tool stays reachable while the page of the end is shown');
-        self::assertStringContainsString('RewriteRule ^restore\\.php$ - [L]', $content);
+        self::assertStringContainsString('RewriteRule ^threadsafe-restore\\.php$ - [L]', $content);
         self::assertStringEndsWith($htaccess, $content);
 
         $client->get(['step' => 'done']);
         $client->post(['action' => 'cleanup']);
 
         self::assertSame($htaccess, file_get_contents($this->web . '/.htaccess'), 'the file is the site\'s own again when the tool is gone');
-        self::assertFileDoesNotExist($this->web . '/restore.php');
+        self::assertFileDoesNotExist($this->web . '/threadsafe-restore.php');
     }
 
     public function testARestoreIntoAnotherDirectoryLeavesTheHtaccessAlone(): void
@@ -536,7 +536,7 @@ final class WizardTest extends TestCase
 
     public function testTheNewDomainStartsWithTheHostThePageIsServedAt(): void
     {
-        $wizard = new Wizard($this->web, PluginRegistry::load(), 'restore.php', fn (): int => $this->now, static fn (): Budget => new Budget(0.0));
+        $wizard = new Wizard($this->web, PluginRegistry::load(), 'threadsafe-restore.php', fn (): int => $this->now, static fn (): Budget => new Budget(0.0));
         (new WizardClient($wizard, host: 'Restore.Example.org:8443'))->get();
         $proposal = new \ReflectionMethod($wizard, 'defaultOf');
 
@@ -602,12 +602,12 @@ final class WizardTest extends TestCase
         $client->post(['action' => 'save-target', 'root' => $this->base . '/restored']);
 
         $client->post(['action' => 'cleanup']);
-        self::assertFileExists($this->web . '/restore.php');
+        self::assertFileExists($this->web . '/threadsafe-restore.php');
 
         $client->post(['action' => 'start']);
         $client->post(['action' => 'tick', 'format' => 'json']);
         $client->post(['action' => 'cleanup']);
-        self::assertFileExists($this->web . '/restore.php', 'a restore that is not finished keeps its tool');
+        self::assertFileExists($this->web . '/threadsafe-restore.php', 'a restore that is not finished keeps its tool');
     }
 
     public function testATargetThatIsNotEmptyBlocksTheStart(): void

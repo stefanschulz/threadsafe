@@ -11,8 +11,8 @@ use ThreadSafe\Cli\StreamOutput;
 use ThreadSafe\Engine\Budget;
 
 /**
- * What the single-file `restore.php` does once its code is loaded: on a web server it is the wizard; in a shell
- * (`php restore.php restore <archive> --root=DIR ...`) it is the `restore` command, which needs no key because shell access is
+ * What the single-file `threadsafe-restore.php` does once its code is loaded: on a web server it is the wizard; in a shell
+ * (`php threadsafe-restore.php restore <archive> --root=DIR ...`) it is the `restore` command, which needs no key because shell access is
  * trusted already (docs/PHASE3.md 3.10).
  */
 final class Entry

@@ -57,8 +57,8 @@ jobs:
           name: release
           path: |
             dist/release/threadsafe-*.zip
-            dist/release/install.php
-            dist/release/restore.php
+            dist/release/threadsafe-install.php
+            dist/release/threadsafe-restore.php
             dist/release/SHA256SUMS
             release-notes.md
           if-no-files-found: error
@@ -111,7 +111,7 @@ jobs:
           if [[ "$VERSION" == 0.* || "$VERSION" == *-* ]]; then PRE="--prerelease"; fi
           gh release create "$GITHUB_REF_NAME" \
             release/dist/release/threadsafe-"$VERSION".zip \
-            release/dist/release/install.php \
-            release/dist/release/restore.php \
+            release/dist/release/threadsafe-install.php \
+            release/dist/release/threadsafe-restore.php \
             release/dist/release/SHA256SUMS \
             --repo "$GITHUB_REPOSITORY" --title "ThreadSafe $VERSION" --notes-file release/release-notes.md --verify-tag $PRE

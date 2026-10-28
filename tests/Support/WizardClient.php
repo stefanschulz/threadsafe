@@ -29,7 +29,7 @@ final class WizardClient
      */
     public function get(array $query = [], bool $follow = true): Response
     {
-        return $this->send(new Request('GET', $query, [], $this->cookies(), $this->https, $this->address, '/restore.php', $this->headers()), $follow);
+        return $this->send(new Request('GET', $query, [], $this->cookies(), $this->https, $this->address, '/threadsafe-restore.php', $this->headers()), $follow);
     }
 
     /**
@@ -42,7 +42,7 @@ final class WizardClient
             $fields += ['csrf' => $this->csrf];
         }
 
-        return $this->send(new Request('POST', $query, $fields, $this->cookies(), $this->https, $this->address, '/restore.php', $this->headers()), $follow);
+        return $this->send(new Request('POST', $query, $fields, $this->cookies(), $this->https, $this->address, '/threadsafe-restore.php', $this->headers()), $follow);
     }
 
     public function csrf(): string
@@ -83,7 +83,7 @@ final class WizardClient
             foreach ($parsed as $name => $value) {
                 $query[(string) $name] = is_string($value) ? $value : '';
             }
-            $request = new Request('GET', $query, [], $this->cookies(), $this->https, $this->address, '/restore.php', $this->headers());
+            $request = new Request('GET', $query, [], $this->cookies(), $this->https, $this->address, '/threadsafe-restore.php', $this->headers());
         }
 
         throw new \RuntimeException('Too many redirects.');

@@ -19,7 +19,7 @@ php bin/threadsafe backup shop
 
 # 4. check with the key, restore with the key
 php bin/threadsafe verify shop --identity-file=/safe/place/shop-key.txt
-php restore.php restore shop_..._p01.zip.age --root=DIR --identity-file=/safe/place/shop-key.txt ...
+php threadsafe-restore.php restore shop_..._p01.zip.age --root=DIR --identity-file=/safe/place/shop-key.txt ...
 ```
 
 In the browser: *Profiles* → the site → **Keys** → *Make a key pair* (section 3), or paste public keys into the *Encryption* section of the profile form.
@@ -72,7 +72,7 @@ The run goes through the usual stages and two more: after **pack** come **close*
 
 ## 7. Restoring
 
-`restore` and `restore.php` take the secret key or the passphrase ([RESTORE.md](RESTORE.md) section 12): `--identity-file=FILE`, `--passphrase-file=FILE` (or `THREADSAFE_PASSPHRASE`), or the field on the first page of the wizard. The parts are read through a decrypting stream, one block at a time, so nothing is decrypted to disk and the free space needed is that of a plain restore. A wrong key is refused with the name of the part **before anything is written**. The target PHP needs `ext-sodium`; a backup for a passphrase costs about three seconds and 42 MB of key derivation per step of the restore.
+`restore` and `threadsafe-restore.php` take the secret key or the passphrase ([RESTORE.md](RESTORE.md) section 12): `--identity-file=FILE`, `--passphrase-file=FILE` (or `THREADSAFE_PASSPHRASE`), or the field on the first page of the wizard. The parts are read through a decrypting stream, one block at a time, so nothing is decrypted to disk and the free space needed is that of a plain restore. A wrong key is refused with the name of the part **before anything is written**. The target PHP needs `ext-sodium`; a backup for a passphrase costs about three seconds and 42 MB of key derivation per step of the restore.
 
 ## 8. With the real `age` tool
 

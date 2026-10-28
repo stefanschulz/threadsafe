@@ -36,8 +36,8 @@ final class BuildRestoreToolTest extends TestCase
         [$code, $output] = $this->tool('--help');
 
         self::assertSame(0, $code);
-        self::assertStringContainsString('default: dist/dev/restore.php, a development build', $output);
-        self::assertStringContainsString('dist/release/restore.php', $output);
+        self::assertStringContainsString('default: dist/dev/threadsafe-restore.php, a development build', $output);
+        self::assertStringContainsString('dist/release/threadsafe-restore.php', $output);
     }
 
     public function testAnUnknownOptionIsAnErrorAndWritesNothing(): void
@@ -54,7 +54,7 @@ final class BuildRestoreToolTest extends TestCase
 
     public function testAnExplicitOutputIsWrittenAndCalledADevelopmentBuildOnlyByDefault(): void
     {
-        $target = $this->tempDirectory() . '/restore.php';
+        $target = $this->tempDirectory() . '/threadsafe-restore.php';
 
         [$code, $output] = $this->tool(escapeshellarg($target));
 

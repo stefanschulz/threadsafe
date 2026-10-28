@@ -44,7 +44,7 @@ final class Wizard
 {
     public const string COOKIE = 'threadsafe_restore';
 
-    private const string KEY_FILE = 'restore-key.php';
+    private const string KEY_FILE = 'threadsafe-restore-key.php';
 
     /** What to do when the web server refuses a step of the restore with HTTP 403. */
     private const string HINT_403 = 'HTTP 403 usually means that a rule of the web server refuses this file: the .htaccess of the restored site (a security extension such as Admin Tools refuses direct requests for PHP files) or the host. Rename the .htaccess in this directory (for example to .htaccess.off), then press "Continue"; put it back when the restore is done.';
@@ -71,7 +71,7 @@ final class Wizard
     public function __construct(
         private readonly string $baseDirectory,
         ?PluginRegistry $plugins = null,
-        private readonly string $script = 'restore.php',
+        private readonly string $script = 'threadsafe-restore.php',
         ?Closure $clock = null,
         private readonly ?Closure $budgets = null,
     ) {

@@ -40,7 +40,7 @@ use ThreadSafe\Web\StateDirectory;
  * settings of the website type, see {@see \ThreadSafe\Migration\RequestBuilder}, without `root`; `database` holds the target
  * database, the password included), `type` (override the website type of the backup), `allowLeftovers`, `dropTables` (delete the tables of the target's table prefix before the import instead of refusing a database that has some), `work` (default
  * `<root>/.threadsafe-restore`), `unlock` (what opens an encrypted backup: {@see Unlock::toArray()}), `journalDirectory` (default `<work>/journal`), `protected` (paths below the root that are
- * never written: default `restore.php`, `restore-key.php`, the work directory), `guard` (paths of the tool's files below the root that the
+ * never written: default `threadsafe-restore.php`, `threadsafe-restore-key.php`, the work directory), `guard` (paths of the tool's files below the root that the
  * `.htaccess` of the restored site must not lock out, see {@see ToolGuard}; the wizard names its own script, the command none).
  *
  * The state holds the secret key or passphrase of an encrypted backup until the extraction is done and the database password until the last
@@ -99,7 +99,7 @@ final class RestoreRun implements Task
             'allowLeftovers' => (bool) ($parameters['allowLeftovers'] ?? false),
             'dropTables' => (bool) ($parameters['dropTables'] ?? false),
             'cleared' => false,
-            'protected' => array_values(array_map('strval', (array) ($parameters['protected'] ?? ['restore.php', 'restore-key.php']))),
+            'protected' => array_values(array_map('strval', (array) ($parameters['protected'] ?? ['threadsafe-restore.php', 'threadsafe-restore-key.php']))),
             'guard' => array_values(array_map('strval', (array) ($parameters['guard'] ?? []))),
             'parts' => [],
             'manifest' => null,

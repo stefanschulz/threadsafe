@@ -19,7 +19,7 @@ use ThreadSafe\Tests\Support\WizardJourney;
 /**
  * Disaster recovery (docs/CONCEPT.md section 7, PHASE3.md 4.2 item 3): the working target shop is backed up; then
  * `tests/stack/run.sh` DESTROYS the target's containers and volumes and makes them again, empty, on the same domain and port; the
- * single file `restore.php` goes into the empty web directory with the key and the backup, and the wizard - served by the target's
+ * single file `threadsafe-restore.php` goes into the empty web directory with the key and the backup, and the wizard - served by the target's
  * own Apache, under the limits of `.docker/target-restore-limits.conf` (5 seconds, 64 MB) - brings the shop back. Then the pages are
  * asked for, and every table and file is compared with what the shop was before.
  *
@@ -63,8 +63,8 @@ final class DisasterRecoveryTest extends IntegrationTestCase
         $manifest = Manifest::fromArchive((string) end($parts));
 
         // what the tool and the person put into the empty directory
-        (new RestoreBuilder(dirname(__DIR__, 2)))->build(self::DIRECTORY . '/upload/restore.php');
-        file_put_contents(self::DIRECTORY . '/upload/restore-key.php', "<?php return 'disaster recovery key 12345';");
+        (new RestoreBuilder(dirname(__DIR__, 2)))->build(self::DIRECTORY . '/upload/threadsafe-restore.php');
+        file_put_contents(self::DIRECTORY . '/upload/threadsafe-restore-key.php', "<?php return 'disaster recovery key 12345';");
 
         // the state of the shop as the backup holds it (structure-only tables keep no rows; the visits above wrote some)
         $structureOnly = array_map(static fn (string $t): string => 'ps_' . $t, $manifest->filters['structureOnlyTables']);
@@ -74,7 +74,7 @@ final class DisasterRecoveryTest extends IntegrationTestCase
             $checksums[(string) $table] = is_array($row) ? (string) $row[1] : null;
         }
         // the backup leaves some paths out (caches, logs); the tool and the host's placeholder are not the shop's
-        $skip = [...$manifest->filters['excludePaths'], ...$manifest->filters['literalExcludes'], 'restore.php', 'restore-key.php', '.threadsafe-restore', 'index.html', 'threadsafe-journal'];
+        $skip = [...$manifest->filters['excludePaths'], ...$manifest->filters['literalExcludes'], 'threadsafe-restore.php', 'threadsafe-restore-key.php', '.threadsafe-restore', 'index.html', 'threadsafe-journal'];
         file_put_contents(self::DIRECTORY . '/expected.json', json_encode([
             'skip' => $skip,
             'paths' => $paths,
@@ -116,7 +116,7 @@ final class DisasterRecoveryTest extends IntegrationTestCase
         }
         file_put_contents('/shops/target/index.html', '<html>The host says: coming soon</html>');
 
-        $wizard = new WebWizard(baseUrl: Stack::TARGET_URL, scriptPath: '/restore.php');
+        $wizard = new WebWizard(baseUrl: Stack::TARGET_URL, scriptPath: '/threadsafe-restore.php');
         $wrong = $wizard->request('POST', '/', ['action' => 'login', 'key' => 'a stranger guessing']);
         self::assertSame(403, $wrong['status']);
 
@@ -127,7 +127,7 @@ final class DisasterRecoveryTest extends IntegrationTestCase
         self::assertGreaterThan(3, $journey['ticks'], 'a restore of 40,000 files in requests of 5 seconds takes several of them');
         $gone = $wizard->request('POST', '/', ['action' => 'cleanup', 'csrf' => $wizard->csrf()]);
         self::assertStringContainsString('The tool is gone', $gone['body']);
-        foreach (['restore.php', 'restore-key.php', '.threadsafe-restore'] as $name) {
+        foreach (['threadsafe-restore.php', 'threadsafe-restore-key.php', '.threadsafe-restore'] as $name) {
             self::assertFileDoesNotExist('/shops/target/' . $name, "$name is deleted");
         }
         self::assertFileExists('/shops/target/index.html', 'what the host had there is not touched');

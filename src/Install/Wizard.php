@@ -25,11 +25,11 @@ use ThreadSafe\Web\RunView;
 use ThreadSafe\Web\Sessions;
 
 /**
- * The web installer (docs/PHASE7.md 3.3): server-rendered pages for a person who has uploaded `install.php` to the document root of a
+ * The web installer (docs/PHASE7.md 3.3): server-rendered pages for a person who has uploaded `threadsafe-install.php` to the document root of a
  * host and wants ThreadSafe there. One address, the steps selected by `?step=`; every request that changes something is a POST with a
  * CSRF token.
  *
- * Nothing happens without the key file `install-key.php` ({@see AccessKey}). Steps: key → check and place → install (the
+ * Nothing happens without the key file `threadsafe-install-key.php` ({@see AccessKey}). Steps: key → check and place → install (the
  * {@see InstallRun} in ticks, one per request, from a few lines of JavaScript or a button) → done, where the installer deletes itself
  * and hands the person on to the setup page of the installed interface.
  */
@@ -37,7 +37,7 @@ final class Wizard
 {
     public const string COOKIE = 'threadsafe_install';
 
-    public const string KEY_FILE = 'install-key.php';
+    public const string KEY_FILE = 'threadsafe-install-key.php';
 
     public const string STATE = '.threadsafe-install';
 
@@ -54,7 +54,7 @@ final class Wizard
     private string $nonce = '';
 
     /**
-     * @param string                 $script  absolute path of `install.php`
+     * @param string                 $script  absolute path of `threadsafe-install.php`
      * @param Closure(): int|null    $clock   for tests
      * @param Closure(): Budget|null $budgets the budget of a tick; default: a share of the request time limit
      */
@@ -185,7 +185,7 @@ final class Wizard
         try {
             $package = InstallPackage::open($this->script);
         } catch (InstallException $e) {
-            return $this->page('This installer is damaged', '<p class="fail">' . Html::e($e->getMessage()) . '</p><p>Upload <code>install.php</code> again, and compare its SHA-256 with the one on the release page.</p>', 500, 'check');
+            return $this->page('This installer is damaged', '<p class="fail">' . Html::e($e->getMessage()) . '</p><p>Upload <code>threadsafe-install.php</code> again, and compare its SHA-256 with the one on the release page.</p>', 500, 'check');
         }
         $checks = $this->checks($package);
         $blocked = array_filter($checks, static fn (Check $check): bool => $check->level === CheckLevel::Failure) !== [];

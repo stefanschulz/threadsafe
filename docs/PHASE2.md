@@ -13,7 +13,7 @@ Phase 2 ends with a **round trip without a restore wizard**: backup â†’ unzip â†
 |---|---|
 | site profiles as JSON files, connection test, CLI to manage them | web interface, dashboard, download (phase 4) |
 | website types `generic` and `prestashop9` get a *backup* side (detection, database credentials, default filters, manifest extras) | further types (WordPress, Joomla ...) |
-| resumable file scanner with filters; resumable database dumper (tables, views, triggers) | restore: `restore.php`, importing a dump, restoring over an existing installation (phase 3) |
+| resumable file scanner with filters; resumable database dumper (tables, views, triggers) | restore: `threadsafe-restore.php`, importing a dump, restoring over an existing installation (phase 3) |
 | streaming ZIP writer (ZIP64, splitting into self-contained parts) and a ZIP reader | cron schedule, retention, encryption (phase 5) |
 | manifest, sidecar file, local storage per profile, free-space check, locks, queue | SFTP/S3/WebDAV export (`Postproc` interface only; the local one is built) |
 | CLI: `profile`, `backup`, `backups`, `verify` | anonymisation of customer data, incremental backups |

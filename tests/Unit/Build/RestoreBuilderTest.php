@@ -25,7 +25,7 @@ final class RestoreBuilderTest extends TestCase
 
     public static function setUpBeforeClass(): void
     {
-        self::$built = sys_get_temp_dir() . '/threadsafe-test-build-' . bin2hex(random_bytes(4)) . '/restore.php';
+        self::$built = sys_get_temp_dir() . '/threadsafe-test-build-' . bin2hex(random_bytes(4)) . '/threadsafe-restore.php';
         self::$result = (new RestoreBuilder(dirname(__DIR__, 3)))->build(self::$built);
     }
 
@@ -143,7 +143,7 @@ final class RestoreBuilderTest extends TestCase
     {
         $stub = RestoreStub::source('test');
 
-        self::assertLessThan(strpos($stub, 'mkdir'), strpos($stub, "restore-key.php'"), 'the key check comes before the first directory is made');
+        self::assertLessThan(strpos($stub, 'mkdir'), strpos($stub, "threadsafe-restore-key.php'"), 'the key check comes before the first directory is made');
     }
 
     public function testTheBundleAloneIsTheSameCodeThatIsInTheTool(): void

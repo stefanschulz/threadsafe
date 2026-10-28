@@ -25,7 +25,7 @@ use ThreadSafe\Tests\Support\WizardJourney;
  * made by `keys generate`; the real `age` tool opens every part with that key file, the ZIP inside passes `unzip -t`, the sealed file has
  * the SHA-256 of the sidecar, and the sidecar names nothing of the site. A passphrase backup of a small directory opens with `age`
  * too. Then the encrypted backup of the shop is restored into the target stack, once by `threadsafe restore --identity-file` (a wrong
- * key is refused before anything is written) and once by `restore.php` through the wizard of the target's own Apache under 5 seconds and
+ * key is refused before anything is written) and once by `threadsafe-restore.php` through the wizard of the target's own Apache under 5 seconds and
  * 64 MB, with the secret key typed into the first page; tables and files are compared with the source, and the secret key is found in no
  * file of the tool.
  *
@@ -321,8 +321,8 @@ final class EncryptionStackTest extends IntegrationTestCase
         $upload = self::DIRECTORY . '/upload';
         exec('rm -rf ' . escapeshellarg($upload));
         mkdir($upload, 0777, true);
-        (new RestoreBuilder(dirname(__DIR__, 2)))->build($upload . '/restore.php');
-        file_put_contents($upload . '/restore-key.php', "<?php return 'encrypted restore key 12345';");
+        (new RestoreBuilder(dirname(__DIR__, 2)))->build($upload . '/threadsafe-restore.php');
+        file_put_contents($upload . '/threadsafe-restore-key.php', "<?php return 'encrypted restore key 12345';");
         foreach (self::sealedParts($storage, self::$backup) as $part) {
             copy($part, $upload . '/' . basename($part));
         }
@@ -337,7 +337,7 @@ final class EncryptionStackTest extends IntegrationTestCase
 
         // a wrong key is refused on the first page; nothing is written
         $stranger = AgeKeys::generate();
-        $wizard = new WebWizard(baseUrl: Stack::TARGET_URL, scriptPath: '/restore.php');
+        $wizard = new WebWizard(baseUrl: Stack::TARGET_URL, scriptPath: '/threadsafe-restore.php');
         $page = $wizard->request('GET', '/');
         $login = $wizard->request('POST', '/', ['action' => 'login', 'key' => 'encrypted restore key 12345'] + (str_contains($page['body'], 'name="plain"') ? ['plain' => '1'] : []));
         self::assertSame(303, $login['status'], $login['body']);
@@ -355,7 +355,7 @@ final class EncryptionStackTest extends IntegrationTestCase
         self::assertSame(0, self::tablesInTarget());
 
         // the right one restores the shop in requests of 5 seconds
-        $restoring = new WebWizard(baseUrl: Stack::TARGET_URL, scriptPath: '/restore.php');
+        $restoring = new WebWizard(baseUrl: Stack::TARGET_URL, scriptPath: '/threadsafe-restore.php');
         $journey = WizardJourney::restore($restoring, 'encrypted restore key 12345', $target, self::$secret);
         self::assertGreaterThan(3, $journey['ticks'], 'a restore of 40,000 files in requests of 5 seconds takes several of them');
 

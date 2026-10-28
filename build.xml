@@ -2,8 +2,8 @@
 <!--
   Phing build file of ThreadSafe (docs/PHASE7.md 3.1, AGENTS.md "Making a release").
 
-  Builds the release: the package threadsafe-X.Y.Z.zip, the web installer install.php (the same package behind a stub, also a ZIP archive),
-  the generic restore tool restore.php of that version, and the file of checksums SHA256SUMS. The work is done by tools/build-release.php, which
+  Builds the release: the package threadsafe-X.Y.Z.zip, the web installer threadsafe-install.php (the same package behind a stub, also a ZIP archive),
+  the generic restore tool threadsafe-restore.php of that version, and the file of checksums SHA256SUMS. The work is done by tools/build-release.php, which
   the release workflow (.github/workflows/release.yml) runs as well, so a build made here is the one a tag would give.
 
     vendor/bin/phing                          build 0.0.0-dev into dist/release (a package for trying out)
@@ -48,7 +48,7 @@
     </target>
 
     <target name="build" depends="check-version,clean"
-            description="Builds threadsafe-X.Y.Z.zip, install.php, restore.php and SHA256SUMS into the output directory">
+            description="Builds threadsafe-X.Y.Z.zip, threadsafe-install.php, threadsafe-restore.php and SHA256SUMS into the output directory">
         <echo message="Building ThreadSafe ${release.version} into ${output}"/>
         <exec executable="${php.interpreter}" dir="${project.basedir}" checkreturn="true" passthru="true">
             <arg value="tools/build-release.php"/>
@@ -57,16 +57,16 @@
             <arg value="--composer=${composer}"/>
         </exec>
         <echo message="Package:   ${output}/threadsafe-${release.version}.zip"/>
-        <echo message="Installer: ${output}/install.php"/>
+        <echo message="Installer: ${output}/threadsafe-install.php"/>
         <echo message="Checksums: ${output}/SHA256SUMS"/>
     </target>
 
     <!-- The package and the installer are made from one tree in one run; these names are for finding the target. -->
     <target name="package" depends="build" description="Same as build: the package threadsafe-X.Y.Z.zip is among the files"/>
-    <target name="installer" depends="build" description="Same as build: the installer install.php is among the files"/>
+    <target name="installer" depends="build" description="Same as build: the installer threadsafe-install.php is among the files"/>
 
     <target name="verify" depends="build"
-            description="Builds, then tests the built files on their own (checksums, unzip, the unpacked package, the installer's wizard, restore.php)">
+            description="Builds, then tests the built files on their own (checksums, unzip, the unpacked package, the installer's wizard, threadsafe-restore.php)">
         <exec executable="${php.interpreter}" dir="${project.basedir}" checkreturn="true" passthru="true">
             <arg value="tools/test-release.php"/>
             <arg value="${output}"/>
@@ -74,7 +74,7 @@
         </exec>
     </target>
 
-    <target name="restore" description="Builds only the generic restore tool as a development build, dist/dev/restore.php (version 0.0.0-dev; the one to hand out is dist/release/restore.php)">
+    <target name="restore" description="Builds only the generic restore tool as a development build, dist/dev/threadsafe-restore.php (version 0.0.0-dev; the one to hand out is dist/release/threadsafe-restore.php)">
         <exec executable="${php.interpreter}" dir="${project.basedir}" checkreturn="true" passthru="true">
             <arg value="tools/build-restore.php"/>
         </exec>

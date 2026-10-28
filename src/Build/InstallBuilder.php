@@ -11,7 +11,7 @@ use RuntimeException;
 use ThreadSafe\Core\Version;
 
 /**
- * Builds the web installer `install.php` (docs/PHASE7.md 3.3): {@see InstallStub}, the installer's code (the bundle of the program
+ * Builds the web installer `threadsafe-install.php` (docs/PHASE7.md 3.3): {@see InstallStub}, the installer's code (the bundle of the program
  * without the web interface and the build tools, deflated), and behind them the release package as a ZIP archive with shifted offsets
  * ({@see ZipShift}), so that the file is the installer, the package, and a ZIP archive that `unzip` opens.
  *
@@ -55,7 +55,7 @@ final class InstallBuilder
     }
 
     /**
-     * Writes `install.php`.
+     * Writes `threadsafe-install.php`.
      *
      * @param string $package path of the release package (a ZIP archive)
      *

@@ -27,7 +27,7 @@ use ThreadSafe\Tests\Support\WizardJourney;
  *   download     the warning, the token, a broken download resumed, every part against its recorded checksum
  *   resume       a run nobody ticks becomes interrupted and is continued; the archive equals the uninterrupted one
  *   concurrency  two requests tick one run at the same moment; a second start is refused
- *   restore kit  restore.php and the key from the page restore that backup onto the target stack through the wizard
+ *   restore kit  threadsafe-restore.php and the key from the page restore that backup onto the target stack through the wizard
  *   security     what a stranger and a forged request get; the two layouts of the installation; switched off
  *   audit        the story is in the log and no secret is
  *   throttle     wrong passwords are slowed down
@@ -389,7 +389,7 @@ final class WebInterfaceTest extends IntegrationTestCase
         $ui = self::ui();
         $help = $ui->get('/profiles/shop/backups/' . self::$backup . '/restore-help');
         self::assertSame(200, $help['status']);
-        self::assertStringContainsString('Download restore.php', $help['body']);
+        self::assertStringContainsString('Download threadsafe-restore.php', $help['body']);
 
         $tool = $ui->get('/restore-php');
         self::assertSame(200, $tool['status']);
@@ -419,8 +419,8 @@ final class WebInterfaceTest extends IntegrationTestCase
         $admin->exec('CREATE DATABASE prestashop_target CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci');
 
         // what the person uploads: the two files from the page, and the parts of the backup (downloaded from the page, here read from the storage)
-        file_put_contents('/shops/target/restore.php', $tool['body']);
-        file_put_contents('/shops/target/restore-key.php', $keyFile['body']);
+        file_put_contents('/shops/target/threadsafe-restore.php', $tool['body']);
+        file_put_contents('/shops/target/threadsafe-restore-key.php', $keyFile['body']);
         foreach (self::parts(self::$backup) as $part) {
             copy($part, '/shops/target/' . basename($part));
         }
@@ -429,7 +429,7 @@ final class WebInterfaceTest extends IntegrationTestCase
         }
         file_put_contents('/shops/target/index.html', '<html>The host says: coming soon</html>');
 
-        $wizard = new WebWizard(baseUrl: Stack::TARGET_URL, scriptPath: '/restore.php');
+        $wizard = new WebWizard(baseUrl: Stack::TARGET_URL, scriptPath: '/threadsafe-restore.php');
         $journey = WizardJourney::restore($wizard, $key, [
             'root' => '/var/www/html', 'db_host' => 'target-db', 'db_port' => '3306', 'db_name' => 'prestashop_target', 'db_user' => 'target', 'db_password' => 'target', 'db_prefix' => 'ps_',
             'f_to' => Stack::TARGET_HOST, 'f_path' => '', 'f_ssl' => '', 'f_mode' => 'production', 'f_mailCatcher' => '', 'allow_leftovers' => '1',
@@ -437,7 +437,7 @@ final class WebInterfaceTest extends IntegrationTestCase
         self::assertGreaterThan(3, $journey['ticks']);
         $gone = $wizard->request('POST', '/', ['action' => 'cleanup', 'csrf' => $wizard->csrf()]);
         self::assertStringContainsString('The tool is gone', $gone['body']);
-        foreach (['restore.php', 'restore-key.php', '.threadsafe-restore'] as $name) {
+        foreach (['threadsafe-restore.php', 'threadsafe-restore-key.php', '.threadsafe-restore'] as $name) {
             self::assertFileDoesNotExist('/shops/target/' . $name);
         }
         // the wizard leaves the backup next to the shop (the person decides); this test is not the last user of the target, so it clears away

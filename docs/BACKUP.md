@@ -1,6 +1,6 @@
 # Backups – reference
 
-How ThreadSafe backs up a site from the command line (the web interface, [WEB.md](WEB.md), runs the same engine and reads the same files): the profile file, the commands, what a backup consists of, how to check it and how to take it apart with ordinary tools when nothing else is at hand. For the design and the reasons see [PHASE2.md](PHASE2.md); for what to do with a backup afterwards see [MIGRATE.md](MIGRATE.md) (`threadsafe migrate`). Restoring from the backup in one step (`restore.php`, `threadsafe restore`) is described in [RESTORE.md](RESTORE.md); the manual way is in section 8.
+How ThreadSafe backs up a site from the command line (the web interface, [WEB.md](WEB.md), runs the same engine and reads the same files): the profile file, the commands, what a backup consists of, how to check it and how to take it apart with ordinary tools when nothing else is at hand. For the design and the reasons see [PHASE2.md](PHASE2.md); for what to do with a backup afterwards see [MIGRATE.md](MIGRATE.md) (`threadsafe migrate`). Restoring from the backup in one step (`threadsafe-restore.php`, `threadsafe restore`) is described in [RESTORE.md](RESTORE.md); the manual way is in section 8.
 
 ## 1. Quick start
 
@@ -256,7 +256,7 @@ Notes:
 - `mysql` / `mariadb` read the password from `~/.my.cnf` or the environment variable `MYSQL_PWD`; do not put it on the command line.
 - The shell sorts `_views.sql` and `_triggers.sql` after the numbered files, which is the order they need.
 - A cell that is larger than `max_allowed_packet` of the *importing* server cannot be restored by any SQL, `UPDATE ... CONCAT` included; the backup's warnings name such cells. Raise `max_allowed_packet` of the importing server (`SET GLOBAL`, needs the privilege) or restore on a server where it is high enough.
-- Restoring into another **table prefix** is not a rename of files: the statements contain the real table names. Restore with the same prefix, or use `threadsafe restore --prefix=...` / `restore.php` ([RESTORE.md](RESTORE.md)).
+- Restoring into another **table prefix** is not a rename of files: the statements contain the real table names. Restore with the same prefix, or use `threadsafe restore --prefix=...` / `threadsafe-restore.php` ([RESTORE.md](RESTORE.md)).
 - Files restored this way belong to the user who extracted them; give them back to the web server's user. Directories left out by the filters (`var/cache` ...) are rebuilt by PrestaShop or by `threadsafe migrate`.
 - **The copy still has the old domain, paths and database credentials.** `threadsafe migrate prestashop9 --root=/var/www/shop --to=NEW.DOMAIN ...` turns it into a working shop (domains, `parameters.php`, caches, `.htaccess`, self-test): see [MIGRATE.md](MIGRATE.md). For a restore on the same domain use it without `--to`.
 

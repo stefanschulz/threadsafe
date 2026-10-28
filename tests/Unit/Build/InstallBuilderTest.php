@@ -35,7 +35,7 @@ final class InstallBuilderTest extends TestCase
         self::$directory = sys_get_temp_dir() . '/threadsafe-test-installer-' . bin2hex(random_bytes(4));
         mkdir(self::$directory . '/site', 0777, true);
         $package = ReleasePackage::build(self::$directory, '0.1.0');
-        self::$installer = self::$directory . '/site/install.php';
+        self::$installer = self::$directory . '/site/threadsafe-install.php';
         self::$result = (new InstallBuilder(dirname(__DIR__, 3)))->build(self::$installer, $package, '0.1.0');
     }
 
@@ -68,9 +68,9 @@ final class InstallBuilderTest extends TestCase
     {
         $site = $this->tempDirectory() . '/public_html';
         mkdir($site);
-        copy(self::$installer, $site . '/install.php');
+        copy(self::$installer, $site . '/threadsafe-install.php');
         if ($withKey) {
-            file_put_contents($site . '/install-key.php', "<?php return 'a long secret key';");
+            file_put_contents($site . '/threadsafe-install-key.php', "<?php return 'a long secret key';");
         }
 
         return $site;
@@ -148,7 +148,7 @@ final class InstallBuilderTest extends TestCase
             }
         }
         self::assertStringContainsString("'ThreadSafe\\Install\\Entry::run'", $stub, 'the entry is called by name from a string');
-        self::assertLessThan(strpos($stub, 'mkdir'), strpos($stub, "install-key.php'"), 'the key check comes before the first directory is made');
+        self::assertLessThan(strpos($stub, 'mkdir'), strpos($stub, "threadsafe-install-key.php'"), 'the key check comes before the first directory is made');
     }
 
     public function testEveryClassOfTheInstallerIsInItsCode(): void
@@ -170,19 +170,19 @@ final class InstallBuilderTest extends TestCase
     {
         $site = $this->site(withKey: false);
 
-        [$output] = $this->php('$_SERVER["REQUEST_METHOD"] = "GET"; include $argv[1];', $site . '/install.php');
+        [$output] = $this->php('$_SERVER["REQUEST_METHOD"] = "GET"; include $argv[1];', $site . '/threadsafe-install.php');
 
         self::assertStringContainsString('does nothing until you give it a key', $output);
         self::assertStringContainsString("<pre><code>&lt;?php return 'a secret you choose';</code></pre>", $output);
-        self::assertStringContainsString('<code>install-key.php</code> next to <code>install.php</code>', $output);
-        self::assertSame(['install.php'], array_values(array_diff(scandir($site) ?: [], ['.', '..'])), 'nothing was written');
+        self::assertStringContainsString('<code>threadsafe-install-key.php</code> next to <code>threadsafe-install.php</code>', $output);
+        self::assertSame(['threadsafe-install.php'], array_values(array_diff(scandir($site) ?: [], ['.', '..'])), 'nothing was written');
     }
 
     public function testTheNoticeOfTheStubIsAPageInTheStyleOfTheWizard(): void
     {
         $site = $this->site(withKey: false);
 
-        [$output, $errors] = $this->php('$_SERVER["REQUEST_METHOD"] = "GET"; include $argv[1];', $site . '/install.php');
+        [$output, $errors] = $this->php('$_SERVER["REQUEST_METHOD"] = "GET"; include $argv[1];', $site . '/threadsafe-install.php');
 
         self::assertSame('', $errors);
         self::assertStringStartsWith('<!doctype html>', $output);
@@ -227,28 +227,28 @@ final class InstallBuilderTest extends TestCase
     {
         $site = $this->site();
 
-        [$output, $errors] = $this->php('$_SERVER["REQUEST_METHOD"] = "GET"; $_SERVER["REMOTE_ADDR"] = "127.0.0.1"; $_SERVER["REQUEST_URI"] = "/install.php"; include $argv[1];', $site . '/install.php');
+        [$output, $errors] = $this->php('$_SERVER["REQUEST_METHOD"] = "GET"; $_SERVER["REMOTE_ADDR"] = "127.0.0.1"; $_SERVER["REQUEST_URI"] = "/threadsafe-install.php"; include $argv[1];', $site . '/threadsafe-install.php');
 
         self::assertSame('', $errors);
-        self::assertStringContainsString('Key from <code>install-key.php</code>', $output);
+        self::assertStringContainsString('Key from <code>threadsafe-install-key.php</code>', $output);
         self::assertDirectoryExists($site . '/.threadsafe-install');
         self::assertFileExists($site . '/.threadsafe-install/.htaccess');
     }
 
     public function testInAShellItSaysWhatToDoInstead(): void
     {
-        [, $errors, $code] = $this->php('include $argv[1];', $this->site() . '/install.php');
+        [, $errors, $code] = $this->php('include $argv[1];', $this->site() . '/threadsafe-install.php');
 
         self::assertSame(1, $code);
         self::assertStringContainsString('open it in a browser', $errors);
-        self::assertStringContainsString('unzip install.php', $errors);
+        self::assertStringContainsString('unzip threadsafe-install.php', $errors);
     }
 
     public function testTheWholeInstallationRunsThroughTheWizardWithNothingButTheFile(): void
     {
         $site = $this->site();
         // the first request unpacks the code next to the file
-        $this->php('$_SERVER["REQUEST_METHOD"] = "GET"; $_SERVER["REMOTE_ADDR"] = "127.0.0.1"; $_SERVER["REQUEST_URI"] = "/install.php"; include $argv[1];', $site . '/install.php');
+        $this->php('$_SERVER["REQUEST_METHOD"] = "GET"; $_SERVER["REMOTE_ADDR"] = "127.0.0.1"; $_SERVER["REQUEST_URI"] = "/threadsafe-install.php"; include $argv[1];', $site . '/threadsafe-install.php');
         $bundles = glob($site . '/.threadsafe-install/bundle-*.php') ?: [];
         self::assertCount(1, $bundles);
 
@@ -256,7 +256,7 @@ final class InstallBuilderTest extends TestCase
 require $argv[1];
 $script = $argv[2];
 $wizard = new ThreadSafe\Install\Wizard($script, null, static fn () => new ThreadSafe\Engine\Budget(0.0));
-$request = static fn (string $method, array $query, array $post, ?string $token) => new ThreadSafe\Web\Request($method, $query, $post, $token === null ? [] : [ThreadSafe\Install\Wizard::COOKIE => $token], false, '127.0.0.1', '/install.php');
+$request = static fn (string $method, array $query, array $post, ?string $token) => new ThreadSafe\Web\Request($method, $query, $post, $token === null ? [] : [ThreadSafe\Install\Wizard::COOKIE => $token], false, '127.0.0.1', '/threadsafe-install.php');
 $out = [];
 $login = $wizard->handle($request('POST', [], ['action' => 'login', 'key' => 'a long secret key'], null));
 preg_match('/threadsafe_install=([0-9a-f]{64})/', (string) $login->header('Set-Cookie'), $m);
@@ -280,7 +280,7 @@ preg_match('/name="key" value="([0-9a-f]+)"/', $clean->body, $m);
 $out['cleanup'] = [$clean->status, str_contains($clean->body, 'The installer is gone'), strlen($m[1] ?? '')];
 echo json_encode($out);
 PHP;
-        [$output, $errors] = $this->php($flow, $bundles[0], $site . '/install.php');
+        [$output, $errors] = $this->php($flow, $bundles[0], $site . '/threadsafe-install.php');
 
         self::assertSame('', $errors);
         $out = json_decode($output, true);

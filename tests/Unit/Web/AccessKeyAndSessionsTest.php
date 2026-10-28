@@ -32,14 +32,14 @@ final class AccessKeyAndSessionsTest extends TestCase
 
     private function key(string $content = "<?php return 'correct horse battery';"): AccessKey
     {
-        file_put_contents($this->directory . '/restore-key.php', $content);
+        file_put_contents($this->directory . '/threadsafe-restore-key.php', $content);
 
-        return new AccessKey($this->directory . '/restore-key.php', $this->directory . '/attempts.json', $this->directory . '/access.log', fn (): int => $this->now);
+        return new AccessKey($this->directory . '/threadsafe-restore-key.php', $this->directory . '/attempts.json', $this->directory . '/access.log', fn (): int => $this->now);
     }
 
     public function testWithoutAFileThereIsNoKey(): void
     {
-        $key = new AccessKey($this->directory . '/restore-key.php', $this->directory . '/a.json', $this->directory . '/l.log');
+        $key = new AccessKey($this->directory . '/threadsafe-restore-key.php', $this->directory . '/a.json', $this->directory . '/l.log');
 
         self::assertFalse($key->exists());
     }

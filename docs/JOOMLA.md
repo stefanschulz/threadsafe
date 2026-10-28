@@ -17,7 +17,7 @@ php bin/threadsafe restore /var/backups/threadsafe/site/site_20261024-031500_ab1
     --from=www.example.org --to=staging.example.org --db-name=newsite --db-user=newsite --db-password-file=/root/newsite.pw --yes
 ```
 
-On a host where ThreadSafe is not installed, use the single file `restore.php` (see [RESTORE.md](RESTORE.md)): it asks for the same things in a browser. Everything on this page about the restore holds for the command and the wizard alike.
+On a host where ThreadSafe is not installed, use the single file `threadsafe-restore.php` (see [RESTORE.md](RESTORE.md)): it asks for the same things in a browser. Everything on this page about the restore holds for the command and the wizard alike.
 
 ## 2. Which Joomla
 
@@ -92,7 +92,7 @@ The result is a site that opens in a browser and in whose administration you can
 
 A command line and the web server do not always run the same PHP. Joomla's `dbtype` is `mysqli` or `pdomysql`; the restore writes the one that fits **the PHP that will run the site**:
 
-- in the `restore.php` wizard, which runs in the web server's PHP, the default `auto` is right: it takes the interface that PHP has (`mysqli` first);
+- in the `threadsafe-restore.php` wizard, which runs in the web server's PHP, the default `auto` is right: it takes the interface that PHP has (`mysqli` first);
 - with the command, the PHP of the shell decides, which can be wrong: if the shell has both extensions and the web server only `pdo_mysql`, give `--db-driver=pdo` (the other way round `--db-driver=mysqli`).
 
 If the restored site shows a database error that the credentials do not explain, look at `dbtype` in `configuration.php` first.
@@ -121,9 +121,9 @@ If the restored site shows a database error that the credentials do not explain,
 | The administration (`/administrator/`) sends you to the old site | Two things can do that: the field "New domain" was left empty (the wizard starts it with the host the tool is served at, check it), or the site uses **Admin Tools** with a secret word: without `?<word>` it redirects to the front page of the site, which is by design. Look in `jos_admintools_storage`, key `cparams`, entry `adminpw` for the word. |
 | The front page redirects to the old domain | The old domain stands somewhere that the restore does not look at (`live_site` is handled): a redirect rule in `.htaccess` of your own, or an extension setting. |
 | The pages work but every link except the front page gives `404` | `mod_rewrite` or `AllowOverride All` is missing on the new host (the `.htaccess` of Joomla needs them), or *Search Engine Friendly URLs → Use URL Rewriting* is on without it. |
-| `Access forbidden` on `restore.php` during a restore through the browser | The `.htaccess` of a site with Admin Tools refuses every direct request for a PHP file. The wizard lets itself through until it is deleted ([RESTORE.md](RESTORE.md) section 8). |
+| `Access forbidden` on `threadsafe-restore.php` during a restore through the browser | The `.htaccess` of a site with Admin Tools refuses every direct request for a PHP file. The wizard lets itself through until it is deleted ([RESTORE.md](RESTORE.md) section 8). |
 | `X-Robots-Tag` is missing on a dev copy | The host has no `mod_headers`; `robots.txt` and the meta tag are there anyway. |
 
 ## 10. Proof
 
-The Docker stack has a Joomla 5.4 and a Joomla 6 (`tests/stack/seed-joomla.sh`, a seed with articles, menus, a foreign domain, an e-mail address and four-byte characters). `tests/stack/matrix.sh` runs seven tests on MariaDB 10.11, MySQL 8.4 and MariaDB 11.8: the backup of both sites; the restore by one command of both onto another domain, compared table by table with the source; the restore into a sub-directory with the rewritten rules; the restore through the `restore.php` wizard in requests of 5 seconds and 64 MB; and a dev copy, checked in the answers of a real Apache. What has not been tried: a site of the real world with many extensions (the field test, [PHASE6.md](PHASE6.md) section 4.3).
+The Docker stack has a Joomla 5.4 and a Joomla 6 (`tests/stack/seed-joomla.sh`, a seed with articles, menus, a foreign domain, an e-mail address and four-byte characters). `tests/stack/matrix.sh` runs seven tests on MariaDB 10.11, MySQL 8.4 and MariaDB 11.8: the backup of both sites; the restore by one command of both onto another domain, compared table by table with the source; the restore into a sub-directory with the rewritten rules; the restore through the `threadsafe-restore.php` wizard in requests of 5 seconds and 64 MB; and a dev copy, checked in the answers of a real Apache. What has not been tried: a site of the real world with many extensions (the field test, [PHASE6.md](PHASE6.md) section 4.3).

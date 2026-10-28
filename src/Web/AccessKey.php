@@ -7,7 +7,7 @@ namespace ThreadSafe\Web;
 use Closure;
 
 /**
- * The key that lets a person into the wizard (docs/PHASE3.md 3.2): a PHP file `restore-key.php` next to the tool that returns the
+ * The key that lets a person into the wizard (docs/PHASE3.md 3.2): a PHP file `threadsafe-restore-key.php` next to the tool that returns the
  * secret (`<?php return 'a secret you choose';`). Fetched over HTTP such a file executes and prints nothing, where a text file
  * would be served. Nothing works without it.
  *

@@ -20,16 +20,16 @@
 #   6d. phase 4d: encrypted backups (group "encryption"): the seeded shop backed up for a key pair, opened by the real `age` tool, restored by `threadsafe restore --identity-file`
 #      and through the wizard under 5 s / 64 MB with the key typed in; a passphrase backup opens with `age`. It wipes the target stack, like phase 4.
 #   7. phase five: disaster recovery (groups "disaster-prepare" and "disaster-restore"): the working target shop is backed up, the
-#      target's containers and volumes are DESTROYED and made again empty on the same address, restore.php is uploaded into the
+#      target's containers and volumes are DESTROYED and made again empty on the same address, threadsafe-restore.php is uploaded into the
 #      empty web directory and the wizard (served by the target's own Apache, with limits of 5 seconds and 64 MB) brings the shop
 #      back; its pages, tables and files are compared with what they were.
 #   8. phase six: Joomla (group "joomla", the services joomla5 and joomla6, seeded by seed-joomla.sh): both seeded sites are backed up through their
 #      profiles; the backups are restored into the target by one command on another domain, by one command into a sub-directory (the
-#      .htaccess follows, the web service API answers there), and through the restore.php wizard under 5 s / 64 MB; the restored sites
+#      .htaccess follows, the web service API answers there), and through the threadsafe-restore.php wizard under 5 s / 64 MB; the restored sites
 #      serve, their content points to the new domain and to nothing of the old one, and their configuration fits the host. It wipes the target.
 #
 #   9. phase seven: the installer and the update (group "fresh", the service `fresh`: Apache and PHP 8.4 with nothing on it, limits of 5 s / 64 MB; no database):
-#      the releases are built by tools/build-release.php, install.php installs one through the browser interface (both layouts), the update
+#      the releases are built by tools/build-release.php, threadsafe-install.php installs one through the browser interface (both layouts), the update
 #      switches to the next one through the System page with a real health check, a version that cannot start is taken back, and what is not
 #      right (checksum, file, host, a backup running) is refused. It needs no stack of the other phases and leaves them alone.
 #

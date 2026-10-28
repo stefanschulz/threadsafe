@@ -324,7 +324,7 @@ final class InstallRunTest extends TestCase
 
     public function testAFileThatIsNoPackageIsRefusedAtTheStart(): void
     {
-        $file = $this->tempDirectory() . '/install.php';
+        $file = $this->tempDirectory() . '/threadsafe-install.php';
         file_put_contents($file, '<?php echo "not a zip";');
 
         $this->expectException(InstallException::class);

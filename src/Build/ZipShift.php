@@ -8,7 +8,7 @@ use RuntimeException;
 
 /**
  * Moves the offsets of a ZIP archive by the length of what is put in front of it, as self-extracting archives do, so that the file
- * (`install.php`: a PHP stub, the installer's code, then the archive) is itself a ZIP archive that `unzip` and our `ZipReader` read
+ * (`threadsafe-install.php`: a PHP stub, the installer's code, then the archive) is itself a ZIP archive that `unzip` and our `ZipReader` read
  * without a warning (docs/PHASE7.md section 8, finding 2). The offset of every local header (in the central directory) and the offset
  * of the central directory (in the end record) grow by $by.
  *

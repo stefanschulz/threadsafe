@@ -7,7 +7,7 @@
 
 Turn an **already unpacked copy** of a PrestaShop 9 site (files in place, database imported) into a working site on a **different domain, path, database or SSL setting** – or on the **same domain** after a failure of the original system – with no manual step from the manual checklist, and report exactly what was changed.
 
-The copy can come from any source: a ThreadSafe backup (later phases), an Akeeba restore, or a plain file/database copy. Phase 1 therefore does **not** depend on the backup engine (phase 2) or the `restore.php` wizard (phase 3).
+The copy can come from any source: a ThreadSafe backup (later phases), an Akeeba restore, or a plain file/database copy. Phase 1 therefore does **not** depend on the backup engine (phase 2) or the `threadsafe-restore.php` wizard (phase 3).
 
 | In scope | Out of scope (later phases) |
 |---|---|
@@ -15,7 +15,7 @@ The copy can come from any source: a ThreadSafe backup (later phases), an Akeeba
 | restore in place on the same domain (CONCEPT 4.6) | restoring over an existing installation with cleanup (phase 3 wizard) |
 | module rules as an extension point (CONCEPT 4.7); only a few rules shipped | rules for specific third-party modules (added over time) |
 | dev/staging mode (CONCEPT 4.4) | web UI, profiles, scheduling, encryption |
-| self-test (CONCEPT 4.3) | the `restore.php` wizard (it will call this core) |
+| self-test (CONCEPT 4.3) | the `threadsafe-restore.php` wizard (it will call this core) |
 | dry-run report and change journal | importing a SQL dump (the database is already there) |
 | CLI `threadsafe migrate`, test harness, dev container | multistore beyond a basic mapping (see open question 2) |
 

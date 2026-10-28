@@ -204,14 +204,14 @@ final class SystemAndRestorePagesTest extends TestCase
 
     public function testLeftoversOfARestoreAndOfTheSetupAreReported(): void
     {
-        file_put_contents($this->fixture->site . '/restore.php', '<?php');
-        file_put_contents($this->fixture->site . '/restore-key.php', "<?php return 'x';");
+        file_put_contents($this->fixture->site . '/threadsafe-restore.php', '<?php');
+        file_put_contents($this->fixture->site . '/threadsafe-restore-key.php', "<?php return 'x';");
         file_put_contents($this->fixture->data . '/setup-key.php', "<?php return 'y';");
 
         $page = $this->browser->get('/system')->body;
 
-        self::assertStringContainsString('&quot;restore.php&quot; is in the site directory', $page);
-        self::assertStringContainsString('&quot;restore-key.php&quot; is in the site directory', $page);
+        self::assertStringContainsString('&quot;threadsafe-restore.php&quot; is in the site directory', $page);
+        self::assertStringContainsString('&quot;threadsafe-restore-key.php&quot; is in the site directory', $page);
         self::assertStringContainsString('setup key file setup-key.php is still in the data directory', $page);
     }
 
@@ -368,8 +368,8 @@ final class SystemAndRestorePagesTest extends TestCase
 
         self::assertSame(200, $page->status);
         self::assertStringContainsString('Restoring <strong>' . $name->base() . '</strong>', $page->body);
-        self::assertStringContainsString('Download restore.php', $page->body);
-        self::assertStringContainsString('Download restore-key.php with a new key', $page->body);
+        self::assertStringContainsString('Download threadsafe-restore.php', $page->body);
+        self::assertStringContainsString('Download threadsafe-restore-key.php with a new key', $page->body);
         self::assertStringContainsString('all 2 parts of the backup', $page->body);
         self::assertStringContainsString($name->base() . '-p02.zip', $page->body);
         self::assertStringContainsString('An <strong>empty directory</strong>', $page->body);
@@ -383,7 +383,7 @@ final class SystemAndRestorePagesTest extends TestCase
         $second = $this->browser->post('/restore-key', ['mode' => 'file']);
 
         self::assertSame(200, $first->status);
-        self::assertSame('attachment; filename="restore-key.php"', $first->header('Content-Disposition'));
+        self::assertSame('attachment; filename="threadsafe-restore-key.php"', $first->header('Content-Disposition'));
         self::assertSame('no-store', $first->header('Cache-Control'));
         self::assertMatchesRegularExpression("/^<\\?php return '[A-Za-z0-9]{24}';\n\$/", $first->body);
         self::assertNotSame($first->body, $second->body);
@@ -413,7 +413,7 @@ final class SystemAndRestorePagesTest extends TestCase
         $first = $this->browser->get('/restore-php');
 
         self::assertSame(200, $first->status);
-        self::assertSame('attachment; filename="restore.php"', $first->header('Content-Disposition'));
+        self::assertSame('attachment; filename="threadsafe-restore.php"', $first->header('Content-Disposition'));
         self::assertSame('application/octet-stream', $first->header('Content-Type'));
         $tool = $this->body($first);
         self::assertStringStartsWith("<?php\n// ThreadSafe restore tool", $tool);

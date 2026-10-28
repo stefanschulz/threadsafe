@@ -67,9 +67,9 @@ final class FreshHost
     /** Puts the installer and its key file into the document root, as a person does with FTP. */
     public static function upload(string $installer, bool $key = true): void
     {
-        copy($installer, self::WWW . '/html/install.php');
+        copy($installer, self::WWW . '/html/threadsafe-install.php');
         if ($key) {
-            file_put_contents(self::WWW . '/html/install-key.php', "<?php return '" . self::KEY . "';");
+            file_put_contents(self::WWW . '/html/threadsafe-install-key.php', "<?php return '" . self::KEY . "';");
         }
         foreach (glob(self::WWW . '/html/install*.php') ?: [] as $file) {
             chmod($file, 0644);
@@ -159,7 +159,7 @@ final class FreshHost
      */
     public function installer(array $fields): array
     {
-        return $this->request('POST', '/install.php', $fields + ['csrf' => $this->csrf]);
+        return $this->request('POST', '/threadsafe-install.php', $fields + ['csrf' => $this->csrf]);
     }
 
     /**

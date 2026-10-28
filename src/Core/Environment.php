@@ -126,7 +126,7 @@ final class Environment
             if (!is_dir($profile->path)) {
                 $checks[] = Check::failure($subject, 'The site directory "' . $profile->path . '" does not exist.');
             } else {
-                foreach (['restore.php', 'restore-key.php', StateDirectory::NAME] as $leftover) {
+                foreach (['threadsafe-restore.php', 'threadsafe-restore-key.php', StateDirectory::NAME] as $leftover) {
                     if (file_exists($profile->path . '/' . $leftover)) {
                         $checks[] = Check::warning($subject, "\"$leftover\" is in the site directory. It belongs to a restore; remove it if the restore is done (a restore tool left on a web server is a risk).");
                     }

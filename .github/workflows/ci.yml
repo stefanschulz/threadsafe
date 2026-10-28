@@ -34,5 +34,5 @@ jobs:
       - name: Unit tests
         run: composer test
 
-      - name: Unit tests against the bundle of restore.php
+      - name: Unit tests against the bundle of threadsafe-restore.php
         run: composer test:bundle

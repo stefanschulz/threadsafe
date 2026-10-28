@@ -226,29 +226,29 @@ final class ExtractorTest extends TestCase
     public function testTheToolsOwnFilesAreNeverOverwritten(): void
     {
         [$root, $database] = $this->targets();
-        file_put_contents($root . '/restore.php', 'the tool');
+        file_put_contents($root . '/threadsafe-restore.php', 'the tool');
         mkdir($root . '/.threadsafe-restore');
         file_put_contents($root . '/.threadsafe-restore/state.json', 'state');
         $part = $this->part('p.zip', [
-            ['name' => 'files/restore.php', 'data' => 'from the backup'],
+            ['name' => 'files/threadsafe-restore.php', 'data' => 'from the backup'],
             ['name' => 'files/.threadsafe-restore/state.json', 'data' => 'evil'],
             ['name' => 'files/.threadsafe-restore/db/new.sql', 'data' => 'evil'],
-            ['name' => 'files/restore.php.bak', 'data' => 'a different name'],
+            ['name' => 'files/threadsafe-restore.php.bak', 'data' => 'a different name'],
         ]);
 
-        $state = $this->extractAll(['parts' => [$part], 'root' => $root, 'database' => $database, 'protected' => ['restore.php', '.threadsafe-restore']]);
+        $state = $this->extractAll(['parts' => [$part], 'root' => $root, 'database' => $database, 'protected' => ['threadsafe-restore.php', '.threadsafe-restore']]);
 
-        self::assertSame('the tool', file_get_contents($root . '/restore.php'));
+        self::assertSame('the tool', file_get_contents($root . '/threadsafe-restore.php'));
         self::assertSame('state', file_get_contents($root . '/.threadsafe-restore/state.json'));
         self::assertFileDoesNotExist($root . '/.threadsafe-restore/db/new.sql');
-        self::assertSame('a different name', file_get_contents($root . '/restore.php.bak'));
+        self::assertSame('a different name', file_get_contents($root . '/threadsafe-restore.php.bak'));
         self::assertCount(3, $state['warnings']);
         self::assertSame(3, $state['ignored']);
     }
 
     public function testTheHtaccessOfTheSiteDoesNotLockTheToolOutFromTheMomentItIsUnpacked(): void
     {
-        // field test: the Admin Tools .htaccess refuses every PHP file but index.php, restore.php included, and the next step answered "Access forbidden"
+        // field test: the Admin Tools .htaccess refuses every PHP file but index.php, threadsafe-restore.php included, and the next step answered "Access forbidden"
         [$root, $database] = $this->targets();
         $htaccess = "RewriteEngine On\nRewriteRule (.*\\.php)\$ - [F]\n";
         $part = $this->part('p.zip', [
@@ -257,14 +257,14 @@ final class ExtractorTest extends TestCase
             ['name' => 'files/z.txt', 'data' => 'after'],
         ]);
 
-        $state = $this->extractAll(['parts' => [$part], 'root' => $root, 'database' => $database, 'guard' => ['restore.php']], true);
+        $state = $this->extractAll(['parts' => [$part], 'root' => $root, 'database' => $database, 'guard' => ['threadsafe-restore.php']], true);
 
         $content = (string) file_get_contents($root . '/.htaccess');
         self::assertStringStartsWith(ToolGuard::BEGIN, $content);
-        self::assertStringContainsString('RewriteRule ^restore\\.php$ - [L]', $content);
+        self::assertStringContainsString('RewriteRule ^threadsafe-restore\\.php$ - [L]', $content);
         self::assertStringEndsWith($htaccess, $content);
         self::assertSame('after', file_get_contents($root . '/z.txt'), 'the extraction goes on');
-        self::assertSame(['restore.php'], $state['guard'], 'the state keeps what to protect');
+        self::assertSame(['threadsafe-restore.php'], $state['guard'], 'the state keeps what to protect');
     }
 
     public function testWithoutAGuardTheHtaccessIsExactlyWhatTheBackupHolds(): void

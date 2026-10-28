@@ -142,7 +142,7 @@ final class UpdateController
             ? $this->takenBack($result)
             : '<p class="flash ok">Updated from <strong>' . Html::e((string) ($result['from'] ?? '?')) . '</strong> to <strong>' . Html::e((string) ($result['to'] ?? '?')) . '</strong>.</p><p>' . Html::e((string) ($result['message'] ?? '')) . '</p>'
                 . (($result['health'] ?? '') === HealthResult::SKIPPED ? '<p class="flash warning">The new version could not be started to check it. If this page does not open after you leave it, go back with <code>php bin/threadsafe update --rollback</code>, or write the previous release into <code>current.php</code>.</p>' : '')
-                . '<p>The previous release is kept for a roll-back. If you use restore.php, make a new one from the page "Restore".</p>';
+                . '<p>The previous release is kept for a roll-back. If you use threadsafe-restore.php, make a new one from the page "Restore".</p>';
 
         return $body . '<div class="actions">' . View::form($context, '/system/update/discard', '<button type="submit" class="secondary">Close</button>', 'inline') . '</div>';
     }

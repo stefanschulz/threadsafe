@@ -14,9 +14,9 @@ use ThreadSafe\Tests\Support\WebWizard;
 use ThreadSafe\Tests\Support\WizardJourney;
 
 /**
- * The built, single-file `restore.php` - the thing that is uploaded to a server where nothing else is installed - doing the
+ * The built, single-file `threadsafe-restore.php` - the thing that is uploaded to a server where nothing else is installed - doing the
  * restore of a database and its files: through the browser interface under tight limits (`max_execution_time=5`,
- * `memory_limit=64M`, as docs/PHASE3.md 6 demands), and in a shell with `php restore.php restore ...`.
+ * `memory_limit=64M`, as docs/PHASE3.md 6 demands), and in a shell with `php threadsafe-restore.php restore ...`.
  */
 final class RestorePhpTest extends IntegrationTestCase
 {
@@ -67,9 +67,9 @@ final class RestorePhpTest extends IntegrationTestCase
         TortureDatabase::create($this->admin, $source);
         $this->admin->exec("CREATE DATABASE `$copy` CHARACTER SET utf8mb4");
         $parts = UploadedBackup::make($base . '/work', $web, $source, self::password());
-        $result = (new RestoreBuilder(dirname(__DIR__, 2)))->build($web . '/restore.php');
+        $result = (new RestoreBuilder(dirname(__DIR__, 2)))->build($web . '/threadsafe-restore.php');
         self::assertLessThan(400 * 1024, $result['bytes']);
-        file_put_contents($web . '/restore-key.php', "<?php return 'a long secret from the test';");
+        file_put_contents($web . '/threadsafe-restore-key.php', "<?php return 'a long secret from the test';");
 
         return [$base, $web, $source, $copy, $parts];
     }
@@ -77,7 +77,7 @@ final class RestorePhpTest extends IntegrationTestCase
     public function testTheSingleFileRestoresThroughTheBrowserUnderTightLimits(): void
     {
         [$base, $web, $source, $copy, $parts] = $this->upload();
-        $this->wizard = new WebWizard($web . '/restore.php', ['max_execution_time' => '5', 'memory_limit' => '64M']);
+        $this->wizard = new WebWizard($web . '/threadsafe-restore.php', ['max_execution_time' => '5', 'memory_limit' => '64M']);
         $this->wizard->start();
         $root = $base . '/restored';
 
@@ -101,11 +101,11 @@ final class RestorePhpTest extends IntegrationTestCase
         self::assertSame('<?php echo 1;', file_get_contents($root . '/index.php'));
 
         // the tool takes itself off the server
-        self::assertFileExists($web . '/restore.php');
+        self::assertFileExists($web . '/threadsafe-restore.php');
         $gone = $this->wizard->request('POST', '/', ['action' => 'cleanup', 'csrf' => $this->wizard->csrf()]);
         self::assertStringContainsString('The tool is gone', $gone['body']);
-        self::assertFileDoesNotExist($web . '/restore.php');
-        self::assertFileDoesNotExist($web . '/restore-key.php');
+        self::assertFileDoesNotExist($web . '/threadsafe-restore.php');
+        self::assertFileDoesNotExist($web . '/threadsafe-restore-key.php');
         self::assertDirectoryDoesNotExist($web . '/.threadsafe-restore');
         self::assertSame([], array_values(array_filter(scandir($web) ?: [], static fn (string $f): bool => !in_array($f, ['.', '..'], true) && !str_ends_with($f, '.zip') && !str_ends_with($f, '.json'))), 'only the backup is left');
     }
@@ -113,8 +113,8 @@ final class RestorePhpTest extends IntegrationTestCase
     public function testTheSingleFileDoesNothingWithoutAKey(): void
     {
         [, $web] = $this->upload();
-        unlink($web . '/restore-key.php');
-        $this->wizard = new WebWizard($web . '/restore.php');
+        unlink($web . '/threadsafe-restore-key.php');
+        $this->wizard = new WebWizard($web . '/threadsafe-restore.php');
         $this->wizard->start();
 
         $page = $this->wizard->request('GET', '/');
@@ -127,11 +127,11 @@ final class RestorePhpTest extends IntegrationTestCase
     public function testTheSingleFileRestoresInAShellWithoutAKey(): void
     {
         [$base, $web, $source, $copy, $parts] = $this->upload();
-        unlink($web . '/restore-key.php');
+        unlink($web . '/threadsafe-restore-key.php');
         $root = $base . '/restored-by-shell';
         file_put_contents($base . '/db-password', self::password() . "\n");
         $command = [
-            $web . '/restore.php', 'restore', $parts[0], '--root=' . $root, '--no-self-test',
+            $web . '/threadsafe-restore.php', 'restore', $parts[0], '--root=' . $root, '--no-self-test',
             '--db-host=db', '--db-name=' . $copy, '--db-user=root', '--db-password-file=' . $base . '/db-password',
         ];
         putenv('THREADSAFE_DATA=' . $base . '/data');

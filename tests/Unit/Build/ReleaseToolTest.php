@@ -43,7 +43,7 @@ final class ReleaseToolTest extends TestCase
         [$code, $built] = $this->shell(escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg($root . '/tools/build-release.php') . ' --version=v1.2.3-rc.1 --output=' . escapeshellarg($out));
         self::assertSame(0, $code, $built);
         self::assertStringContainsString('threadsafe-1.2.3-rc.1.zip', $built);
-        foreach (['threadsafe-1.2.3-rc.1.zip', 'install.php', 'restore.php', 'SHA256SUMS'] as $file) {
+        foreach (['threadsafe-1.2.3-rc.1.zip', 'threadsafe-install.php', 'threadsafe-restore.php', 'SHA256SUMS'] as $file) {
             self::assertFileExists($out . '/' . $file);
         }
 
@@ -82,7 +82,7 @@ final class ReleaseToolTest extends TestCase
 
     public function testTheRestoreToolOfAReleaseSaysTheVersionOfTheRelease(): void
     {
-        $out = $this->tempDirectory() . '/restore.php';
+        $out = $this->tempDirectory() . '/threadsafe-restore.php';
 
         (new RestoreBuilder(dirname(__DIR__, 3), '9.8.7'))->build($out);
 

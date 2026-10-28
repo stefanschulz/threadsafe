@@ -9,7 +9,7 @@ use ThreadSafe\Build\RestoreBuilder;
 use ThreadSafe\Core\Version;
 
 /**
- * What a person needs to restore a backup somewhere else (docs/PHASE4.md 3.8): the tool `restore.php`, built from this installation's
+ * What a person needs to restore a backup somewhere else (docs/PHASE4.md 3.8): the tool `threadsafe-restore.php`, built from this installation's
  * own sources, and a key file with a new random key. The tool is made once per version of the sources and kept in `data/cache/`
  * (building takes about a second, but there is no reason to do it twice). The key is **not** stored: it belongs to the restore, not to
  * this instance.
@@ -67,7 +67,7 @@ final class RestoreKit
         return rtrim(strtr(base64_encode(random_bytes(18)), '+/', 'xZ'), '=');
     }
 
-    /** The content of `restore-key.php` for a key. */
+    /** The content of `threadsafe-restore-key.php` for a key. */
     public static function keyFile(string $key): string
     {
         return "<?php return '" . $key . "';\n";
