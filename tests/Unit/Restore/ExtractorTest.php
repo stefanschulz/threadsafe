@@ -9,6 +9,7 @@ use PHPUnit\Framework\TestCase;
 use ThreadSafe\Engine\Budget;
 use ThreadSafe\Restore\ExtractException;
 use ThreadSafe\Restore\Extractor;
+use ThreadSafe\Restore\ToolGuard;
 use ThreadSafe\Tests\Support\RawZip;
 use ThreadSafe\Tests\Support\TempDirectory;
 
@@ -243,6 +244,37 @@ final class ExtractorTest extends TestCase
         self::assertSame('a different name', file_get_contents($root . '/restore.php.bak'));
         self::assertCount(3, $state['warnings']);
         self::assertSame(3, $state['ignored']);
+    }
+
+    public function testTheHtaccessOfTheSiteDoesNotLockTheToolOutFromTheMomentItIsUnpacked(): void
+    {
+        // field test: the Admin Tools .htaccess refuses every PHP file but index.php, restore.php included, and the next step answered "Access forbidden"
+        [$root, $database] = $this->targets();
+        $htaccess = "RewriteEngine On\nRewriteRule (.*\\.php)\$ - [F]\n";
+        $part = $this->part('p.zip', [
+            ['name' => 'files/a.txt', 'data' => 'before'],
+            ['name' => 'files/.htaccess', 'data' => $htaccess],
+            ['name' => 'files/z.txt', 'data' => 'after'],
+        ]);
+
+        $state = $this->extractAll(['parts' => [$part], 'root' => $root, 'database' => $database, 'guard' => ['restore.php']], true);
+
+        $content = (string) file_get_contents($root . '/.htaccess');
+        self::assertStringStartsWith(ToolGuard::BEGIN, $content);
+        self::assertStringContainsString('RewriteRule ^restore\\.php$ - [L]', $content);
+        self::assertStringEndsWith($htaccess, $content);
+        self::assertSame('after', file_get_contents($root . '/z.txt'), 'the extraction goes on');
+        self::assertSame(['restore.php'], $state['guard'], 'the state keeps what to protect');
+    }
+
+    public function testWithoutAGuardTheHtaccessIsExactlyWhatTheBackupHolds(): void
+    {
+        [$root, $database] = $this->targets();
+        $part = $this->part('p.zip', [['name' => 'files/.htaccess', 'data' => "RewriteEngine On\n"]]);
+
+        $this->extractAll(['parts' => [$part], 'root' => $root, 'database' => $database]);
+
+        self::assertSame("RewriteEngine On\n", file_get_contents($root . '/.htaccess'), 'the command line has no use for a block');
     }
 
     public function testExistingFilesAreReplacedEvenIfReadOnly(): void

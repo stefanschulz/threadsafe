@@ -41,7 +41,8 @@ final class Extractor
      * @param array<string, mixed> $parameters `parts` (paths of the archive parts, in order), `root` (the site's directory),
      *                                         `database` (directory for the SQL files), `protected` (paths relative to the
      *                                         root that are never written: the tool's own files; a directory protects everything
-     *                                         below it)
+     *                                         below it), `guard` (paths of the tool's files below the root that a restored
+     *                                         `.htaccess` must not lock out: see {@see ToolGuard})
      *
      * @return array<string, mixed>
      *
@@ -83,6 +84,7 @@ final class Extractor
             'root' => rtrim((string) ($parameters['root'] ?? ''), '/\\'),
             'database' => rtrim((string) ($parameters['database'] ?? ''), '/\\'),
             'protected' => array_values(array_map(static fn (mixed $p): string => trim((string) $p, '/'), (array) ($parameters['protected'] ?? []))),
+            'guard' => array_values(array_map(static fn (mixed $p): string => trim((string) $p, '/'), (array) ($parameters['guard'] ?? []))),
             'part' => 0,
             'index' => 0,
             'position' => 0,
@@ -200,6 +202,10 @@ final class Extractor
         }
 
         $this->file($reader, $entry, $run, $target, $budget, str_starts_with($name, 'db/'));
+        // the .htaccess of the site is in place now and may refuse the tool's own page: from this moment the tool is let through
+        if ($run->current === null && $run->guard !== [] && $target === $run->root . '/.htaccess') {
+            ToolGuard::protect($run->root, $run->guard);
+        }
     }
 
     private function directory(ExtractRun $run, string $relative, Entry $entry): void

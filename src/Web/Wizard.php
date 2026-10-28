@@ -28,6 +28,7 @@ use ThreadSafe\Restore\Check;
 use ThreadSafe\Restore\Field;
 use ThreadSafe\Restore\RestoreException;
 use ThreadSafe\Restore\RestoreRun;
+use ThreadSafe\Restore\ToolGuard;
 use ThreadSafe\Storage\SpaceCheck;
 
 /**
@@ -45,6 +46,7 @@ final class Wizard
 
     private const string KEY_FILE = 'restore-key.php';
 
+
     private readonly string $stateDirectory;
 
     private readonly AccessKey $key;
@@ -54,6 +56,9 @@ final class Wizard
     private readonly PluginRegistry $plugins;
 
     private string $nonce = '';
+
+    /** The host this page is served at (the Host header, with its port), for the proposal of the new domain. */
+    private string $host = '';
 
     /**
      * @param string                $baseDirectory the directory the tool and the key file are in (and where the site is restored to by default)
@@ -77,6 +82,8 @@ final class Wizard
     public function handle(Request $request): Response
     {
         $this->nonce = bin2hex(random_bytes(9));
+        $host = strtolower(trim((string) $request->header('host')));
+        $this->host = preg_match('~^[a-z0-9.-]+(:\d{1,5})?$~', $host) === 1 ? $host : '';
         try {
             return $this->secure($this->route($request));
         } catch (Throwable $e) {
@@ -361,7 +368,7 @@ final class Wizard
         if ($fields !== []) {
             $html .= '<h3>The site</h3>';
             foreach ($fields as $field) {
-                $html .= $this->fieldHtml($field, $values['f_' . $field->name] ?? $field->default);
+                $html .= $this->fieldHtml($field, $values['f_' . $field->name] ?? $this->defaultOf($field));
             }
         }
         $html .= '<h3>Options</h3><label><input type="checkbox" name="allow_leftovers" value="1"' . (($values['allow_leftovers'] ?? '') === '1' ? ' checked' : '') . '>Let placeholder files of the web server (.htaccess, index.html) stay in the directory</label>'
@@ -369,6 +376,16 @@ final class Wizard
             . '<p><button name="action" value="save-target">Next: summary</button> <a class="button secondary" href="?step=requirements">Back</a></p>';
 
         return $this->page('Where to restore', $this->form($html, (string) $session['csrf']), 200, 'target');
+    }
+
+    /**
+     * What a field of the site starts with. The new domain starts with the address this page is served at: a restore puts the site where the tool
+     * is, and an empty field would silently keep the old domain in every link and in the settings (the field test: the administration of the
+     * restored site sent the visitor back to the original site). A person who restores elsewhere clears or changes it.
+     */
+    private function defaultOf(Field $field): string
+    {
+        return $field->proposeHost && $field->default === '' && $field->kind === Field::TEXT ? $this->host : $field->default;
     }
 
     private function fieldHtml(Field $field, string $current): string
@@ -501,6 +518,8 @@ final class Wizard
             'journalDirectory' => $this->stateDirectory . '/journal',
             'allowLeftovers' => ($values['allow_leftovers'] ?? '') === '1',
             'protected' => [$this->script, self::KEY_FILE],
+            // the .htaccess of the restored site must not lock the tool out (a security extension refuses every PHP file but index.php)
+            'guard' => rtrim($root, '/\\') === $base ? [$this->script] : [],
             'settings' => $settings,
         ];
     }
@@ -629,7 +648,7 @@ final class Wizard
         $body = '<p>The restore works in steps; this page keeps it going. <strong>Keep this page open.</strong> If it is closed or the connection is lost, open the tool again and continue here.</p>'
             . '<div class="bar"><div id="bar" data-percent="' . $this->percent($run) . '"></div></div><p id="status">' . Html::e((string) $run->progress) . '</p>'
             . '<p id="error" class="fail">' . ($failed ? Html::e((string) $run->error) : '') . '</p>'
-            . $this->form('<button name="action" value="tick" id="go">Continue</button><button name="action" value="retry" class="secondary" id="retry"' . ($failed ? '' : ' hidden') . '>Try the failed step again</button>', $csrf)
+            . $this->form('<button name="action" value="tick" id="go">Continue</button><button name="action" value="retry" class="secondary" id="retry"' . ($failed ? '' : ' hidden') . '>Try the failed step again</button><button type="button" class="secondary" id="again" hidden>Try again</button>', $csrf)
             . '<noscript><p class="help">Without JavaScript press "Continue" again and again until the page says it is done.</p></noscript>';
 
         return $this->page('Restoring', $body, 200, 'run', $this->runScript($csrf, $failed));
@@ -643,22 +662,45 @@ final class Wizard
         return <<<JS
 (function () {
   var csrf = $token, bar = document.getElementById('bar'), status = document.getElementById('status'), error = document.getElementById('error');
-  var go = document.getElementById('go'), retry = document.getElementById('retry'), stopped = $failedJs;
+  var go = document.getElementById('go'), retry = document.getElementById('retry'), again = document.getElementById('again'), stopped = $failedJs, lost = 0;
   go.hidden = true;
   bar.style.width = bar.getAttribute('data-percent') + '%';
+  // the answer of a step is data; anything else (a page of the web server, HTTP 403, 500) is said out loud and stops the loop: it will not get better by itself
   function post(action) {
     return fetch('?', {method: 'POST', credentials: 'same-origin', headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-      body: 'csrf=' + encodeURIComponent(csrf) + '&action=' + action + '&format=json'}).then(function (r) { return r.json(); });
+      body: 'csrf=' + encodeURIComponent(csrf) + '&action=' + action + '&format=json'}).then(function (r) {
+      var type = r.headers.get('Content-Type') || '';
+      if (!r.ok || type.indexOf('json') === -1) { var e = new Error('HTTP ' + r.status); e.http = r.status; throw e; }
+      return r.json();
+    });
+  }
+  function refused(code) {
+    stopped = true;
+    status.textContent = 'The restore stopped: the web server answered HTTP ' + code + ' instead of the next step.';
+    error.textContent = 'Nothing is lost: the state is saved and the restore goes on where it was. ' + (code === 403
+      ? 'HTTP 403 usually means that a rule of the web server refuses this file: the .htaccess of the restored site (a security extension such as Admin Tools refuses direct requests for PHP files) or the host. Rename the .htaccess in this directory (for example to .htaccess.off), then press "Try again"; put it back when the restore is done.'
+      : 'Look at the error log of the host. Then press "Try again".');
+    again.hidden = false;
   }
   function show(d) {
+    lost = 0;
     if (d.percent !== undefined) { bar.style.width = d.percent + '%'; }
     if (d.progress) { status.textContent = d.progress; }
     if (d.status === 'finished') { window.location = '?step=done'; return; }
     if (d.status === 'failed') { error.textContent = d.error; stopped = true; retry.hidden = false; return; }
     setTimeout(tick, d.status === 'busy' ? 2000 : 50);
   }
-  function tick() { if (!stopped) { post('tick').then(show).catch(function () { status.textContent = 'No answer from the server; trying again ...'; setTimeout(tick, 3000); }); } }
+  function tick() {
+    if (stopped) { return; }
+    post('tick').then(show).catch(function (e) {
+      if (e && e.http) { refused(e.http); return; }
+      lost += 1;
+      status.textContent = 'No answer from the server (' + lost + '); trying again ...';
+      setTimeout(tick, 3000);
+    });
+  }
   retry.addEventListener('click', function (e) { e.preventDefault(); retry.hidden = true; error.textContent = ''; stopped = false; post('retry').then(function () { tick(); }); });
+  again.addEventListener('click', function (e) { e.preventDefault(); again.hidden = true; error.textContent = ''; status.textContent = 'Trying again ...'; stopped = false; lost = 0; tick(); });
   if (!stopped) { tick(); }
 })();
 JS;
@@ -781,6 +823,8 @@ JS;
                 }
             }
         }
+        // the tool is leaving: the block of its .htaccess goes with it
+        ToolGuard::release((string) ($run->state['root'] ?? $base));
         $problems = Cleanup::run($files, $this->stateDirectory);
 
         $body = $problems === []

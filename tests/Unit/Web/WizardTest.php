@@ -8,6 +8,8 @@ use PHPUnit\Framework\TestCase;
 use ThreadSafe\Crypto\AgeKeys;
 use ThreadSafe\Engine\Budget;
 use ThreadSafe\Plugin\PluginRegistry;
+use ThreadSafe\Restore\Field;
+use ThreadSafe\Restore\ToolGuard;
 use ThreadSafe\Storage\BackupCatalog;
 use ThreadSafe\Tests\Support\BackupFixture;
 use ThreadSafe\Tests\Support\TempDirectory;
@@ -51,10 +53,14 @@ final class WizardTest extends TestCase
      * A backup of a small site, uploaded next to the tool.
      *
      * @param string|null $recipient a public key: the backup is then encrypted for it
+     * @param string|null $htaccess  the content of an .htaccess of the site
      */
-    private function upload(?string $recipient = null): void
+    private function upload(?string $recipient = null, ?string $htaccess = null): void
     {
         $fixture = new BackupFixture($this->base . '/fixture');
+        if ($htaccess !== null) {
+            file_put_contents($fixture->site . '/.htaccess', $htaccess);
+        }
         if ($recipient !== null) {
             $fixture->profiles->save($fixture->profiles->load('blog')->with(['encryption' => ['recipients' => [$recipient]]]));
         }
@@ -347,6 +353,86 @@ final class WizardTest extends TestCase
         foreach ($this->parts as $part) {
             self::assertFileExists($part, 'the backup stays unless the person asks');
         }
+    }
+
+    public function testTheHtaccessOfARestoredSiteDoesNotLockTheToolOut(): void
+    {
+        // field test: the Admin Tools .htaccess refuses every PHP file but index.php; once it was unpacked the next step answered "Access forbidden"
+        // and the restore stopped, without a way to press "Delete the tool". The tool is let through until it is deleted.
+        $htaccess = "RewriteEngine On\nRewriteCond %{REQUEST_FILENAME} (\\.php)\$\nRewriteRule (.*\\.php)\$ - [F]\n";
+        $this->upload(htaccess: $htaccess);
+        $this->key();
+        $client = $this->loggedIn();
+        $client->post(['action' => 'choose-backup', 'choice' => basename($this->parts[0]), 'path' => '']);
+        $client->post(['action' => 'save-target', 'root' => $this->web, 'allow_leftovers' => '1']);
+        $client->post(['action' => 'start']);
+
+        for ($tick = 1; $tick <= 200; ++$tick) {
+            $answer = json_decode($client->post(['action' => 'tick', 'format' => 'json'])->body, true);
+            self::assertContains($answer['status'], ['running', 'finished'], (string) json_encode($answer));
+            if ($answer['status'] === 'finished') {
+                break;
+            }
+        }
+        self::assertSame('finished', $answer['status']);
+
+        $content = (string) file_get_contents($this->web . '/.htaccess');
+        self::assertStringStartsWith(ToolGuard::BEGIN, $content, 'the tool stays reachable while the page of the end is shown');
+        self::assertStringContainsString('RewriteRule ^restore\\.php$ - [L]', $content);
+        self::assertStringEndsWith($htaccess, $content);
+
+        $client->get(['step' => 'done']);
+        $client->post(['action' => 'cleanup']);
+
+        self::assertSame($htaccess, file_get_contents($this->web . '/.htaccess'), 'the file is the site\'s own again when the tool is gone');
+        self::assertFileDoesNotExist($this->web . '/restore.php');
+    }
+
+    public function testARestoreIntoAnotherDirectoryLeavesTheHtaccessAlone(): void
+    {
+        $htaccess = "RewriteEngine On\n";
+        $this->upload(htaccess: $htaccess);
+        $this->key();
+        $client = $this->loggedIn();
+        $client->post(['action' => 'choose-backup', 'choice' => basename($this->parts[0]), 'path' => '']);
+        $client->post(['action' => 'save-target', 'root' => $this->base . '/restored']);
+        $client->post(['action' => 'start']);
+        for ($tick = 1; $tick <= 200 && (json_decode($client->post(['action' => 'tick', 'format' => 'json'])->body, true)['status'] ?? '') !== 'finished'; ++$tick) {
+        }
+
+        self::assertSame($htaccess, file_get_contents($this->base . '/restored/.htaccess'), 'the tool is not in that directory: nothing to keep reachable');
+    }
+
+    public function testTheScriptOfTheRunPageSaysWhenTheServerRefusesAStepInsteadOfWaitingForever(): void
+    {
+        $this->upload();
+        $this->key();
+        $client = $this->loggedIn();
+        $client->post(['action' => 'choose-backup', 'choice' => basename($this->parts[0]), 'path' => '']);
+        $client->post(['action' => 'save-target', 'root' => $this->base . '/restored']);
+
+        $run = $client->post(['action' => 'start']);
+
+        // field test: the page showed "No answer from the server; trying again ..." for ever when a step got an HTML page with HTTP 403
+        self::assertStringContainsString("type.indexOf('json') === -1", $run->body, 'an answer that is not data is not taken for one');
+        self::assertStringContainsString('the web server answered HTTP', $run->body);
+        self::assertStringContainsString('HTTP 403 usually means that a rule of the web server refuses this file', $run->body);
+        self::assertStringContainsString('Rename the .htaccess in this directory', $run->body);
+        self::assertStringContainsString('id="again" hidden>Try again</button>', $run->body);
+    }
+
+    public function testTheNewDomainStartsWithTheHostThePageIsServedAt(): void
+    {
+        $wizard = new Wizard($this->web, PluginRegistry::load(), 'restore.php', fn (): int => $this->now, static fn (): Budget => new Budget(0.0));
+        (new WizardClient($wizard, host: 'Restore.Example.org:8443'))->get();
+        $proposal = new \ReflectionMethod($wizard, 'defaultOf');
+
+        self::assertSame('restore.example.org:8443', $proposal->invoke($wizard, new Field('to', 'New domain', Field::TEXT, '', proposeHost: true)));
+        self::assertSame('', $proposal->invoke($wizard, new Field('to', 'New domain', Field::TEXT, '')), 'a field that does not ask for it starts empty');
+        self::assertSame('fixed', $proposal->invoke($wizard, new Field('to', 'New domain', Field::TEXT, 'fixed', proposeHost: true)), 'a default of the type wins');
+
+        (new WizardClient($wizard, host: 'not a host; <script>'))->get();
+        self::assertSame('', $proposal->invoke($wizard, new Field('to', 'New domain', Field::TEXT, '', proposeHost: true)), 'a Host header that is no host name is not used');
     }
 
     public function testAnUnfinishedRestoreGoesOnWhenThePageIsOpenedAgain(): void

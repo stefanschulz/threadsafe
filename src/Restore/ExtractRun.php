@@ -34,6 +34,9 @@ final class ExtractRun
     /** @var list<string> */
     private readonly array $protected;
 
+    /** @var list<string> files of the restore tool below the root that a restored .htaccess must not lock out, see {@see ToolGuard} */
+    public readonly array $guard;
+
     /** @var array<string, true> directories below the root that were looked at in this tick and are real directories */
     private array $verified = [];
 
@@ -62,6 +65,9 @@ final class ExtractRun
         /** @var list<string> $protected */
         $protected = $state['protected'];
         $this->protected = $protected;
+        /** @var list<string> $guard */
+        $guard = (array) ($state['guard'] ?? []);
+        $this->guard = $guard;
     }
 
     /**

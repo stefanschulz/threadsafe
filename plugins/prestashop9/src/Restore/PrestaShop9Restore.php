@@ -20,7 +20,7 @@ final class PrestaShop9Restore implements Restorable
         $main = $this->mainUrl($manifest);
 
         return [
-            new Field('to', 'New domain of the shop', Field::TEXT, '', required: true, help: 'The domain the restored shop is reached under, e.g. shop.example.org' . ($main !== null ? ' (the backup was made on ' . $main['domain'] . ')' : '') . '.'),
+            new Field('to', 'New domain of the shop', Field::TEXT, '', required: true, proposeHost: true, help: 'The domain the restored shop is reached under, e.g. shop.example.org' . ($main !== null ? ' (the backup was made on ' . $main['domain'] . ')' : '') . '.'),
             new Field('path', 'Base path', Field::TEXT, '', help: 'Where in the domain the shop lives, e.g. /shop/; empty keeps ' . ($main['physicalUri'] ?? '/') . '.'),
             new Field('ssl', 'SSL', Field::CHOICE, '', ['', 'none', 'login', 'all'], help: 'none, login (back office and login only) or all; empty keeps the setting of the backup.'),
             new Field('mode', 'Mode', Field::CHOICE, 'production', ['production', 'dev'], help: 'dev cuts live mail, payment and cloud connections and keeps search engines out.'),

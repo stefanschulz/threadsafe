@@ -40,7 +40,8 @@ use ThreadSafe\Web\StateDirectory;
  * settings of the website type, see {@see \ThreadSafe\Migration\RequestBuilder}, without `root`; `database` holds the target
  * database, the password included), `type` (override the website type of the backup), `allowLeftovers`, `work` (default
  * `<root>/.threadsafe-restore`), `unlock` (what opens an encrypted backup: {@see Unlock::toArray()}), `journalDirectory` (default `<work>/journal`), `protected` (paths below the root that are
- * never written: default `restore.php`, `restore-key.php`, the work directory).
+ * never written: default `restore.php`, `restore-key.php`, the work directory), `guard` (paths of the tool's files below the root that the
+ * `.htaccess` of the restored site must not lock out, see {@see ToolGuard}; the wizard names its own script, the command none).
  *
  * The state holds the secret key or passphrase of an encrypted backup until the extraction is done and the database password until the last
  * tick, which blanks it: the file the {@see \ThreadSafe\Engine\RunStore} writes
@@ -97,6 +98,7 @@ final class RestoreRun implements Task
             'type' => isset($parameters['type']) ? (string) $parameters['type'] : null,
             'allowLeftovers' => (bool) ($parameters['allowLeftovers'] ?? false),
             'protected' => array_values(array_map('strval', (array) ($parameters['protected'] ?? ['restore.php', 'restore-key.php']))),
+            'guard' => array_values(array_map('strval', (array) ($parameters['guard'] ?? []))),
             'parts' => [],
             'manifest' => null,
             'checks' => [],
@@ -220,6 +222,7 @@ final class RestoreRun implements Task
                 'root' => $state['root'],
                 'database' => $work . '/db',
                 'protected' => $inspection->protected,
+                'guard' => $state['guard'] ?? [],
             ]);
         } catch (ExtractException $e) {
             throw new RestoreException($e->getMessage(), ExitCode::StepFailed, $e);
@@ -329,6 +332,8 @@ final class RestoreRun implements Task
             $outcome = $runner->tick($adapt, new Context($request, $journal, new NullLogger(), false), $budget);
         } finally {
             $journal->close();
+            // a step may have written the .htaccess anew: the tool stays reachable for the next request
+            ToolGuard::protect((string) $state['root'], self::guard($state));
         }
         $state['adapt'] = $outcome->state;
         if (!$outcome->finished) {
@@ -376,11 +381,24 @@ final class RestoreRun implements Task
             $state['settings']['database']['password'] = '';
         }
         $state['phase'] = 'done';
+        ToolGuard::protect((string) $state['root'], self::guard($state));
 
         return new TickOutcome($state, true, $this->progress('finalize', 'restored ' . ($manifest['backupId'] ?? 'the backup')));
     }
 
     // ------------------------------------------------------------------------------------------------- helpers
+
+    /**
+     * The files of the tool that the .htaccess of the restored site must not lock out.
+     *
+     * @param array<string, mixed> $state
+     *
+     * @return list<string>
+     */
+    private static function guard(array $state): array
+    {
+        return array_values(array_map('strval', (array) ($state['guard'] ?? [])));
+    }
 
     private function progress(string $phase, string $detail): string
     {

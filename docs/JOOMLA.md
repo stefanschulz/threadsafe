@@ -118,8 +118,10 @@ If the restored site shows a database error that the credentials do not explain,
 | `The PHP extension "..." is missing on this host; Joomla needs it` (warning) | Enable it on the new host; the restore continues, the restored site will not run before. |
 | `The setting "..." of configuration.php is not a plain value; it is left as it is.` (warning) | A site that put code in its configuration; check that setting on the new host by hand. |
 | `The migrated site does not work (2 check(s) failed): front page (/): HTTP 500; ...` | The files and the database are restored, the adaptation is not proven. Look at the Joomla error log (`administrator/logs`) and the PHP error log; the most frequent causes are `dbtype` (section 7), a PHP version Joomla does not run on, or a missing extension. After you removed the cause, `threadsafe restore --resume=<run id>` runs the adaptation again. |
+| The administration (`/administrator/`) sends you to the old site | Two things can do that: the field "New domain" was left empty (the wizard starts it with the host the tool is served at, check it), or the site uses **Admin Tools** with a secret word: without `?<word>` it redirects to the front page of the site, which is by design. Look in `jos_admintools_storage`, key `cparams`, entry `adminpw` for the word. |
 | The front page redirects to the old domain | The old domain stands somewhere that the restore does not look at (`live_site` is handled): a redirect rule in `.htaccess` of your own, or an extension setting. |
 | The pages work but every link except the front page gives `404` | `mod_rewrite` or `AllowOverride All` is missing on the new host (the `.htaccess` of Joomla needs them), or *Search Engine Friendly URLs → Use URL Rewriting* is on without it. |
+| `Access forbidden` on `restore.php` during a restore through the browser | The `.htaccess` of a site with Admin Tools refuses every direct request for a PHP file. The wizard lets itself through until it is deleted ([RESTORE.md](RESTORE.md) section 8). |
 | `X-Robots-Tag` is missing on a dev copy | The host has no `mod_headers`; `robots.txt` and the meta tag are there anyway. |
 
 ## 10. Proof

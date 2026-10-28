@@ -17,7 +17,10 @@ final class WizardClient
 
     private string $csrf = '';
 
-    public function __construct(private readonly Wizard $wizard, private readonly string $address = '127.0.0.1', private readonly bool $https = false)
+    /**
+     * @param string $host the Host header the browser sends (empty: none)
+     */
+    public function __construct(private readonly Wizard $wizard, private readonly string $address = '127.0.0.1', private readonly bool $https = false, private readonly string $host = '')
     {
     }
 
@@ -26,7 +29,7 @@ final class WizardClient
      */
     public function get(array $query = [], bool $follow = true): Response
     {
-        return $this->send(new Request('GET', $query, [], $this->cookies(), $this->https, $this->address, '/restore.php'), $follow);
+        return $this->send(new Request('GET', $query, [], $this->cookies(), $this->https, $this->address, '/restore.php', $this->headers()), $follow);
     }
 
     /**
@@ -39,12 +42,18 @@ final class WizardClient
             $fields += ['csrf' => $this->csrf];
         }
 
-        return $this->send(new Request('POST', $query, $fields, $this->cookies(), $this->https, $this->address, '/restore.php'), $follow);
+        return $this->send(new Request('POST', $query, $fields, $this->cookies(), $this->https, $this->address, '/restore.php', $this->headers()), $follow);
     }
 
     public function csrf(): string
     {
         return $this->csrf;
+    }
+
+    /** @return array<string, string> */
+    private function headers(): array
+    {
+        return $this->host === '' ? [] : ['host' => $this->host];
     }
 
     /** @return array<string, string> */
@@ -74,7 +83,7 @@ final class WizardClient
             foreach ($parsed as $name => $value) {
                 $query[(string) $name] = is_string($value) ? $value : '';
             }
-            $request = new Request('GET', $query, [], $this->cookies(), $this->https, $this->address, '/restore.php');
+            $request = new Request('GET', $query, [], $this->cookies(), $this->https, $this->address, '/restore.php', $this->headers());
         }
 
         throw new \RuntimeException('Too many redirects.');
