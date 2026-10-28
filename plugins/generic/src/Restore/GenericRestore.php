@@ -7,6 +7,7 @@ namespace ThreadSafe\Generic\Restore;
 use ThreadSafe\Backup\Manifest;
 use ThreadSafe\Plugin\Restorable;
 use ThreadSafe\Restore\Field;
+use ThreadSafe\Restore\SitePath;
 
 /**
  * The restore side of "any website": files and database come back as they were. The person may name the old and the new domain
@@ -42,5 +43,10 @@ final class GenericRestore implements Restorable
     public function restoreChecks(Manifest $manifest): array
     {
         return [];
+    }
+
+    public function links(Manifest $manifest, string $root, array $values, string $servedPath): array
+    {
+        return [['label' => 'Open the site', 'path' => SitePath::base('', $servedPath)]];
     }
 }

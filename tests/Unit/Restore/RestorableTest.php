@@ -11,12 +11,20 @@ use ThreadSafe\Backup\Manifest;
 use ThreadSafe\Plugin\PluginRegistry;
 use ThreadSafe\Restore\Check;
 use ThreadSafe\Restore\Field;
+use ThreadSafe\Tests\Support\TempDirectory;
 
 /**
  * What the two website types say about a restore: the fields they ask for, the settings those become, the checks.
  */
 final class RestorableTest extends TestCase
 {
+    use TempDirectory;
+
+    protected function tearDown(): void
+    {
+        $this->cleanUpTempDirectories();
+    }
+
     /**
      * @param array<string, mixed> $extras
      */
@@ -56,6 +64,32 @@ final class RestorableTest extends TestCase
         self::assertSame(Field::CHOICE, $fields['ssl']->kind);
         self::assertSame(['', 'none', 'login', 'all'], $fields['ssl']->choices);
         self::assertSame('shop.example', $type->sourceDomain($manifest));
+    }
+
+    public function testTheTypesNameTheSiteAndTheLoginOfTheAdministration(): void
+    {
+        $registry = PluginRegistry::load();
+        $root = $this->tempDirectory();
+        mkdir($root . '/admin42abc/themes/new-theme', 0777, true);
+
+        $shop = $registry->restorable('prestashop9');
+        self::assertSame(
+            [['label' => 'Open the shop', 'path' => '/shop/'], ['label' => 'Back office login', 'path' => '/shop/admin42abc/']],
+            $shop->links($this->manifest(), $root, [], '/'),
+            'an empty base path keeps the one of the backup',
+        );
+        self::assertSame('/new/', $shop->links($this->manifest(), $root, ['path' => 'new'], '/')[0]['path']);
+        self::assertCount(1, $shop->links($this->manifest(), $root . '/missing', [], '/'), 'no back office folder found: only the shop');
+
+        $joomla = $registry->restorable('joomla');
+        self::assertSame(
+            [['label' => 'Open the site', 'path' => '/sub/'], ['label' => 'Administration login', 'path' => '/sub/administrator/']],
+            $joomla->links($this->manifest('joomla', '5.2.0', []), $root, [], '/sub/'),
+            'no base path typed: where the wizard is served from',
+        );
+        self::assertSame('/blog/administrator/', $joomla->links($this->manifest('joomla', '5.2.0', []), $root, ['path' => '/blog'], '/')[1]['path']);
+
+        self::assertSame([['label' => 'Open the site', 'path' => '/']], $registry->restorable('generic')->links($this->manifest('generic', null, []), $root, [], '/'));
     }
 
     public function testPrestaShopAnswersBecomeSettingsAndEmptyAnswersAreLeftOut(): void

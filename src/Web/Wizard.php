@@ -790,15 +790,51 @@ final class Wizard
                 }
             }
         }
+        // what the buttons need is read before the files go: the archive and the restored root
+        $buttons = $this->siteButtons($request, $session, (string) ($run->state['root'] ?? $base));
         // the tool is leaving: the block of its .htaccess goes with it
         ToolGuard::release((string) ($run->state['root'] ?? $base));
         $problems = Cleanup::run($files, $this->stateDirectory);
 
         $body = $problems === []
-            ? '<p class="ok"><strong>The tool is gone.</strong> The restored site is in place.</p>'
+            ? '<p class="ok"><strong>The tool is gone.</strong> The restored site is in place.</p>' . $buttons
             : '<p class="fail"><strong>Not everything could be deleted.</strong> Delete these by hand, now:</p><ul><li>' . implode('</li><li>', array_map(Html::e(...), $problems)) . '</li></ul>';
 
         return $this->page('Tool removed', $body);
+    }
+
+    /**
+     * The buttons that open the restored site and the login of its administration (what the website type knows), for the page that says
+     * the tool is gone. The address is the domain of the field "new domain" (the host of this page if it was left empty) under the scheme of this page.
+     *
+     * @param array<string, mixed> $session
+     */
+    private function siteButtons(Request $request, array $session, string $root): string
+    {
+        $source = $this->source($session);
+        if ($source === null) {
+            return '';
+        }
+        /** @var array<string, string> $values */
+        $values = (array) ($session['values'] ?? []);
+        $type = $this->plugins->restorable($source->manifest->type);
+        $fieldValues = [];
+        foreach ($type->fields($source->manifest) as $field) {
+            $fieldValues[$field->name] = $values['f_' . $field->name] ?? '';
+        }
+        $served = $request->path === '' || !str_contains($request->path, '/') ? '/' : substr($request->path, 0, (int) strrpos($request->path, '/') + 1);
+        $domain = strtolower(trim($fieldValues['to'] ?? ''));
+        $domain = preg_match('~^[a-z0-9.-]+(:\d{1,5})?$~', $domain) === 1 ? $domain : $this->host;
+        if ($domain === '') {
+            return '';
+        }
+        $origin = ($request->https ? 'https://' : 'http://') . $domain;
+        $html = '';
+        foreach ($type->links($source->manifest, $root, $fieldValues, $served) as $i => $link) {
+            $html .= '<a class="button' . ($i > 0 ? ' secondary' : '') . '" href="' . Html::e($origin . $link['path']) . '">' . Html::e($link['label']) . '</a> ';
+        }
+
+        return $html === '' ? '' : '<p>' . $html . '</p>';
     }
 
     // ------------------------------------------------------------------------------------------------- output

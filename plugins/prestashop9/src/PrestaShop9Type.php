@@ -43,6 +43,11 @@ final class PrestaShop9Type implements WebsiteType, Backupable, Restorable
         return (new PrestaShop9Restore())->restoreChecks($manifest);
     }
 
+    public function links(Manifest $manifest, string $root, array $values, string $servedPath): array
+    {
+        return (new PrestaShop9Restore())->links($manifest, $root, $values, $servedPath);
+    }
+
     public function detect(string $path): ?DetectedSite
     {
         return (new PrestaShop9Backup())->detect($path);

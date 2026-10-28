@@ -81,9 +81,9 @@ final class WizardTest extends TestCase
         return new Wizard($this->web, PluginRegistry::load(), 'restore.php', fn (): int => $this->now, static fn (): Budget => new Budget(0.0));
     }
 
-    private function loggedIn(bool $https = false, string $address = '127.0.0.1'): WizardClient
+    private function loggedIn(bool $https = false, string $address = '127.0.0.1', string $host = ''): WizardClient
     {
-        $client = new WizardClient($this->wizard(), $address, $https);
+        $client = new WizardClient($this->wizard(), $address, $https, $host);
         $client->get();
         $fields = ['action' => 'login', 'key' => self::KEY] + ($https || $address === '127.0.0.1' ? [] : ['plain' => '1']);
         $response = $client->post($fields, [], true, false);
@@ -353,6 +353,62 @@ final class WizardTest extends TestCase
         foreach ($this->parts as $part) {
             self::assertFileExists($part, 'the backup stays unless the person asks');
         }
+    }
+
+    /**
+     * @return array<string, mixed> the last answer of the run
+     */
+    private function restoreToTheEnd(WizardClient $client, string $newDomain = ''): array
+    {
+        $client->post(['action' => 'choose-backup', 'choice' => basename($this->parts[0]), 'path' => '']);
+        $client->post(['action' => 'save-target', 'root' => $this->base . '/restored'] + ($newDomain === '' ? [] : ['f_to' => $newDomain, 'f_from' => 'old.example']));
+        $client->post(['action' => 'start']);
+        $answer = ['status' => 'running'];
+        for ($tick = 1; $tick <= 200 && $answer['status'] === 'running'; ++$tick) {
+            $answer = json_decode($client->post(['action' => 'tick', 'format' => 'json'])->body, true);
+        }
+
+        return $answer;
+    }
+
+    public function testWhenTheToolIsGoneTheLastPageOffersTheRestoredSite(): void
+    {
+        // field test: after the restore and the deletion of the tool the person has to type the address of the site by hand
+        $this->upload();
+        $this->key();
+        $client = $this->loggedIn(true, '127.0.0.1', 'tool.example');
+
+        self::assertSame('finished', $this->restoreToTheEnd($client, 'New.Example')['status']);
+        self::assertStringNotContainsString('class="button"', $client->get(['step' => 'done'])->body, 'while the tool is there the site is not offered: delete the tool first');
+        $gone = $client->post(['action' => 'cleanup']);
+
+        self::assertStringContainsString('The tool is gone', $gone->body);
+        self::assertStringContainsString('<a class="button" href="https://new.example/">Open the site</a>', $gone->body);
+    }
+
+    public function testTheLastPageOffersTheHostOfThePageWhenTheNewDomainWasLeftEmpty(): void
+    {
+        $this->upload();
+        $this->key();
+        $client = $this->loggedIn(false, '127.0.0.1', 'tool.example:8080');
+
+        self::assertSame('finished', $this->restoreToTheEnd($client)['status']);
+        $gone = $client->post(['action' => 'cleanup']);
+
+        self::assertStringContainsString('href="http://tool.example:8080/">Open the site</a>', $gone->body);
+    }
+
+    public function testTheLastPageOffersNoButtonsWhenNoAddressIsKnown(): void
+    {
+        $this->upload();
+        $this->key();
+        $client = $this->loggedIn();
+
+        self::assertSame('finished', $this->restoreToTheEnd($client)['status']);
+        $gone = $client->post(['action' => 'cleanup']);
+
+        self::assertStringContainsString('The tool is gone', $gone->body);
+        self::assertStringNotContainsString('class="button', $gone->body, 'no Host header and no new domain: no address to offer');
     }
 
     public function testTheHtaccessOfARestoredSiteDoesNotLockTheToolOut(): void

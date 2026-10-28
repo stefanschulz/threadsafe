@@ -9,6 +9,7 @@ use ThreadSafe\Joomla\Installation;
 use ThreadSafe\Plugin\Restorable;
 use ThreadSafe\Restore\Check;
 use ThreadSafe\Restore\Field;
+use ThreadSafe\Restore\SitePath;
 
 /**
  * The restore side of Joomla 5 and 6: what the restore asks beyond what every restore needs, how the answers become settings of the
@@ -105,6 +106,16 @@ final class JoomlaRestore implements Restorable
         }
 
         return $checks;
+    }
+
+    public function links(Manifest $manifest, string $root, array $values, string $servedPath): array
+    {
+        $base = SitePath::base($values['path'] ?? '', $servedPath);
+
+        return [
+            ['label' => 'Open the site', 'path' => $base],
+            ['label' => 'Administration login', 'path' => $base . 'administrator/'],
+        ];
     }
 
     /**

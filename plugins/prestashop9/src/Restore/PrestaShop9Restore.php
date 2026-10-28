@@ -6,8 +6,10 @@ namespace ThreadSafe\PrestaShop9\Restore;
 
 use ThreadSafe\Backup\Manifest;
 use ThreadSafe\Plugin\Restorable;
+use ThreadSafe\PrestaShop9\Installation;
 use ThreadSafe\Restore\Check;
 use ThreadSafe\Restore\Field;
+use ThreadSafe\Restore\SitePath;
 
 /**
  * The restore side of PrestaShop 9: what the person is asked (the new address of the shop, pre-filled with the old one), how the
@@ -63,6 +65,19 @@ final class PrestaShop9Restore implements Restorable
         }
 
         return $checks;
+    }
+
+    public function links(Manifest $manifest, string $root, array $values, string $servedPath): array
+    {
+        // an empty base path keeps the one of the backup
+        $base = SitePath::base($values['path'] ?? '', $this->mainUrl($manifest)['physicalUri'] ?? $servedPath);
+        $links = [['label' => 'Open the shop', 'path' => $base]];
+        $admin = Installation::adminDirectory($root);
+        if ($admin !== null) {
+            $links[] = ['label' => 'Back office login', 'path' => $base . rawurlencode($admin) . '/'];
+        }
+
+        return $links;
     }
 
     /**

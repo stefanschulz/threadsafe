@@ -122,4 +122,9 @@ final class JoomlaType implements WebsiteType, Backupable, Restorable
     {
         return (new JoomlaRestore())->restoreChecks($manifest);
     }
+
+    public function links(Manifest $manifest, string $root, array $values, string $servedPath): array
+    {
+        return (new JoomlaRestore())->links($manifest, $root, $values, $servedPath);
+    }
 }

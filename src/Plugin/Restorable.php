@@ -42,4 +42,16 @@ interface Restorable
      * @return list<Check>
      */
     public function restoreChecks(Manifest $manifest): array;
+
+    /**
+     * Where the restored site can be opened, for the buttons on the last page of the wizard: the site itself and, if the type knows it, the
+     * login of its administration. Paths from the root of the domain, ending in a slash.
+     *
+     * @param array<string, string> $values     field name => value, as for {@see self::restoreSettings()}
+     * @param string                $servedPath the directory of the domain the wizard is served from ("/" or "/sub/"): where the site is when the
+     *                                          person gave no base path and the type has no better idea
+     *
+     * @return list<array{label: string, path: string}>
+     */
+    public function links(Manifest $manifest, string $root, array $values, string $servedPath): array;
 }

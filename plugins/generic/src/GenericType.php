@@ -48,6 +48,11 @@ final class GenericType implements WebsiteType, Backupable, Restorable
         return (new GenericRestore())->restoreChecks($manifest);
     }
 
+    public function links(Manifest $manifest, string $root, array $values, string $servedPath): array
+    {
+        return (new GenericRestore())->links($manifest, $root, $values, $servedPath);
+    }
+
     public function detect(string $path): ?DetectedSite
     {
         return (new GenericBackup())->detect($path);

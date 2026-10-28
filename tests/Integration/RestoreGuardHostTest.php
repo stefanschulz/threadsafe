@@ -95,6 +95,7 @@ final class RestoreGuardHostTest extends IntegrationTestCase
         $gone = $host->request('POST', '/restore.php', ['action' => 'cleanup', 'csrf' => $host->csrf()]);
         self::assertSame(200, $gone['status']);
         self::assertStringContainsString('The tool is gone', $gone['body']);
+        self::assertMatchesRegularExpression('~<a class="button" href="http://[^"/]+/">Open the site</a>~', $gone['body'], 'the page offers the restored site');
 
         self::assertSame(self::HTACCESS, file_get_contents($docroot . '/.htaccess'), 'the file is the site\'s own again');
         self::assertFileDoesNotExist($docroot . '/restore.php');
