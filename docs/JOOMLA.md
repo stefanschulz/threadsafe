@@ -34,7 +34,7 @@ A backup is the usual ZIP archive: `files/...` (the whole site), `db/...` (one S
 
 | What | Why |
 |---|---|
-| the directories `cache`, `administrator/cache`, `tmp`, `administrator/logs`, `logs` and `.git` | Joomla rebuilds them; the restore makes the first four again, empty, with their `index.html` |
+| the directories `cache`, `administrator/cache`, `tmp`, `administrator/logs`, `logs` (those of the **site root**, written `/cache`, `/tmp`, `/logs` in the filters, so that `plugins/system/cache`, `libraries/vendor/psr/cache` and `administrator/components/com_cache/tmpl/cache`, which are code, stay in) and `.git` (anywhere) | Joomla rebuilds them; the restore makes the first four again, empty, with their `index.html` |
 | the output directories of other backup extensions (`administrator/components/com_akeebabackup/backup`, `.../com_akeeba/backup`) | otherwise every backup would hold the one before |
 | the **rows** of `session`, `user_keys`, `updates` and the big tables of the search index (`finder_links`, `finder_links_terms`, `finder_logging`, `finder_taxonomy_map`, `finder_terms`, `finder_tokens`, `finder_tokens_aggregate`) | sessions and update information are rebuilt; the index is made again by *Smart Search*; the tables themselves are in the backup, empty |
 

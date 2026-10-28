@@ -33,6 +33,18 @@ final class FiltersTest extends TestCase
         yield 'name: other extension' => ['*.log', 'error.log.txt', false, false];
         yield 'name: exact name' => ['.DS_Store', 'img/.DS_Store', false, true];
         yield 'name: directory too' => ['node_modules', 'a/b/node_modules', true, true];
+        // a leading slash anchors a single name at the root: the cache of the site, not a code directory called cache (field test: a Joomla backup
+        // lost plugins/system/cache, libraries/vendor/psr/cache and administrator/components/com_cache/tmpl/cache to the pattern "cache")
+        yield 'anchored: the root directory' => ['/cache', 'cache', true, true];
+        yield 'anchored: everything below it' => ['/cache/', 'cache', true, true];
+        yield 'anchored: not a code directory deeper in the tree' => ['/cache', 'plugins/system/cache', true, false];
+        yield 'anchored: not the vendor package' => ['/cache', 'libraries/vendor/psr/cache', true, false];
+        yield 'anchored: not a view directory' => ['/cache', 'administrator/components/com_cache/tmpl/cache', true, false];
+        yield 'anchored: not a prefix match' => ['/cache', 'cache2', true, false];
+        yield 'anchored: a path' => ['/var/cache', 'var/cache', true, true];
+        yield 'anchored: with a star' => ['/*.log', 'error.log', false, true];
+        yield 'anchored: star not at depth' => ['/*.log', 'var/error.log', false, false];
+        yield 'unanchored: the old behaviour stays for a plain name' => ['cache', 'plugins/system/cache', true, true];
         // ** and *
         yield 'any depth: top' => ['**/.git', '.git', true, true];
         yield 'any depth: deep' => ['**/.git', 'modules/x/.git', true, true];
@@ -82,7 +94,7 @@ final class FiltersTest extends TestCase
     {
         yield 'empty' => [''];
         yield 'only a slash' => ['/'];
-        yield 'absolute' => ['/var/cache'];
+        yield 'two slashes in front' => ['//var/cache'];
         yield 'parent' => ['../x'];
         yield 'parent inside' => ['a/../b'];
         yield 'dot segment' => ['a/./b'];

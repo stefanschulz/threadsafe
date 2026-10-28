@@ -6,6 +6,7 @@ namespace ThreadSafe\Tests\Unit\Joomla;
 
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
+use ThreadSafe\Backup\Filters;
 use ThreadSafe\Database\DatabaseSettings;
 use ThreadSafe\Joomla\Backup\JoomlaBackup;
 use ThreadSafe\Plugin\PluginError;
@@ -159,8 +160,17 @@ final class JoomlaBackupTest extends TestCase
 
         $defaults = $backup->defaultFilters($site);
 
-        foreach (['cache', 'administrator/cache', 'tmp', 'administrator/logs', 'logs', '.git', 'administrator/components/com_akeebabackup/backup'] as $path) {
+        foreach (['/cache', 'administrator/cache', '/tmp', 'administrator/logs', '/logs', '.git', 'administrator/components/com_akeebabackup/backup'] as $path) {
             self::assertContains($path, $defaults->excludePaths, $path);
+        }
+        // what they leave out is the cache, the temporary files and the logs of the SITE: Joomla ships code in directories of the same names
+        // (field test: plugins/system/cache, libraries/vendor/psr/cache and administrator/components/com_cache/tmpl/cache were missing from a backup)
+        $filters = new Filters($defaults->excludePaths);
+        foreach (['cache', 'administrator/cache', 'tmp', 'logs', 'administrator/logs', '.git', 'plugins/system/.git'] as $left) {
+            self::assertTrue($filters->excludes($left, true), "$left is left out");
+        }
+        foreach (['plugins/system/cache', 'libraries/vendor/psr/cache', 'administrator/components/com_cache/tmpl/cache', 'media/cache', 'libraries/src/Cache', 'plugins/system/logs', 'components/com_x/tmp'] as $kept) {
+            self::assertFalse($filters->excludes($kept, true), "$kept is code or data of the site and stays in");
         }
         foreach (['session', 'user_keys', 'updates', 'finder_links', 'finder_links_terms', 'finder_logging', 'finder_taxonomy_map', 'finder_terms', 'finder_tokens', 'finder_tokens_aggregate'] as $table) {
             self::assertContains($table, $defaults->structureOnlyTables, $table);

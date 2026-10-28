@@ -1,11 +1,11 @@
 {
-    "description": "What a Joomla backup leaves out unless the profile says otherwise (docs/PHASE6.md 3.3). Paths are relative to the site root (patterns of ThreadSafe's backup filters); whole directories, which a restore makes again empty. Tables are named without the prefix and keep only their structure. finder_taxonomy keeps its data on purpose: its ROOT row is needed, without it the Smart Search indexer stops.",
+    "description": "What a Joomla backup leaves out unless the profile says otherwise (docs/PHASE6.md 3.3). Paths are relative to the site root (patterns of ThreadSafe's backup filters; a leading slash anchors a name at the root, so that /cache is the cache of the site and not plugins/system/cache, which is code); whole directories, which a restore makes again empty. Tables are named without the prefix and keep only their structure. finder_taxonomy keeps its data on purpose: its ROOT row is needed, without it the Smart Search indexer stops.",
     "excludePaths": [
-        "cache",
+        "/cache",
         "administrator/cache",
-        "tmp",
+        "/tmp",
         "administrator/logs",
-        "logs",
+        "/logs",
         ".git",
         "administrator/components/com_akeebabackup/backup",
         "administrator/components/com_akeeba/backup"

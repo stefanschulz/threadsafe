@@ -198,7 +198,7 @@ final class SiteProfileTest extends TestCase
         yield 'default filters as text' => [['useDefaultFilters' => 'yes'], 'useDefaultFilters'];
         yield 'exclude not a list' => [['excludePaths' => 'var/cache'], 'list of strings'];
         yield 'exclude with number' => [['excludePaths' => [5]], 'list of strings'];
-        yield 'exclude absolute' => [['excludePaths' => ['/var/cache']], 'must not start with a slash'];
+        yield 'exclude with two slashes in front' => [['excludePaths' => ['//var/cache']], 'may start with one slash'];
         yield 'exclude with parent' => [['excludePaths' => ['../x']], '..'];
         yield 'empty table name' => [['structureOnlyTables' => ['']], 'table name'];
         yield 'unknown field' => [['colour' => 'red'], 'Unknown field "colour"'];

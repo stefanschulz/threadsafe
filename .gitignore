@@ -30,3 +30,6 @@
 
 # ThreadSafe's own working data: site profiles (may hold database passwords), run states, module rules, locks
 /data/
+
+# Real backups of the owner (field tests): never enter the repository
+/resources/

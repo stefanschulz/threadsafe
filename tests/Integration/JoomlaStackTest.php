@@ -165,6 +165,10 @@ final class JoomlaStackTest extends IntegrationTestCase
             self::assertStringStartsNotWith('files/cache/', $name, 'the cache directories are left out as a whole');
             self::assertStringStartsNotWith('files/tmp/', $name);
         }
+        // field test: Joomla ships code in directories called "cache"; the filter left out the cache of the site, not these
+        foreach (['files/plugins/system/cache/cache.xml', 'files/administrator/components/com_cache/tmpl/cache/default.php'] as $name) {
+            self::assertArrayHasKey($name, $names, "$name is code and is in the backup");
+        }
         self::assertGreaterThan(8000, $manifest->counts['files']);
     }
 

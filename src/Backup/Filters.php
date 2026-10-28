@@ -12,6 +12,8 @@ use InvalidArgumentException;
  * A pattern is relative to the site root and uses the slash as separator:
  *
  * - `var/cache`: that path and everything below it
+ * - `/cache`: a leading slash anchors a single name at the site root (without it, a name with no slash matches at any depth, see below):
+ *   the directory `cache` of the site, not `plugins/system/cache` or `libraries/vendor/psr/cache`, which are code
  * - `*.log`: a name without a slash matches the last path segment at any depth
  * - a leading `**` followed by a slash: the rest of the pattern may start at any depth (for example `.git` anywhere)
  * - `*` stands for any characters except the slash, `**` for any characters including it, `?` for one character
@@ -74,8 +76,8 @@ final class Filters
         if (str_contains($pattern, "\0") || str_contains($pattern, '\\')) {
             return 'NUL and backslashes are not allowed';
         }
-        if (str_starts_with($pattern, '/')) {
-            return 'patterns are relative to the site root and must not start with a slash';
+        if (str_starts_with($pattern, '//')) {
+            return 'a pattern may start with one slash (anchored at the site root), not with two';
         }
         foreach (explode('/', trim($pattern, '/')) as $segment) {
             if ($segment === '' || $segment === '.' || $segment === '..') {
@@ -118,7 +120,10 @@ final class Filters
     {
         $directoriesOnly = str_ends_with($pattern, '/');
         $pattern = rtrim($pattern, '/');
-        $lastSegmentOnly = !str_contains($pattern, '/');
+        // a leading slash anchors the pattern at the site root: a single name is then that path, not a name at any depth
+        $anchored = str_starts_with($pattern, '/');
+        $pattern = ltrim($pattern, '/');
+        $lastSegmentOnly = !$anchored && !str_contains($pattern, '/');
 
         $anywhere = false;
         if (str_starts_with($pattern, '**/')) {
