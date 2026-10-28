@@ -189,6 +189,38 @@ final class ImporterTest extends IntegrationTestCase
         self::assertFileExists($directory . '/' . Importer::MARKER, 'after an error the file starts again on resume');
     }
 
+    public function testTheEmptyValueOfAnEnumThatDoesNotListItIsRestoredAsItWas(): void
+    {
+        // field test, a real PrestaShop 9: ps_product.redirect_type is an ENUM without the empty option, and 112 rows still hold the empty value
+        // (index 0, the error value of an ENUM, which an upgrade left in the column). The dump has '' for them and the import must not stop on the
+        // warning "Data truncated for column": the same state comes back.
+        $directory = $this->tempDirectory();
+        file_put_contents($directory . '/0001_t.sql', "SET sql_mode = 'NO_AUTO_VALUE_ON_ZERO';\nDROP TABLE IF EXISTS `t`;\nCREATE TABLE `t` (`id` int NOT NULL, `redirect_type` enum('404','301-product','default') NOT NULL DEFAULT 'default', PRIMARY KEY (`id`)) ENGINE=InnoDB;\n"
+            . "INSERT INTO `t` (`id`, `redirect_type`) VALUES\n(1,'404'),\n(2,''),\n(3,'default');\n");
+        $this->admin->exec("CREATE DATABASE `{$this->copy}` CHARACTER SET utf8mb4");
+        $db = $this->open($this->copy, 'pdo');
+        $importer = new Importer($db);
+
+        $importer->tick($importer->initialState(['directory' => $directory]), Budget::unlimited());
+
+        self::assertSame(3, (int) $db->scalar('SELECT COUNT(*) FROM `t`'));
+        self::assertSame([['id' => 2, 'index' => 0, 'value' => '']], array_map(static fn (array $r): array => ['id' => (int) $r['id'], 'index' => (int) $r['i'], 'value' => (string) $r['redirect_type']], $db->select('SELECT id, redirect_type, redirect_type + 0 AS i FROM `t` WHERE id = 2')), 'index 0, as in the source');
+    }
+
+    public function testAValueThatIsTooLongForItsColumnStillStopsTheImport(): void
+    {
+        $directory = $this->tempDirectory();
+        file_put_contents($directory . '/0001_t.sql', "SET sql_mode = 'NO_AUTO_VALUE_ON_ZERO';\nDROP TABLE IF EXISTS `t`;\nCREATE TABLE `t` (`id` int NOT NULL, `name` varchar(3) NOT NULL, `kind` enum('a','b') NOT NULL DEFAULT 'a', PRIMARY KEY (`id`)) ENGINE=InnoDB;\n"
+            . "INSERT INTO `t` (`id`, `name`, `kind`) VALUES\n(1,'too long for it','a');\n");
+        $this->admin->exec("CREATE DATABASE `{$this->copy}` CHARACTER SET utf8mb4");
+        $importer = new Importer($this->open($this->copy, 'pdo'));
+
+        $this->expectException(ImportException::class);
+        $this->expectExceptionMessage('damaged data');
+
+        $importer->tick($importer->initialState(['directory' => $directory]), Budget::unlimited());
+    }
+
     public function testNoSqlFilesIsAnError(): void
     {
         $this->expectException(ImportException::class);

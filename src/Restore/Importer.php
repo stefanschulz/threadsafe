@@ -35,6 +35,9 @@ final class Importer
     /** Warnings of the server that mean a value was changed or lost: packet overflow, truncation, out of range, incorrect value, too long, NULL for NOT NULL. */
     private const array DATA_LOSS_CODES = [1301, 1265, 1292, 1264, 1366, 1406, 1263];
 
+    /** @var array<string, bool> table and column => whether the column is an ENUM (a cache of {@see isEmptyEnumValue()}) */
+    private array $enumColumns = [];
+
     public function __construct(private readonly Connection $db)
     {
     }
@@ -287,6 +290,29 @@ final class Importer
     }
 
     /**
+     * Whether "Data truncated for column 'x' at row n" is the empty value of an ENUM column, which is no loss. An ENUM column that was changed to a
+     * list without the empty option (PrestaShop 9 did that for `ps_product.redirect_type`) keeps the rows that held the empty value as the "error
+     * value" of the ENUM, index 0, which is read as the empty string. The dump has that string; a server that refuses it in a strict mode, or warns
+     * about it in a lenient one, stores the same index 0 again. The table was made from the dump's own definition and the dump holds only values that
+     * the server read from the column, so for an ENUM column nothing but the empty string can cause this warning: the state of the source is
+     * reproduced as it was.
+     */
+    private function isEmptyEnumValue(string $message, string $sql): bool
+    {
+        if (preg_match("~column '((?:[^']|'')*)'~i", $message, $column) !== 1
+            || preg_match('~\A(?:\s|--[^\n]*\n|#[^\n]*\n|/\*(?!!).*?\*/)*INSERT INTO `((?:[^`]|``)*)`~is', $sql, $table) !== 1) {
+            return false;
+        }
+        $key = $table[1] . "\0" . $column[1];
+        if (!isset($this->enumColumns[$key])) {
+            $rows = $this->db->select('SHOW COLUMNS FROM ' . $this->db->quote(str_replace('``', '`', $table[1])) . ' LIKE ' . $this->db->quotedString(str_replace("''", "'", $column[1])));
+            $this->enumColumns[$key] = $rows !== [] && stripos((string) ($rows[0]['Type'] ?? ''), 'enum(') === 0;
+        }
+
+        return $this->enumColumns[$key];
+    }
+
+    /**
      * The dump sets a sql_mode that is not strict, so a server that cannot take a value does not refuse the statement: it changes the
      * value and says so in a warning. A cell larger than max_allowed_packet becomes NULL (or the piece that fits) in the
      * `UPDATE ... CONCAT(...)` that appends its pieces; a value too long for its column is cut. That would be a restore with
@@ -300,6 +326,9 @@ final class Importer
         foreach ($this->db->warnings() as $warning) {
             $code = $warning['code'];
             if (!in_array($code, self::DATA_LOSS_CODES, true) || strtolower($warning['level']) === 'note') {
+                continue;
+            }
+            if ($code === 1265 && $this->isEmptyEnumValue($warning['message'], $sql)) {
                 continue;
             }
             throw new ImportException(sprintf(
