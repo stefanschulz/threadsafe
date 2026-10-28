@@ -19,9 +19,11 @@ You need three things next to each other in the (empty) web directory of the new
 
 ```bash
 # on a machine with ThreadSafe (once; the same file restores every backup of every website type - keep a copy with your backups)
-php tools/build-restore.php                # writes dist/restore.php (about 200 KB)
+php tools/build-restore.php                # writes dist/dev/restore.php (about 350 KB), a development build without a version
 php tools/build-restore.php --key          # prints a random key and the line for the key file
 ```
+
+The file to keep and to hand out is the one of a release: `dist/release/restore.php` (made by `vendor/bin/phing`, with the version of the release, listed in `SHA256SUMS`), or the one that the page *Restore* of the web interface builds from the installed version. The development build is for trying out the source; its first page, the checks and the wizard are those of the current source, an older copy is not.
 
 1. Upload `restore.php` and **all parts of the backup** (`shop_20261020-123456_ab12cd34.zip`, or `...-p01.zip`, `-p02.zip` ...; the `.json` file next to them is not needed) into the web directory of the new site.
 2. Create `restore-key.php` next to it with the key (at least 8 characters):

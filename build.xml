@@ -74,7 +74,7 @@
         </exec>
     </target>
 
-    <target name="restore" description="Builds only the generic restore tool dist/restore.php (the version of the running source)">
+    <target name="restore" description="Builds only the generic restore tool as a development build, dist/dev/restore.php (version 0.0.0-dev; the one to hand out is dist/release/restore.php)">
         <exec executable="${php.interpreter}" dir="${project.basedir}" checkreturn="true" passthru="true">
             <arg value="tools/build-restore.php"/>
         </exec>

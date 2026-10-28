@@ -67,7 +67,7 @@ checks, the messages and what to do, what it cannot do - is in [docs/RESTORE.md]
 `restore.php` (about 200 KB, built once, the same for every backup and website type; keep a copy with your backups):
 
 ```bash
-php tools/build-restore.php            # writes dist/restore.php
+php tools/build-restore.php            # writes dist/dev/restore.php, a development build; hand out dist/release/restore.php of a release
 php tools/build-restore.php --key      # prints a random key and the line for restore-key.php
 ```
 

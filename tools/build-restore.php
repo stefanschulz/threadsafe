@@ -3,11 +3,14 @@
 /**
  * Builds the universal restore tool (docs/PHASE3.md 3.1) from the sources.
  *
- *   php tools/build-restore.php [output]        write the tool (default: dist/restore.php)
+ *   php tools/build-restore.php [output]        write the tool (default: dist/dev/restore.php, a development build of version 0.0.0-dev)
  *   php tools/build-restore.php --bundle=FILE   write only the bundled code (for `composer test:bundle`)
  *   php tools/build-restore.php --key           print a random key for restore-key.php
  *
  * The tool is the same for every backup and every website type. Keep a copy with your backups.
+ *
+ * This is the quick build for development and tests: it has no version number. The file to hand out is dist/release/restore.php, made by
+ * `vendor/bin/phing` (tools/build-release.php) with the version of the release, listed in SHA256SUMS.
  */
 declare(strict_types=1);
 
@@ -16,6 +19,20 @@ use ThreadSafe\Build\RestoreBuilder;
 require dirname(__DIR__) . '/vendor/autoload.php';
 
 $arguments = array_slice($argv, 1);
+
+if (in_array($arguments[0] ?? '', ['-h', '--help'], true)) {
+    echo "Usage:\n"
+        . "  php tools/build-restore.php [output]        write the restore tool (default: dist/dev/restore.php, a development build, version 0.0.0-dev)\n"
+        . "  php tools/build-restore.php --bundle=FILE   write only the bundled code\n"
+        . "  php tools/build-restore.php --key           print a random key for restore-key.php\n\n"
+        . "To hand out a restore.php use the one of a release: vendor/bin/phing, then dist/release/restore.php.\n";
+    exit(0);
+}
+// an option that is none of ours is an error, not the name of the file to write
+if (str_starts_with($arguments[0] ?? '', '-') && !str_starts_with($arguments[0], '--bundle=') && $arguments[0] !== '--key') {
+    fwrite(STDERR, "error: unknown option \"{$arguments[0]}\" (try --help)\n");
+    exit(1);
+}
 $builder = new RestoreBuilder(dirname(__DIR__));
 
 if (($arguments[0] ?? '') === '--key') {
@@ -35,7 +52,7 @@ try {
         printf("bundle: %d KB written to %s\n", strlen((string) file_get_contents($target)) / 1024, $target);
         exit(0);
     }
-    $output = $arguments[0] ?? dirname(__DIR__) . '/dist/restore.php';
+    $output = $arguments[0] ?? dirname(__DIR__) . '/dist/dev/restore.php';
     $result = $builder->build($output);
 } catch (RuntimeException $e) {
     fwrite(STDERR, 'error: ' . $e->getMessage() . "\n");
@@ -43,4 +60,7 @@ try {
 }
 
 printf("restore.php: %d KB (code %d KB in %d files, %d data files) written to %s\n", $result['bytes'] / 1024, $result['bundleBytes'] / 1024, $result['files'], $result['resources'], $output);
+if (!isset($arguments[0])) {
+    echo "This is a development build (version 0.0.0-dev). To hand out a restore.php use the one of a release: vendor/bin/phing, then dist/release/restore.php.\n";
+}
 echo "Upload it together with a restore-key.php and the parts of a backup; php tools/build-restore.php --key makes a key.\n";
