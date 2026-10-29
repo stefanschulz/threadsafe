@@ -190,6 +190,12 @@ final class SystemController
             . (WorkerLauncher::available() ? 'can start a worker process, so a call of the address can run the backup outside the request' : 'cannot start a worker process, so a call of the address does one tick of work') . '. How to call the trigger is on the Cron tab.</p>';
     }
 
+    /** A line of code with a button that copies it to the clipboard (the script of the pages does the copying). */
+    private static function copyable(string $id, string $text): string
+    {
+        return '<p class="copyline"><code id="' . Html::e($id) . '">' . Html::e($text) . '</code> <button type="button" class="secondary small" data-copy="#' . Html::e($id) . '">Copy</button></p>';
+    }
+
     /** The cron section: what to put into the crontab of the host (the command, or the address with its secret) and the secret itself. */
     private function cron(Context $context): string
     {
@@ -197,7 +203,7 @@ final class SystemController
         $html = '<p class="hint">Scheduled backups happen only when something calls the trigger: a cron job that runs <code>threadsafe cron</code>, or one that fetches the address below. Either is enough; one call a day is enough for a daily schedule.</p>';
 
         $secret = (new CronSecret($services->data . '/cron-secret'))->get();
-        $html .= '<h3>The command</h3><p><code>' . Html::e(TriggerHelp::commandLine()) . '</code></p><p class="hint">The line for a crontab. The command ends at once if another trigger is working, and ends with an error code when a backup failed.</p>';
+        $html .= '<h3>The command</h3>' . self::copyable('cron-command', TriggerHelp::commandLine()) . '<p class="hint">The line for a crontab. The command ends at once if another trigger is working, and ends with an error code when a backup failed.</p>';
         $html .= '<h3>The address</h3>';
         if ($secret === null) {
             $html .= '<p>There is no secret, so there is no address. Make one if the cron of the host can only fetch an address.</p>'
@@ -205,7 +211,7 @@ final class SystemController
         } else {
             $request = $context->request;
             $address = ($request->https ? 'https' : 'http') . '://' . ($request->header('host') ?? 'YOUR-HOST') . $context->urls->to(TriggerHelp::path($secret));
-            $html .= '<p><code>' . Html::e($address) . '</code></p><p><code>' . Html::e(TriggerHelp::addressLine($address)) . '</code></p>'
+            $html .= self::copyable('cron-address', $address) . self::copyable('cron-address-line', TriggerHelp::addressLine($address))
                 . '<p class="hint">The address works while the interface is switched off. The secret is in every access log of the web server that sees the address; it starts backups and nothing else, and a new one replaces it.</p>'
                 . View::form($context, '/system/cron-secret', '<input type="hidden" name="action" value="make"><button type="submit">Make a new secret</button>', 'inline') . ' '
                 . View::form($context, '/system/cron-secret', '<input type="hidden" name="action" value="remove"><button type="submit">Remove the secret</button>', 'inline');

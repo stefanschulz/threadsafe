@@ -277,6 +277,7 @@ final class SystemAndRestorePagesTest extends TestCase
 
         $page = $this->browser->get('/system?tab=cron');
         self::assertStringContainsString('threadsafe cron -q', $page->body);
+        self::assertMatchesRegularExpression('~<code id="cron-command">[^<]*threadsafe cron -q</code> <button type="button" class="secondary small" data-copy="#cron-command">Copy</button>~', $page->body, 'the line for the crontab can be copied');
         self::assertStringContainsString('There is no secret, so there is no address.', $page->body);
         self::assertStringContainsString('Make the secret', $page->body);
 
@@ -286,6 +287,8 @@ final class SystemAndRestorePagesTest extends TestCase
         $page = $this->browser->get('/system?tab=cron');
         self::assertStringContainsString('http://ts.example/cron/' . $secret, $page->body);
         self::assertStringContainsString('curl -fsS', $page->body);
+        self::assertStringContainsString('<code id="cron-address">http://ts.example/cron/' . $secret . '</code> <button type="button" class="secondary small" data-copy="#cron-address">Copy</button>', $page->body);
+        self::assertStringContainsString('data-copy="#cron-address-line"', $page->body, 'and the crontab line for the address');
         self::assertStringContainsString('A new secret was made', $page->body);
 
         $this->browser->post('/system/cron-secret', ['action' => 'make']);

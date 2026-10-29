@@ -421,6 +421,10 @@ details.form-section > summary h2 { margin: 0; }
 .start-options .option label { font-weight: 400; }
 .start-options .option:first-child { border-top: 0; padding-top: 0.25rem; }
 .start-options .actions { margin-top: 0; padding-top: 1rem; border-top: 1px solid var(--border); }
+/* a line of code with its Copy button (the lines of the trigger on the System page) */
+.copyline { display: flex; align-items: flex-start; gap: 0.5rem; }
+.copyline code { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.copyline button { flex: none; margin: 0; }
 /* the page of all schedules: the table with a tick box in front of each line, the sort links in the head, the fields of a schedule */
 table.schedule th.select, table.schedule td.select { width: 1%; padding-right: 0; }
 table.schedule th[scope="row"] { color: var(--text); font: inherit; letter-spacing: normal; text-transform: none; }
