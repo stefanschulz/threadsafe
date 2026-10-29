@@ -375,7 +375,7 @@ final class WordPressBackupTest extends TestCase
 
         self::assertSame($type, $registry->restorable('wordpress'));
         self::assertSame(
-            ['ensure-configuration', 'read-source-state', 'ensure-skeleton', 'write-configuration', 'replace-content-domains', 'fix-table-prefix', 'rewrite-htaccess', 'discard-caches', 'self-test'],
+            ['ensure-configuration', 'read-source-state', 'ensure-skeleton', 'write-configuration', 'replace-content-domains', 'fix-table-prefix', 'rewrite-htaccess', 'discard-caches', 'apply-dev-mode', 'self-test'],
             array_map(static fn (\ThreadSafe\Core\Step $step): string => $step->id(), $type->steps()),
         );
     }

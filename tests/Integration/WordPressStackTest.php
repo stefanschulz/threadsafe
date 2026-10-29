@@ -265,6 +265,56 @@ final class WordPressStackTest extends IntegrationTestCase
         $this->assertRestored($major, $manifest, $archive, $root, 'wp_target_sub', 'wp_', '/sub/', '/var/www/html/sub');
     }
 
+    // ------------------------------------------------------------------------------------------------- dev mode
+
+    public function testADevCopyIsRestoredThatSendsNoMailAndKeepsSearchEnginesOut(): void
+    {
+        $major = 7;
+        $this->requireSite($major);
+        [$base, $archive, $manifest] = $this->backUp($major);
+        $this->emptyTarget('wp_target');
+
+        $this->restore($base, $archive, self::TARGET, 'wp_target', ['--mode=dev']);
+
+        $mail = 'wp --path=' . escapeshellarg(self::TARGET) . ' --allow-root eval ' . escapeshellarg('echo wp_mail("someone@example.org", "Test", "Test") ? "SENT" : "FAILED";') . ' 2>&1';
+        $plugin = self::TARGET . '/wp-content/mu-plugins/threadsafe-dev.php';
+        self::assertFileExists($plugin);
+        self::assertSame('0', TableCompare::cell(self::targetDb('wp_target'), "SELECT option_value FROM wp_options WHERE option_name = 'blog_public'"));
+        self::assertStringStartsWith('# BEGIN ThreadSafe dev mode', (string) file_get_contents(self::TARGET . '/.htaccess'));
+        self::assertStringContainsString('# BEGIN WordPress', (string) file_get_contents(self::TARGET . '/.htaccess'), 'the rules of WordPress are still there');
+
+        // everything else of a restore is as in production, and the source was not touched
+        $this->assertRestored($major, $manifest, $archive, self::TARGET, 'wp_target', 'wp_', '', '/var/www/html', dev: true);
+        // (what follows opens the administration, which writes a draft: the tables were compared before)
+        // the web server sends the header, WordPress asks search engines to stay away, the pretty addresses still work behind the block
+        $client = new WordPressClient(self::TARGET_URL, self::TARGET_HOST, '');
+        $home = $client->get('/');
+        self::assertSame(200, $home['status']);
+        self::assertSame('noindex, nofollow', $home['headers']['x-robots-tag'] ?? '');
+        self::assertMatchesRegularExpression('/<meta name=.robots. content=.noindex, nofollow/', $home['body']);
+        $about = $client->get('/about-us/');
+        self::assertSame(200, $about['status']);
+        self::assertSame('noindex, nofollow', $about['headers']['x-robots-tag'] ?? '');
+        self::assertStringContainsString('Disallow: /', $client->get('/robots.txt')['body']);
+
+        // the administration says that this is a copy; the mail is stopped, and stops being stopped when the file goes
+        $admin = new WordPressClient(self::TARGET_URL, self::TARGET_HOST, '');
+        self::assertTrue($admin->login('seedadmin', self::PASSWORD));
+        self::assertStringContainsString('This is a development copy.', $admin->get('/wp-admin/')['body']);
+        $output = [];
+        exec($mail, $output, $code);
+        self::assertSame('SENT', trim(implode("\n", $output)), 'wp_mail() reports success and sends nothing: ' . implode("\n", $output));
+        rename($plugin, $plugin . '.off');
+        $output = [];
+        exec($mail, $output, $code);
+        self::assertSame('FAILED', trim(implode("\n", $output)), 'without the file the mail goes its way, and this host has no mail server');
+        rename($plugin . '.off', $plugin);
+
+        self::assertFileDoesNotExist(self::SITES[$major][0] . '/wp-content/mu-plugins/threadsafe-dev.php');
+        self::assertSame('1', TableCompare::cell(self::sourceDb($major), "SELECT option_value FROM wp_options WHERE option_name = 'blog_public'"));
+        self::assertArrayNotHasKey('x-robots-tag', Stack::get('http://wordpress' . $major, self::SITES[$major][1], '/')->headers);
+    }
+
     // ------------------------------------------------------------------------------------------------- the wizard
 
     public function testTheBackupIsRestoredThroughTheWizardUnderTightLimits(): void
@@ -306,7 +356,7 @@ final class WordPressStackTest extends IntegrationTestCase
      *
      * @param string $path the base path ('' or '/sub/') the site is served under on the target host
      */
-    private function assertRestored(int $major, Manifest $manifest, string $archive, string $root, string $database, string $prefix, string $path, string $serverPath): void
+    private function assertRestored(int $major, Manifest $manifest, string $archive, string $root, string $database, string $prefix, string $path, string $serverPath, bool $dev = false): void
     {
         [$directory, $host] = self::SITES[$major];
         $source = self::sourceDb($major);
@@ -469,6 +519,13 @@ final class WordPressStackTest extends IntegrationTestCase
         self::assertSame(200, $home['status'], 'the front page answers (no redirect to the old address)');
         self::assertStringContainsString($origin . '/', $home['body']);
         self::assertStringNotContainsString("http://$host", $home['body']);
+        if (!$dev) {
+            // a production copy is a production copy: search engines are welcome, mail is not stopped
+            self::assertArrayNotHasKey('x-robots-tag', $home['headers']);
+            self::assertFileDoesNotExist($root . '/wp-content/mu-plugins/threadsafe-dev.php');
+            self::assertSame('1', TableCompare::cell($target, "SELECT option_value FROM {$prefix}options WHERE option_name = 'blog_public'"));
+            self::assertStringNotContainsString('ThreadSafe dev mode', (string) file_get_contents($root . '/.htaccess'));
+        }
         $page = $client->get('/about-us/');
         self::assertSame(200, $page['status'], 'the pretty address works (the .htaccess)');
         self::assertStringContainsString('About the seeded site', $page['body']);

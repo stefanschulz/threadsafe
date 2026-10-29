@@ -26,6 +26,7 @@ final class WordPressRestore implements Restorable
             new Field('from', 'Old domain', Field::TEXT, $this->sourceDomain($manifest) ?? '', help: 'The domain the backed-up site had, as its database says (the option "home"); it is replaced in the content of the database.'),
             new Field('to', 'New domain', Field::TEXT, '', required: true, proposeHost: true, help: 'The domain the restored site is reached under, e.g. www.example.org.'),
             new Field('path', 'Base path', Field::TEXT, '', help: $home === '' ? 'Where in the new domain the site lives, e.g. /sub/; empty: at the root. Links in the content follow it.' : 'The old site lived in "' . $home . '/"; leave this empty: ThreadSafe can move a site into a directory only from the root of a domain.'),
+            new Field('mode', 'Mode', Field::CHOICE, 'production', ['production', 'dev'], help: 'dev makes a development or staging copy: wp_mail() sends nothing (a must-use plugin), the site asks search engines to stay away, and the administration says that this is a copy. Payment gateways and other services of plugins are not switched off.'),
             new Field('keepDropIns', 'Cache drop-ins', Field::CHOICE, 'off', ['off', 'keep'], help: 'off (the default): object-cache.php, advanced-cache.php and db.php are renamed to *.threadsafe-off, because a drop-in that serves something the old host had (Redis, a page cache) breaks every page; keep: leave them as they are.'),
         ];
     }
@@ -37,6 +38,9 @@ final class WordPressRestore implements Restorable
             if (($values[$field] ?? '') !== '') {
                 $settings[$key] = $values[$field];
             }
+        }
+        if (($values['mode'] ?? '') === 'dev') {
+            $settings['mode'] = 'dev';
         }
         if (($values['keepDropIns'] ?? '') === 'keep') {
             $settings['keepDropIns'] = true;

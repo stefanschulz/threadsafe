@@ -20,6 +20,7 @@ use ThreadSafe\Tests\Support\WordPressSite;
 use ThreadSafe\WordPress\Config\WordPressConfigFile;
 use ThreadSafe\WordPress\HtaccessRewriter;
 use ThreadSafe\WordPress\RequestBuilder;
+use ThreadSafe\WordPress\Steps\ApplyDevMode;
 use ThreadSafe\WordPress\Steps\EnsureConfiguration;
 use ThreadSafe\WordPress\Steps\ReadWordPressState;
 use ThreadSafe\WordPress\Steps\RewriteHtaccess;
@@ -85,11 +86,40 @@ final class WordPressMigrationTest extends TestCase
         self::assertSame('', $root->domains[0]->toPath);
     }
 
+    public function testDevModeIsAskedForByTheModeAndProductionIsTheDefault(): void
+    {
+        self::assertTrue((new RequestBuilder())->build(['root' => $this->root(), 'mode' => 'dev'])->isDevMode());
+        self::assertFalse((new RequestBuilder())->build(['root' => $this->root()])->isDevMode());
+        self::assertFalse((new RequestBuilder())->build(['root' => $this->root(), 'mode' => 'production'])->isDevMode());
+    }
+
+    public function testTheBlockOfDevModeIsAtTheTopOnceAndTheRulesOfTheSiteStay(): void
+    {
+        $block = ApplyDevMode::withBlock('');
+        self::assertStringStartsWith('# BEGIN ThreadSafe dev mode', $block);
+        self::assertStringEndsWith("# END ThreadSafe dev mode\n", $block);
+
+        $once = ApplyDevMode::withBlock(WordPressSite::HTACCESS);
+        self::assertStringEndsWith(WordPressSite::HTACCESS, $once);
+        self::assertSame($once, ApplyDevMode::withBlock($once), 'a second run changes nothing');
+        self::assertSame(1, substr_count(ApplyDevMode::withBlock($once), 'X-Robots-Tag'));
+    }
+
+    public function testTheMustUsePluginIsPhpThatStopsMailAndSaysSo(): void
+    {
+        $source = ApplyDevMode::pluginSource();
+        self::assertStringContainsString('Plugin Name: ThreadSafe dev mode', $source);
+        self::assertStringContainsString(ApplyDevMode::PLUGIN_MARKER, $source, 'the production step finds a plugin of a dev copy by it');
+        self::assertStringContainsString("add_filter('pre_wp_mail'", $source);
+        self::assertStringContainsString('admin_notices', $source);
+        self::assertStringContainsString('wp-content/mu-plugins/threadsafe-dev.php', $source, 'the notice says which file to delete');
+    }
+
     public function testBadSettingsAreRefused(): void
     {
         $root = $this->root();
         foreach ([
-            [['mode' => 'dev'], 'dev mode of WordPress is not built yet'],
+            [['mode' => 'staging'], 'The mode must be "production" or "dev"'],
             [['skipColumns' => ['nonsense']], 'skipColumns must be a list of "table.column"'],
             [['keepDropIns' => 'yes'], 'keepDropIns must be true or false'],
             [['nonsense' => 1], 'Unknown setting "nonsense"'],

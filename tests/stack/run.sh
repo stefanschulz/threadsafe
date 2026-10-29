@@ -38,7 +38,12 @@
 #      through their profiles; the backups are restored by one command on another domain with another table prefix, by one command into a
 #      sub-directory, and through the threadsafe-restore.php wizard under 5 s / 64 MB, onto the service target-wordpress (a web server with mysqli on the
 #      files of the target volume); the restored sites serve, their users log in and have their rights, `wp search-replace --dry-run` finds nothing of the
-#      old address, and their configuration fits the host. It wipes the target.
+#      old address, and their configuration fits the host. A copy restored with --mode=dev sends no mail (a must-use plugin), asks search engines to stay away
+#      and says in the administration that it is a copy. It wipes the target.
+#
+#  11. phase nine: disaster recovery of a WordPress site (groups "wordpress-disaster-prepare" and "wordpress-disaster-restore"): a seeded site is restored onto the target and the
+#      working site backed up; the target's containers and volumes are DESTROYED and made again empty on the same address; the wizard brings the site back under
+#      5 s / 64 MB; its pages, tables and files are compared with what they were and the administrator logs in.
 #
 #   tests/stack/run.sh [phpunit arguments]
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
@@ -52,7 +57,7 @@ phpunit() {
 }
 
 log "Integration tests, phase 1: baseline, steps, migration of the clone"
-phpunit --exclude-group after-migration --exclude-group dev-migration --exclude-group backup-roundtrip --exclude-group disaster-prepare --exclude-group disaster-restore --exclude-group cross-server --exclude-group restore-variant --exclude-group web-ui --exclude-group trigger --exclude-group encryption --exclude-group joomla --exclude-group fresh --exclude-group wordpress "$@"
+phpunit --exclude-group after-migration --exclude-group dev-migration --exclude-group backup-roundtrip --exclude-group disaster-prepare --exclude-group disaster-restore --exclude-group cross-server --exclude-group restore-variant --exclude-group web-ui --exclude-group trigger --exclude-group encryption --exclude-group joomla --exclude-group fresh --exclude-group wordpress --exclude-group wordpress-disaster-prepare --exclude-group wordpress-disaster-restore "$@"
 
 "$STACK_DIR/oracle.sh" target
 
@@ -107,3 +112,14 @@ dc up -d --wait target-db >/dev/null
 dc up -d target-wordpress >/dev/null
 wait_http "http://localhost:${TARGET_WORDPRESS_PORT:-8291}/" "localhost:${TARGET_WORDPRESS_PORT:-8291}" 120
 phpunit --group wordpress "$@"
+
+log "Integration tests, phase 9: disaster recovery of a WordPress site"
+phpunit --group wordpress-disaster-prepare "$@"
+log "Destroying the target stack: containers and volumes"
+dc rm -sf target-prestashop target-wordpress target-db >/dev/null
+docker volume rm "threadsafe-dev_target_ps_data${VOLUME_SUFFIX:-}" "threadsafe-dev_target_db_data${VOLUME_SUFFIX:-}" >/dev/null
+log "Making the target stack again, empty, on the same address"
+dc up -d --wait target-db >/dev/null
+dc up -d target-wordpress >/dev/null
+wait_http "http://localhost:${TARGET_WORDPRESS_PORT:-8291}/" "localhost:${TARGET_WORDPRESS_PORT:-8291}" 120
+phpunit --group wordpress-disaster-restore "$@"

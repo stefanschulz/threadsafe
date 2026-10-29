@@ -12,6 +12,7 @@ use ThreadSafe\Database\ConnectionFailed;
 use ThreadSafe\Database\DatabaseError;
 use ThreadSafe\Database\DatabaseSettings;
 use ThreadSafe\Migration\MigrationRequest;
+use ThreadSafe\Migration\Mode;
 use ThreadSafe\Migration\RequestBuilder as BaseRequestBuilder;
 use ThreadSafe\WordPress\Config\WordPressConfigFile;
 use ThreadSafe\WordPress\Exception\InvalidConfigFile;
@@ -21,7 +22,7 @@ use ThreadSafe\WordPress\Exception\InvalidConfigFile;
  *
  *   path         string  new base path, e.g. "/sub/" (the directory of the domain the site lives in); default: unchanged. The site must be at
  *                        the root of its old domain: a path that changes is not something a replacement of hosts can do
- *   mode         string  production (the only one until dev mode is built: docs/PHASE9.md work package 6)
+ *   mode         string  production (default) or dev: a development or staging copy that sends no mail and keeps search engines out
  *   keepDropIns  bool    keep `object-cache.php`, `advanced-cache.php` and `db.php` (default: they are switched off, decision 4)
  *   includeGuid  bool    also replace the address in `wp_posts.guid` (default: it is left alone, decision 5)
  *
@@ -54,10 +55,7 @@ final class RequestBuilder extends BaseRequestBuilder
 
     protected function extraArguments(array $settings, string $root): array
     {
-        $mode = $this->string($settings, 'mode') ?? 'production';
-        if ($mode !== 'production') {
-            throw new InvalidArgumentException('The mode must be "production": the dev mode of WordPress is not built yet (docs/PHASE9.md, work package 6).');
-        }
+        $mode = Mode::tryFrom($this->string($settings, 'mode') ?? 'production') ?? throw new InvalidArgumentException('The mode must be "production" or "dev".');
         $base = $this->string($settings, 'path');
         if ($base !== null) {
             $base = '/' . trim($base, '/') . '/';
@@ -66,6 +64,7 @@ final class RequestBuilder extends BaseRequestBuilder
 
         return [
             'physicalUri' => $base,
+            'mode' => $mode,
             'options' => ['keepDropIns' => $this->boolean($settings, 'keepDropIns', false)],
         ];
     }

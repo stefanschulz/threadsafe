@@ -11,8 +11,10 @@ use ThreadSafe\Core\NullLogger;
 use ThreadSafe\Core\Context;
 use ThreadSafe\Generic\Steps\ReplaceContentDomains;
 use ThreadSafe\Migration\MigrationRequest;
+use ThreadSafe\Migration\Mode;
 use ThreadSafe\Replace\DomainMapping;
 use ThreadSafe\Tests\Support\ScratchWordPress;
+use ThreadSafe\WordPress\Steps\ApplyDevMode;
 use ThreadSafe\WordPress\Steps\DiscardCaches;
 use ThreadSafe\WordPress\Steps\FixTablePrefix;
 use ThreadSafe\WordPress\Steps\ReadWordPressState;
@@ -154,6 +156,77 @@ final class WordPressStepsTest extends IntegrationTestCase
         self::assertFileExists($site->root . '/wp-content/object-cache.php');
         self::assertFileDoesNotExist($site->root . '/wp-content/object-cache.php.threadsafe-off');
         self::assertStringContainsString('The drop-in wp-content/object-cache.php is kept', $plan->notices()[0]->message);
+    }
+
+    // ------------------------------------------------------------------------------------------------- dev mode
+
+    private function devRequest(ScratchWordPress $site): MigrationRequest
+    {
+        return new MigrationRequest($site->root, mode: Mode::Dev);
+    }
+
+    public function testDevModeStopsMailAndKeepsSearchEnginesOut(): void
+    {
+        $site = $this->site(htaccess: true);
+        $site->option('blog_public', '1');
+        $before = (string) file_get_contents($site->root . '/.htaccess');
+        $context = $site->context($this->devRequest($site));
+
+        $plan = (new ApplyDevMode())->plan($context);
+        $result = (new ApplyDevMode())->apply($context, $plan);
+
+        self::assertSame(3, $result->applied, 'the option, .htaccess and the must-use plugin');
+        self::assertSame('0', $site->value("SELECT option_value FROM wp_options WHERE option_name = 'blog_public'"));
+        $htaccess = (string) file_get_contents($site->root . '/.htaccess');
+        self::assertStringStartsWith('# BEGIN ThreadSafe dev mode', $htaccess);
+        self::assertStringContainsString('Header set X-Robots-Tag "noindex, nofollow"', $htaccess);
+        self::assertNotSame('', $before);
+        self::assertTrue(str_ends_with($htaccess, $before), 'the rules of the site are kept, byte for byte');
+        $plugin = (string) file_get_contents($site->root . '/' . ApplyDevMode::PLUGIN);
+        self::assertStringContainsString("add_filter('pre_wp_mail', '__return_true');", $plugin);
+        self::assertSame(0, (new ApplyDevMode())->apply($context, (new ApplyDevMode())->plan($context))->applied, 'done once');
+        self::assertSame($htaccess, (string) file_get_contents($site->root . '/.htaccess'), 'the block is never written twice');
+    }
+
+    public function testDevModeMakesTheOptionAndTheHtaccessThatAreMissing(): void
+    {
+        $site = $this->site();
+        $context = $site->context($this->devRequest($site));
+
+        (new ApplyDevMode())->apply($context, (new ApplyDevMode())->plan($context));
+
+        self::assertSame('0', $site->value("SELECT option_value FROM wp_options WHERE option_name = 'blog_public'"));
+        self::assertSame('1', $site->value("SELECT COUNT(*) FROM wp_options WHERE option_name = 'blog_public'"));
+        self::assertStringContainsString('X-Robots-Tag', (string) file_get_contents($site->root . '/.htaccess'));
+        self::assertFileExists($site->root . '/' . ApplyDevMode::PLUGIN);
+    }
+
+    public function testDevModeSaysThatWooCommerceIsNotSwitchedOff(): void
+    {
+        $site = $this->site();
+        $site->option('active_plugins', 'a:2:{i:0;s:19:"akismet/akismet.php";i:1;s:27:"woocommerce/woocommerce.php";}');
+
+        $plan = (new ApplyDevMode())->plan($site->context($this->devRequest($site)));
+
+        $warnings = array_values(array_filter($plan->notices(), static fn ($notice): bool => str_contains($notice->message, 'WooCommerce is active')));
+        self::assertCount(1, $warnings);
+        self::assertStringContainsString('NOT switched off', $warnings[0]->message);
+    }
+
+    public function testProductionModeChangesNothingAndWarnsAboutTheMuPluginOfADevCopy(): void
+    {
+        $site = $this->site(htaccess: true);
+        $site->option('blog_public', '1');
+        $context = $site->context(new MigrationRequest($site->root));
+        self::assertSame([], (new ApplyDevMode())->plan($context)->notices());
+
+        $site->writeFile(ApplyDevMode::PLUGIN, ApplyDevMode::pluginSource());
+        $plan = (new ApplyDevMode())->plan($context);
+
+        self::assertSame(0, (new ApplyDevMode())->apply($context, $plan)->applied);
+        self::assertSame('1', $site->value("SELECT option_value FROM wp_options WHERE option_name = 'blog_public'"));
+        self::assertStringContainsString('of a dev mode copy', $plan->notices()[0]->message);
+        self::assertStringNotContainsString('X-Robots-Tag', (string) file_get_contents($site->root . '/.htaccess'));
     }
 
     // ------------------------------------------------------------------------------------------------- the address in the content

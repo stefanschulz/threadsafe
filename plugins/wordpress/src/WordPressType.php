@@ -18,6 +18,7 @@ use ThreadSafe\Plugin\Restorable;
 use ThreadSafe\Plugin\WebsiteType;
 use ThreadSafe\WordPress\Backup\WordPressBackup;
 use ThreadSafe\WordPress\Restore\WordPressRestore;
+use ThreadSafe\WordPress\Steps\ApplyDevMode;
 use ThreadSafe\WordPress\Steps\DiscardCaches;
 use ThreadSafe\WordPress\Steps\EnsureConfiguration;
 use ThreadSafe\WordPress\Steps\EnsureSkeleton;
@@ -51,6 +52,7 @@ final class WordPressType implements WebsiteType, Backupable, Restorable
     {
         return [
             new OptionSpec('path', 'New base path of the site, e.g. /sub/ (default: unchanged); only for a site at the root of its domain', takesValue: true, valueName: 'PATH'),
+            new OptionSpec('mode', 'production (default) or dev: the copy sends no mail (wp_mail) and keeps search engines out', takesValue: true, valueName: 'MODE'),
             new OptionSpec('keep-dropins', 'Keep object-cache.php, advanced-cache.php and db.php (default: they are renamed to *.threadsafe-off)'),
             new OptionSpec('include-guid', 'Also replace the old domain in wp_posts.guid (default: the identifiers of the posts are left alone)'),
         ];
@@ -61,6 +63,9 @@ final class WordPressType implements WebsiteType, Backupable, Restorable
         $settings = [];
         if ($input->has('path')) {
             $settings['path'] = $input->value('path');
+        }
+        if ($input->has('mode')) {
+            $settings['mode'] = $input->value('mode');
         }
         if ($input->has('keep-dropins')) {
             $settings['keepDropIns'] = true;
@@ -88,6 +93,7 @@ final class WordPressType implements WebsiteType, Backupable, Restorable
             new FixTablePrefix(),
             new RewriteHtaccess(),
             new DiscardCaches(),
+            new ApplyDevMode(),
             new SelfTest(),
         ];
     }

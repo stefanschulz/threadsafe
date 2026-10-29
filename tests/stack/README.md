@@ -31,7 +31,9 @@ tests/stack/run.sh            # seed → clone → PHPUnit phase 1 (incl. the mi
                               # start is taken back; no database needed, `docs/PHASE7.md` 4.2)
                               # → phase 8 (group `wordpress`: three seeded WordPress sites, 7.1, 6.9 and 6.0, backed up and restored on another domain with another table prefix, into a
                               # sub-directory and through the wizard onto `target-wordpress`; the oracle is `wp search-replace --dry-run`; `seed-wordpress.sh` runs before the
-                              # web phase because the web interface backs one of the sites up, `docs/PHASE9.md` 4.2)
+                              # web phase because the web interface backs one of the sites up, `docs/PHASE9.md` 4.2; a copy restored with `--mode=dev` sends no mail and keeps search engines out)
+                              # → phase 9 (groups `wordpress-disaster-prepare` and `wordpress-disaster-restore`: a seeded WordPress is restored onto the target and backed up there, the target's containers
+                              # and volumes are destroyed and made again empty, and the wizard brings the site back on the same address under 5 s / 64 MB, `docs/PHASE9.md` 4.2)
 tests/stack/cross.sh          # backups across the two kinds of database server (MySQL 8.4 -> MariaDB and back), needs the source seeded on both
 ```
 
