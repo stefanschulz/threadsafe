@@ -611,6 +611,45 @@ final class WebInterfaceTest extends IntegrationTestCase
         self::assertSame([], $found, 'the restore key is not stored');
     }
 
+    // ------------------------------------------------------------------------------------------------- the WordPress type
+
+    #[Depends('testTheAuditLogHoldsTheStoryAndNoSecret')]
+    public function testTheWordPressTypeIsInTheProfileFormAndItsBackupRunsInTheBrowsersSteps(): void
+    {
+        if (!is_file('/wordpress7/wp-includes/version.php')) {
+            self::markTestSkipped('The WordPress site is not mounted into the web service (tests/stack/seed-wordpress.sh runs before this phase).');
+        }
+        $ui = self::ui();
+        $form = ['type' => 'wordpress', 'path' => '/shops/wordpress7', 'id' => '', 'storage' => '/srv/storage/blog', 'compression' => '6', 'db_mode' => 'site', 'default_filters' => '1'];
+        $detect = $ui->post('/profiles', ['action' => 'detect'] + $form);
+        self::assertStringContainsString('WordPress', $detect['body']);
+        self::assertStringContainsString('read from the site', $detect['body'], 'the database access comes from wp-config.php');
+        $created = $ui->post('/profiles', ['action' => 'save', 'name' => 'Seeded blog', 'part_size' => '500M', 'exclude' => '', 'structure_only' => '', 'note' => '', 'id' => 'blog'] + $form);
+        self::assertSame(303, $created['status'], strip_tags($created['body']));
+        self::assertSame('/profiles/blog', $created['headers']['location']);
+        self::assertStringNotContainsString('Seed-admin', $ui->get('/profiles/blog')['body']);
+
+        $start = $ui->post('/profiles/blog/backup');
+        self::assertSame(303, $start['status']);
+        $run = self::backupOf($start['headers']['location']);
+        $result = self::tickToTheEnd($ui, "/runs/$run/tick");
+        self::assertGreaterThanOrEqual(2, $result['ticks'], 'a backup of the blog takes more than one step');
+        self::assertStringContainsString('Backup finished', $ui->get("/runs/$run")['body']);
+
+        $first = glob('/web-storage/blog/blog_*-p01.zip') ?: [];
+        self::assertCount(1, $first);
+        $manifest = Manifest::fromArchive($first[0]);
+        self::assertSame('WordPress', $manifest->application['name']);
+        self::assertSame('table', $manifest->consistency);
+        self::assertSame('wp_', $manifest->extras['dbPrefix']);
+        exec('unzip -Z1 ' . escapeshellarg($first[0]) . ' 2>&1', $names);
+        self::assertContains('files/wp-config.php', $names);
+        exec('unzip -tq ' . escapeshellarg($first[0]) . ' 2>&1', $lines, $code);
+        self::assertSame(0, $code, implode("
+", $lines));
+        self::assertStringContainsString('<article class="card', $ui->get('/')['body']);
+    }
+
     // ------------------------------------------------------------------------------------------------- throttle
 
     #[Depends('testTheAuditLogHoldsTheStoryAndNoSecret')]

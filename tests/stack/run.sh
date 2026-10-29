@@ -33,6 +33,13 @@
 #      switches to the next one through the System page with a real health check, a version that cannot start is taken back, and what is not
 #      right (checksum, file, host, a backup running) is refused. It needs no stack of the other phases and leaves them alone.
 #
+#  10. phase eight: WordPress (group "wordpress", the services wordpress7, wordpress6 and wordpress60, seeded by seed-wordpress.sh with WP-CLI before phase 4b, because the web
+#      interface backs up one of them there): the seeded sites are backed up
+#      through their profiles; the backups are restored by one command on another domain with another table prefix, by one command into a
+#      sub-directory, and through the threadsafe-restore.php wizard under 5 s / 64 MB, onto the service target-wordpress (a web server with mysqli on the
+#      files of the target volume); the restored sites serve, their users log in and have their rights, `wp search-replace --dry-run` finds nothing of the
+#      old address, and their configuration fits the host. It wipes the target.
+#
 #   tests/stack/run.sh [phpunit arguments]
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
@@ -45,7 +52,7 @@ phpunit() {
 }
 
 log "Integration tests, phase 1: baseline, steps, migration of the clone"
-phpunit --exclude-group after-migration --exclude-group dev-migration --exclude-group backup-roundtrip --exclude-group disaster-prepare --exclude-group disaster-restore --exclude-group cross-server --exclude-group restore-variant --exclude-group web-ui --exclude-group trigger --exclude-group encryption --exclude-group joomla --exclude-group fresh "$@"
+phpunit --exclude-group after-migration --exclude-group dev-migration --exclude-group backup-roundtrip --exclude-group disaster-prepare --exclude-group disaster-restore --exclude-group cross-server --exclude-group restore-variant --exclude-group web-ui --exclude-group trigger --exclude-group encryption --exclude-group joomla --exclude-group fresh --exclude-group wordpress "$@"
 
 "$STACK_DIR/oracle.sh" target
 
@@ -61,6 +68,9 @@ phpunit --group restore-variant "$@"
 log "Integration tests, phase 4: back up the source shop and restore the backup into the target"
 phpunit --group backup-roundtrip "$@"
 
+log "Seeding the WordPress sites (the web interface backs one of them up in phase 4b; phase 8 restores all of them)"
+"$STACK_DIR/seed-wordpress.sh"
+
 log "Integration tests, phase 4b: the web interface of ThreadSafe (Apache, 5 s / 64 MB), a backup through it restored with its own kit"
 dc up -d web >/dev/null
 wait_http "http://localhost:${WEB_PORT:-8390}/" "localhost" 120
@@ -75,7 +85,7 @@ phpunit --group encryption "$@"
 log "Integration tests, phase 5: disaster recovery"
 phpunit --group disaster-prepare "$@"
 log "Destroying the target stack: containers and volumes"
-dc rm -sf target-prestashop target-db >/dev/null
+dc rm -sf target-prestashop target-wordpress target-db >/dev/null
 docker volume rm "threadsafe-dev_target_ps_data${VOLUME_SUFFIX:-}" "threadsafe-dev_target_db_data${VOLUME_SUFFIX:-}" >/dev/null
 log "Making the target stack again, empty, on the same address"
 dc up -d --wait target-db >/dev/null
@@ -91,3 +101,9 @@ log "Integration tests, phase 7: the installer and the update on a host with not
 dc up -d fresh >/dev/null
 wait_http "http://localhost:${FRESH_PORT:-8490}/" "localhost" 120
 phpunit --group fresh "$@"
+
+log "Integration tests, phase 8: WordPress 7.1, 6.9 and 6.0 (backup, restore on another domain with another prefix, into a sub-directory, through the wizard under 5 s / 64 MB)"
+dc up -d --wait target-db >/dev/null
+dc up -d target-wordpress >/dev/null
+wait_http "http://localhost:${TARGET_WORDPRESS_PORT:-8291}/" "localhost:${TARGET_WORDPRESS_PORT:-8291}" 120
+phpunit --group wordpress "$@"

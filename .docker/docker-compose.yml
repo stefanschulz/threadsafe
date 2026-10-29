@@ -114,6 +114,8 @@ services:
       - web_data:/srv/data
       - web_storage:/srv/storage
       - ps_data:/shops/source:ro
+      # a WordPress site to back up through the interface (seeded by tests/stack/seed-wordpress.sh before the web phase)
+      - wordpress7_data:/shops/wordpress7:ro
     depends_on:
       db:
         condition: service_healthy
@@ -171,6 +173,58 @@ services:
     volumes:
       - joomla6_data:/var/www/html
 
+  # Three WordPress sites to back up (profile "wordpress"; docs/PHASE9.md 4.2): WordPress 7.1, 6.9 (the last 6.x) and 6.0 (the floor), each with a database of its own on the `db`
+  # service. The images install nothing but the files; tests/stack/seed-wordpress.sh makes the databases, writes a literal wp-config.php and
+  # installs and seeds the sites with WP-CLI (the `tools` container has it). No WORDPRESS_* variables: they would make the image write a
+  # wp-config.php that computes its values (docs/PHASE9.md 8, finding 1). The tools container mounts the files.
+  wordpress7:
+    profiles: ["wordpress"]
+    image: wordpress:${WORDPRESS7_TAG:-7.1-php8.4-apache}
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "${WORDPRESS7_PORT:-8197}:80"
+    volumes:
+      - wordpress7_data:/var/www/html
+
+  wordpress6:
+    profiles: ["wordpress"]
+    image: wordpress:${WORDPRESS6_TAG:-6-php8.4-apache}
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "${WORDPRESS6_PORT:-8198}:80"
+    volumes:
+      - wordpress6_data:/var/www/html
+
+  # the floor of the supported versions (decision 3 of docs/PHASE9.md: WordPress 6.0), on the last PHP it supports officially
+  wordpress60:
+    profiles: ["wordpress"]
+    image: wordpress:${WORDPRESS60_TAG:-6.0-php8.1-apache}
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "${WORDPRESS60_PORT:-8199}:80"
+    volumes:
+      - wordpress60_data:/var/www/html
+
+  # The target for WordPress. The PHP of the PrestaShop image has no mysqli, which WordPress needs, so a WordPress needs a web server of its own on the
+  # files of the target volume (the same files that target-prestashop serves); it is not started by the other phases. Only Apache and PHP: no WordPress
+  # of the image's is copied in (the command does not start with apache2). The limits for the wizard are those of the other target.
+  target-wordpress:
+    profiles: ["target"]
+    image: wordpress:${WORDPRESS7_TAG:-7.1-php8.4-apache}
+    command: ["sh", "-c", "a2enmod headers rewrite >/dev/null && exec apache2-foreground"]
+    ports:
+      - "${TARGET_WORDPRESS_PORT:-8291}:80"
+    volumes:
+      - target_ps_data:/var/www/html
+      - ./target-restore-limits.conf:/etc/apache2/conf-enabled/threadsafe-restore-limits.conf:ro
+    networks: [target]
+
   # Development tools (PHP 8.4 CLI + pdo_mysql + Composer). Not started by `up`; use:
   #   docker compose --profile tools run --rm tools composer install
   #   docker compose --profile tools run --rm tools composer check
@@ -190,6 +244,10 @@ services:
       # the Joomla sites (profile "joomla")
       - joomla5_data:/joomla5:ro
       - joomla6_data:/joomla6:ro
+      # the WordPress sites (profile "wordpress"); writable only so that WP-CLI can seed them (the tests read them)
+      - wordpress7_data:/wordpress7
+      - wordpress6_data:/wordpress6
+      - wordpress60_data:/wordpress60
       # the host with nothing on it (profile "fresh"): its /var/www
       - fresh_www:/shops/fresh
     depends_on:
@@ -223,4 +281,10 @@ volumes:
     name: threadsafe-dev_joomla5_data${VOLUME_SUFFIX:-}
   joomla6_data:
     name: threadsafe-dev_joomla6_data${VOLUME_SUFFIX:-}
+  wordpress7_data:
+    name: threadsafe-dev_wordpress7_data${VOLUME_SUFFIX:-}
+  wordpress6_data:
+    name: threadsafe-dev_wordpress6_data${VOLUME_SUFFIX:-}
+  wordpress60_data:
+    name: threadsafe-dev_wordpress60_data${VOLUME_SUFFIX:-}
   composer_cache:

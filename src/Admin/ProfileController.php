@@ -436,7 +436,7 @@ final class ProfileController
             . ($creating ? View::field('id', 'Id', 'text', $values['id'], ['mark' => '1', 'required' => 'required', 'maxlength' => '40', 'autocapitalize' => 'none', 'spellcheck' => 'false'], 'Lower-case letters, digits, hyphens and underscores; part of the names of the backup files. It cannot be changed later.')
                 : '<p>Id: <code>' . Html::e($currentId) . '</code></p>')
             . View::field('name', 'Name', 'text', $values['name'], [], 'Shown in the lists; the id if left empty.')
-            . View::select('type', 'Website type', $types, $values['type'], 'PrestaShop 9 and Joomla (5 and 6) know their own files and read their database from their configuration. Other website is any site: the files of its directory and, if you enter one, a database.')
+            . View::select('type', 'Website type', $types, $values['type'], 'PrestaShop 9, Joomla (5 and 6) and WordPress know their own files and read their database from their configuration. Other website is any site: the files of its directory and, if you enter one, a database.')
             . View::field('path', 'Site directory', 'text', $values['path'], ['mark' => '1', 'required' => 'required', 'spellcheck' => 'false'], 'The absolute path of the application on this server.')
             . '<p><button type="submit" name="action" value="detect" class="secondary" formnovalidate>Look at the site</button></p>'
             . View::field('note', 'Note', 'text', $values['note'])
@@ -446,7 +446,7 @@ final class ProfileController
             . View::field('compression', 'Compression', 'text', $values['compression'], ['inputmode' => 'numeric', 'maxlength' => '1'], '0 (store) to 9; 6 is a good balance.')
             . View::field('part_size', 'Part size', 'text', $values['part_size'], ['spellcheck' => 'false'], 'Split archives into parts of this size, e.g. 500M or 2G. Empty = one archive.')
             . '</section>' . self::fold('Database', $summary['database'], $open)
-            . View::select('db_mode', 'Access', ['site' => 'Read it from the site\'s own configuration (or the site has none)', 'manual' => 'Enter it here'], $values['db_mode'], 'PrestaShop keeps its database access in app/config/parameters.php; reading it from there means no second copy of the password. Types without such a file need the entries below.')
+            . View::select('db_mode', 'Access', ['site' => 'Read it from the site\'s own configuration (or the site has none)', 'manual' => 'Enter it here'], $values['db_mode'], 'PrestaShop keeps its database access in app/config/parameters.php, Joomla in configuration.php and WordPress in wp-config.php; reading it from there means no second copy of the password. Types without such a file need the entries below.')
             . View::field('db_host', 'Host', 'text', $values['db_host'], ['spellcheck' => 'false'] + $manual)
             . View::field('db_port', 'Port', 'text', $values['db_port'], ['inputmode' => 'numeric'] + $manual)
             . View::field('db_name', 'Database', 'text', $values['db_name'], ['spellcheck' => 'false'] + $manualRequired)

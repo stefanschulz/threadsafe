@@ -1,0 +1,5 @@
+{
+    "nested": {"link": "http://{{domain}}/about-us/", "images": ["http://{{domain}}/wp-content/uploads/seed/photo.png", "https://foreign.example/x.png"], "count": 3, "ratio": 0.5, "on": true},
+    "plain": "http://{{domain}}/seed/",
+    "foreign": "https://foreign.example/page"
+}
