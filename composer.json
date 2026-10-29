@@ -26,7 +26,8 @@
             "ThreadSafe\\": "src/",
             "ThreadSafe\\PrestaShop9\\": "plugins/prestashop9/src/",
             "ThreadSafe\\Generic\\": "plugins/generic/src/",
-            "ThreadSafe\\Joomla\\": "plugins/joomla/src/"
+            "ThreadSafe\\Joomla\\": "plugins/joomla/src/",
+            "ThreadSafe\\WordPress\\": "plugins/wordpress/src/"
         }
     },
     "autoload-dev": {
