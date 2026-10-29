@@ -225,6 +225,45 @@ final class WordPressConfigFile
     }
 
     /**
+     * The settings that hold an absolute path through a directory of WordPress (`/var/www/html/wp-content/plugins/x/`, `/srv/site/wp-content`):
+     * for each the directory of the site that the path begins with, as the file says it. Nothing tells a restore where the old site was, but
+     * a path that passes through `wp-content`, `wp-includes` or `wp-admin` names it.
+     *
+     * @return array<string, string> name => the old site directory, without a trailing slash
+     */
+    public function pathSettings(): array
+    {
+        $found = [];
+        foreach ($this->parsed->entries as $entry) {
+            if ($entry->kind === ConfigEntry::DEFINE && $entry->understood && is_string($entry->value)
+                && preg_match('#^(/.+?)/(?:wp-content|wp-includes|wp-admin)(?:/|$)#', $entry->value, $m) === 1) {
+                $found[$entry->name] = $m[1];
+            }
+        }
+
+        return $found;
+    }
+
+    /**
+     * Returns a copy in which every setting of {@see pathSettings()} that begins with another directory than $root begins with $root.
+     *
+     * @throws InvalidConfigFile such a setting is defined more than once
+     */
+    public function withPathsRebased(string $root): self
+    {
+        $root = self::rtrimSlash($root);
+        $file = $this;
+        foreach ($this->pathSettings() as $name => $old) {
+            $value = $file->get($name);
+            if ($old !== $root && is_string($value) && str_starts_with($value, $old)) {
+                $file = $file->with($name, $root . substr($value, strlen($old)));
+            }
+        }
+
+        return $file;
+    }
+
+    /**
      * Writes the file atomically and keeps its mode.
      *
      * @see AtomicFile

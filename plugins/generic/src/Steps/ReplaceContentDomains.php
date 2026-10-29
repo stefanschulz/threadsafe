@@ -12,12 +12,14 @@ use ThreadSafe\Core\Plan;
 use ThreadSafe\Core\ResumableStep;
 use ThreadSafe\Core\StepResult;
 use ThreadSafe\Core\StepTick;
+use ThreadSafe\Database\Connection;
 use ThreadSafe\Database\SchemaInspector;
 use ThreadSafe\Database\TableInfo;
 use ThreadSafe\Engine\Budget;
 use ThreadSafe\Generic\State;
 use ThreadSafe\Migration\ContentReport;
 use ThreadSafe\Migration\ContentRewriteRun;
+use ThreadSafe\Migration\MigrationRequest;
 use ThreadSafe\Replace\TableRewriter;
 use ThreadSafe\Replace\TableRewriteResult;
 use ThreadSafe\Replace\ValueRewriter;
@@ -103,13 +105,13 @@ final class ReplaceContentDomains implements ResumableStep
         }
 
         $rewriter = new TableRewriter($db, $matcher, new ValueRewriter($matcher), $request->chunkSize);
-        [$state, $finished] = ContentRewriteRun::tick($state, $budget, static function (string $name, string $kind, ?array $after) use ($context, $request, $rewriter, $tables, $budget): TableRewriteResult {
+        [$state, $finished] = ContentRewriteRun::tick($state, $budget, static function (string $name, string $kind, ?array $after) use ($context, $request, $rewriter, $tables, $budget, $db): TableRewriteResult {
             $table = $tables[$name] ?? null;
             if (!$table instanceof TableInfo) {
                 return new TableRewriteResult($name);      // dropped in the meantime
             }
 
-            return $rewriter->rewrite($table, '', $request->replaceBare, true, $context->journal, [], $budget, $after);
+            return $rewriter->rewrite($table, '', $request->replaceBare, true, $context->journal, [], $budget, $after, self::skippedColumns($request, $db, $name));
         });
 
         if (!$finished) {
@@ -121,6 +123,25 @@ final class ReplaceContentDomains implements ResumableStep
         }
 
         return new StepTick($state, true, new StepResult((int) $state['rows']), $plan);
+    }
+
+    /**
+     * The columns of the table that the request leaves alone (`table.column`, the table without its prefix).
+     *
+     * @return list<string>
+     */
+    private static function skippedColumns(MigrationRequest $request, Connection $db, string $table): array
+    {
+        $plain = $db->unprefixed($table);
+        $columns = [];
+        foreach ($request->skipColumns as $entry) {
+            [$name, $column] = explode('.', $entry, 2);
+            if ($name === $plain || $name === $table) {
+                $columns[] = $column;
+            }
+        }
+
+        return $columns;
     }
 
     /**
@@ -144,7 +165,7 @@ final class ReplaceContentDomains implements ResumableStep
             if (isset($skip[$name]) || isset($skip[$db->unprefixed($name)])) {
                 continue;
             }
-            $result = $rewriter->rewrite($table, '', $request->replaceBare, false, $journal);
+            $result = $rewriter->rewrite($table, '', $request->replaceBare, false, $journal, [], null, null, self::skippedColumns($request, $db, $name));
             if ($result->columns !== [] || $result->candidatesWithoutKey !== null && $result->candidatesWithoutKey > 0) {
                 $results[] = $result;
             }

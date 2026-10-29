@@ -16,6 +16,8 @@ use InvalidArgumentException;
  *  - Sub-domains ("shop.host") and longer names ("host.tld", "host-x") are different hosts and never match.
  *  - All mappings are applied in one pass, so mappings cannot chain (a ↔ b swaps work).
  *  - A domain without port does not match when a port follows ("host:8080"): that is another origin.
+ *  - A mapping with a path (`DomainMapping::$toPath`) writes it behind the new host of every URL, in the notation of the slashes of the
+ *    text it found ("/sub", "\/sub", "%2Fsub").
  */
 final class UrlMatcher
 {
@@ -142,7 +144,14 @@ final class UrlMatcher
                     $scheme = $mapping->scheme . substr($scheme, strlen($scheme) - (str_ends_with(strtolower($scheme), '%3a') ? 3 : 1));
                 }
 
-                return $scheme . $slashes . $www . ($encoded ? rawurlencode($mapping->to) : $mapping->to);
+                // a path that the new address carries, in the notation of the slashes that were found: one "/" is the first half of "//"
+                $path = '';
+                if ($mapping->toPath !== '') {
+                    $unit = substr($slashes, 0, intdiv(strlen($slashes), 2));
+                    $path = $unit . str_replace('/', $unit, substr($mapping->toPath, 1));
+                }
+
+                return $scheme . $slashes . $www . ($encoded ? rawurlencode($mapping->to) : $mapping->to) . $path;
             },
             $text,
             -1,

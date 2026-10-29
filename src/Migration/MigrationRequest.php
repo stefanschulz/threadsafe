@@ -39,6 +39,8 @@ final readonly class MigrationRequest
      * @param string|null           $selfTestUrl  address the web server answers on, if that differs from the shop's domain (e.g. http://web-container); the shop's path is added
      * @param bool                  $selfTestInsecure do not verify TLS certificates in the self-test
      * @param bool                  $finalize     let PrestaShop itself clear its caches (and regenerate .htaccess and robots.txt after a path change)
+     * @param list<string>          $skipColumns  columns ("table.column", the table without prefix) the content replacement leaves alone
+     * @param array<string, mixed>  $options      what only the website type knows (WordPress: `keepDropIns`); the core does not look at it
      */
     public function __construct(
         public string $root,
@@ -59,6 +61,8 @@ final readonly class MigrationRequest
         public ?string $selfTestUrl = null,
         public bool $selfTestInsecure = false,
         public bool $finalize = true,
+        public array $skipColumns = [],
+        public array $options = [],
     ) {
         if ($root === '') {
             throw new InvalidArgumentException('The shop root directory must not be empty.');

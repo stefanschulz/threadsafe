@@ -6,23 +6,36 @@ namespace ThreadSafe\WordPress;
 
 use ThreadSafe\Backup\Manifest;
 use ThreadSafe\Cli\Input;
+use ThreadSafe\Cli\OptionSpec;
 use ThreadSafe\Database\Connection;
 use ThreadSafe\Database\DatabaseSettings;
 use ThreadSafe\Migration\RequestBuilder as BaseRequestBuilder;
 use ThreadSafe\Plugin\Backupable;
 use ThreadSafe\Plugin\BackupDefaults;
 use ThreadSafe\Plugin\DetectedSite;
-use ThreadSafe\Plugin\PluginError;
+use ThreadSafe\Generic\Steps\ReplaceContentDomains;
+use ThreadSafe\Plugin\Restorable;
 use ThreadSafe\Plugin\WebsiteType;
 use ThreadSafe\WordPress\Backup\WordPressBackup;
+use ThreadSafe\WordPress\Restore\WordPressRestore;
+use ThreadSafe\WordPress\Steps\DiscardCaches;
+use ThreadSafe\WordPress\Steps\EnsureConfiguration;
+use ThreadSafe\WordPress\Steps\EnsureSkeleton;
+use ThreadSafe\WordPress\Steps\FixTablePrefix;
+use ThreadSafe\WordPress\Steps\ReadWordPressState;
+use ThreadSafe\WordPress\Steps\RewriteHtaccess;
+use ThreadSafe\WordPress\Steps\SelfTest;
+use ThreadSafe\WordPress\Steps\WriteConfiguration;
 
 /**
  * The website type WordPress (6 and 7): ThreadSafe recognises the installation, reads the database access from `wp-config.php` without
  * running it, leaves out what WordPress and its plugins rebuild and tells the manifest what the site is made of (docs/PHASE9.md).
  *
- * Work package 3 is the backup side. The restore and the migration (work package 4) are not built yet: `migrate wordpress` says so.
+ * The backup side (work package 3) and the restore and migration side (work package 4): `migrate wordpress` and the restore adapt a copy to its
+ * new domain, base path, database and table prefix. The replacement of the old address in the content is the one of the generic type, which
+ * this type builds on, with the column `wp_posts.guid` left out (decision 5).
  */
-final class WordPressType implements WebsiteType, Backupable
+final class WordPressType implements WebsiteType, Backupable, Restorable
 {
     public function id(): string
     {
@@ -36,22 +49,47 @@ final class WordPressType implements WebsiteType, Backupable
 
     public function options(): array
     {
-        return [];
+        return [
+            new OptionSpec('path', 'New base path of the site, e.g. /sub/ (default: unchanged); only for a site at the root of its domain', takesValue: true, valueName: 'PATH'),
+            new OptionSpec('keep-dropins', 'Keep object-cache.php, advanced-cache.php and db.php (default: they are renamed to *.threadsafe-off)'),
+            new OptionSpec('include-guid', 'Also replace the old domain in wp_posts.guid (default: the identifiers of the posts are left alone)'),
+        ];
     }
 
     public function settings(Input $input): array
     {
-        return [];
+        $settings = [];
+        if ($input->has('path')) {
+            $settings['path'] = $input->value('path');
+        }
+        if ($input->has('keep-dropins')) {
+            $settings['keepDropIns'] = true;
+        }
+        if ($input->has('include-guid')) {
+            $settings['includeGuid'] = true;
+        }
+
+        return $settings;
     }
 
     public function requestBuilder(): BaseRequestBuilder
     {
-        throw new PluginError('The migration of a WordPress site is not built yet (docs/PHASE9.md, work package 4).');
+        return new RequestBuilder();
     }
 
     public function steps(): array
     {
-        throw new PluginError('The migration of a WordPress site is not built yet (docs/PHASE9.md, work package 4).');
+        return [
+            new EnsureConfiguration(),
+            new ReadWordPressState(),
+            new EnsureSkeleton(),
+            new WriteConfiguration(),
+            new ReplaceContentDomains(),
+            new FixTablePrefix(),
+            new RewriteHtaccess(),
+            new DiscardCaches(),
+            new SelfTest(),
+        ];
     }
 
     public function detect(string $path): ?DetectedSite
@@ -72,5 +110,30 @@ final class WordPressType implements WebsiteType, Backupable
     public function manifestExtras(DetectedSite $site, ?Connection $db): array
     {
         return (new WordPressBackup())->manifestExtras($site, $db);
+    }
+
+    public function fields(Manifest $manifest): array
+    {
+        return (new WordPressRestore())->fields($manifest);
+    }
+
+    public function restoreSettings(array $values): array
+    {
+        return (new WordPressRestore())->restoreSettings($values);
+    }
+
+    public function sourceDomain(Manifest $manifest): ?string
+    {
+        return (new WordPressRestore())->sourceDomain($manifest);
+    }
+
+    public function restoreChecks(Manifest $manifest): array
+    {
+        return (new WordPressRestore())->restoreChecks($manifest);
+    }
+
+    public function links(Manifest $manifest, string $root, array $values, string $servedPath): array
+    {
+        return (new WordPressRestore())->links($manifest, $root, $values, $servedPath);
     }
 }

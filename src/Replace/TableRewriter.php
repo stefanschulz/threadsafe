@@ -43,11 +43,12 @@ final class TableRewriter
      * @param Budget|null                    $budget     when given, the rewriting stops after a chunk once the budget is used up (at least one chunk is done);
      *                                                   the result then has {@see TableRewriteResult::$stoppedAfter}
      * @param list<scalar|null>|null         $after      continue after the row with this primary key (the $stoppedAfter of an earlier call)
+     * @param list<string>                   $skipColumns names of columns of this table that are never rewritten (a WordPress `guid`)
      */
-    public function rewrite(TableInfo $table, string $rowFilter, bool $replaceBare, bool $apply, Journal $journal, array $treatments = [], ?Budget $budget = null, ?array $after = null): TableRewriteResult
+    public function rewrite(TableInfo $table, string $rowFilter, bool $replaceBare, bool $apply, Journal $journal, array $treatments = [], ?Budget $budget = null, ?array $after = null, array $skipColumns = []): TableRewriteResult
     {
         $result = new TableRewriteResult($table->name);
-        $columns = array_values(array_diff($table->textColumns, $table->primaryKey));
+        $columns = array_values(array_diff($table->textColumns, $table->primaryKey, $skipColumns));
         if ($columns === []) {
             return $result;
         }

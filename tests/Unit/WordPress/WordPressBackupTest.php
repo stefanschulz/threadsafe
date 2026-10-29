@@ -362,7 +362,7 @@ final class WordPressBackupTest extends TestCase
 
     // ------------------------------------------------------------------------------------------------- the type
 
-    public function testTheTypeIsRegisteredAndSaysThatTheMigrationIsNotBuiltYet(): void
+    public function testTheTypeIsRegisteredAndHasTheStepsOfTheAdaptation(): void
     {
         $registry = PluginRegistry::load();
 
@@ -373,8 +373,10 @@ final class WordPressBackupTest extends TestCase
         self::assertSame($type, $registry->backupable('wordpress'));
         self::assertNotNull($type->detect($this->site()), 'the type answers for the backup side');
 
-        $this->expectException(PluginError::class);
-        $this->expectExceptionMessage('not built yet');
-        $type->steps();
+        self::assertSame($type, $registry->restorable('wordpress'));
+        self::assertSame(
+            ['ensure-configuration', 'read-source-state', 'ensure-skeleton', 'write-configuration', 'replace-content-domains', 'fix-table-prefix', 'rewrite-htaccess', 'discard-caches', 'self-test'],
+            array_map(static fn (\ThreadSafe\Core\Step $step): string => $step->id(), $type->steps()),
+        );
     }
 }

@@ -304,4 +304,38 @@ PHP);
         $this->expectExceptionMessage($fragment);
         WordPressConfigFile::splitHost($text);
     }
-}
+
+    public function testSettingsThatPassThroughADirectoryOfWordPressNameTheOldSiteDirectory(): void
+    {
+        $source = "<?php\ndefine( 'WPCACHEHOME', '/var/www/html/wp-content/plugins/wp-super-cache/' );\ndefine( 'WP_CONTENT_DIR', '/srv/other/wp-content' );\ndefine( 'WP_TEMP_DIR', '/tmp/wp' );\ndefine( 'WP_HOME', 'http://old.example/wp-content/x' );\ndefine( 'NOTE', 'see /var/www/html/wp-admin' );\ndefine( 'COMPUTED', __DIR__ . '/wp-content' );\ndefine( 'LIST', '/var/www/html/wp-includes' );\n";
+        $file = WordPressConfigFile::fromString($source);
+
+        self::assertSame(
+            ['WPCACHEHOME' => '/var/www/html', 'WP_CONTENT_DIR' => '/srv/other', 'LIST' => '/var/www/html'],
+            $file->pathSettings(),
+            'an absolute path through wp-content, wp-includes or wp-admin: not /tmp, not an address, not a sentence, not a computed value',
+        );
+    }
+
+    public function testThePathsOfAnOldHostAreRebasedOntoTheDirectoryOfTheSite(): void
+    {
+        $source = "<?php\ndefine( 'WPCACHEHOME', '/var/www/html/wp-content/plugins/wp-super-cache/' );\ndefine( 'WP_CONTENT_DIR', '/var/www/html/wp-content' );\ndefine( 'DB_HOST', 'db' );\n";
+        $file = WordPressConfigFile::fromString($source);
+
+        $moved = $file->withPathsRebased('/home/u/public_html/');
+
+        self::assertSame('/home/u/public_html/wp-content/plugins/wp-super-cache/', $moved->get('WPCACHEHOME'));
+        self::assertSame('/home/u/public_html/wp-content', $moved->get('WP_CONTENT_DIR'));
+        self::assertSame('db', $moved->get('DB_HOST'));
+        self::assertSame($source, $file->withPathsRebased('/var/www/html')->toString(), 'the directory that is right already writes nothing');
+        self::assertSame(str_replace('/var/www/html', '/home/u/public_html', $source), $moved->toString(), 'and nothing else of the file changes');
+    }
+
+    public function testAPathSettingThatIsDefinedTwiceIsNotRebasedByGuessing(): void
+    {
+        $file = WordPressConfigFile::fromString("<?php\nif ( \$a ) { define( 'WP_CONTENT_DIR', '/a/wp-content' ); } else { define( 'WP_CONTENT_DIR', '/b/wp-content' ); }\n");
+
+        $this->expectException(InvalidConfigFile::class);
+        $this->expectExceptionMessage('"WP_CONTENT_DIR" is defined 2 times');
+        $file->withPathsRebased('/c');
+    }}

@@ -33,7 +33,7 @@ use ThreadSafe\Replace\DomainMapping;
  */
 abstract class RequestBuilder
 {
-    private const array COMMON_KEYS = ['root', 'from', 'to', 'domains', 'serverPath', 'database', 'replaceBare', 'skipTables', 'chunkSize', 'selfTest', 'selfTestUrl', 'selfTestInsecure'];
+    private const array COMMON_KEYS = ['root', 'from', 'to', 'domains', 'serverPath', 'database', 'replaceBare', 'skipTables', 'skipColumns', 'chunkSize', 'selfTest', 'selfTestUrl', 'selfTestInsecure'];
 
     /** @var list<string> */
     private array $notes = [];
@@ -74,6 +74,16 @@ abstract class RequestBuilder
     protected function defaultPrefix(): ?string
     {
         return null;
+    }
+
+    /**
+     * Whether a new base path (`physicalUri`) is also the path of the new address in the content: a site that moves into a directory writes
+     * its links with that directory. A type whose content holds absolute addresses (WordPress) says yes; the default is no, as the content
+     * of the other types holds root-relative links or the type rewrites them its own way.
+     */
+    protected function domainsFollowBasePath(): bool
+    {
+        return false;
     }
 
     /**
@@ -123,10 +133,18 @@ abstract class RequestBuilder
 
         $database = $this->database($settings['database'] ?? null, $real);
         $domains = $this->domains($settings, $database, $real);
+        $base = $extra['physicalUri'] ?? null;
+        if ($this->domainsFollowBasePath() && is_string($base) && $base !== '/') {
+            $domains = array_map(static fn (DomainMapping $mapping): DomainMapping => $mapping->withPath($base), $domains);
+        }
 
         $skipTables = $settings['skipTables'] ?? [];
         if (!is_array($skipTables) || array_filter($skipTables, static fn (mixed $t): bool => !is_string($t) || $t === '') !== []) {
             throw new InvalidArgumentException('skipTables must be a list of table names.');
+        }
+        $skipColumns = $settings['skipColumns'] ?? [];
+        if (!is_array($skipColumns) || array_filter($skipColumns, static fn (mixed $c): bool => !is_string($c) || preg_match('/^[A-Za-z0-9_]+\.[A-Za-z0-9_]+$/', $c) !== 1) !== []) {
+            throw new InvalidArgumentException('skipColumns must be a list of "table.column" (the table without its prefix).');
         }
         $chunkSize = $settings['chunkSize'] ?? 2000;
         if (!is_int($chunkSize) && !(is_string($chunkSize) && ctype_digit($chunkSize))) {
@@ -144,6 +162,7 @@ abstract class RequestBuilder
             'domains' => $domains,
             'database' => $database,
             'skipTables' => array_values($skipTables),
+            'skipColumns' => array_values($skipColumns),
             'replaceBare' => $replaceBare,
             'chunkSize' => (int) $chunkSize,
             'serverPath' => $this->string($settings, 'serverPath'),
