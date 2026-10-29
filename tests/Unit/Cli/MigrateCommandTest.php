@@ -226,7 +226,7 @@ final class MigrateCommandTest extends TestCase
     public static function usageErrors(): iterable
     {
         yield 'no website type' => [[], 'prestashop9'];
-        yield 'unknown website type' => [['wordpress', '--root=/x'], 'Unknown website type "wordpress" (available: generic, joomla, prestashop9)'];
+        yield 'unknown website type' => [['drupal', '--root=/x'], 'Unknown website type "drupal" (available: generic, joomla, prestashop9, wordpress)'];
         yield 'option of another website type' => [['generic', '--root=/tmp', '--ssl=all'], '--ssl is an option of the website type prestashop9, not of generic'];
         yield 'dev option of another website type' => [['generic', '--root=/tmp', '--mail-catcher=mailpit'], '--mail-catcher is an option of the website type prestashop9'];
         yield 'mode of a type that has none' => [['generic', '--root=/tmp', '--mode=dev'], '--mode is an option of the website type joomla'];
@@ -332,7 +332,7 @@ final class MigrateCommandTest extends TestCase
 
         (new Application([new MigrateCommand()]))->run(['threadsafe', 'help', 'migrate'], $output);
 
-        self::assertStringContainsString('migrate <generic|joomla|prestashop9> --root=PATH', $output->stdout());
+        self::assertStringContainsString('migrate <generic|joomla|prestashop9|wordpress> --root=PATH', $output->stdout());
         self::assertMatchesRegularExpression('/--ssl=MODE\s+SSL mode: none, login or all \(default: unchanged\) \[prestashop9\]/', $output->stdout());
         self::assertStringNotContainsString('[generic]', $output->stdout(), 'The generic type has no options of its own.');
     }

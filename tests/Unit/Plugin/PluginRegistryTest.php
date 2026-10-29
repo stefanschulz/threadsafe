@@ -66,11 +66,11 @@ final class PluginRegistryTest extends TestCase
     {
         $registry = PluginRegistry::load();
 
-        self::assertSame(['generic', 'joomla', 'prestashop9'], $registry->ids());
+        self::assertSame(['generic', 'joomla', 'prestashop9', 'wordpress'], $registry->ids());
         self::assertSame('prestashop9', $registry->get('prestashop9')->id());
         self::assertSame('PrestaShop 9', $registry->get('prestashop9')->title());
         self::assertSame('generic', $registry->get('generic')->id());
-        self::assertSame(['generic', 'joomla', 'prestashop9'], array_map(static fn (WebsiteType $t): string => $t->id(), $registry->all()));
+        self::assertSame(['generic', 'joomla', 'prestashop9', 'wordpress'], array_map(static fn (WebsiteType $t): string => $t->id(), $registry->all()));
         self::assertSame($registry->get('generic'), $registry->get('generic'), 'A plugin is created once.');
     }
 

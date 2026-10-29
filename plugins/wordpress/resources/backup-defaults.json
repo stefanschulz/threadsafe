@@ -1,0 +1,28 @@
+{
+    "description": "What a WordPress backup leaves out unless the profile says otherwise (docs/PHASE9.md 3.3). Paths are relative to the site root (patterns of ThreadSafe's backup filters; a leading slash anchors a name at the root, so that /wp-content/cache is the cache of the site and not a directory of that name inside a plugin); whole directories, which a restore makes again where WordPress needs them. Tables are named without the prefix and keep only their structure: the ones that hold sessions or logs and nothing a site is made of. The list is short on purpose; what is not on it is kept.",
+    "excludePaths": [
+        "/wp-content/cache",
+        "/wp-content/upgrade",
+        "/wp-content/wflogs",
+        "/wp-content/et-cache",
+        "/wp-content/litespeed",
+        "/wp-content/ai1wm-backups",
+        "/wp-content/updraft",
+        "/wp-content/backups-dup-pro",
+        "/wp-content/backups-dup-lite",
+        "/wp-content/backupwordpress-*",
+        "/wp-snapshots",
+        "/wp-content/debug.log",
+        "error_log",
+        "/.maintenance",
+        ".git"
+    ],
+    "structureOnlyTables": [
+        "woocommerce_sessions",
+        "actionscheduler_logs",
+        "wfhits",
+        "wflivetraffichuman",
+        "redirection_logs",
+        "redirection_404"
+    ]
+}

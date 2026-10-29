@@ -1,0 +1,10 @@
+{
+    "id": "wordpress",
+    "title": "WordPress",
+    "version": "0.1.0",
+    "api": 1,
+    "class": "ThreadSafe\\WordPress\\WordPressType",
+    "autoload": {
+        "ThreadSafe\\WordPress\\": "src/"
+    }
+}
