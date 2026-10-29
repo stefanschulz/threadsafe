@@ -315,6 +315,51 @@ final class WordPressStackTest extends IntegrationTestCase
         self::assertArrayNotHasKey('x-robots-tag', Stack::get('http://wordpress' . $major, self::SITES[$major][1], '/')->headers);
     }
 
+    // ------------------------------------------------------------------------------------------------- maintenance mode
+
+    public function testASiteInMaintenanceModeIsWaitedForBeforeTheRestoreIsDone(): void
+    {
+        $major = 7;
+        $this->requireSite($major);
+        [$base, $archive] = $this->backUp($major);
+        $this->emptyTarget('wp_target');
+        $this->restore($base, $archive, self::TARGET, 'wp_target');
+
+        // what WordPress does while its own cron installs an update: the file .maintenance, and every request answers 503
+        $file = self::TARGET . '/.maintenance';
+        file_put_contents($file, '<?php $upgrading = ' . time() . '; ?>');
+        chmod($file, 0644);
+        $client = new WordPressClient(self::TARGET_URL, self::TARGET_HOST, '');
+        foreach (['/', '/wp-admin/', '/wp-login.php'] as $path) {
+            $answer = $client->get($path);
+            self::assertSame(503, $answer['status'], "$path answers 503 in maintenance mode");
+            self::assertArrayHasKey('retry-after', $answer['headers']);
+            self::assertStringContainsString('Briefly unavailable for scheduled maintenance', $answer['body']);
+        }
+
+        // the file goes after twelve seconds, as it does when the update is done; the site is moved to another address meanwhile (an address that
+        // is the same would need no self-test) and the self-test of that move has to wait
+        exec('(sleep 12; rm -f ' . escapeshellarg($file) . ') >/dev/null 2>&1 &');
+        $started = microtime(true);
+        putenv('THREADSAFE_DATA=' . $base . '/data');
+        try {
+            [$code, $stdout, $stderr] = CliProcess::run([
+                'migrate', 'wordpress', '--root=' . self::TARGET, '--from=' . self::TARGET_HOST, '--to=127.0.0.1:8291', '--server-path=/var/www/html',
+                '--self-test-url=' . self::TARGET_URL, '--yes',
+            ], 300);
+        } finally {
+            putenv('THREADSAFE_DATA');
+        }
+        $took = microtime(true) - $started;
+
+        self::assertSame(0, $code, $stderr . $stdout);
+        self::assertGreaterThan(10.0, $took, 'the self-test waited until the file was gone');
+        self::assertStringContainsString('maintenance mode', $stdout);
+        self::assertFileDoesNotExist($file);
+        $moved = new WordPressClient(self::TARGET_URL, '127.0.0.1:8291', '');
+        self::assertSame(200, $moved->get('/')['status'], 'and the site is up when the migration says so');
+    }
+
     // ------------------------------------------------------------------------------------------------- the wizard
 
     public function testTheBackupIsRestoredThroughTheWizardUnderTightLimits(): void

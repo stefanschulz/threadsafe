@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace ThreadSafe\Tests\Unit\WordPress;
 
+use Closure;
 use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;
 use ThreadSafe\Core\Context;
@@ -13,8 +14,10 @@ use ThreadSafe\Core\NullJournal;
 use ThreadSafe\Core\NullLogger;
 use ThreadSafe\Database\DatabaseSettings;
 use ThreadSafe\Http\HttpClient;
+use ThreadSafe\Http\HttpResult;
 use ThreadSafe\Migration\MigrationRequest;
 use ThreadSafe\Replace\DomainMapping;
+use ThreadSafe\Tests\Support\FakeConnection;
 use ThreadSafe\Tests\Support\TempDirectory;
 use ThreadSafe\Tests\Support\WordPressSite;
 use ThreadSafe\WordPress\Config\WordPressConfigFile;
@@ -425,6 +428,146 @@ final class WordPressMigrationTest extends TestCase
         (new SelfTest(self::client(['/' => [200, '<a href="http://old.example/x">x</a>'], '/wp-login.php' => [200, self::LOGIN], '/?rest_route=/' => [200, self::REST]], $asked)))->apply($context, (new SelfTest())->plan($context));
     }
 
+    // ------------------------------------------------------------------------------------------------- maintenance mode
+
+    private const string MAINTENANCE = '<!DOCTYPE html><html><body><p>Briefly unavailable for scheduled maintenance. Check back in a minute.</p></body></html>';
+
+    /**
+     * A site that answers the maintenance page for the first requests, then works.
+     *
+     * @param int          $maintenanceRequests how many requests get the maintenance page (all of them if negative)
+     * @param list<string> $asked
+     */
+    private static function maintenanceClient(int $maintenanceRequests, array &$asked): HttpClient
+    {
+        $count = 0;
+
+        return new HttpClient(transport: static function (string $url, string $host) use ($maintenanceRequests, &$count, &$asked): array {
+            $path = (string) preg_replace('~^https?://[^/]+~', '', $url);
+            $asked[] = $path;
+            ++$count;
+            if ($maintenanceRequests < 0 || $count <= $maintenanceRequests) {
+                return [503, ['content-type' => 'text/html', 'retry-after' => '600'], self::MAINTENANCE];
+            }
+            $answers = ['/' => self::FRONT, '/wp-login.php' => self::LOGIN, '/?rest_route=/' => self::REST];
+
+            return isset($answers[$path]) ? [200, ['content-type' => 'text/html'], $answers[$path]] : [404, [], 'not found'];
+        });
+    }
+
+    /**
+     * @param list<float> $slept
+     *
+     * @return array{Closure(float): void, Closure(): float}
+     */
+    private static function fakeTime(array &$slept, float &$time): array
+    {
+        return [
+            static function (float $seconds) use (&$time, &$slept): void {
+                $slept[] = $seconds;
+                $time += $seconds;
+            },
+            static function () use (&$time): float {
+                return $time;
+            },
+        ];
+    }
+
+    public function testASiteInMaintenanceModeIsWaitedForAndThenPasses(): void
+    {
+        $context = $this->selfTestContext();
+        $asked = [];
+        $slept = [];
+        $time = 1000.0;
+        [$sleep, $clock] = self::fakeTime($slept, $time);
+
+        // the first round of three requests gets the maintenance page, the next round works
+        $result = (new SelfTest(self::maintenanceClient(3, $asked), $sleep, $clock))->apply($context, (new SelfTest())->plan($context));
+
+        self::assertCount(6, $asked, 'three requests in maintenance, three that work, no cron to wait for');
+        self::assertContains(2.0, $slept, 'it waited between the rounds');
+        $messages = array_map(static fn ($notice): string => $notice->message, $result->notices);
+        self::assertStringContainsString('was in maintenance mode for about 2 seconds', implode("\n", $messages));
+    }
+
+    public function testASiteThatStaysInMaintenanceModeFailsAfterTheTimeAndSaysWhatToDo(): void
+    {
+        $context = $this->selfTestContext();
+        $asked = [];
+        $slept = [];
+        $time = 1000.0;
+        [$sleep, $clock] = self::fakeTime($slept, $time);
+
+        try {
+            (new SelfTest(self::maintenanceClient(-1, $asked), $sleep, $clock))->apply($context, (new SelfTest())->plan($context));
+            self::fail('a site that stays in maintenance mode must fail');
+        } catch (SelfTestFailed $e) {
+            self::assertStringContainsString('still in maintenance mode after 180 seconds', $e->getMessage());
+            self::assertStringContainsString('delete the file .maintenance', $e->getMessage());
+            self::assertStringContainsString('files and database are restored', $e->getMessage());
+        }
+        self::assertGreaterThan(80, count($slept), 'it waited in short steps, not in one');
+        self::assertLessThanOrEqual(190.0, $time - 1000.0);
+    }
+
+    public function testAnotherServiceUnavailableAnswerIsAFailureAndNotWaitedFor(): void
+    {
+        $context = $this->selfTestContext();
+        $asked = [];
+        $slept = [];
+        $time = 1000.0;
+        [$sleep, $clock] = self::fakeTime($slept, $time);
+        $client = self::client(['/' => [503, 'Service Unavailable: the server is overloaded'], '/wp-login.php' => [200, self::LOGIN], '/?rest_route=/' => [200, self::REST]], $asked);
+
+        try {
+            (new SelfTest($client, $sleep, $clock))->apply($context, (new SelfTest())->plan($context));
+            self::fail('an overloaded server is no maintenance mode');
+        } catch (SelfTestFailed $e) {
+            self::assertStringContainsString('front page (/): HTTP 503', $e->getMessage());
+        }
+        self::assertSame([], $slept, 'no waiting');
+    }
+
+    public function testTheMaintenancePageIsKnownByItsHeaderAlsoWhenTheSiteHasItsOwnPage(): void
+    {
+        self::assertTrue(SelfTest::isMaintenance(new HttpResult(503, ['retry-after' => '600'], 'Back soon! (maintenance.php of the site)', 'http://x/')));
+        self::assertTrue(SelfTest::isMaintenance(new HttpResult(503, [], self::MAINTENANCE, 'http://x/')));
+        self::assertFalse(SelfTest::isMaintenance(new HttpResult(503, [], 'overloaded', 'http://x/')));
+        self::assertFalse(SelfTest::isMaintenance(new HttpResult(200, [], self::MAINTENANCE, 'http://x/')), 'a 200 is no maintenance mode');
+    }
+
+    public function testTheCronThatTheChecksStartedIsWaitedForAndTheSiteIsAskedOnceMore(): void
+    {
+        $time = 1000.0;
+        $slept = [];
+        [$sleep, $clock] = self::fakeTime($slept, $time);
+        // the cron of WordPress has been working since 1000.0; a run that dies leaves its mark, and WordPress ignores it after 60 seconds
+        $connection = FakeConnection::with(['/_transient_doing_cron/' => [['option_value' => '1000.0']]], 'wp_');
+        $context = WordPressSite::context($this->root(), [new DomainMapping('old.example', 'new.example')], connection: $connection);
+        $asked = [];
+
+        $result = (new SelfTest(self::client(['/' => [200, self::FRONT], '/wp-login.php' => [200, self::LOGIN], '/?rest_route=/' => [200, self::REST]], $asked), $sleep, $clock))->apply($context, (new SelfTest())->plan($context));
+
+        self::assertCount(6, $asked, 'the pages are asked, the cron is waited for, the pages are asked again');
+        self::assertGreaterThanOrEqual(60.0, $time - 1000.0, 'until the mark is old enough for WordPress to ignore it');
+        self::assertLessThan(70.0, $time - 1000.0);
+        self::assertCount(3, $result->notices);
+    }
+
+    public function testWithoutAnyCronTheSelfTestWaitsOnlyTheGraceTimeOnce(): void
+    {
+        $time = 1000.0;
+        $slept = [];
+        [$sleep, $clock] = self::fakeTime($slept, $time);
+        $connection = FakeConnection::with(['/_transient_doing_cron/' => []], 'wp_');
+        $context = WordPressSite::context($this->root(), [new DomainMapping('old.example', 'new.example')], connection: $connection);
+        $asked = [];
+
+        (new SelfTest(self::client(['/' => [200, self::FRONT], '/wp-login.php' => [200, self::LOGIN], '/?rest_route=/' => [200, self::REST]], $asked), $sleep, $clock))->apply($context, (new SelfTest())->plan($context));
+
+        self::assertCount(3, $asked, 'a cron that never showed itself changed nothing: no second round');
+        self::assertEqualsWithDelta(SelfTest::CRON_GRACE_SECONDS, $time - 1000.0, 1.0);
+    }
     public function testWithoutANewDomainOrWhenSwitchedOffTheSelfTestAsksNothing(): void
     {
         $asked = [];

@@ -359,7 +359,7 @@ php bin/threadsafe migrate wordpress --root=/var/www/staging --to=staging.exampl
   `replace-content-domains` (the generic replacement: serialized values stay valid, JSON keeps its escaped slashes), `fix-table-prefix`,
   `rewrite-htaccess` (only with a base path), `discard-caches` (transients, the option `rewrite_rules`, the files of `wp-content/cache` and
   `upgrade`, the drop-ins), `apply-dev-mode` (only with `--mode=dev`) and `self-test` (the front page, `/wp-login.php` with its login form and the REST
-  index `/?rest_route=/`; each `200` and without a link to the old domain).
+  index `/?rest_route=/`; each `200` and without a link to the old domain; it **waits** while WordPress answers its maintenance page - `503`, the file `.maintenance`, up to three minutes - and for the cron that the first requests started, then asks once more: [WORDPRESS.md](WORDPRESS.md) section 10).
 - **`--mode=dev`** makes a development or staging copy, in a small first cut: `blog_public` is set to 0, a block at the top of `.htaccess` (between
   `# BEGIN ThreadSafe dev mode` and `# END ThreadSafe dev mode`, never twice) sends `X-Robots-Tag: noindex, nofollow`, and the must-use plugin
   `wp-content/mu-plugins/threadsafe-dev.php` makes `wp_mail()` report success and send nothing, with a notice in the administration. Payment
