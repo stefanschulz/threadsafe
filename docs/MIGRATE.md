@@ -8,8 +8,8 @@ restore later, by Akeeba, by `tar` and `mariadb`, by hand) and makes it work whe
 path, with a new database, or – without any new address – again in the place it came from (disaster recovery). Without
 `--yes` it only plans and reports. MariaDB (from 10.2) or MySQL (from 5.7), PHP 8.4+.
 
-The **website type** (the first argument) says what ThreadSafe knows about the application. Three exist: `prestashop9` (this
-whole document, unless it says otherwise), `generic` ([section 12](#12-the-generic-website-type)) and `joomla` ([section 13](#13-the-joomla-website-type)). Types are plugins in
+The **website type** (the first argument) says what ThreadSafe knows about the application. Four exist: `prestashop9` (this
+whole document, unless it says otherwise), `generic` ([section 12](#12-the-generic-website-type)), `joomla` ([section 13](#13-the-joomla-website-type)) and `wordpress` ([section 14](#14-the-wordpress-website-type)). Types are plugins in
 `plugins/`; `threadsafe help migrate` lists the types and marks the options that belong to one of them.
 
 ## 1. Quick start
@@ -329,3 +329,41 @@ php bin/threadsafe migrate joomla --root=/var/www/site --from=www.example.org --
   an extension that sends mail itself, or talks to a payment provider, still does. The options `--mail-catcher`, `--dev-skip` and
   `--dev-rules` do not exist for this type.
 - Not done: a Joomla 4 or older, a database on PostgreSQL or reached through a socket, extension-specific rules.
+
+## 14. The WordPress website type
+
+`migrate wordpress` adapts a restored or copied **WordPress 6.0 or later** site to its new host (the same steps run at the end of `restore` and in
+the `threadsafe-restore.php` wizard). WordPress stores its address in the database (the option `home`), so `--to` alone is enough; `--from` is only
+for a site whose database cannot say. User documentation: [WORDPRESS.md](WORDPRESS.md).
+
+```bash
+php bin/threadsafe migrate wordpress --root=/var/www/staging --to=staging.example.org --path=/ --prefix=wps_ \
+    --db-name=staging --db-user=staging --db-password-file=/root/staging.pw --self-test-url=http://127.0.0.1:8080 --yes
+```
+
+- The database values that are not given come from the site's `wp-config.php` (read as text, never run); the password is given as for any type.
+  A `wp-config.php` that computes its settings (`getenv()`) or a `DB_HOST` that is a socket needs all values on the command line.
+- **`--path=/sub/`** is the new base path: it is written behind the new host of every address in the content (in the notation that was found:
+  `/sub`, `\/sub`, `%2Fsub`), sets `RewriteBase` and the last rule inside the block `# BEGIN WordPress` of `.htaccess`, and follows into `WP_HOME` and
+  `WP_SITEURL` where `wp-config.php` has them. It needs a site at the **root of its old domain**: for a site that lives in a directory the step
+  `read-source-state` refuses it. Root-relative links in the content are not rewritten.
+- **`--prefix=wps_`** puts the tables under another prefix and writes `$table_prefix`; `fix-table-prefix` moves the option `<old>user_roles` and
+  the keys of `usermeta` that begin with the old prefix. (`restore` renames the tables while it imports; `migrate` expects the tables to be
+  there already and fails with "wrong table prefix" if the prefix in the request does not match the database.)
+- **`--keep-dropins`** leaves `object-cache.php`, `advanced-cache.php` and `db.php` as they are; by default they are renamed to `<name>.threadsafe-off`.
+- **`--include-guid`** also replaces the old domain in `wp_posts.guid`; by default that column is left alone (an identifier, not a link). Tables of
+  sessions and logs (`woocommerce_sessions`, `actionscheduler_logs`, `wfhits`, `wflivetraffichuman`, `redirection_logs`, `redirection_404`) are not rewritten.
+- The steps, in order: `ensure-configuration` (only when `wp-config.php` lay above the site: one is made from `wp-config-sample.php` with new keys),
+  `read-source-state` (6.0 or later, not a multisite, a reachable database with the table `<prefix>options`), `ensure-skeleton` (`uploads`,
+  `upgrade`), `write-configuration` (database, prefix, `WP_HOME`/`WP_SITEURL` if present, absolute paths; the keys and salts and every other byte stay),
+  `replace-content-domains` (the generic replacement: serialized values stay valid, JSON keeps its escaped slashes), `fix-table-prefix`,
+  `rewrite-htaccess` (only with a base path), `discard-caches` (transients, the option `rewrite_rules`, the files of `wp-content/cache` and
+  `upgrade`, the drop-ins), `apply-dev-mode` (only with `--mode=dev`) and `self-test` (the front page, `/wp-login.php` with its login form and the REST
+  index `/?rest_route=/`; each `200` and without a link to the old domain).
+- **`--mode=dev`** makes a development or staging copy, in a small first cut: `blog_public` is set to 0, a block at the top of `.htaccess` (between
+  `# BEGIN ThreadSafe dev mode` and `# END ThreadSafe dev mode`, never twice) sends `X-Robots-Tag: noindex, nofollow`, and the must-use plugin
+  `wp-content/mu-plugins/threadsafe-dev.php` makes `wp_mail()` report success and send nothing, with a notice in the administration. Payment
+  gateways, webhooks and plugins that send mail on their own are **not** switched off (the plan names WooCommerce when it is active); the options
+  `--mail-catcher`, `--dev-skip` and `--dev-rules` do not exist for this type. Without `--mode=dev`, a site that still carries the file of a dev copy gets a warning.
+- Options of the PrestaShop type (`--ssl` ...) are refused.
+- Not done: a multisite, a WordPress older than 6.0, a database on a socket, rules for single plugins, a new base path for a site that lives in a directory.
