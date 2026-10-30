@@ -1,6 +1,6 @@
 # Phase 7 – installation and update
 
-**Status:** **in progress** (planned 2026-10-23; work packages 1 (the spikes, section 8), 2 (the release build), 3 (the layout) and 4 (the shared preflight and `doctor`) 5 (the web installer), 6 (the update), 7 (the release workflow), 8 (the Docker stack and its integration tests) and 9 (the documentation) are done; the owner's field test (work package 10) is what is left; the owner will do the field test including the web installer, so the order is: build, then field test). The owner's answers of the same day are the frame: ThreadSafe must also run on shared hosting without a shell, so a **web installer** is needed (1); **GitHub Releases** are the only way to get it for now (2); a **checksum** is enough, no signature (3); an **update must be possible from the web interface** (4). The open decisions of section 7.2 are for the owner.
+**Status:** **done, in beta** (planned 2026-10-23; work packages 1 (the spikes, section 8), 2 (the release build), 3 (the layout) and 4 (the shared preflight and `doctor`) 5 (the web installer), 6 (the update), 7 (the release workflow), 8 (the Docker stack and its integration tests) and 9 (the documentation) are done; the owner's field test (work package 10) succeeded on the owner's own server - the web installer, an update and the findings of section 8 -, and is repeated on a customer's server). The owner's answers of the same day are the frame: ThreadSafe must also run on shared hosting without a shell, so a **web installer** is needed (1); **GitHub Releases** are the only way to get it for now (2); a **checksum** is enough, no signature (3); an **update must be possible from the web interface** (4). The open decisions of section 7.2 are for the owner.
 **Context:** [WEB.md](WEB.md) "Installing" describes the installation today; [PHASE3.md](PHASE3.md) 3.1 and 3.2 (the stub and the key file of `threadsafe-restore.php`) and `src/Build/` (the builder) are the model for the installer; [PHASE4.md](PHASE4.md) is the web interface that gets the update page; [CONCEPT.md](CONCEPT.md) 3.5 ("no database of its own, state as JSON in a protected data folder") stays true.
 
 ## 1. Goal and scope
@@ -133,7 +133,7 @@ By the owner on a real shared host: the installer with the host's own PHP (it is
 | 7 | **The release workflow** (**done**, section 9) (3.7), `CHANGELOG.md`, the first pre-release. | a tag gives a GitHub release | S |
 | 8 | **The Docker stack and the integration tests** (**done**, section 9) (4.2). | the proof of the plan | L |
 | 9 | **Documentation** (**done**, section 9): `INSTALL.md`, `WEB.md`, `README.md`, `AGENTS.md`, "As built" here. | | S |
-| 10 | **Field test** by the owner (4.3) and what it finds. | | - |
+| 10 | **Field test** by the owner (4.3) and what it finds. | **done** on the owner's server (findings in section 8, fixed); to be repeated on a customer's server | - |
 
 Packages 2, 3 and 4 follow 1 in any order; 5 needs 2, 3 and 4; 6 needs 2 and 3 (`Admin\Tabs` exists); 8 grows with 5 and 6, starting with the `fresh` service as soon as 3 has a layout to try.
 

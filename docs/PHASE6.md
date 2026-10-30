@@ -1,6 +1,6 @@
 # Phase 6 – the website type Joomla
 
-**Status:** **in progress** (2026-10-23; the decisions of section 7.2 were settled with the owner the same day; work packages 1 to 7 are done: sections 8 and 9; the owner's field test is left).
+**Status:** **done, in beta** (2026-10-23; the decisions of section 7.2 were settled with the owner the same day; work packages 1 to 7 are done: sections 8 and 9; the owner's field test, work package 8, is done: a real Joomla site was backed up and restored without findings, 2026-10-30).
 **Context:** [CONCEPT.md](CONCEPT.md) section 3.4 (website types: "new types arise by extending `generic` with detection, filter defaults and restore steps") and section 4 (the PrestaShop restore, the model for what a type adapts after a restore); [BACKUP.md](BACKUP.md), [RESTORE.md](RESTORE.md), [MIGRATE.md](MIGRATE.md) and [WEB.md](WEB.md) describe what this phase extends; `plugins/generic` (the smallest type) and `plugins/prestashop9` (the largest) are the two examples in the code. The facts about Joomla below come from the Joomla project's documentation and from hosting guides (section "Sources"); what could be seen in a real installation was checked in work package 1 (section 8); what is still unchecked is marked **verify**.
 
 ## 1. Goal and scope
@@ -129,7 +129,7 @@ By the owner, on a real Joomla site: a backup, a restore on another domain on a 
 | 5 | **The Docker stack and the integration tests** (4.2): the service, the seed, the groups 1-3 and 5, in `run.sh` and `matrix.sh`. | the proof of the plan, on the three servers; **done**, section 9 | L |
 | 6 | **Dev mode, first cut** (3.6) and the disaster recovery group. | `--mode=dev`, one integration test; **done**, section 9 | S |
 | 7 | **Documentation:** `docs/JOOMLA.md`, `README.md`, `AGENTS.md`, `WEB.md`, `RESTORE.md`, the "As built" section here. | `docs/JOOMLA.md`; **done**, section 9 | S |
-| 8 | **Field test** by the owner (4.3) and what it finds. | the open list for the extension rules | - |
+| 8 | **Field test** by the owner (4.3) and what it finds. | **done** (2026-10-30): a real Joomla site, backed up and restored, no findings; the list for the extension rules is empty until a site shows an extension that needs one | - |
 
 Packages 2 and 3 can follow 1 in either order; 4 needs both; 5 needs 3 and 4 (and starts, like the PrestaShop stack did, with the source service so that the tests of 3 and 4 have a real site early).
 
