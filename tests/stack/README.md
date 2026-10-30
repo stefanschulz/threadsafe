@@ -97,3 +97,12 @@ docker compose -f .docker/docker-compose.yml --profile tools run --rm -e THREADS
 
 `DatabaseMigrationTest` migrates the real clone (the files of the target stack are mounted into the `tools` container
 at `/shops/target`). It changes the target database, so it needs a fresh clone: `run.sh` always clones first.
+
+## The domain inventory (phase 0 tool)
+
+`tools/domain-inventory.php` is a read-only report of where a domain occurs in the database and the files of a PrestaShop. Run it inside the shop container (it has PHP 8.4 and `pdo_mysql`):
+
+```bash
+docker cp tools/domain-inventory.php threadsafe-dev-prestashop-1:/tmp/
+docker exec threadsafe-dev-prestashop-1 php /tmp/domain-inventory.php --root=/var/www/html --domain=localhost:8190
+```
