@@ -6,6 +6,10 @@ of the GitHub release (see "Making a release" in [AGENTS.md](AGENTS.md)).
 
 ## [Unreleased]
 
+## [0.9.0-beta.3] - 2026-10-30
+
+A small release: the web interface gets an About page. An installation made with 0.9.0-beta.1 or 0.9.0-beta.2 can be updated to this version from the System page (or with `threadsafe update`).
+
 ### Added
 
 - The page **About** (behind the login, `/about`), reached from the **version under the name** in the menu: the version, the license (GPL-3.0-or-later, with the text at `/about/license`), the copyright (&copy; 2026 Stefan Schulz, The Loom), the source code, the fonts that are part of the program (IBM Plex, SIL Open Font License) and a block of plain facts for a report of a problem (version, PHP and its limits, drivers, website types; no paths, no secrets) with a copy button. The pages before the login no longer print the version, and the footer no longer repeats it.
