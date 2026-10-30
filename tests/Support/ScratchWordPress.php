@@ -144,6 +144,7 @@ final class ScratchWordPress
             "CREATE TABLE {$p}users (ID BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, user_login VARCHAR(60) NOT NULL DEFAULT '', user_url VARCHAR(100) NOT NULL DEFAULT '') $engine",
             "CREATE TABLE {$p}posts (ID BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, post_title TEXT NOT NULL, post_content LONGTEXT NOT NULL, guid VARCHAR(255) NOT NULL DEFAULT '') $engine",
             "CREATE TABLE {$p}postmeta (meta_id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, post_id BIGINT UNSIGNED NOT NULL DEFAULT 0, meta_key VARCHAR(255) NULL, meta_value LONGTEXT NULL) $engine",
+            "CREATE TABLE {$p}wc_webhooks (webhook_id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, status VARCHAR(200) NOT NULL, name TEXT NOT NULL, delivery_url TEXT NOT NULL, topic VARCHAR(200) NOT NULL DEFAULT '') $engine",
             "CREATE TABLE {$p}woocommerce_sessions (session_id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, session_key CHAR(32) NOT NULL, session_value LONGTEXT NOT NULL) $engine",
         ] as $sql) {
             $this->pdo->exec($sql);

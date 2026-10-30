@@ -27,8 +27,12 @@ use ThreadSafe\WordPress\State;
  *    administration that this is a copy. There is no setting for outgoing mail, and a must-use plugin needs no knowledge of the mail plugins
  *    that send through `wp_mail()`; a plugin that talks to a mail service on its own is not stopped.
  *
+ *  - the **webhooks of WooCommerce** (the table `wc_webhooks`) that are `active` are set to `paused`: the next order, product or customer event on
+ *    the copy would otherwise post to the other service (a CRM, an accounting tool) that the live shop posts to (field test in Docker). A paused
+ *    webhook delivers nothing, also what was queued before; it is switched on again under WooCommerce > Settings > Advanced > Webhooks.
+ *
  * The step says in words what it does not do: payment gateways in live mode and the keys of other services are plugin knowledge, and nothing
- * is switched off by guess. In a migration that is not dev mode, a copy that carries the must-use plugin is reported (a backup of a dev copy
+ * else is switched off by guess. In a migration that is not dev mode, a copy that carries the must-use plugin is reported (a backup of a dev copy
  * holds it, and a restore of that backup in production would go on keeping mail back).
  */
 final class ApplyDevMode implements Step
@@ -79,8 +83,13 @@ final class ApplyDevMode implements Step
         }
         $plan->notice(Notice::info('Outgoing mail through wp_mail() is stopped (it reports success and sends nothing). A plugin that sends through a mail service of its own is not stopped.'));
         $plan->notice(Notice::info('On a web server other than Apache the header is not sent: the robots meta tag and robots.txt of WordPress keep search engines out; send "X-Robots-Tag: ' . self::HEADER . '" from the web server too.'));
+        $webhooks = $this->activeWebhooks($db);
+        if ($webhooks !== []) {
+            $plan->add(Change::update('table ' . $db->table('wc_webhooks') . ' status', 'pause the webhooks of WooCommerce, so that the copy does not post to other services', 'active', 'paused', count: count($webhooks)));
+            $plan->notice(Notice::info('Webhooks of WooCommerce paused: ' . implode(', ', array_map(static fn (array $hook): string => '"' . $hook['name'] . '" (to ' . $hook['host'] . ')', $webhooks)) . '. Switch them on again under WooCommerce > Settings > Advanced > Webhooks.'));
+        }
         if ($this->hasWooCommerce($db)) {
-            $plan->notice(Notice::warning('WooCommerce is active: payment gateways in live mode, webhooks and the keys of other services are NOT switched off by dev mode. Check the payment methods before anybody orders on this copy.'));
+            $plan->notice(Notice::warning('WooCommerce is active: payment gateways in live mode and the keys of other services are NOT switched off by dev mode' . ($webhooks === [] ? '' : ' (its webhooks are paused)') . '. Check the payment methods before anybody orders on this copy.'));
         }
 
         return $plan;
@@ -105,6 +114,15 @@ final class ApplyDevMode implements Step
             }
             $context->journal->database($db->table('options'), ['option_name' => 'blog_public'], 'option_value', $current, '0');
             ++$applied;
+        }
+
+        $webhooks = $this->activeWebhooks($db);
+        if ($webhooks !== []) {
+            $table = $db->table('wc_webhooks');
+            foreach ($webhooks as $hook) {
+                $applied += $db->execute('UPDATE ' . $db->quote($table) . " SET status = 'paused' WHERE webhook_id = ? AND status = 'active'", [$hook['id']]);
+                $context->journal->database($table, ['webhook_id' => $hook['id']], 'status', 'active', 'paused');
+            }
         }
 
         $files = ['.htaccess' => $this->htaccess($root), self::PLUGIN => $this->plugin($root)];
@@ -185,6 +203,27 @@ PHP;
         $value = $db->scalar('SELECT option_value FROM ' . $db->quote($db->table('options')) . " WHERE option_name = 'blog_public'");
 
         return $value === null || $value === false ? null : (string) $value;
+    }
+
+    /**
+     * The webhooks of WooCommerce that deliver (status `active`); none where the shop has no such table. Only the host of the address is kept:
+     * the rest of it may hold a token.
+     *
+     * @return list<array{id: string, name: string, host: string}>
+     */
+    private function activeWebhooks(Connection $db): array
+    {
+        $table = $db->table('wc_webhooks');
+        if (!$db->tableExists($table)) {
+            return [];
+        }
+        $hooks = [];
+        foreach ($db->select('SELECT webhook_id, name, delivery_url FROM ' . $db->quote($table) . " WHERE status = 'active' ORDER BY webhook_id") as $row) {
+            $host = parse_url((string) $row['delivery_url'], PHP_URL_HOST);
+            $hooks[] = ['id' => (string) $row['webhook_id'], 'name' => (string) $row['name'], 'host' => is_string($host) && $host !== '' ? $host : 'an unknown address'];
+        }
+
+        return $hooks;
     }
 
     private function hasWooCommerce(Connection $db): bool

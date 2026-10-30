@@ -57,9 +57,11 @@ final class WordPressPluginSitesTest extends IntegrationTestCase
     /**
      * The backup of a site through its profile, and its restore onto the empty target with another prefix.
      *
+     * @param list<string> $more more options of `restore`
+     *
      * @return array{Manifest, string} the manifest and the table prefix of the restored site
      */
-    private function backUpAndRestore(string $directory): array
+    private function backUpAndRestore(string $directory, array $more = []): array
     {
         $base = $this->tempDirectory();
         (new ProfileStore($base . '/data/profiles'))->save(SiteProfile::fromArray([
@@ -86,7 +88,7 @@ final class WordPressPluginSitesTest extends IntegrationTestCase
             [$code, $stdout, $stderr] = CliProcess::run([
                 'restore', $archives[0], '--root=' . self::TARGET, '--to=' . self::TARGET_HOST, '--prefix=wp2_',
                 '--db-host=target-db', '--db-name=wp_target', '--db-user=root', '--db-password-file=' . $base . '/db-password',
-                '--server-path=/var/www/html', '--self-test-url=' . self::TARGET_URL, '--yes',
+                '--server-path=/var/www/html', '--self-test-url=' . self::TARGET_URL, ...$more, '--yes',
             ], 1800);
             self::assertSame(0, $code, $stderr . $stdout);
         } finally {
@@ -102,6 +104,36 @@ final class WordPressPluginSitesTest extends IntegrationTestCase
         exec('grep -rIl -F -e ' . escapeshellarg($host) . ' -e ' . escapeshellarg(str_replace(':', '%3A', $host)) . ' ' . escapeshellarg(self::TARGET) . ' 2>/dev/null | grep -v /.threadsafe-restore/', $found);
 
         return implode("\n", $found);
+    }
+
+    /**
+     * A new order on the restored shop, made by WP-CLI, and the queue of Action Scheduler run to its end: what WooCommerce delivers to webhooks
+     * is queued there as the action `woocommerce_deliver_webhook_async`. Returns how many deliveries the order queued (WooCommerce counts a
+     * delivery that fails, here because the CRM does not exist, in `failure_count` of the webhook: see {@see failedDeliveries()}).
+     */
+    private function webhookDeliveriesAfterAnOrder(PDO $target, string $prefix): int
+    {
+        $product = TableCompare::cell($target, "SELECT ID FROM {$prefix}posts WHERE post_type = 'product' AND post_name = 'seed-mug'");
+        $before = $this->queuedDeliveries($target, $prefix);
+        $wp = 'HOME=/tmp wp --path=' . escapeshellarg(self::TARGET) . ' --allow-root ';
+        exec($wp . 'wc shop_order create --user=seedadmin --status=processing --payment_method=cod --line_items=' . escapeshellarg('[{"product_id":' . $product . ',"quantity":1}]') . ' --porcelain 2>&1', $output, $code);
+        self::assertSame(0, $code, implode("\n", $output));
+        $output = [];
+        exec($wp . 'action-scheduler run --batch-size=50 2>&1', $output, $code);
+        self::assertSame(0, $code, implode("\n", $output));
+
+        return $this->queuedDeliveries($target, $prefix) - $before;
+    }
+
+    private function queuedDeliveries(PDO $target, string $prefix): int
+    {
+        return (int) TableCompare::cell($target, "SELECT COUNT(*) FROM {$prefix}actionscheduler_actions WHERE hook = 'woocommerce_deliver_webhook_async'");
+    }
+
+    /** How often WooCommerce failed to deliver to a webhook: it counts the attempts that did not arrive. */
+    private function failedDeliveries(PDO $target, string $prefix): int
+    {
+        return (int) TableCompare::cell($target, "SELECT SUM(failure_count) FROM {$prefix}wc_webhooks");
     }
 
     // ------------------------------------------------------------------------------------------------- the shop
@@ -169,6 +201,29 @@ final class WordPressPluginSitesTest extends IntegrationTestCase
             self::assertStringNotContainsString($old, $answer['body'], "$path names the old host");
         }
         self::assertStringContainsString('Order', $admin->get('/wp-admin/edit.php?post_type=shop_order')['body']);
+
+        // a production copy delivers its webhooks (the proof that the next test means something)
+        self::assertSame(['active', 'active'], array_column($target->query("SELECT status FROM {$prefix}wc_webhooks ORDER BY webhook_id")?->fetchAll(PDO::FETCH_ASSOC) ?: [], 'status'));
+        self::assertSame(2, $this->webhookDeliveriesAfterAnOrder($target, $prefix), 'a new order on a production copy is queued for both webhooks');
+        self::assertGreaterThanOrEqual(1, $this->failedDeliveries($target, $prefix), 'and WooCommerce tries to deliver it (it fails here: the CRM does not exist)');
+    }
+
+    public function testADevCopyOfTheShopPostsNothingToTheServicesOfTheLiveShop(): void
+    {
+        $this->requireSite('/wordpressshop');
+        [, $prefix] = $this->backUpAndRestore('/wordpressshop', ['--mode=dev']);
+        $target = self::db('target-db', 'wp_target');
+
+        self::assertSame(['paused', 'paused'], array_column($target->query("SELECT status FROM {$prefix}wc_webhooks ORDER BY webhook_id")?->fetchAll(PDO::FETCH_ASSOC) ?: [], 'status'), 'the webhooks are paused');
+        self::assertSame('https://crm.example.net/woo/hook', TableCompare::cell($target, "SELECT delivery_url FROM {$prefix}wc_webhooks WHERE name = 'Order created (CRM)'"), 'and still there, to be switched on again');
+        self::assertFileExists(self::TARGET . '/wp-content/mu-plugins/threadsafe-dev.php');
+
+        self::assertSame(0, $this->webhookDeliveriesAfterAnOrder($target, $prefix), 'a new order on a dev copy is queued for no webhook');
+        self::assertSame(0, $this->failedDeliveries($target, $prefix), 'and no delivery was tried');
+
+        $admin = new WordPressClient(self::TARGET_URL, self::TARGET_HOST, '');
+        self::assertTrue($admin->login('seedadmin', self::PASSWORD));
+        self::assertStringContainsString('This is a development copy.', $admin->get('/wp-admin/')['body']);
     }
 
     // ------------------------------------------------------------------------------------------------- caching and a page builder

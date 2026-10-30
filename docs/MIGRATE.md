@@ -363,7 +363,8 @@ php bin/threadsafe migrate wordpress --root=/var/www/staging --to=staging.exampl
 - **`--mode=dev`** makes a development or staging copy, in a small first cut: `blog_public` is set to 0, a block at the top of `.htaccess` (between
   `# BEGIN ThreadSafe dev mode` and `# END ThreadSafe dev mode`, never twice) sends `X-Robots-Tag: noindex, nofollow`, and the must-use plugin
   `wp-content/mu-plugins/threadsafe-dev.php` makes `wp_mail()` report success and send nothing, with a notice in the administration. Payment
-  gateways, webhooks and plugins that send mail on their own are **not** switched off (the plan names WooCommerce when it is active); the options
+  gateways and plugins that send mail on their own are **not** switched off (the plan names WooCommerce when it is active); the **webhooks of WooCommerce**
+  that are `active` are set to `paused` (the table `wc_webhooks`; the address stays, they are switched on again in the administration); the options
   `--mail-catcher`, `--dev-skip` and `--dev-rules` do not exist for this type. Without `--mode=dev`, a site that still carries the file of a dev copy gets a warning.
 - Options of the PrestaShop type (`--ssl` ...) are refused.
 - Not done: a multisite, a WordPress older than 6.0, a database on a socket, rules for single plugins, a new base path for a site that lives in a directory.

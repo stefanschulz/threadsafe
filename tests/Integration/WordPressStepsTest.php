@@ -245,6 +245,38 @@ final class WordPressStepsTest extends IntegrationTestCase
         self::assertStringContainsString('NOT switched off', $warnings[0]->message);
     }
 
+    public function testDevModePausesTheWebhooksOfWooCommerceThatDeliver(): void
+    {
+        $site = $this->site();
+        $site->option('active_plugins', 'a:1:{i:0;s:27:"woocommerce/woocommerce.php";}');
+        foreach ([['active', 'CRM', 'https://crm.example.net/woo/hook?token=secret-token'], ['active', 'Own site', 'http://old.example/wp-json/hook'], ['paused', 'Paused by the shop owner', 'https://a.example/hook'], ['disabled', 'Disabled by WooCommerce', 'https://b.example/hook']] as [$status, $name, $url]) {
+            $site->exec('INSERT INTO wp_wc_webhooks (status, name, delivery_url, topic) VALUES (?, ?, ?, ?)', [$status, $name, $url, 'order.created']);
+        }
+        $context = $site->context($this->devRequest($site));
+
+        $plan = (new ApplyDevMode())->plan($context);
+        $result = (new ApplyDevMode())->apply($context, $plan);
+
+        self::assertSame(['paused', 'paused', 'paused', 'disabled'], array_column($site->rows('SELECT status FROM wp_wc_webhooks ORDER BY webhook_id'), 'status'), 'what delivered is paused, what the owner paused or WooCommerce disabled stays as it was');
+        self::assertSame(2 + 3, $result->applied, 'two webhooks, the option, .htaccess and the must-use plugin');
+        $notices = implode("\n", array_map(static fn ($notice): string => $notice->message, $plan->notices()));
+        self::assertStringContainsString('"CRM" (to crm.example.net)', $notices, 'the plan names the webhooks by their host');
+        self::assertStringNotContainsString('secret-token', $notices, 'and never by the rest of the address');
+        self::assertStringContainsString('(its webhooks are paused)', $notices);
+        self::assertSame(0, (new ApplyDevMode())->apply($context, (new ApplyDevMode())->plan($context))->applied, 'done once');
+    }
+
+    public function testProductionModeLeavesTheWebhooksAlone(): void
+    {
+        $site = $this->site();
+        $site->exec('INSERT INTO wp_wc_webhooks (status, name, delivery_url, topic) VALUES (?, ?, ?, ?)', ['active', 'CRM', 'https://crm.example.net/hook', 'order.created']);
+        $context = $site->context(new MigrationRequest($site->root));
+
+        (new ApplyDevMode())->apply($context, (new ApplyDevMode())->plan($context));
+
+        self::assertSame(['active'], array_column($site->rows('SELECT status FROM wp_wc_webhooks'), 'status'));
+    }
+
     public function testProductionModeChangesNothingAndWarnsAboutTheMuPluginOfADevCopy(): void
     {
         $site = $this->site(htaccess: true);
