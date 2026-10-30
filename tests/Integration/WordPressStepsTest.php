@@ -144,6 +144,38 @@ final class WordPressStepsTest extends IntegrationTestCase
         self::assertSame(0, (new DiscardCaches())->apply($context, (new DiscardCaches())->plan($context))->applied, 'done once');
     }
 
+    public function testWhatPluginsGenerateFromTheContentIsDroppedAndTheContentIsNot(): void
+    {
+        $site = $this->site();
+        // Elementor: the CSS of a page names the address of its images, and is not made again while the record says that it exists
+        $site->writeFile('wp-content/uploads/elementor/css/post-5.css', '.a{background:url(http://old.example/wp-content/uploads/a.png)}');
+        $site->writeFile('wp-content/uploads/elementor/css/base-desktop.css', '.b{}');
+        $site->writeFile('wp-content/uploads/elementor/thumbs/keep.jpg', 'a thumbnail is no CSS');
+        $site->writeFile('wp-content/uploads/2026/keep.jpg', 'image');
+        $site->option('_elementor_global_css', 'a:1:{s:4:"time";i:1;}');
+        $site->option('elementor_version', '4.3.5');
+        $site->exec('INSERT INTO wp_posts (post_title, post_content, guid) VALUES (?, ?, ?)', ['Page', 'text', 'x']);
+        foreach ([['_elementor_css', 'a:1:{s:4:"time";i:1;}'], ['_elementor_data', '[{"id":"a"}]'], ['_elementor_edit_mode', 'builder'], ['_elementor_css_extra', 'keep']] as [$key, $value]) {
+            $site->exec('INSERT INTO wp_postmeta (post_id, meta_key, meta_value) VALUES (1, ?, ?)', [$key, $value]);
+        }
+        $context = $site->context(new MigrationRequest($site->root));
+
+        $plan = (new DiscardCaches())->plan($context);
+        $result = (new DiscardCaches())->apply($context, $plan);
+
+        self::assertSame(4, $result->applied, 'two CSS files, one record of a post and one option');
+        self::assertFileDoesNotExist($site->root . '/wp-content/uploads/elementor/css/post-5.css');
+        self::assertFileDoesNotExist($site->root . '/wp-content/uploads/elementor/css/base-desktop.css');
+        self::assertDirectoryExists($site->root . '/wp-content/uploads/elementor/css', 'the directory stays');
+        self::assertFileExists($site->root . '/wp-content/uploads/elementor/thumbs/keep.jpg', 'only the CSS is generated from the content');
+        self::assertFileExists($site->root . '/wp-content/uploads/2026/keep.jpg');
+        self::assertSame(['_elementor_css_extra', '_elementor_data', '_elementor_edit_mode'], array_column($site->rows('SELECT meta_key FROM wp_postmeta ORDER BY meta_key'), 'meta_key'), 'the data of the page is content and stays; a key that only begins like the record stays');
+        self::assertSame(['elementor_version'], array_column($site->rows("SELECT option_name FROM wp_options WHERE option_name LIKE '%elementor%'"), 'option_name'));
+        self::assertSame(0, (new DiscardCaches())->apply($context, (new DiscardCaches())->plan($context))->applied, 'done once');
+        $described = implode("\n", array_map(static fn ($change): string => $change->target . ' ' . $change->description, $plan->changes()));
+        self::assertStringContainsString('_elementor_css', $described, 'the plan says which records go');
+    }
+
     public function testDropInsThatTheRequestKeepsStayAndAreReported(): void
     {
         $site = $this->site();

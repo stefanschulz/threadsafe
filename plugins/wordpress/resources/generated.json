@@ -1,0 +1,12 @@
+{
+    "description": "What WordPress plugins generate from the content and keep, and what holds the old address (docs/PHASE9.md, field test in Docker). The restore (step discard-caches) empties these directories and deletes these records, and the plugin makes them again the next time a page is seen. Paths are relative to the site root. The list holds only what was seen on a real site and what the plugin itself does when its cache is cleared: Elementor writes the CSS of a page into wp-content/uploads/elementor/css with the address of its images, and does not write it again as long as the post meta _elementor_css says that it exists; its own 'Regenerate CSS' deletes the files, that meta and the option _elementor_global_css.",
+    "directories": [
+        "wp-content/uploads/elementor/css"
+    ],
+    "postMeta": [
+        "_elementor_css"
+    ],
+    "options": [
+        "_elementor_global_css"
+    ]
+}

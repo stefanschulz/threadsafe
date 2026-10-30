@@ -23,6 +23,7 @@ Nothing is released yet. Rename this heading to the version (`## [0.1.0] - date`
 - One trigger (`threadsafe cron` or an address), schedules, retention, and backups encrypted in the format of `age`.
 - The Joomla website type, with a dev mode for a live to dev copy.
 - The **WordPress** website type (6.0 and later): backup, restore and `migrate wordpress` on another domain, in a sub-directory, with another database and another table prefix (`wp-config.php` and the old address in the content are adapted, serialized and JSON values stay valid, the user roles follow the prefix, cache drop-ins are switched off), a dev mode for a live to dev copy (no mail, search engines kept out), and a refusal of multisite networks. Documentation: `docs/WORDPRESS.md`.
+- A WordPress restore waits while the site shows its maintenance page (an update that its own cron started) and for that cron to finish, and drops the CSS files that Elementor generated from the content (they name the old address).
 - A logo (a safe with a restore arrow) in the menu and the login of the web interface, in the heading of the installer and of `threadsafe-restore.php`, as favicon, and in
   the README.
 - Release packages: `threadsafe-X.Y.Z.zip`, the web installer `threadsafe-install.php` (also a ZIP archive), `threadsafe-restore.php` and `SHA256SUMS`,

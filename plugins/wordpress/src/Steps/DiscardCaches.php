@@ -12,6 +12,7 @@ use ThreadSafe\Core\Change;
 use ThreadSafe\Core\Context;
 use ThreadSafe\Core\Notice;
 use ThreadSafe\Core\Plan;
+use ThreadSafe\Core\Resources;
 use ThreadSafe\Core\Step;
 use ThreadSafe\Core\StepResult;
 use ThreadSafe\Database\Connection;
@@ -28,6 +29,10 @@ use ThreadSafe\WordPress\State;
  *    says `keepDropIns`: a drop-in that serves a service of the old host (Redis, a page cache, a database proxy) takes the whole site down with
  *    an error on every page, and a drop-in is only loaded under its exact name (work package 1, finding 5). The plugin that owns it can write it
  *    again, and the file keeps its content under the new name.
+ *
+ * and what plugins generate from the content and keep (`resources/generated.json`, field test feedback): the CSS files of Elementor, which name
+ * the address of the images and are not made again as long as the record `_elementor_css` of the post says they exist, so the directory and
+ * the records go and Elementor makes them again when a page is seen. Which plugin writes what is data, not code.
  *
  * Nothing that is content is touched.
  */
@@ -63,11 +68,19 @@ final class DiscardCaches implements Step
         if ($this->hasRewriteRules($db)) {
             $plan->add(Change::delete('option rewrite_rules', 'forget the rewrite rules (WordPress makes them again)'));
         }
-        foreach (self::DIRECTORIES as $relative) {
+        foreach ($this->directories() as $relative) {
             $count = count($this->entries($source->root . '/' . $relative));
             if ($count > 0) {
                 $plan->add(Change::delete("dir $relative", 'empty the directory', count: $count));
             }
+        }
+        $meta = $this->generatedMeta($db);
+        if ($meta > 0) {
+            $plan->add(Change::delete('table ' . $db->table('postmeta'), 'delete the records of generated files (' . implode(', ', $this->generated('postMeta')) . '); the plugin makes them again', count: $meta));
+        }
+        $generatedOptions = $this->generatedOptions($db);
+        if ($generatedOptions > 0) {
+            $plan->add(Change::delete('table ' . $db->table('options'), 'delete the records of generated files (' . implode(', ', $this->generated('options')) . '); the plugin makes them again', count: $generatedOptions));
         }
         foreach ($this->dropIns($source->root) as $name) {
             if ($request->options['keepDropIns'] ?? false) {
@@ -97,7 +110,7 @@ final class DiscardCaches implements Step
             $applied += $db->execute("DELETE FROM $options WHERE option_name = 'rewrite_rules'");
             $context->journal->note('option deleted', ['option' => 'rewrite_rules']);
         }
-        foreach (self::DIRECTORIES as $relative) {
+        foreach ($this->directories() as $relative) {
             $entries = $this->entries($source->root . '/' . $relative);
             foreach ($entries as $path) {
                 $this->remove($path);
@@ -106,6 +119,18 @@ final class DiscardCaches implements Step
                 $context->journal->note('directory emptied', ['directory' => $relative, 'entries' => count($entries)]);
                 $applied += count($entries);
             }
+        }
+        if ($this->generatedMeta($db) > 0) {
+            [$marks, $keys] = $this->in($this->generated('postMeta'));
+            $rows = $db->execute('DELETE FROM ' . $db->quote($db->table('postmeta')) . " WHERE BINARY meta_key IN ($marks)", $keys);
+            $context->journal->note('post meta deleted', ['keys' => implode(', ', $this->generated('postMeta')), 'rows' => $rows]);
+            $applied += $rows;
+        }
+        if ($this->generatedOptions($db) > 0) {
+            [$marks, $names] = $this->in($this->generated('options'));
+            $rows = $db->execute("DELETE FROM $options WHERE BINARY option_name IN ($marks)", $names);
+            $context->journal->note('options deleted', ['options' => implode(', ', $this->generated('options')), 'rows' => $rows]);
+            $applied += $rows;
         }
         if (!($request->options['keepDropIns'] ?? false)) {
             foreach ($this->dropIns($source->root) as $name) {
@@ -134,6 +159,52 @@ final class DiscardCaches implements Step
     private function transients(Connection $db): int
     {
         return (int) $db->scalar("SELECT COUNT(*) FROM {$db->quote($db->table('options'))} WHERE BINARY LEFT(option_name, 11) = '_transient_' OR BINARY LEFT(option_name, 16) = '_site_transient_'");
+    }
+
+    /** @return list<string> the directories to empty: those of WordPress and those that plugins generate (`resources/generated.json`) */
+    private function directories(): array
+    {
+        return [...self::DIRECTORIES, ...$this->generated('directories')];
+    }
+
+    /**
+     * What plugins generate from the content: `directories`, `postMeta` keys and `options` names (`resources/generated.json`).
+     *
+     * @return list<string>
+     */
+    private function generated(string $kind): array
+    {
+        return Resources::strings('wordpress/generated.json', $kind);
+    }
+
+    /**
+     * @param list<string> $values
+     *
+     * @return array{0: string, 1: list<string>} the placeholders for an IN list, and the values
+     */
+    private function in(array $values): array
+    {
+        return [implode(', ', array_fill(0, count($values), '?')), $values];
+    }
+
+    private function generatedMeta(Connection $db): int
+    {
+        if ($this->generated('postMeta') === []) {
+            return 0;
+        }
+        [$marks, $keys] = $this->in($this->generated('postMeta'));
+
+        return (int) $db->scalar('SELECT COUNT(*) FROM ' . $db->quote($db->table('postmeta')) . " WHERE BINARY meta_key IN ($marks)", $keys);
+    }
+
+    private function generatedOptions(Connection $db): int
+    {
+        if ($this->generated('options') === []) {
+            return 0;
+        }
+        [$marks, $names] = $this->in($this->generated('options'));
+
+        return (int) $db->scalar('SELECT COUNT(*) FROM ' . $db->quote($db->table('options')) . " WHERE BINARY option_name IN ($marks)", $names);
     }
 
     private function hasRewriteRules(Connection $db): bool
