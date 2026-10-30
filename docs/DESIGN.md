@@ -18,7 +18,7 @@ Names are those of the-loom (`--ink`, `--panel`, `--brass` ...) plus the additio
 | `--border-strong` *new* | `#6a7784` | `#7f8a95` | the boundary of a control (form field, secondary button) |
 | `--text` | `#e9ebe8` | `#14191f` | headings, main text |
 | `--text-soft` | `#9aa2a8` | `#434e58` | running copy, hints, navigation |
-| `--text-faint` | `#838b92` | `#56616b` | table headings, footer |
+| `--text-faint` | `#838b92` | `#56616b` | table headings, footer, the version under the name in the menu (4.59:1 on the panel in the dark scheme, 6.33:1 in the light one; the colour of the text on hover and on the About page) |
 | `--brass` | `#e0a13d` | `#8a5a08` | links, the focus ring, the current navigation entry - the accent **as text** |
 | `--brass-bright` | `#f0b75a` | `#6b4506` | hover of a link |
 | `--brass-fill` *new* | `#e0a13d` | `#e0a13d` | the primary button, the progress bar, the current step |

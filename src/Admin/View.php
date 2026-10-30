@@ -55,7 +55,8 @@ final class View
         $collapsed = self::collapsed($context);
         $user = Html::e($context->user() ?? '');
         $side = '<aside class="side" aria-label="Menu" data-cookie-path="' . Html::e($context->urls->cookiePath()) . '">'
-            . '<div class="side-head"><a class="mark" href="' . Html::e($context->urls->to('/')) . '" title="ThreadSafe">' . Logo::svg() . '<span class="side-label">ThreadSafe</span></a></div>'
+            . '<div class="side-head"><div class="brand"><a class="mark" href="' . Html::e($context->urls->to('/')) . '" title="ThreadSafe">' . Logo::svg() . '<span class="side-label">ThreadSafe</span></a>'
+            . '<a class="version side-label" href="' . Html::e($context->urls->to('/about')) . '" title="About ThreadSafe"' . ($active === '/about' ? ' aria-current="page"' : '') . '>' . Html::e(Version::CURRENT) . '</a></div></div>'
             . '<div class="side-menu"><button type="button" class="side-toggle js-only" data-nav-toggle aria-expanded="' . ($collapsed ? 'false' : 'true') . '" aria-controls="side-nav" title="' . ($collapsed ? 'Unfold the menu' : 'Fold the menu') . '">'
             . Icons::svg('chevron') . '<span class="side-label">' . ($collapsed ? 'Unfold the menu' : 'Fold the menu') . '</span></button>'
             . '<nav id="side-nav" aria-label="Main">' . $navigation . '</nav></div>'
@@ -66,7 +67,7 @@ final class View
         return self::document(
             $context,
             $title,
-            '<a class="skip" href="#content">Skip to the content</a><div class="app">' . $side . '<div class="content"><main id="content" tabindex="-1">' . self::flashes($context) . $heading . $body . '</main>' . self::footer() . '</div></div>',
+            '<a class="skip" href="#content">Skip to the content</a><div class="app">' . $side . '<div class="content"><main id="content" tabindex="-1">' . self::flashes($context) . $heading . $body . '</main>' . self::footer(true) . '</div></div>',
             $status,
             true,
         );
@@ -108,9 +109,10 @@ final class View
         return '<div class="theme js-only" role="group" aria-label="Colour scheme">' . $buttons . '</div>';
     }
 
-    private static function footer(): string
+    /** The footer: the version stands under the name in the menu once a person is logged in, and not at all before (it helps no one who is not). */
+    private static function footer(bool $loggedIn = false): string
     {
-        return '<footer>ThreadSafe ' . Html::e(Version::CURRENT) . '</footer>';
+        return '<footer>ThreadSafe' . ($loggedIn ? ' &middot; ' . AboutController::LICENSE : '') . '</footer>';
     }
 
     /**

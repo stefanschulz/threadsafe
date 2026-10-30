@@ -141,6 +141,10 @@ The form also has an *Encryption* section: the **public keys** (one per line, `a
 
 *Remove* asks first. The profile goes; the site is not touched; the backups stay unless you tick *Also delete its backups*.
 
+### About
+
+The **version under the name** at the top of the menu (it is hidden with the labels when the menu is folded, and on a phone) leads to the page **About**, behind the login: the version, the license (GPL-3.0-or-later; the text itself is at `/about/license`), whose the program is, the source code, the fonts that are part of it (IBM Plex, SIL Open Font License) and a block of plain facts for a report of a problem - the version, the data format, how it was installed, PHP with its SAPI, `memory_limit` and `max_execution_time`, the database drivers, the website types - without paths and without secrets, with a button to copy it. The pages before the login do not print the version (the addresses of the style sheet and of the script still carry it, so that a new version is a new address for the browser's cache).
+
 ### Schedule
 
 **Schedule** in the menu is the one place for the times at which profiles are backed up by themselves; [SCHEDULE.md](SCHEDULE.md) has the rules behind it.

@@ -190,6 +190,9 @@ final class Kernel
         $router->add('GET', '/schedule/edit', $schedule->editForm(...));
         $router->add('POST', '/schedule/edit', $schedule->edit(...));
         $router->add('POST', '/schedule/action', $schedule->act(...));
+        $about = new AboutController();
+        $router->add('GET', '/about', $about->index(...));
+        $router->add('GET', '/about/license', $about->license(...));
         $router->add('GET', '/system', $system->index(...));
         $router->add('POST', '/system/settings', $system->save(...));
         $router->add('POST', '/system/cron-secret', $system->cronSecret(...));
