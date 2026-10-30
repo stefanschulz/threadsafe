@@ -151,8 +151,8 @@ web run is active while its last tick is recent), `Executor`/`RunStore`/`Lock`, 
 What is not planned in detail: **remote storage** (SFTP/S3; the `transfers` list of the sidecar file is reserved, `Postproc` is the hook), a **remote source** (a profile that reads its site over SFTP, for sites on other servers; the considerations are in [docs/CONCEPT.md](docs/CONCEPT.md) section 9, "A remote source"), further website types
 (WordPress is built and was restored once from a real site, [docs/WORDPRESS.md](docs/WORDPRESS.md); Joomla is done, [docs/JOOMLA.md](docs/JOOMLA.md); rules for single Joomla extensions and WordPress plugins are written when a real site shows one that needs it), restoring over an existing installation.
 Open items for the owner (not blocking): the download of a few hundred MB
-through the live host's FastCGI (`tools/spikes/web-download.php`, PHASE4.md section 8, finding 1); a **private test with a real backup** of the live shop (`docs/BACKUP.md` section 10); the web-server modes `X-Sendfile` /
-`X-Accel-Redirect` and the nginx rule in `docs/WEB.md` have never met a web server. Small gaps of the interface: the sidecar keeps no
+through the live host's FastCGI (`tools/spikes/web-download.php`, PHASE4.md section 8, finding 1); the web-server modes `X-Sendfile` /
+`X-Accel-Redirect` and the nginx rule in `docs/WEB.md` have never met a web server. The private test with a real shop is done (backup in the browser, restore, `docs/BACKUP.md` section 10); two things from it are open: why the browser run took twelve times as long as the shell run, and what makes up the difference in size to Akeeba Solo's backup. Small gaps of the interface: the sidecar keeps no
 date of the last check, the list has no column for the kind of backup, the key and the command of the download page have no "copy"
 button, and the language is English only.
 Known gaps that the owner may want to turn into work (all listed in `docs/RESTORE.md` section 9): restoring **over** an existing
