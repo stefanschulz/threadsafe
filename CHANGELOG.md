@@ -6,6 +6,10 @@ of the GitHub release (see "Making a release" in [AGENTS.md](AGENTS.md)).
 
 ## [Unreleased]
 
+### Fixed
+
+- A step of work in a web request (backup, check, restore, installation, update) is now at most 20 seconds long, whatever `max_execution_time` says. A host that reports 50000 seconds made one step the whole backup: eight minutes in one request, with no bar, no label and no sign of life on the page.
+
 ## [0.9.0-beta.2] - 2026-10-30
 
 A fix for the installer on hosts where the rewrite rule of the `.htaccess` does not work as written, found in the field test of 0.9.0-beta.1. An installation made with beta.1 can be updated to this version from the System page (or with `threadsafe update`); the `.htaccess` of the document root is not touched by an update, see the first entry.

@@ -13,6 +13,9 @@ use Closure;
  */
 final class Budget
 {
+    /** The longest step of a web request, whatever the host says its limit is. */
+    public const float WEB_TICK_MAXIMUM = 20.0;
+
     private float $started;
 
     /** @var (Closure(string): void)|null */
@@ -73,16 +76,27 @@ final class Budget
 
     /**
      * The budget this process can afford: unlimited in the CLI, otherwise a share of `max_execution_time` (or a fallback
-     * when PHP has no limit but a web server may).
+     * when PHP has no limit but a web server may), but never more than {@see WEB_TICK_MAXIMUM} seconds.
      */
     public static function forThisProcess(float $fraction = 0.6, float $fallbackSeconds = 20.0): self
     {
         if (self::isCommandLine()) {
             return self::unlimited();
         }
-        $limit = (float) ini_get('max_execution_time');
 
-        return self::seconds($limit > 0 ? $limit * $fraction : $fallbackSeconds);
+        return self::seconds(self::webSeconds((float) ini_get('max_execution_time'), $fraction, $fallbackSeconds));
+    }
+
+    /**
+     * How long one step of a web request may work, given the `max_execution_time` of PHP (0 = none).
+     *
+     * A share of the limit, and never more than {@see WEB_TICK_MAXIMUM}: a host may say 50000 seconds, and then one step would be the whole
+     * backup, in one request of eight minutes that shows nothing on the page, that no proxy in front of the host has to wait for, and that
+     * a closed tab does not stop (found in the field test of 0.9.0-beta.2: the page of a 506 seconds backup showed no sign of life).
+     */
+    public static function webSeconds(float $limit, float $fraction = 0.6, float $fallbackSeconds = 20.0): float
+    {
+        return min($limit > 0 ? $limit * $fraction : $fallbackSeconds, self::WEB_TICK_MAXIMUM);
     }
 
     /** Starts the clock of a tick. */

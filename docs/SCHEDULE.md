@@ -86,7 +86,7 @@ What a call does depends on `cron.mode` (`auto`, `worker`, `ticks`; System page 
 | Mode | What a call does | Consistency |
 |---|---|---|
 | `worker` (`auto`, if PHP can start a process: `exec` or `proc_open` allowed and a PHP binary is found) | If something is due or interrupted and no worker is alive, it starts `threadsafe cron` as a **detached process** and answers `started` at once. The process lives on after the request, has no time limit, and does what the command does. One call a day is enough. A second call while it works answers `working` and starts nothing. | `snapshot` |
-| `ticks` (`auto`, if no process can be started) | **One step** of work under the limits of the request (the time of a step is a part of `max_execution_time`): continues the run that is going, or starts the next due backup and does its first step. It must be called often - every minute or every few minutes - for a backup to finish. | `table` |
+| `ticks` (`auto`, if no process can be started) | **One step** of work under the limits of the request (the time of a step is 60 % of `max_execution_time`, but never more than 20 seconds): continues the run that is going, or starts the next due backup and does its first step. It must be called often - every minute or every few minutes - for a backup to finish. | `table` |
 
 The worker is started with a clean environment, no standard input and its output in `data/cron-worker.log` (it stays empty when all is well); never a second one within 30 seconds, and the worker itself takes the lock, so two never work.
 

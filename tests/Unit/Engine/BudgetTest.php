@@ -72,6 +72,16 @@ final class BudgetTest extends TestCase
         self::assertFalse(Budget::forThisProcess()->exhausted());
     }
 
+    public function testAStepOfAWebRequestIsAShareOfTheLimitButNeverLongerThanTwentySeconds(): void
+    {
+        self::assertEqualsWithDelta(3.0, Budget::webSeconds(5.0), 0.0001, 'the limits of the test stack');
+        self::assertEqualsWithDelta(18.0, Budget::webSeconds(30.0), 0.0001, 'a usual host');
+        self::assertEqualsWithDelta(20.0, Budget::webSeconds(120.0), 0.0001, 'a long limit does not make a long step');
+        self::assertEqualsWithDelta(20.0, Budget::webSeconds(50000.0), 0.0001, 'a host that says 50000 seconds (seen in the field)');
+        self::assertEqualsWithDelta(20.0, Budget::webSeconds(0.0), 0.0001, 'no limit: the fallback');
+        self::assertEqualsWithDelta(7.0, Budget::webSeconds(0.0, 0.6, 7.0), 0.0001);
+    }
+
     #[DataProvider('limits')]
     public function testParsesMemoryLimits(string $value, ?int $bytes): void
     {
