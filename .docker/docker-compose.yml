@@ -211,6 +211,39 @@ services:
     volumes:
       - wordpress60_data:/var/www/html
 
+  # Two WordPress sites with the plugins of real sites (profile "wordpress"; docs/PHASE9.md, field test): `wordpressshop` is a shop (WooCommerce with products,
+  # customers, orders, coupons and a webhook; Yoast SEO; Redis Object Cache on the service `redis`, so its drop-in object-cache.php really needs Redis) and
+  # `wordpresscache` a site with the caching and page-builder plugins that write the domain into files (W3 Total Cache with its drop-ins and configuration,
+  # Elementor with its generated CSS). Seeded by tests/stack/seed-wordpress-plugins.sh with WP-CLI, which downloads the plugins from wordpress.org (it needs the
+  # internet once; the plugin files stay in the volumes).
+  redis:
+    profiles: ["wordpress"]
+    image: redis:7-alpine
+
+  wordpressshop:
+    profiles: ["wordpress"]
+    image: wordpress:${WORDPRESS7_TAG:-7.1-php8.4-apache}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    ports:
+      - "${WORDPRESSSHOP_PORT:-8200}:80"
+    volumes:
+      - wordpressshop_data:/var/www/html
+
+  wordpresscache:
+    profiles: ["wordpress"]
+    image: wordpress:${WORDPRESS7_TAG:-7.1-php8.4-apache}
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "${WORDPRESSCACHE_PORT:-8201}:80"
+    volumes:
+      - wordpresscache_data:/var/www/html
+
   # The target for WordPress. The PHP of the PrestaShop image has no mysqli, which WordPress needs, so a WordPress needs a web server of its own on the
   # files of the target volume (the same files that target-prestashop serves); it is not started by the other phases. Only Apache and PHP: no WordPress
   # of the image's is copied in (the command does not start with apache2). The limits for the wizard are those of the other target.
@@ -248,6 +281,8 @@ services:
       - wordpress7_data:/wordpress7
       - wordpress6_data:/wordpress6
       - wordpress60_data:/wordpress60
+      - wordpressshop_data:/wordpressshop
+      - wordpresscache_data:/wordpresscache
       # the host with nothing on it (profile "fresh"): its /var/www
       - fresh_www:/shops/fresh
     depends_on:
@@ -287,4 +322,8 @@ volumes:
     name: threadsafe-dev_wordpress6_data${VOLUME_SUFFIX:-}
   wordpress60_data:
     name: threadsafe-dev_wordpress60_data${VOLUME_SUFFIX:-}
+  wordpressshop_data:
+    name: threadsafe-dev_wordpressshop_data${VOLUME_SUFFIX:-}
+  wordpresscache_data:
+    name: threadsafe-dev_wordpresscache_data${VOLUME_SUFFIX:-}
   composer_cache:
