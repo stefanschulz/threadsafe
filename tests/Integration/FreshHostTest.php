@@ -241,13 +241,15 @@ final class FreshHostTest extends IntegrationTestCase
         $text = html_entity_decode(strip_tags($page['body']));
         self::assertStringContainsString('from a release; the home is "/var/www/threadsafe"', $text);
         self::assertMatchesRegularExpression('/memory_limit 64M, max_execution_time 5 s/', $text, 'the host has the limits of the test');
-        self::assertSame(1, preg_match('#href="(/app\.css\?v=0\.1\.0)"#', $page['body'], $m), 'the pages ask for the files with the version');
+        self::assertSame(1, preg_match('#href="(/index\.php\?asset=app\.css&amp;v=0\.1\.0)"#', $page['body'], $m), 'the pages ask for the files through index.php, with the version: no rewrite rule is needed for them');
 
-        $css = (new FreshHost())->get($m[1] ?? '/app.css?v=0.1.0');
+        $css = (new FreshHost())->get(html_entity_decode($m[1] ?? '/index.php?asset=app.css&v=0.1.0'));
         self::assertSame(200, $css['status']);
         self::assertStringContainsString('text/css', $css['headers']['content-type'] ?? '');
         self::assertSame('public, max-age=31536000, immutable', $css['headers']['cache-control'] ?? '');
-        self::assertSame(200, (new FreshHost())->get('/fonts/ibm-plex-sans-latin-400-normal.woff2?v=0.1.0')['status']);
+        self::assertStringContainsString('url("index.php?asset=fonts/ibm-plex-sans-latin-400-normal.woff2&v=0.1.0")', $css['body'], 'and so are the fonts of the sheet');
+        self::assertSame(200, (new FreshHost())->get('/index.php?asset=fonts/ibm-plex-sans-latin-400-normal.woff2&v=0.1.0')['status']);
+        self::assertSame(200, (new FreshHost())->get('/fonts/ibm-plex-sans-latin-400-normal.woff2?v=0.1.0')['status'], 'the pretty address still works where the rule does');
         self::assertNotSame(200, (new FreshHost())->get('/index.php?asset=../src/Core/Version.php')['status'], 'a name outside the whitelist is not a file');
     }
 
@@ -296,8 +298,8 @@ final class FreshHostTest extends IntegrationTestCase
         // the same session works on the new version, and the pages ask for its files
         $system = $browser->get('/system');
         self::assertSame(200, $system['status']);
-        self::assertStringContainsString('/app.css?v=0.2.0', $system['body']);
-        self::assertSame(200, (new FreshHost())->get('/app.css?v=0.2.0')['status']);
+        self::assertStringContainsString('/index.php?asset=app.css&amp;v=0.2.0', $system['body']);
+        self::assertSame(200, (new FreshHost())->get('/index.php?asset=app.css&v=0.2.0')['status']);
         self::assertStringContainsString('"event":"update.applied"', (string) file_get_contents(FreshHost::home() . '/data/audit.log'));
 
         $browser->interface('/system/update/discard');
@@ -305,7 +307,7 @@ final class FreshHostTest extends IntegrationTestCase
         $back = $browser->interface('/system/update/rollback');
         self::assertSame(303, $back['status']);
         self::assertSame('0.1.0', $this->pointer());
-        self::assertStringContainsString('/app.css?v=0.1.0', $browser->get('/system')['body']);
+        self::assertStringContainsString('/index.php?asset=app.css&amp;v=0.1.0', $browser->get('/system')['body']);
     }
 
     public function testAnUpdateWhoseNewVersionDoesNotStartIsTakenBack(): void

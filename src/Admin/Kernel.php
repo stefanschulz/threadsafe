@@ -7,6 +7,7 @@ namespace ThreadSafe\Admin;
 use Closure;
 use Throwable;
 use ThreadSafe\App\TriggerService;
+use ThreadSafe\Core\Paths;
 use ThreadSafe\Core\Version;
 use ThreadSafe\Schedule\CronSecret;
 use ThreadSafe\Update\HttpHealthCheck;
@@ -61,7 +62,7 @@ final class Kernel
         } catch (ConfigException $e) {
             return View::error('The configuration cannot be read', $e->getMessage(), 500);
         }
-        $urls = new Urls($this->base, $services->config->prettyUrls());
+        $urls = new Urls($this->base, $services->config->prettyUrls(), Version::CURRENT, Paths::home() !== null);
         $route = $urls->route($request);
         $method = $request->method === 'HEAD' ? 'GET' : $request->method;
 

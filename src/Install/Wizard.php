@@ -276,11 +276,21 @@ final class Wizard
         }
 
         $task = new InstallRun();
-        $run = $this->store()->create($task->id(), $task->initialState(['file' => $this->script, 'docroot' => $this->baseDirectory, 'home' => $home]));
+        $run = $this->store()->create($task->id(), $task->initialState(['file' => $this->script, 'docroot' => $this->baseDirectory, 'home' => $home, 'urlBase' => $this->urlBase($request)]));
         $session['runId'] = $run->id;
         $this->sessions->save($token, $session);
 
         return Response::redirect('?step=run');
+    }
+
+    /** The path of the directory of the installer in the address ("" for the root of the site), or null if the request does not say. */
+    private function urlBase(Request $request): ?string
+    {
+        if ($request->path === '' || $request->path[0] !== '/') {
+            return null;
+        }
+
+        return rtrim(str_replace('\\', '/', dirname($request->path)), '/');
     }
 
     // ------------------------------------------------------------------------------------------------- run

@@ -283,6 +283,7 @@ The four rows from `schedule.timezone` on are for the scheduled backups ([BACKUP
 |---|---|
 | Every address says "Not found" | the interface is off (`php bin/threadsafe admin status`), or no administrator exists and there is no `setup-key.php` |
 | The login page works, all other pages say "Not found" or the server's own error | the rewrite rule is missing: enable `mod_rewrite` and `AllowOverride All`, add the nginx rule, or set `web.prettyUrls` to `false` in `data/config.json` |
+| Every address, also the style sheet, answers 500 and the server's error page fails as well | the rewrite rule goes round in a circle: add `RewriteBase /` (the path of the directory in the address, with a slash at both ends) below `RewriteEngine On` in the `.htaccess`, or set `web.prettyUrls` to `false`. An installation from a release asks for its style sheet, script and fonts through `index.php?asset=...` and never needs the rule for them (since 0.9.0-beta.2) |
 | "Too many wrong attempts" | wait the seconds it names; it clears after a right password |
 | The backup stops after a few steps | the connection was lost or the page was closed: open the run again and press Continue |
 | "Another backup is running" | one at a time; follow the running one, or give an interrupted one up |

@@ -18,8 +18,11 @@ final readonly class Urls
      * @param string $base   the path of the directory `index.php` is in, without a trailing slash (`/threadsafe/public`, or empty)
      * @param bool   $pretty  whether routes are paths (needs the web server rule) or a query parameter
      * @param string $version the version of the program, which the addresses of the static files carry
+     * @param bool   $assetsThroughPhp whether the static files are always asked for through `index.php`: an installation from a release has
+     *                         them in the release, not in the document root, so no file is there for the web server to find and every
+     *                         address depends on its rewrite rule - which a host may get wrong (docs/PHASE7.md, field test of 0.9.0-beta.1)
      */
-    public function __construct(public string $base = '', public bool $pretty = true, public string $version = Version::CURRENT)
+    public function __construct(public string $base = '', public bool $pretty = true, public string $version = Version::CURRENT, public bool $assetsThroughPhp = false)
     {
     }
 
@@ -60,13 +63,14 @@ final readonly class Urls
 
     /**
      * A static file of the interface. The version in the address makes a new version a new address (the files are cached for a year in a
-     * release). Without the web server rule the file is asked for through `index.php`, which answers it ({@see Assets}).
+     * release). Without the web server rule, or where the files are not in the document root, the file is asked for through `index.php`,
+     * which answers it ({@see Assets}).
      */
     public function asset(string $name): string
     {
         $version = rawurlencode($this->version);
 
-        return $this->pretty ? $this->base . '/' . $name . '?v=' . $version : $this->base . '/index.php?asset=' . $name . '&v=' . $version;
+        return $this->pretty && !$this->assetsThroughPhp ?$this->base . '/' . $name . '?v=' . $version : $this->base . '/index.php?asset=' . $name . '&v=' . $version;
     }
 
     /** The path the session cookie is valid for: the application's directory. */

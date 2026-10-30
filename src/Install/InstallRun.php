@@ -33,7 +33,7 @@ final class InstallRun implements Task
     }
 
     /**
-     * @param array<string, mixed> $parameters `file` (the installer), `docroot`, `home`
+     * @param array<string, mixed> $parameters `file` (the installer), `docroot`, `home`, `urlBase` (the path of the document root in the address, or null)
      *
      * @return array<string, mixed>
      */
@@ -47,6 +47,7 @@ final class InstallRun implements Task
             'file' => $file,
             'docroot' => rtrim(str_replace('\\', '/', (string) ($parameters['docroot'] ?? dirname($file))), '/'),
             'home' => rtrim(str_replace('\\', '/', (string) ($parameters['home'] ?? '')), '/'),
+            'urlBase' => is_string($parameters['urlBase'] ?? null) ? $parameters['urlBase'] : null,
             'version' => $package->manifest->version,
             ...Unpacker::initialState($package),
             'setupKey' => '',
@@ -145,7 +146,7 @@ final class InstallRun implements Task
         self::write($home . '/bin/threadsafe', Layout::command($home));
         @chmod($home . '/bin/threadsafe', 0755);
         self::write($docroot . '/index.php', Layout::stub($home), true);
-        self::write($docroot . '/.htaccess', Layout::documentRootHtaccess(), true);
+        self::write($docroot . '/.htaccess', Layout::documentRootHtaccess(is_string($state['urlBase'] ?? null) ? $state['urlBase'] : null), true);
 
         $key = (string) $state['setupKey'] !== '' ? (string) $state['setupKey'] : bin2hex(random_bytes(12));
         self::write($home . '/data/setup-key.php', "<?php return '" . $key . "';\n");

@@ -106,6 +106,18 @@ final class AssetsTest extends TestCase
         self::assertSame('font/woff2', $response->header('Content-Type'));
     }
 
+    public function testTheFontsOfTheSheetAskedForThroughIndexPhpComeThroughIndexPhpToo(): void
+    {
+        $css = 'a { src: url("fonts/plex.woff2") format("woff2"); } b { background: url("other.png"); }';
+        file_put_contents($this->directory . '/app.css', $css);
+
+        $through = $this->assets()->answer($this->request('/ts/index.php', ['asset' => 'app.css', 'v' => '1.2.3']), '/ts');
+        $direct = $this->assets()->answer($this->request('/ts/app.css', ['v' => '1.2.3']), '/ts');
+
+        self::assertSame('a { src: url("index.php?asset=fonts/plex.woff2&v=1.2.3") format("woff2"); } b { background: url("other.png"); }', $through?->body);
+        self::assertSame($css, $direct?->body, 'where the web server serves the sheet, its own relative addresses are right');
+    }
+
     public function testTheFaviconIsAnSvgImage(): void
     {
         $response = $this->assets()->answer($this->request('/favicon.svg', ['v' => '1.2.3']), '');

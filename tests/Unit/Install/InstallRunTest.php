@@ -87,6 +87,16 @@ final class InstallRunTest extends TestCase
         self::assertSame($state['expected'], $state['files'], 'every file of the manifest, and the manifest');
     }
 
+    public function testTheHtaccessOfTheDocumentRootKnowsItsPlaceInTheAddress(): void
+    {
+        [$package, $docroot, $home] = $this->host();
+        $task = new InstallRun();
+
+        $this->runToEnd($task, $task->initialState(['file' => $package, 'docroot' => $docroot, 'home' => $home, 'urlBase' => '/backup']));
+
+        self::assertStringContainsString("    RewriteBase /backup/\n", (string) file_get_contents($docroot . '/.htaccess'));
+    }
+
     public function testTheStubTheCommandAndTheDataAreInPlace(): void
     {
         [$package, $docroot, $home] = $this->host();

@@ -75,9 +75,18 @@ require $home . '/releases/' . $release . '/bin/threadsafe';
 COMMAND);
     }
 
-    /** The `.htaccess` of the document root: every address that is not a file goes to the stub. */
-    public static function documentRootHtaccess(): string
+    /**
+     * The `.htaccess` of the document root: every address that is not a file goes to the stub.
+     *
+     * @param string|null $urlBase the path of this directory in the address ("" for the root of a site, "/blog" below it), or null if it is not
+     *                             known. It becomes `RewriteBase`: without it a host whose directories do not map plainly to addresses (an
+     *                             alias, a link, a virtual host made from a pattern) sends the rewritten request round in a circle until the
+     *                             server answers 500, and not even its error page can be shown (seen in the field test of 0.9.0-beta.1).
+     */
+    public static function documentRootHtaccess(?string $urlBase = null): string
     {
+        $rewriteBase = $urlBase !== null && preg_match('#^(/[A-Za-z0-9._~%-]+)*$#', $urlBase) === 1 ? '    RewriteBase ' . $urlBase . "/\n" : '';
+
         return <<<'HTACCESS'
 # ThreadSafe: every address that is not a file is answered by index.php (the pages are /login, /profiles/shop ...). Without
 # mod_rewrite set "web.prettyUrls" to false in data/config.json; the pages are then index.php?route=/login.
@@ -85,6 +94,8 @@ Options -Indexes
 
 <IfModule mod_rewrite.c>
     RewriteEngine On
+
+HTACCESS . $rewriteBase . <<<'HTACCESS'
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteCond %{REQUEST_FILENAME} !-d
     RewriteRule ^ index.php [L]

@@ -56,6 +56,7 @@ final class RoutingTest extends TestCase
         self::assertSame('/ts/app.css?v=' . Version::CURRENT, $urls->asset('app.css'));
         self::assertSame('/ts/app.css?v=1.2.3', (new Urls('/ts', true, '1.2.3'))->asset('app.css'));
         self::assertSame('/ts/index.php?asset=fonts/a.woff2&v=1.2.3', (new Urls('/ts', false, '1.2.3'))->asset('fonts/a.woff2'), 'without the rule the file is asked for through index.php');
+        self::assertSame('/ts/index.php?asset=app.css&v=1.2.3', (new Urls('/ts', true, '1.2.3', assetsThroughPhp: true))->asset('app.css'), 'where the files are not in the document root, no rewrite is needed for them');
         self::assertSame('/ts/', $urls->cookiePath());
         self::assertSame('/', (new Urls(''))->cookiePath());
     }

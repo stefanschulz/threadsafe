@@ -216,6 +216,17 @@ PHP);
         self::assertStringContainsString('RewriteCond %{REQUEST_FILENAME} !-f', $htaccess);
     }
 
+    public function testTheHtaccessOfTheDocumentRootSaysWhereItLivesInTheAddressSoThatTheRewriteCannotLoop(): void
+    {
+        self::assertStringContainsString("RewriteEngine On\n    RewriteBase /\n    RewriteCond", Layout::documentRootHtaccess(''), 'the root of a site');
+        self::assertStringContainsString("    RewriteBase /blog/\n", Layout::documentRootHtaccess('/blog'));
+        self::assertStringContainsString("    RewriteBase /a/b.c-d/\n", Layout::documentRootHtaccess('/a/b.c-d'));
+        self::assertStringNotContainsString('RewriteBase', Layout::documentRootHtaccess(), 'not known: as before');
+        self::assertStringNotContainsString('RewriteBase', Layout::documentRootHtaccess('/a b'), 'a path that is not plain is not written into a rule');
+        self::assertStringNotContainsString('RewriteBase', Layout::documentRootHtaccess("/a\nRewriteRule"), 'and no way to add a line');
+        self::assertStringContainsString('RewriteRule ^ index.php [L]', Layout::documentRootHtaccess('/blog'));
+    }
+
     public function testTheHtaccessThatClosesADirectoryDeniesInBothGenerationsOfApache(): void
     {
         $htaccess = Layout::closedHtaccess();

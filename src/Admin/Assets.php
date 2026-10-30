@@ -81,6 +81,25 @@ final readonly class Assets
             return new Response(304, $headers, '');
         }
 
-        return new Response(200, $headers, (string) file_get_contents($path));
+        $body = (string) file_get_contents($path);
+        if ($name === 'app.css' && $request->query('asset') !== null) {
+            $body = $this->fontsThroughPhp($body);
+        }
+
+        return new Response(200, $headers, $body);
+    }
+
+    /**
+     * The style sheet names its fonts relative to itself (`fonts/x.woff2`), which is right where the web server serves the files. When the
+     * sheet itself was asked for through `index.php`, those addresses would lead to the document root, where nothing is: they go through
+     * `index.php` as well (a relative address with only a query stays on the same script, also in a sub-directory).
+     */
+    private function fontsThroughPhp(string $css): string
+    {
+        return (string) preg_replace_callback(
+            '#url\("fonts/([A-Za-z0-9][A-Za-z0-9._-]*)"\)#',
+            fn (array $m): string => 'url("index.php?asset=fonts/' . $m[1] . '&v=' . rawurlencode($this->version) . '")',
+            $css,
+        );
     }
 }
