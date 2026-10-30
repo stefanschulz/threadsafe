@@ -6,6 +6,10 @@ of the GitHub release (see "Making a release" in [AGENTS.md](AGENTS.md)).
 
 ## [Unreleased]
 
+## [0.9.0-beta.2] - 2026-10-30
+
+A fix for the installer on hosts where the rewrite rule of the `.htaccess` does not work as written, found in the field test of 0.9.0-beta.1. An installation made with beta.1 can be updated to this version from the System page (or with `threadsafe update`); the `.htaccess` of the document root is not touched by an update, see the first entry.
+
 ### Fixed
 
 - Installer: on a host where the rewrite rule of the `.htaccess` goes round in a circle (every address answered 500, also the style sheet, so the setup page had no style), the installer now writes `RewriteBase` into the `.htaccess` of the document root, from the address it runs at, also for a sub-directory. An installation made with 0.9.0-beta.1 needs the line `RewriteBase /` by hand ([INSTALL.md](INSTALL.md), "When something does not work").
