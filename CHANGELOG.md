@@ -6,18 +6,15 @@ of the GitHub release (see "Making a release" in [AGENTS.md](AGENTS.md)).
 
 ## [Unreleased]
 
-### Fixed
-
-- A step of work in a web request (backup, check, restore, installation, update) is now at most 20 seconds long, whatever `max_execution_time` says. A host that reports 50000 seconds made one step the whole backup: eight minutes in one request, with no bar, no label and no sign of life on the page.
-
 ## [0.9.0-beta.2] - 2026-10-30
 
-A fix for the installer on hosts where the rewrite rule of the `.htaccess` does not work as written, found in the field test of 0.9.0-beta.1. An installation made with beta.1 can be updated to this version from the System page (or with `threadsafe update`); the `.htaccess` of the document root is not touched by an update, see the first entry.
+Two fixes found in the field test of 0.9.0-beta.1 on a second host: the installer on a host where the rewrite rule of the `.htaccess` does not work as written, and a backup in the browser that showed no sign of life. An installation made with beta.1 can be updated to this version from the System page (or with `threadsafe update`); the `.htaccess` of the document root is not touched by an update, see the first entry.
 
 ### Fixed
 
 - Installer: on a host where the rewrite rule of the `.htaccess` goes round in a circle (every address answered 500, also the style sheet, so the setup page had no style), the installer now writes `RewriteBase` into the `.htaccess` of the document root, from the address it runs at, also for a sub-directory. An installation made with 0.9.0-beta.1 needs the line `RewriteBase /` by hand ([INSTALL.md](INSTALL.md), "When something does not work").
 - Web interface of an installation from a release: the style sheet, the script, the favicon and the fonts are always asked for through `index.php?asset=...`, so a rewrite rule that does not work can no longer take away the look of the pages.
+- A step of work in a web request (backup, check, restore, installation, update) is now at most 20 seconds long, whatever `max_execution_time` says. A host that reports 50000 seconds made one step the whole backup: eight minutes in one request, with no bar, no label and no sign of life on the page.
 
 ## [0.9.0-beta.1] - 2026-10-30
 
