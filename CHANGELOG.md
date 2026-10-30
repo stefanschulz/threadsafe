@@ -6,7 +6,9 @@ of the GitHub release (see "Making a release" in [AGENTS.md](AGENTS.md)).
 
 ## [Unreleased]
 
-Nothing is released yet. Rename this heading to the version (`## [0.1.0] - date`) and start a new `[Unreleased]` above it when you tag.
+## [0.9.0-beta.1] - 2026-10-30
+
+The first release, a **beta**: everything below is built and tested on a Docker stack with MariaDB 10.11, MySQL 8.4 and MariaDB 11.8, and has been used on the maintainer's own sites and server (a PrestaShop shop, a Joomla site, a WordPress site, the installer and the update on a shared host). It has not yet met a variety of other people's sites. Not yet tried on a real site: a WordPress shop with WooCommerce or a caching plugin (only in the Docker lab), a WordPress in a sub-directory or with `wp-config.php` above the site, and the installer on a customer's server. Please report what you find. Not built: remote storage (SFTP, S3), restoring over an existing installation, WordPress multisite.
 
 ### Added
 
