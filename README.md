@@ -69,7 +69,7 @@ Passwords are never options of a command, only `--...-file` or the environment. 
 - [AGENTS.md](AGENTS.md): rules, how to run the checks, map of the code, where the project stands
 - [docs/CONCEPT.md](docs/CONCEPT.md): what it is for and why it is built this way
 - [docs/DESIGN.md](docs/DESIGN.md): colours and type of the web interface and the wizard
-- Plans and "As built" notes of each phase: [1](docs/PHASE1.md), [1b](docs/PHASE1B.md), [2](docs/PHASE2.md), [3](docs/PHASE3.md), [4](docs/PHASE4.md), [5](docs/PHASE5.md), [6](docs/PHASE6.md), [7](docs/PHASE7.md), [8](docs/PHASE8.md), [9](docs/PHASE9.md)
+- Plans and "As built" notes of each phase: [1](docs/PHASE1.md), [1b](docs/PHASE1B.md), [2](docs/PHASE2.md), [3](docs/PHASE3.md), [4](docs/PHASE4.md), [5](docs/PHASE5.md), [6](docs/PHASE6.md), [7](docs/PHASE7.md), [8](docs/PHASE8.md), [9](docs/PHASE9.md), [10, planned](docs/PHASE10.md)
 - [tests/stack/README.md](tests/stack/README.md): the Docker test stacks
 
 ## Development
