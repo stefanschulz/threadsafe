@@ -133,7 +133,7 @@ The state of a run is a file in the data directory (`runs/`, mode 0600); it hold
 
 ## 9. Limits and what is not there
 
-- **No restore over an existing installation, no rollback.** Decided for phase 3; the cleanup of leftover tables and files is a later phase.
+- **No restore over an existing installation, no rollback.** Decided in phase 3 and still so. `--drop-tables` removes the tables with the prefix of the restore first (for a database that is not empty); leftover files in the directory and a rollback are not handled.
 - **MySQL 8 → MariaDB is refused.** PrestaShop on MySQL 8 creates its tables with `utf8mb4_0900_ai_ci`, which MariaDB does not have. MariaDB → MySQL works, MariaDB → MariaDB and MySQL → MySQL too (tested on MariaDB 10.11, MariaDB 11.8 and MySQL 8.4, each onto itself).
 - **A view or trigger with a `DEFINER` that does not exist on the new database server can fail the import** with the server's error (typically 1449, "the user specified as a definer does not exist"); create the user, or restore the SQL by hand with the definer removed. Not tested.
 - **One file that inflates slower than a request is long** cannot be restored through the web: a single compressed file is always finished in the request that begins it (the pure PHP reader inflates 15 to 360 MB/s, so only files of hundreds of MB are at risk). The command line has no limit.

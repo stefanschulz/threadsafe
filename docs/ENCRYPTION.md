@@ -104,7 +104,7 @@ age -d -o part.zip part.zip.age                                        # a passp
 
 ## 11. Limits
 
-- No transfer of encrypted backups to other places yet (a later phase); copy them with your own tools - they are safe to hand around.
+- No transfer of encrypted backups to other places (remote storage is not built); copy them with your own tools - they are safe to hand around.
 - The web interface never decrypts: no full check, no listing of the files inside.
 - A passphrase backup is for the passphrase only; there is no "key and passphrase" file.
 - Old backups are not re-encrypted for a new key; make a new backup (section 3).

@@ -131,7 +131,7 @@ A release is made by the workflow, not by hand (docs/PHASE7.md 3.7, decision 6):
 
 ## Next steps
 
-Phases 1, 1b, 2, 3, 4 and 5 are done and proven: `threadsafe migrate`, `profile`, `backup`, `backups`, `verify`, `restore`, `retention`, `keys`,
+Phases 1 to 9 and 11 are done and proven (phase 10 is planned); the table above says which are field-tested. The core of it: `threadsafe migrate`, `profile`, `backup`, `backups`, `verify`, `restore`, `retention`, `keys`,
 `cron` and `admin` work end to end, the single file `threadsafe-restore.php` (`php tools/build-restore.php`) restores a backup (also an encrypted one) behind a web
 server on a host where nothing else is installed, and the web interface (`public/`, switched on with `admin enable`) does profiles, schedules, backups
 in steps, checks, downloads, keys and the restore help in a browser. `tests/stack/run.sh` is the whole proof: baseline and migration, dev mode, the backup

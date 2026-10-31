@@ -100,7 +100,7 @@ Wrong passwords are slowed down: after three, the next try has to wait 5 seconds
 
 ### The menu and the colour scheme
 
-The menu is on the left: **Dashboard**, **Profiles**, **Schedule**, **Security**, **System**, each with an icon and a name; at the top the mark of ThreadSafe (the letters TS until there is a logo), at the bottom the colour scheme and **Log out**. The arrow at the top **folds the menu to the icons** (the names are then in the tooltips and stay available to screen readers); on a narrow screen the menu is always folded. The **switch at the bottom has three positions: Auto** (the scheme of your system or browser, the default), **Light** and **Dark**. Both choices are kept in two cookies of this page (`threadsafe_nav`, `threadsafe_theme`; they hold one word each, are sent to no one else and have no other use), so the next page is drawn right from the start. The switch and the arrow need script; without script the menu is open and the scheme is the system's. Before the login the page has the mark and the switch in a bar on top. The look is described in [DESIGN.md](DESIGN.md).
+The menu is on the left: **Dashboard**, **Profiles**, **Schedule**, **Security**, **System**, each with an icon and a name; at the top the logo of ThreadSafe, at the bottom the colour scheme and **Log out**. The arrow at the top **folds the menu to the icons** (the names are then in the tooltips and stay available to screen readers); on a narrow screen the menu is always folded. The **switch at the bottom has three positions: Auto** (the scheme of your system or browser, the default), **Light** and **Dark**. Both choices are kept in two cookies of this page (`threadsafe_nav`, `threadsafe_theme`; they hold one word each, are sent to no one else and have no other use), so the next page is drawn right from the start. The switch and the arrow need script; without script the menu is open and the scheme is the system's. Before the login the page has the mark and the switch in a bar on top. The look is described in [DESIGN.md](DESIGN.md).
 
 ### Dashboard
 
@@ -334,7 +334,7 @@ The four rows from `schedule.timezone` on are for the scheduled backups ([BACKUP
 - One administrator; no roles; English only.
 - The second factor is a code of an app (TOTP) only: no passkeys or hardware keys, no code by mail or SMS, no "remember this browser", and no code is asked again before a download or an update (the session is the unit). It protects the web login, not the command line, the trigger address or `threadsafe-restore.php`.
 - Backups made in the browser read the database table by table (no snapshot); the command line can take a snapshot.
-- Storage is a local directory; there is no remote storage, schedule, retention or encryption yet (phase 5).
+- Storage is a local directory; there is no remote storage (SFTP, S3). Schedules, retention and encryption exist ([SCHEDULE.md](SCHEDULE.md), [ENCRYPTION.md](ENCRYPTION.md)).
 - The interface cannot restore, and the restore tool restores only onto an empty directory and database ([RESTORE.md](RESTORE.md) section 9).
 - The web server modes `X-Sendfile` and `X-Accel-Redirect` and the nginx rule above are documented but not tried in the test stack.
 - Tested on Apache with `mod_php`; PHP-FPM and nginx should work the same way (nothing in the code depends on the SAPI) but are not in the test stack.

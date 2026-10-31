@@ -1,6 +1,6 @@
 # Phase 1 – Restore core ("PrestaShop 9 migrator")
 
-**Status:** plan, draft 1 (2026-10-20); design decisions in section 7 are settled. Nothing in this document is implemented yet.
+**Status:** **done** (2026-10-20/21). This is the plan of the restore core as it was drafted; the reference of what was built is [MIGRATE.md](MIGRATE.md), and the corrections are in the later phase documents. Design decisions in section 7 were settled before the work began. Items marked *(verify)* were confirmed or corrected while building.
 **Context:** see [CONCEPT.md](CONCEPT.md), sections 4 (restore details) and 8 (plan). Facts about PrestaShop were checked against the 9.0.2 test container (`.docker/`); items marked *(verify)* still have to be confirmed.
 
 ## 1. Goal and scope

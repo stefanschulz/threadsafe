@@ -262,7 +262,7 @@ Notes:
 
 ## 9. Limits and what is not there
 
-- **No transfer to other places** (phase 6 of [CONCEPT.md](CONCEPT.md)); the `transfers` list of the sidecar is reserved for it. **Restoring an encrypted backup** takes the secret key or the passphrase ([RESTORE.md](RESTORE.md) section 12); the real `age -d` opens the parts as well.
+- **No transfer to other places** (remote storage is not built; see "later" in the plan of [CONCEPT.md](CONCEPT.md)); the `transfers` list of the sidecar is reserved for it. **Restoring an encrypted backup** takes the secret key or the passphrase ([RESTORE.md](RESTORE.md) section 12); the real `age -d` opens the parts as well.
 - **Database objects:** tables, views and triggers are backed up. Stored routines, events and sequences are not; they are reported. `SYSTEM VERSIONED` tables of MariaDB are dumped without their history. Foreign keys are not ordered (the import switches the checks off). Only InnoDB tables are covered by the consistent snapshot.
 - **Large cells:** a cell above the `max_allowed_packet` of the dumping server is dumped and reported as a warning (section 8). Cells are read in pieces, so memory stays small however large they are.
 - **Tables without a usable primary key** (none, a prefix key, a key of an unsuitable type) are read in one pass as one unit of work; under a time limit this step can take longer than a tick.

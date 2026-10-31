@@ -264,10 +264,10 @@ contains customer data, so:
 - turn findings into **synthetic** fixtures or module rules (names of tables and settings, never contents), then delete the
   copy, the report and the journal – they hold customer data and secrets.
 
-## 11. Limits of phase 1
+## 11. Limits
 
 - PrestaShop 9.x on MariaDB or MySQL only; one `migrate` per shop at a time.
-- The restore itself (unpacking an archive, importing the dump) and the backup are not part of this command yet.
+- Unpacking an archive and importing the dump are done by `restore` ([RESTORE.md](RESTORE.md)), the backup by `backup`; this command adapts a site that is already restored.
 - No automatic undo; no anonymisation of customer data; multistore is only tested with one shop.
 - The self-test and `finalize` need the shop to be reachable and, for `finalize`, a PHP that can start PrestaShop.
 - A changed base path is handled in `.htaccess` and, through `finalize`, in `robots.txt`; other files that hold the path

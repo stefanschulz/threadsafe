@@ -165,4 +165,4 @@ Audit log events: `backup.started` (with `source` and the scheduled time), `back
 - A scheduled backup is made when the trigger calls; there is no daemon. A host that cannot call anything at all cannot make backups by itself.
 - The retry of a failed run waits for the next call; it does not wait inside the process.
 - One backup runs at a time, in the whole installation, also across profiles.
-- Retention works on the local storage directory of a profile; transfers to other places are a later phase.
+- Retention works on the local storage directory of a profile; transfers to other places (remote storage) are not built.
