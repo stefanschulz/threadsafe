@@ -6,6 +6,10 @@ of the GitHub release (see "Making a release" in [AGENTS.md](AGENTS.md)).
 
 ## [Unreleased]
 
+## [0.9.0-beta.4] - 2026-10-31
+
+The web login can have a **second factor**: a code from an authenticator app. An installation made with 0.9.0-beta.1 to beta.3 can be updated to this version from the System page (or with `threadsafe update`); the factor is off until you switch it on on the new page *Security*. Going back to a release from before it logs in with the password only, see "Changed".
+
 ### Added
 
 - A **second factor for the login** of the web interface: a code of six digits from an authenticator app (the standard TOTP of RFC 6238: Aegis, 2FAS, FreeOTP, Google Authenticator, Microsoft Authenticator, a password manager), asked for after the password. It is switched on on the new page **Security** (menu) in three steps: the password again, the key into the app (a **QR code** that the program draws itself, or the key as text), one code; then ten **recovery codes** are shown once. The password alone opens nothing; a code works once; the codes have a throttle of their own; the login ends after five minutes or five wrong codes; switching on or off ends every other login. The way back from a lost phone: a recovery code, `php bin/threadsafe admin two-factor --disable` (it also removes a file that cannot be read), or deleting `data/two-factor.json`. A file of the factor that cannot be read refuses the login instead of letting the password alone in.
