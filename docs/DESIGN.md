@@ -117,6 +117,10 @@ The logo follows the grammar of the other applications of the author (SetLister)
 
 In the program the logo is **markup in the code** (`Web\Logo`): the mark of the menu and of the bar before the login (2.25 rem), the heading of the wizards (`threadsafe-restore.php`, `threadsafe-install.php`; single files, so inline), and the favicon (a file `public/favicon.svg` for the interface, a data address for the wizards). It is written with **presentation attributes only** - never a `style` attribute or element - because the interface is served with `style-src 'self'` and the wizards with a nonce, and both refuse inline styles. `LogoTest` keeps three things true: no `style`, the same shapes as the design files (so a change is made in `.design/` and in `Web\Logo` together), and `public/favicon.svg` equal to `Logo::favicon()`. On the dark scheme the tile has the colour of the panel, so only the brass shows; that is meant.
 
+## The QR code
+
+The QR code on the *Security* page (`Auth\QrCode::svg()`) is the one picture that does **not** follow the tokens: it is **black on white with a quiet zone of four modules in both colour schemes**, because a scanner needs the contrast and a camera does not know the theme. It is an inline `<svg class="qr">` with presentation attributes only (no `style`, like the logo), 15 rem wide and never wider than its column (`svg.qr` in `public/app.css`). It is not text, so the contrast audit does not measure it; the key is always printed beside it, as text that does.
+
 ## Where it is used
 
 `public/app.css` and `public/fonts/` (all pages of the interface), `src/Admin/View.php` and `Icons.php` (the menu, the switch), `src/Web/Html.php` (`css()`, the restore wizard; it has no menu and no switch and follows the system). The tests do not look at colours; contrast was computed from the values above with the formula of WCAG 2.x and the pages were looked at in both themes at desktop width and at 375 px.

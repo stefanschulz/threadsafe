@@ -11,7 +11,7 @@ Backup and migration for PHP web applications. One instance backs up many sites,
 - **Backs up** the files and the database of a site into one standard ZIP archive (the database as plain SQL), in small steps that fit the time and memory limits of a web request.
 - **Restores** a backup into an empty directory and database, on another domain, path, database or table prefix, and fixes what depends on the place: configuration file, the old address in the database and in files, `.htaccess`, caches. A self-test requests the restored site.
 - **Rebuilds a site from nothing:** the single file `threadsafe-restore.php` is a wizard that restores a backup on a host where nothing else is installed.
-- **Web interface:** all sites at a glance, backups with a progress bar, checks, downloads, schedules.
+- **Web interface:** all sites at a glance, backups with a progress bar, checks, downloads, schedules. The login can have a **second factor** (a code from an authenticator app, with recovery codes).
 - **Schedule and retention:** one cron job (or one address to fetch) starts every backup that is due; old backups are removed by rules you set. Backups can be **encrypted** in the format of [age](https://age-encryption.org/).
 - **Dev mode:** a live-to-dev copy that sends no mail, talks to no payment provider and is kept out of search engines.
 - **No lock-in:** a backup opens with `unzip` and the plain `mariadb` / `mysql` client. See [docs/BACKUP.md](docs/BACKUP.md) section 8.

@@ -6,7 +6,7 @@ How it was designed and built, and the measurements behind it: [PHASE4.md](PHASE
 
 ## What to know first
 
-- **One administrator, one password.** There are no other users or roles.
+- **One administrator, one password, and a second factor if you set one up** (a code from an authenticator app on your phone, [Security](#security)). There are no other users or roles.
 - **It is off until you switch it on.** A fresh installation answers "not found" on every address and writes nothing. That is on purpose: a tool that can read the files and the databases of all your sites should not offer a login just because it was unpacked on a web server.
 - **A backup made in the browser is made in steps.** Every request of the page does a few seconds of work (about 60 % of the PHP time limit) and the next request goes on. You may close the page: the backup stops after the step in hand and can be **continued from where it was**. The database is then read table by table, not in one consistent snapshot as in a command line run (the backup says so in its details). For a shop that changes while it is backed up, prefer the command line for the backups you rely on.
 - **One backup at a time**, in the whole installation, whether it was started in the browser or on the command line.
@@ -94,11 +94,13 @@ and open the interface. It shows a single page, the setup, where you enter that 
 
 Wrong passwords are slowed down: after three, the next try has to wait 5 seconds, then 10, doubling up to 5 minutes; during the wait even the right password is not accepted. A success clears it. A session ends after two idle hours (a setting) and after 12 hours in any case; logging in again always makes a new session.
 
+**With a second factor** (page [Security](#security)) the login has two steps: the password, then a page that asks for the six digits that the app shows, or for a recovery code. The password alone opens nothing: between the two steps the session is only half a login, and every page but the second step answers it like a stranger. The code has its own throttle (three free tries, then 5 s doubling to 5 minutes, separate from the one of the passwords), the second step ends after 5 minutes and after five wrong codes (the password is asked again), and **a code works once**: the one you used a moment ago is refused, wait for the next. The page of the second step shows the time of the server in UTC after a wrong code, because a code is only right while the clocks of the phone and of the server agree (to about a minute).
+
 ## Using it
 
 ### The menu and the colour scheme
 
-The menu is on the left: **Dashboard**, **Profiles**, **Schedule**, **System**, each with an icon and a name; at the top the mark of ThreadSafe (the letters TS until there is a logo), at the bottom the colour scheme and **Log out**. The arrow at the top **folds the menu to the icons** (the names are then in the tooltips and stay available to screen readers); on a narrow screen the menu is always folded. The **switch at the bottom has three positions: Auto** (the scheme of your system or browser, the default), **Light** and **Dark**. Both choices are kept in two cookies of this page (`threadsafe_nav`, `threadsafe_theme`; they hold one word each, are sent to no one else and have no other use), so the next page is drawn right from the start. The switch and the arrow need script; without script the menu is open and the scheme is the system's. Before the login the page has the mark and the switch in a bar on top. The look is described in [DESIGN.md](DESIGN.md).
+The menu is on the left: **Dashboard**, **Profiles**, **Schedule**, **Security**, **System**, each with an icon and a name; at the top the mark of ThreadSafe (the letters TS until there is a logo), at the bottom the colour scheme and **Log out**. The arrow at the top **folds the menu to the icons** (the names are then in the tooltips and stay available to screen readers); on a narrow screen the menu is always folded. The **switch at the bottom has three positions: Auto** (the scheme of your system or browser, the default), **Light** and **Dark**. Both choices are kept in two cookies of this page (`threadsafe_nav`, `threadsafe_theme`; they hold one word each, are sent to no one else and have no other use), so the next page is drawn right from the start. The switch and the arrow need script; without script the menu is open and the scheme is the system's. Before the login the page has the mark and the switch in a bar on top. The look is described in [DESIGN.md](DESIGN.md).
 
 ### Dashboard
 
@@ -154,6 +156,32 @@ The **version under the name** at the top of the menu (it is hidden with the lab
 - **Changing.** *Change* in a line opens the form for that profile. Tick several lines (the box in the head ticks all) and press **Change the selected** to give them the same schedule in one go - the form starts with *Leave as it is*. **Pause** and **Resume** act on the ticked lines or, with the small button, on the one line. The form shows the **next three runs** (*Show the next runs*) before *Save*; a wrong value is an error next to the form and nothing is saved. Every change is in the audit log (`schedule.changed`, `schedule.paused`, `schedule.resumed`, with the old and the new schedule).
 - **The trigger.** The page shows the same warning as the dashboard when a scheduled profile exists and the trigger stays away: a schedule is only a promise, the trigger keeps it ([SCHEDULE.md](SCHEDULE.md) section 4).
 - Profile files that cannot be read are named above the table; the profiles page says what is wrong with each.
+
+### Security
+
+**Security** in the menu is where the **second factor** of the login is switched on and off. It is a code of six digits from an authenticator app (Aegis, 2FAS, FreeOTP, Google Authenticator, Microsoft Authenticator, a password manager: the standard TOTP of RFC 6238, 30 seconds), asked for after the password. Why: a backup holds the files and the database of a site, and the profiles hold database passwords ([Security in short](#security-in-short)); a stolen, reused or guessed password should not be enough.
+
+**Switching on** takes three steps, each on this page:
+
+1. **Your password again.** Asked on purpose: a stranger at an open session cannot switch the factor on (and lock you out) or off. The program makes a secret and keeps it in your session, **not in a file yet**.
+2. **Add the key to the app.** Scan the **QR code** with the camera of the app, or choose "enter a key" in the app and type the key shown below it (32 characters in groups of four; *Copy* copies it), or, on the phone itself, press the link under it. The program draws the QR code itself; it is black on white in both colour schemes because a scanner needs the contrast. Then enter the code that the app shows now.
+3. **The recovery codes** appear once: ten codes like `K7QD-2MWX-9RHT`, each of which works once in place of the code of the app. **Store them somewhere else than on this server and apart from your phone** (a password manager, a printout; the page has *Copy*, *Save as a file* and *Print*). The server keeps only their hashes. The page is not shown again: new codes can be made, see below.
+
+From then on the login asks for a code after the password, **every other login of this interface ends** (also one that waits for a code), and the page shows since when the factor is on and how many recovery codes are left (a warning at three or fewer).
+
+**New recovery codes** and **Switch off** need your password and a code of the app (or a recovery code). New codes replace all ten. A code that was used for the login a moment ago is refused here too: wait for the next one. Wrong passwords on this page count in the throttle of the login, wrong codes in the throttle of the codes.
+
+**If the phone is lost**, in the order to try:
+
+1. Use a **recovery code** on the second step of the login (the link *Lost the phone?*), then make new codes here.
+2. With a shell: `php bin/threadsafe admin two-factor --disable` (also removes a file that cannot be read).
+3. With FTP or the file manager: delete the file `two-factor.json` in the data directory.
+
+Whoever can do the second or the third already holds the data of the installation, so they open no new door. Switching **on** is done in the browser only, so that the key is never on a terminal or in a log; `php bin/threadsafe admin two-factor` (or `admin status`) tells whether it is on and how many recovery codes are left, and never the secret.
+
+**Make it a requirement.** The setting `web.requireTwoFactor` (a box on *System → Settings*, or `php bin/threadsafe admin set web.requireTwoFactor true`) makes a login without a second factor reach this page and nothing else, until one is on; it is in force at once. It is off by default, and while the factor is off the *Installation check* of the System page carries a warning ("The login has only a password").
+
+**What is stored:** `data/two-factor.json` (mode 0600) holds the secret of the app (it cannot be a hash, the program has to compute the codes: the same trust as the database passwords in the profiles, so keep the data directory closed), the last step that was accepted, and the hashes of the recovery codes. It is a file of its own, so that changing the password cannot lose it. A file that exists but cannot be read **refuses the login** (the page says how to repair it: the command above); it never reads as "no second factor". What the factor does not cover: the command line (whoever has a shell has the data), the trigger address `/cron/<secret>` (a secret that starts backups and nothing else), and `threadsafe-restore.php` (its own access key). An HTTP authentication in front of the interface stays a good idea. The design and its limits: [PHASE11.md](PHASE11.md).
 
 ### Backing up
 
@@ -221,7 +249,7 @@ The page has five **sections**, side by side under the title; one is shown at a 
 
 **General** - what is known about the installation:
 
-- **Installation check:** the PHP version and the length of one step, the extensions, whether a PHP command line binary is found, https, running as root, how this program is installed (a clone, or a release with its home and the previous release), the data directory (writable, permissions, closed), and for every profile the site directory, **left-over `threadsafe-restore.php`, `threadsafe-restore-key.php` or `.threadsafe-restore` in it**, and the storage (writable, protection files, free space). A left-over restore tool on a web server is a risk; remove it. The same list is available on the command line as `php bin/threadsafe doctor` (exit code 2 if something stops ThreadSafe), also before the interface is switched on; `doctor --release=release.json` says whether the host can run the version that a release package describes.
+- **Installation check:** the PHP version and the length of one step, the extensions, whether a PHP command line binary is found, https, whether the login has a second factor (a warning while it is one password), running as root, how this program is installed (a clone, or a release with its home and the previous release), the data directory (writable, permissions, closed), and for every profile the site directory, **left-over `threadsafe-restore.php`, `threadsafe-restore-key.php` or `.threadsafe-restore` in it**, and the storage (writable, protection files, free space). A left-over restore tool on a web server is a risk; remove it. The same list is available on the command line as `php bin/threadsafe doctor` (exit code 2 if something stops ThreadSafe), also before the interface is switched on; `doctor --release=release.json` says whether the host can run the version that a release package describes.
 - **Can the data directory be fetched?** The page writes a small file into `data/` and your browser asks for it at the addresses where `data/` would be served if the program lay below the web root (for an installation from a release whose home lies below the document root, also at the address of the home, `/threadsafe-home/data/probe.txt`). "Not reachable" is what you want. If it says **REACHABLE FROM OUTSIDE**, anyone can fetch your profiles and sessions: close it at once (make `public/` the document root, or move the data directory out with `THREADSAFE_DATA`). With `public/` as the document root nothing in `data/` is served at all, and the test says so.
 - **Trigger:** when the trigger (the cron job that makes the scheduled backups happen) called last, a warning when it stays away, and how many profiles have a schedule. How to call it is on the *Cron* section.
 
@@ -242,7 +270,7 @@ What happens, in this order, and what stays untouched until the step before it h
 1. **Check.** The SHA-256 of the file must be the one you gave (otherwise nothing is installed); the manifest `release.json` must be readable; the version must be newer (an older one only if you tick the box); the data directory must not be of a newer format than the package writes; this host must meet the requirements of the package (PHP, extensions). Nothing has changed.
 2. **Unpack** into `releases/X.Y.Z.partial/` beside the running release, every file checked against its hash in the manifest. The running program is not touched.
 3. **Switch**, once nothing is running (no backup, check or trigger; the update waits, it never interrupts): a copy of the small state files (profiles, configuration, schedule, retention state, administrator) goes to `data/update-backup/`, the release gets its name, and the pointer `current.php` is rewritten. Then the **health check**: ThreadSafe asks its own address for a page that only the new version can answer, with a token it has just stored. If the new version does not answer, or answers as another version, **the pointer and the state files are put back** and the page says what happened. The new version migrates the data at its first start (the health check is that start). A host whose PHP may not make a request to its own address (`allow_url_fopen` off) cannot be checked; the page says so, and says how to go back. A host that cannot reach its own address (a firewall, NAT without loop-back, a certificate PHP does not know; the page then says "no answer" and gives PHP's reason) would take back every update: tick **Do not start the new version to check it** on the form, and the update is switched without the check (on the command line the check is made only with `--url`). Then nothing is taken back by itself; if the page does not open afterwards, go back as described below. Without the rewrite rule (`web.prettyUrls` false) the check asks `index.php?route=/health/<token>` when the path is answered with a 4xx.
-4. **After.** The previous release stays for a roll-back (the button *Go back*, or `update --rollback`; the data is not touched, because a release reads the data of the one before it); older releases are removed. The audit log has `update.applied` or `update.rolled_back`. Make a new `threadsafe-restore.php` from the page *Restore*, so that your copy of it is the new version.
+4. **After.** The previous release stays for a roll-back (the button *Go back*, or `update --rollback`; the data is not touched, because a release reads the data of the one before it - **with one exception:** a release from before the second factor knows nothing of the file `two-factor.json`, so after going back the login asks for the password only; the file stays, and the factor is on again as soon as a newer release is active. The page says so when the file exists); older releases are removed. The audit log has `update.applied` or `update.rolled_back`. Make a new `threadsafe-restore.php` from the page *Restore*, so that your copy of it is the new version.
 
 If the web interface itself cannot start after an update and the health check was skipped, go back by hand: write the name of the previous release into `current.php` (the second line is JSON: `{"release":"0.1.0","previous":null}`), or run `php <home>/releases/<previous>/bin/threadsafe update --rollback`.
 
@@ -255,6 +283,7 @@ On the System page, or in `data/config.json` (only what differs from the default
 | `web.enabled` | `false` | the interface exists (set with `admin enable`/`disable`; not on the page, so that you cannot lock yourself out) |
 | `web.prettyUrls` | `true` | addresses like `/profiles/shop`; `false` gives `index.php?route=/profiles/shop` for a host without the rewrite rule |
 | `web.sessionIdleMinutes` | 120 | idle minutes before the login is asked again (5 to 1440) |
+| `web.requireTwoFactor` | `false` | a login without a second factor reaches the Security page and nothing else until one is on ([Security](#security)) |
 | `dashboard.warnAfterDays` | 7 | warning when the newest good backup is older |
 | `download.warnAbove` | 500 MB | size above which the download page warns (at least 1 MB) |
 | `download.accel` | `none` | `none`, `sendfile` or `nginx` |
@@ -269,11 +298,12 @@ The four rows from `schedule.timezone` on are for the scheduled backups ([BACKUP
 
 ### The audit log
 
-`data/audit.log` records, one JSON line each: setup, logins and failed logins, logout, profile created / changed / removed / tested, backup started / finished / failed / given up, check started / done, backup deleted, downloads (start and end, bytes sent), restore tool and key made, settings changed, password changed and interface switched on or off from the command line. It never holds a password, a key, a token, a cookie or a file content; a field whose name sounds like a secret is dropped before writing.
+`data/audit.log` records, one JSON line each: setup, logins and failed logins, logout, profile created / changed / removed / tested, backup started / finished / failed / given up, check started / done, backup deleted, downloads (start and end, bytes sent), restore tool and key made, settings changed, password changed and interface switched on or off from the command line, the second factor (`twofactor.enabled`, `twofactor.disabled`, `twofactor.recovery.made`, a login with its kind: `"mfa":"totp"` or `"mfa":"recovery"`, `login.recovery` with how many codes are left, `login.code.failed`, `security.password.failed`, `security.code.failed`, `login.refused` for a file of the factor that cannot be read). It never holds a password, a key, a token, a cookie or a file content; a field whose name sounds like a secret is dropped before writing.
 
 ## Security in short
 
 - Off by default; the setup in the browser needs a key file that only someone with access to the server can create.
+- **An optional second factor** (a code from an authenticator app, [Security](#security)): the password alone then opens nothing, a code works once, the codes have their own throttle, recovery codes work once and are kept as hashes, and a damaged file of the factor refuses the login.
 - Passwords only as hashes; slowed-down guessing; a new session at every login; cookies are `HttpOnly` and `SameSite=Strict` (and `Secure` over https); sessions end after idle and absolute times.
 - Every change is a `POST` with a token that belongs to the session, and requests that name another origin are refused; nothing changes on a plain link.
 - A strict content security policy (no inline script or style, no other origin), no framing, no caching of pages.
@@ -289,6 +319,9 @@ The four rows from `schedule.timezone` on are for the scheduled backups ([BACKUP
 | The login page works, all other pages say "Not found" or the server's own error | the rewrite rule is missing: enable `mod_rewrite` and `AllowOverride All`, add the nginx rule, or set `web.prettyUrls` to `false` in `data/config.json` |
 | Every address, also the style sheet, answers 500 and the server's error page fails as well | the rewrite rule goes round in a circle: add `RewriteBase /` (the path of the directory in the address, with a slash at both ends) below `RewriteEngine On` in the `.htaccess`, or set `web.prettyUrls` to `false`. An installation from a release asks for its style sheet, script and fonts through `index.php?asset=...` and never needs the rule for them (since 0.9.0-beta.2) |
 | "Too many wrong attempts" | wait the seconds it names; it clears after a right password |
+| The code of the app is always wrong | the clocks: a code is right only while the clock of the phone and the clock of the server agree to within about a minute; the page of the second step names the time of the server in UTC. Set the clock of the phone to "automatic". A code that was used a moment ago is refused: wait for the next one |
+| "The second factor cannot be checked, so the login is refused" | the file `data/two-factor.json` cannot be read or is damaged. Repair it, or switch the factor off with `php bin/threadsafe admin two-factor --disable`, or delete the file |
+| The phone is lost | a recovery code on the second step; otherwise `php bin/threadsafe admin two-factor --disable` ([Security](#security)) |
 | The backup stops after a few steps | the connection was lost or the page was closed: open the run again and press Continue |
 | "Another backup is running" | one at a time; follow the running one, or give an interrupted one up |
 | A step fails with a PHP memory or time message | the limits of the host are lower than a single unit of work needs; the profile page's test and the System page show them. Use the command line for that site |
@@ -299,6 +332,7 @@ The four rows from `schedule.timezone` on are for the scheduled backups ([BACKUP
 ## Limits
 
 - One administrator; no roles; English only.
+- The second factor is a code of an app (TOTP) only: no passkeys or hardware keys, no code by mail or SMS, no "remember this browser", and no code is asked again before a download or an update (the session is the unit). It protects the web login, not the command line, the trigger address or `threadsafe-restore.php`.
 - Backups made in the browser read the database table by table (no snapshot); the command line can take a snapshot.
 - Storage is a local directory; there is no remote storage, schedule, retention or encryption yet (phase 5).
 - The interface cannot restore, and the restore tool restores only onto an empty directory and database ([RESTORE.md](RESTORE.md) section 9).

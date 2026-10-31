@@ -6,6 +6,19 @@ of the GitHub release (see "Making a release" in [AGENTS.md](AGENTS.md)).
 
 ## [Unreleased]
 
+### Added
+
+- A **second factor for the login** of the web interface: a code of six digits from an authenticator app (the standard TOTP of RFC 6238: Aegis, 2FAS, FreeOTP, Google Authenticator, Microsoft Authenticator, a password manager), asked for after the password. It is switched on on the new page **Security** (menu) in three steps: the password again, the key into the app (a **QR code** that the program draws itself, or the key as text), one code; then ten **recovery codes** are shown once. The password alone opens nothing; a code works once; the codes have a throttle of their own; the login ends after five minutes or five wrong codes; switching on or off ends every other login. The way back from a lost phone: a recovery code, `php bin/threadsafe admin two-factor --disable` (it also removes a file that cannot be read), or deleting `data/two-factor.json`. A file of the factor that cannot be read refuses the login instead of letting the password alone in.
+- The setting `web.requireTwoFactor` (a box on *System → Settings*, or `admin set web.requireTwoFactor true`): a login without a second factor then reaches the Security page and nothing else. While the factor is off, the installation check of the System page warns that the login is one password.
+- `threadsafe admin two-factor [status | --disable]`; `admin status` names the state too.
+
+### Changed
+
+- **Rolling back to a release from before the second factor** logs in with the password only (that release does not know the file `two-factor.json`); the roll-back button on *System → Update* says so when the file exists. The file stays, and the factor is on again with the next newer release.
+- `src/Auth` (the second factor) belongs to the web interface and is not part of `threadsafe-restore.php` or the installer.
+
+Documentation: [docs/WEB.md](docs/WEB.md) "Security"; the plan and what was proven: [docs/PHASE11.md](docs/PHASE11.md).
+
 ## [0.9.0-beta.3] - 2026-10-30
 
 A small release: the web interface gets an About page. An installation made with 0.9.0-beta.1 or 0.9.0-beta.2 can be updated to this version from the System page (or with `threadsafe update`).
