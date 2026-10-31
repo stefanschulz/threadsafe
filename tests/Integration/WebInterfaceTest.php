@@ -12,6 +12,8 @@ use ThreadSafe\Backup\PartMarker;
 use ThreadSafe\Profile\ProfileStore;
 use ThreadSafe\Profile\SiteProfile;
 use ThreadSafe\Tests\Support\CliProcess;
+use ThreadSafe\Tests\Support\OathtoolOracle;
+use ThreadSafe\Tests\Support\ZbarOracle;
 use ThreadSafe\Tests\Support\ShopSmoke;
 use ThreadSafe\Tests\Support\Stack;
 use ThreadSafe\Tests\Support\WebUi;
@@ -648,6 +650,110 @@ final class WebInterfaceTest extends IntegrationTestCase
         self::assertSame(0, $code, implode("
 ", $lines));
         self::assertStringContainsString('<article class="card', $ui->get('/')['body']);
+    }
+
+    // ------------------------------------------------------------------------------------------------- the second factor
+
+    /**
+     * The second factor behind the real Apache (docs/PHASE11.md 4.2), with two tools that are not ours as oracles: `oathtool` computes the
+     * codes, and `zbarimg` reads the QR code of the page. Switched on through the pages, a login in two steps with a code of oathtool (the
+     * code of the next step, which the window of one step accepts), a replayed code, a recovery code used by two requests at the same moment
+     * (the lock lets exactly one in), the other logins ending on switching off. It leaves the installation as it found it.
+     */
+    #[Depends('testTheAuditLogHoldsTheStoryAndNoSecret')]
+    public function testTheSecondFactorLogsInWithTheCodesOfOathtoolAndTheQrCodeIsReadByZbar(): void
+    {
+        if (!OathtoolOracle::available() || !ZbarOracle::available()) {
+            self::markTestSkipped('oathtool and zbarimg (the packages oathtool and zbar-tools of the tools image) are needed.');
+        }
+        $ui = self::ui();
+        $passwordStep = static function (): WebUi {
+            $browser = new WebUi();
+            $browser->get('/login');
+            $answer = $browser->request('POST', '/login', ['user' => 'admin', 'password' => self::PASSWORD, 'plain' => '1']);
+            self::assertSame('/login/code', $answer['headers']['location'] ?? '', 'the password alone leads to the second step');
+
+            return $browser;
+        };
+
+        $key = '';
+        $recovery = [];
+        try {
+            // switching on: the password again, the key and the QR code, one code
+            self::assertStringContainsString('Set up the second factor', $ui->get('/security')['body']);
+            self::assertSame(403, $ui->post('/security/start', ['password' => 'not the password'])['status'], 'a wrong password makes no secret');
+            self::assertSame(303, $ui->post('/security/start', ['password' => self::PASSWORD])['status']);
+            $page = $ui->get('/security')['body'];
+            self::assertSame(1, preg_match('~<code id="totp-key" class="secret">([A-Z2-7 ]+)</code>~', $page, $m));
+            $key = str_replace(' ', '', $m[1] ?? '');
+            self::assertSame(1, preg_match('~<svg class="qr".*?</svg>~s', $page, $svg));
+            self::assertSame(1, preg_match('~<a href="(otpauth://[^"]+)">this link</a>~', $page, $link));
+            $address = html_entity_decode($link[1] ?? '');
+            self::assertSame($address, ZbarOracle::read(ZbarOracle::modulesOfSvg($svg[0] ?? ''), self::WORK), 'zbar reads the QR code of the page as the address of the link');
+            self::assertStringContainsString('secret=' . $key, $address);
+            self::assertFileDoesNotExist('/web-data/two-factor.json', 'nothing is kept before a code proves the key');
+
+            $confirm = $ui->post('/security/confirm', ['code' => OathtoolOracle::code($key)]);
+            self::assertSame(200, $confirm['status'], 'the code of oathtool is the code of this program');
+            self::assertSame(1, preg_match('~<pre id="recovery-codes" class="secret"><code>(.*?)</code></pre>~s', $confirm['body'], $codes));
+            $recovery = array_values(array_filter(explode("\n", trim($codes[1] ?? ''))));
+            self::assertCount(10, $recovery);
+            self::assertSame(0600, fileperms('/web-data/two-factor.json') & 0777);
+
+            // the first login: the password alone opens nothing; the code of the next step is accepted (a window of one step)
+            $first = $passwordStep();
+            foreach (['/', '/profiles', '/profiles/shop', '/system', '/security'] as $path) {
+                self::assertSame('/login', $first->get($path)['headers']['location'] ?? '', "$path is closed to a login that has only the password");
+            }
+            self::assertSame(403, $first->request('POST', '/login/code', ['code' => '000000'])['status'], 'a wrong code');
+            $next = OathtoolOracle::code($key, time() + 30);
+            self::assertSame('/', $first->request('POST', '/login/code', ['code' => $next])['headers']['location'] ?? '');
+            self::assertSame(200, $first->get('/profiles')['status']);
+
+            // the same code a second time, in another login: refused
+            $second = $passwordStep();
+            self::assertSame(403, $second->request('POST', '/login/code', ['code' => $next])['status'], 'a code is accepted once');
+
+            // two requests at the same moment with the same recovery code: the lock lets exactly one in
+            $one = $passwordStep();
+            $two = $passwordStep();
+            $answers = $one->parallel([
+                ['POST', '/login/code', ['code' => $recovery[0], 'recovery' => '1'], ['Cookie' => 'threadsafe_session=' . $one->cookie]],
+                ['POST', '/login/code', ['code' => $recovery[0], 'recovery' => '1'], ['Cookie' => 'threadsafe_session=' . $two->cookie]],
+            ]);
+            $statuses = [$answers[0]['status'], $answers[1]['status']];
+            sort($statuses);
+            self::assertSame([303, 403], $statuses, 'one recovery code, one login');
+
+            // a recovery code in place of the code; it is struck out
+            $third = $passwordStep();
+            self::assertSame('/', $third->request('POST', '/login/code', ['code' => $recovery[1], 'recovery' => '1'])['headers']['location'] ?? '');
+            $fourth = $passwordStep();
+            self::assertSame(403, $fourth->request('POST', '/login/code', ['code' => $recovery[1], 'recovery' => '1'])['status']);
+
+            // switching off needs the password and a code: here a recovery code; the other logins end
+            self::assertSame(200, $first->get('/')['status']);
+            $ui->get('/security');
+            self::assertSame(403, $ui->post('/security/disable', ['off_password' => 'not the password', 'off_code' => $recovery[2]])['status']);
+            self::assertSame(303, $ui->post('/security/disable', ['off_password' => self::PASSWORD, 'off_code' => $recovery[2]])['status']);
+            self::assertFileDoesNotExist('/web-data/two-factor.json');
+            self::assertSame('/login', $first->get('/')['headers']['location'] ?? '', 'the other login ended with the change');
+            self::assertSame(200, $ui->get('/')['status'], 'this one stays');
+        } finally {
+            @unlink('/web-data/two-factor.json');
+            @unlink('/web-data/two-factor.json.lock');
+        }
+
+        // nothing of it is left behind in clear: not the key, not the recovery codes (the file is gone), and the audit log has the events and no secret
+        foreach ([$key, ...$recovery] as $secret) {
+            $found = [];
+            exec('grep -rlF ' . escapeshellarg($secret) . ' /web-data 2>/dev/null', $found);
+            self::assertSame([], $found, 'a secret of the second factor is stored');
+        }
+        $log = (string) file_get_contents('/web-data/audit.log');
+        foreach (['twofactor.enabled', 'twofactor.disabled', 'login.recovery', 'login.code.failed', '"mfa":"totp"', '"mfa":"recovery"', 'security.password.failed'] as $expected) {
+            self::assertStringContainsString($expected, $log, $expected);
+        }
     }
 
     // ------------------------------------------------------------------------------------------------- throttle

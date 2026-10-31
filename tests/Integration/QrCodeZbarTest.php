@@ -9,6 +9,7 @@ use PHPUnit\Framework\TestCase;
 use ThreadSafe\Auth\QrCode;
 use ThreadSafe\Auth\Totp;
 use ThreadSafe\Tests\Support\TempDirectory;
+use ThreadSafe\Tests\Support\ZbarOracle;
 
 /**
  * The QR encoder against a reader that is not ours: `zbarimg` (the package zbar-tools of the tools image) reads the picture, and what it reads
@@ -45,43 +46,10 @@ final class QrCodeZbarTest extends TestCase
     #[DataProvider('texts')]
     public function testZbarReadsWhatWasEncoded(string $text): void
     {
-        $this->requireZbar();
-        $file = $this->tempDirectory() . '/code.pbm';
-        file_put_contents($file, $this->pbm(QrCode::modules($text)));
-
-        // the standard error is left out: zbar writes a complaint about a missing message bus there, which has nothing to do with the picture
-        exec('zbarimg --quiet --raw ' . escapeshellarg($file) . ' 2>/dev/null', $output, $code);
-
-        self::assertSame(0, $code, 'zbarimg found no code');
-        self::assertSame($text, implode("\n", $output));
-    }
-
-    private function requireZbar(): void
-    {
-        exec('zbarimg --version 2>&1', $output, $code);
-        if ($code !== 0) {
+        if (!ZbarOracle::available()) {
             self::markTestSkipped('zbarimg (the package zbar-tools) is needed.');
         }
-    }
 
-    /**
-     * @param array<int, array<int, bool>> $modules
-     */
-    private function pbm(array $modules, int $scale = 8, int $quiet = 4): string
-    {
-        $size = count($modules) + 2 * $quiet;
-        $lines = [];
-        for ($y = 0; $y < $size; ++$y) {
-            $row = '';
-            for ($x = 0; $x < $size; ++$x) {
-                $dark = ($modules[$y - $quiet][$x - $quiet] ?? false) === true;
-                $row .= str_repeat($dark ? '1 ' : '0 ', $scale);
-            }
-            for ($i = 0; $i < $scale; ++$i) {
-                $lines[] = $row;
-            }
-        }
-
-        return "P1\n" . ($size * $scale) . ' ' . ($size * $scale) . "\n" . implode("\n", $lines) . "\n";
+        self::assertSame($text, ZbarOracle::read(QrCode::modules($text), $this->tempDirectory()));
     }
 }

@@ -152,7 +152,8 @@ final class WebUi
     private function message(string $method, string $path, array $fields, array $headers): string
     {
         $lines = [$method . ' ' . $this->base . $path . ' HTTP/1.0', 'Host: ' . $this->host . ($this->port === 80 ? '' : ':' . $this->port), 'Connection: close'];
-        if ($this->cookie !== '') {
+        // a request may bring its own cookie (several logins asked at the same moment through one object)
+        if ($this->cookie !== '' && !isset($headers['Cookie'])) {
             $lines[] = 'Cookie: threadsafe_session=' . $this->cookie;
         }
         foreach ($headers as $name => $value) {

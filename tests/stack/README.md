@@ -19,7 +19,8 @@ tests/stack/run.sh            # seed → clone → PHPUnit phase 1 (incl. the mi
                               # (the backup round trip: back up the source shop, restore it into the wiped target with the plain tools and with
                               # `threadsafe restore`, also into another database with another table prefix) → phase 4b (the web interface, group `web-ui`: setup in the
                               # browser, a backup through the pages in many steps, check, download with resume, a run that is continued, two requests at
-                              # once, security, the restore kit from the page restoring that backup onto the target) → phase 4c (group `trigger`: `threadsafe cron`, the address `/cron/<secret>` by ticks and
+                              # once, security, the restore kit from the page restoring that backup onto the target, the second factor: switched on through the pages, the
+                              # codes of the real `oathtool`, the QR code of the page read by the real `zbarimg`, a recovery code used by two requests at once) → phase 4c (group `trigger`: `threadsafe cron`, the address `/cron/<secret>` by ticks and
                               # through a detached worker under 5 s / 64 MB, a killed trigger continued, retention on real backups) → phase 4d (group `encryption`: the shop backed up for a key
                               # pair, opened by the real `age` tool, restored by the command and through the wizard with the key typed in) → phase 5 (disaster recovery: the
                               # target's containers and volumes are destroyed and made again empty; threadsafe-restore.php, served by the target's own
