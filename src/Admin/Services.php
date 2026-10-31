@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace ThreadSafe\Admin;
 
 use Closure;
+use ThreadSafe\Auth\TwoFactorStore;
 use ThreadSafe\Web\Sessions;
 
 /**
@@ -18,6 +19,8 @@ final readonly class Services
     public Config $config;
 
     public AdminStore $admin;
+
+    public TwoFactorStore $twoFactor;
 
     public AuditLog $audit;
 
@@ -41,6 +44,7 @@ final readonly class Services
         $this->clock = $clock ?? static fn (): int => time();
         $this->config = Config::load($data . '/config.json');
         $this->admin = new AdminStore($data . '/admin.json');
+        $this->twoFactor = new TwoFactorStore($data . '/two-factor.json', $this->clock);
         $this->audit = new AuditLog($data . '/audit.log', $this->config->auditMaxBytes(), $this->clock);
         $this->sessions = new Sessions($data . '/sessions', $this->clock, $this->config->sessionIdleSeconds(), self::SESSION_LIFETIME);
     }

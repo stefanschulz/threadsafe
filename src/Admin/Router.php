@@ -18,7 +18,7 @@ final class Router
         'run' => '[a-z][a-z0-9-]{0,40}-\\d{8}-\\d{6}-[0-9a-f]{8}',
     ];
 
-    /** @var list<array{method: string, regex: string, handler: callable(Context, array<string, string>): \ThreadSafe\Web\Response, public: bool}> */
+    /** @var list<array{method: string, pattern: string, regex: string, handler: callable(Context, array<string, string>): \ThreadSafe\Web\Response, public: bool}> */
     private array $routes = [];
 
     /**
@@ -32,7 +32,17 @@ final class Router
 
             return '(?P<' . $m[1] . '>' . $expression . ')';
         }, $pattern);
-        $this->routes[] = ['method' => strtoupper($method), 'regex' => '#^' . $regex . '$#', 'handler' => $handler, 'public' => $public];
+        $this->routes[] = ['method' => strtoupper($method), 'pattern' => $pattern, 'regex' => '#^' . $regex . '$#', 'handler' => $handler, 'public' => $public];
+    }
+
+    /**
+     * The table of routes without the handlers, for the test that walks all of them against a session that is not a login.
+     *
+     * @return list<array{method: string, pattern: string, public: bool}>
+     */
+    public function routes(): array
+    {
+        return array_map(static fn (array $route): array => ['method' => $route['method'], 'pattern' => $route['pattern'], 'public' => $route['public']], $this->routes);
     }
 
     /**

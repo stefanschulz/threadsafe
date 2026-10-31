@@ -159,6 +159,8 @@ final class Kernel
         $router = new Router();
         $router->add('GET', '/login', $auth->loginPage(...), public: true);
         $router->add('POST', '/login', $auth->login(...), public: true);
+        $router->add('GET', '/login/code', $auth->codePage(...), public: true);
+        $router->add('POST', '/login/code', $auth->code(...), public: true);
         $router->add('POST', '/logout', $auth->logout(...));
         $router->add('GET', '/', $dashboard->index(...));
         $router->add('GET', '/profiles', $profiles->index(...));
@@ -229,7 +231,8 @@ final class Kernel
             return new Response(405, ['Allow: ' . implode(', ', $e->allowed), 'Content-Type: text/plain; charset=utf-8'], $e->getMessage() . "\n");
         }
         $public = $match !== null && $match['public'];
-        if (!$public && $context->session === null) {
+        // a session without a user is not a login: it is the half of one that waits for the code of the second factor (docs/PHASE11.md 3.3)
+        if (!$public && $context->user() === null) {
             // nothing behind the login is revealed, not even whether the address exists
             return $isScript ? Response::json(['status' => 'login', 'error' => 'The session has ended. Log in again.'], 401) : Response::redirect($context->urls->to('/login'));
         }
@@ -261,7 +264,7 @@ final class Kernel
             return Response::json(['status' => 'refused', 'error' => $message], 403);
         }
 
-        return $context->session !== null
+        return $context->user() !== null
             ? View::page($context, 'Request refused', '<p>' . htmlspecialchars($message, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</p>', '', 403)
             : View::bare($context, 'Request refused', '<p>' . htmlspecialchars($message, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</p>', 403);
     }
@@ -276,7 +279,9 @@ final class Kernel
         try {
             $services = new Services($this->data, $this->clock, $this->budgets);
 
-            return $services->sessions->load($request->cookie(AuthController::COOKIE)) !== null;
+            $session = $services->sessions->load($request->cookie(AuthController::COOKIE));
+
+            return is_array($session) && is_string($session['user'] ?? null);
         } catch (Throwable) {
             return false;
         }

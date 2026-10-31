@@ -7,6 +7,9 @@ namespace ThreadSafe\Tests\Support;
 use ThreadSafe\Admin\AdminStore;
 use ThreadSafe\Admin\Config;
 use ThreadSafe\Admin\Kernel;
+use ThreadSafe\Auth\RecoveryCodes;
+use ThreadSafe\Auth\Totp;
+use ThreadSafe\Auth\TwoFactorStore;
 use ThreadSafe\Web\Request;
 use ThreadSafe\Web\Response;
 
@@ -17,6 +20,9 @@ use ThreadSafe\Web\Response;
 final class AdminBrowser
 {
     public const string PASSWORD = 'correct horse battery';
+
+    /** The secret of the second factor that {@see enableTwoFactor()} sets (the key of the examples in RFC 6238). */
+    public const string SECRET = 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ';
 
     public int $now = 1_800_000_000;
 
@@ -42,6 +48,25 @@ final class AdminBrowser
         }
         (new AdminStore($this->data . '/admin.json'))->setPassword('admin', self::PASSWORD);
         Config::defaults()->with('web.enabled', true)->save($this->data . '/config.json');
+    }
+
+    /**
+     * Switches the second factor of the administrator on, with {@see SECRET}.
+     *
+     * @return list<string> the recovery codes
+     */
+    public function enableTwoFactor(): array
+    {
+        $codes = RecoveryCodes::generate();
+        (new TwoFactorStore($this->data . '/two-factor.json', fn (): int => $this->now))->enable('admin', self::SECRET, $codes);
+
+        return $codes;
+    }
+
+    /** The code that the app shows now (or $steps steps later or earlier). */
+    public function code(int $steps = 0): string
+    {
+        return Totp::code(self::SECRET, Totp::step($this->now) + $steps);
     }
 
     public function login(): Response
