@@ -25,7 +25,7 @@ use ThreadSafe\Web\Response;
 final class View
 {
     /** The entries of the navigation: route => [label, icon]. */
-    private const array NAVIGATION = ['/' => ['Dashboard', 'dashboard'], '/profiles' => ['Profiles', 'profiles'], '/schedule' => ['Schedule', 'clock'], '/system' => ['System', 'system']];
+    private const array NAVIGATION = ['/' => ['Dashboard', 'dashboard'], '/profiles' => ['Profiles', 'profiles'], '/schedule' => ['Schedule', 'clock'], '/security' => ['Security', 'lock'], '/system' => ['System', 'system']];
 
     /** The settings of the colour scheme, in the order of the switch: value => [label, icon]. */
     private const array THEMES = ['auto' => ['Auto (follows the system)', 'auto'], 'light' => ['Light', 'light'], 'dark' => ['Dark', 'dark']];

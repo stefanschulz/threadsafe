@@ -192,6 +192,13 @@ final class Kernel
         $router->add('GET', '/schedule/edit', $schedule->editForm(...));
         $router->add('POST', '/schedule/edit', $schedule->edit(...));
         $router->add('POST', '/schedule/action', $schedule->act(...));
+        $security = new SecurityController($services);
+        $router->add('GET', '/security', $security->index(...));
+        $router->add('POST', '/security/start', $security->start(...));
+        $router->add('POST', '/security/confirm', $security->confirm(...));
+        $router->add('POST', '/security/cancel', $security->cancel(...));
+        $router->add('POST', '/security/recovery', $security->recovery(...));
+        $router->add('POST', '/security/disable', $security->disable(...));
         $about = new AboutController();
         $router->add('GET', '/about', $about->index(...));
         $router->add('GET', '/about/license', $about->license(...));

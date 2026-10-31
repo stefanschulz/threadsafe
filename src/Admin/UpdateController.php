@@ -107,6 +107,7 @@ final class UpdateController
         }
         if ($pointer !== null && $pointer['previous'] !== null && Releases::usable($home, $pointer['previous'])) {
             $html .= '<h3>Go back</h3><p>Makes version ' . Html::e($pointer['previous']) . ' the active one again. The data stays as it is.</p>'
+                . ($this->services->twoFactor->fileExists() ? '<p class="flash warning">The second factor is on. A version from before it knows nothing of the file <code>two-factor.json</code>: after going back, the login asks for the password only. The file stays, so the second factor is on again as soon as a version that knows it is active.</p>' : '')
                 . View::form($context, '/system/update/rollback', '<button type="submit" class="danger">Go back to ' . Html::e($pointer['previous']) . '</button>', 'inline');
         }
 

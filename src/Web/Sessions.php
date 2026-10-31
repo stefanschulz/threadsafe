@@ -91,6 +91,26 @@ final class Sessions
         }
     }
 
+    /**
+     * Ends every session but one (the administrator has one login, so "every other" is every session of the directory, those that wait for
+     * a second factor included): used when the second factor is switched on or off, so that a session that somebody else may hold ends
+     * with the change.
+     *
+     * @return int how many sessions ended
+     */
+    public function destroyExcept(string $token): int
+    {
+        $keep = preg_match('/^[0-9a-f]{64}$/', $token) === 1 ? $this->path($token) : null;
+        $ended = 0;
+        foreach (glob($this->directory . '/*.json') ?: [] as $file) {
+            if ($file !== $keep && @unlink($file)) {
+                ++$ended;
+            }
+        }
+
+        return $ended;
+    }
+
     private function path(string $token): string
     {
         return $this->directory . '/' . hash('sha256', $token) . '.json';

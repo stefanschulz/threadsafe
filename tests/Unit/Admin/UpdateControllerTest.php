@@ -230,6 +230,21 @@ final class UpdateControllerTest extends TestCase
         self::assertStringContainsString('"by":"hand"', (string) file_get_contents($this->data . '/audit.log'));
     }
 
+    public function testTheRollbackButtonWarnsThatAnOlderVersionKnowsNothingOfTheSecondFactor(): void
+    {
+        $this->upload($this->package('0.2.0'));
+        $controller = $this->controller();
+        $this->tickToTheEnd($controller);
+        $controller->discard($this->context());
+        self::assertStringNotContainsString('two-factor.json', $controller->section($this->context([], [], 'GET')));
+
+        (new \ThreadSafe\Auth\TwoFactorStore($this->data . '/two-factor.json'))->enable('admin', 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ', []);
+
+        $section = $controller->section($this->context([], [], 'GET'));
+        self::assertStringContainsString('The second factor is on.', $section);
+        self::assertStringContainsString('the login asks for the password only', $section);
+    }
+
     public function testNoFileAndAFileThatWasTooLargeAreMessagesNotRuns(): void
     {
         $none = $this->controller()->upload($this->context());
