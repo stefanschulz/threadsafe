@@ -1,6 +1,6 @@
 # Phase 11 – two-factor authentication for the web interface
 
-**Status:** **planned** (2026-10-31; the decisions of section 7.2 are for the owner, each with a recommendation).
+**Status:** **in progress** (planned 2026-10-31; the decisions of section 7.2 were settled with the owner the same day, all as recommended; work package 1 is built, see section 8).
 **Context:** [WEB.md](WEB.md) ("Logging in", "Security in short") is the login as it works today; [PHASE4.md](PHASE4.md) 3.2 is its design (sessions in files, the throttle, the audit log). The login stays the password; this phase adds a second step after it.
 
 ## 1. Goal and scope
@@ -36,7 +36,7 @@
 
 ### 3.1 The factor
 
-TOTP: a secret of 20 random bytes (`random_bytes`, shown as 32 Base32 characters), the code is `HOTP(secret, floor(time / 30))` with HMAC-SHA1, six digits - the combination that Google Authenticator, Microsoft Authenticator, Aegis, 2FAS, FreeOTP, 1Password and the others all read. The address for the app is `otpauth://totp/ThreadSafe%20(host):admin?secret=...&issuer=ThreadSafe&algorithm=SHA1&digits=6&period=30`; the host name only tells several installations apart in the app.
+TOTP: a secret of 20 random bytes (`random_bytes`, shown as 32 Base32 characters), the code is `HOTP(secret, floor(time / 30))` with HMAC-SHA1, six digits - the combination that Google Authenticator, Microsoft Authenticator, Aegis, 2FAS, FreeOTP, 1Password and the others all read. The address for the app is `otpauth://totp/ThreadSafe%20%28host%29:admin?secret=...&issuer=ThreadSafe%20%28host%29&algorithm=SHA1&digits=6&period=30` (the label and the `issuer` say the same, as the apps want); the host name only tells several installations apart in the app.
 
 **Check.** The steps of the previous, the current and the next 30 seconds are accepted (a clock that runs a little wrong, a code typed slowly); the comparison is `hash_equals`. **A step is accepted once:** `lastStep` is saved, a code of the same or an older step is refused, so that a code seen over a shoulder or in a log does not log in a second time. The time is `Services::$clock`, so the tests set it.
 
@@ -157,7 +157,7 @@ Packages 1, 2 and 5 are pure logic and independent (5 is the largest and the onl
 
 ### 7.2 Decisions (owner)
 
-Each with the recommendation; none is settled yet.
+Each with the recommendation. **Settled on 2026-10-31: every decision as recommended, and decision 10 as "start now"** (work package 1 was built the same day; the rest follows package by package).
 
 1. **Method.** TOTP first **(recommended)**: works with every app, no https requirement, plain PHP. Passkeys (WebAuthn) later as a second package of its own: they need https and a registered host name (not every customer server has one), CBOR and COSE parsing and a signature check - a phase of its own, and a better factor against phishing, which TOTP is not.
 2. **QR code.** Build our own encoder (3.6) **(recommended)**: a phone is the usual second device, and typing 32 characters is what people give up on. The fallback is the first release with the key as text only and the QR code as a later package; 1 to 4 and 6 do not depend on it.
@@ -168,8 +168,13 @@ Each with the recommendation; none is settled yet.
 7. **Where the secret lives.** A separate file `data/two-factor.json` **(recommended)**, not a field of `admin.json` (3.1).
 8. **Setting it up from the command line.** No: only `status` and `--disable` **(recommended)**; or `admin two-factor enable` printing the key for a host that can only be reached by SSH (the key would then stand on a terminal).
 9. **Step-up before dangerous actions** (a code again before a download or the update): not now **(recommended)**; the session is the unit.
-10. **Order of work.** After the field test of 0.9.0-beta.3 on the customer server and the decisions of phase 10; packages 1, 2 and 5 are pure logic and can start earlier.
+10. **Order of work.** After the field test of 0.9.0-beta.3 on the customer server and the decisions of phase 10; packages 1, 2 and 5 are pure logic and can start earlier. *Settled: start now.*
 
 ## 8. As built
 
-Not built yet.
+**Work package 1 (2026-10-31): `Auth\Base32` and `Auth\Totp`** in `src/Auth/`, tests in `tests/Unit/Auth/`.
+
+- `Base32`: RFC 4648 without padding when writing; reading accepts lower case, spaces, hyphens and padding, and refuses any other character with an `InvalidArgumentException`.
+- `Totp`: `newSecret()` (20 random bytes as 32 Base32 characters), `step($time)`, `code($secret, $step, $digits = 6)`, `verify($secret, $typed, $time, $lastStep = 0)` and `uri($secret, $account, $host = '')`. `verify()` returns the step that matched (or null); the caller keeps it as `lastStep`, and a code of that step or an older one is refused. All three steps of the window are compared whether or not an earlier one matched. The typed code is 6 digits, spaces and hyphens ignored.
+- Proof: the SHA-1 vectors of RFC 6238 appendix B (all six times) and the vectors of RFC 4648 section 10; `composer lint` and `composer stan` clean. The checks against a real tool (`oathtool`) wait for package 7.
+- Differs from the plan: the `issuer` is `ThreadSafe (host)`, the same as the label (3.1 now says so).
