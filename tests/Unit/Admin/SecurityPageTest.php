@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace ThreadSafe\Tests\Unit\Admin;
 
 use PHPUnit\Framework\TestCase;
+use ThreadSafe\Auth\QrCode;
 use ThreadSafe\Auth\RecoveryCodes;
 use ThreadSafe\Auth\Totp;
 use ThreadSafe\Auth\TwoFactorStore;
@@ -117,6 +118,32 @@ final class SecurityPageTest extends TestCase
         self::assertStringContainsString('autocomplete="off"', $page);
         self::assertFileDoesNotExist($this->browser->data . '/two-factor.json', 'nothing is kept before the code is right');
         self::assertFalse($this->store()->isOn('admin'));
+    }
+
+    public function testThePageHoldsAQrCodeOfTheAddressForTheApp(): void
+    {
+        $this->browser->get('/security');
+        $this->browser->post('/security/start', ['password' => AdminBrowser::PASSWORD]);
+
+        $page = $this->browser->get('/security')->body;
+
+        self::assertSame(1, preg_match('~<code id="totp-key" class="secret">([A-Z2-7 ]+)</code>~', $page, $m));
+        $secret = str_replace(' ', '', $m[1] ?? '');
+        $picture = QrCode::svg(Totp::uri($secret, 'admin', 'ts.example'), 'QR code that holds the key for the authenticator app');
+        self::assertStringContainsString($picture, $page, 'the picture is the code of the address that the link has');
+        self::assertStringContainsString('scan this code', $page);
+        self::assertStringNotContainsString($secret, $picture, 'the key is not in the picture as text');
+    }
+
+    public function testALongHostNameStillGivesAPictureAndNeverBreaksThePage(): void
+    {
+        $this->browser->get('/security');
+        $this->browser->post('/security/start', ['password' => AdminBrowser::PASSWORD]);
+
+        $page = $this->browser->send('GET', '/security', [], ['host' => str_repeat('a', 60) . '.example.com'])->body;
+
+        self::assertStringContainsString('<svg class="qr"', $page);
+        self::assertStringContainsString('totp-key', $page);
     }
 
     public function testAWrongCodeSwitchesNothingOnAndTheSameSecretStaysForANewTry(): void

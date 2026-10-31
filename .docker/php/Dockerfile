@@ -1,10 +1,11 @@
 # Development container for ThreadSafe: PHP CLI with both database interfaces (pdo_mysql, mysqli), Composer, unzip and the
-# MariaDB command line client, `age` and WP-CLI (the plain tools that the tests use as oracles for archives, dumps and encrypted archives).
+# MariaDB command line client, `age`, `zbarimg` and WP-CLI (the plain tools that the tests use as oracles for archives, dumps, encrypted archives
+# and QR codes).
 # The host PHP has no database driver, so tests and the CLI run in this container.
 FROM php:8.4-cli
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends git unzip mariadb-client age \
+    && apt-get install -y --no-install-recommends git unzip mariadb-client age zbar-tools \
     && rm -rf /var/lib/apt/lists/* \
     && docker-php-ext-install pdo_mysql mysqli
 

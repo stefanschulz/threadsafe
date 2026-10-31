@@ -28,8 +28,8 @@ final class InstallBuilder
     }
 
     /**
-     * The PHP files of the installer's code: all of `src/` except the web interface and the build tools, which an installer has no use
-     * for; of the build tools only the manifest, which it reads.
+     * The PHP files of the installer's code: all of `src/` except the web interface (with the second factor of its login, `src/Auth`) and the
+     * build tools, which an installer has no use for; of the build tools only the manifest, which it reads.
      *
      * @return list<string> absolute paths, sorted
      */
@@ -38,7 +38,7 @@ final class InstallBuilder
         $files = [];
         foreach ($this->walk($this->root . '/src') as $path) {
             $relative = substr($path, strlen($this->root) + 1);
-            $excluded = str_starts_with($relative, 'src/Admin/') || (str_starts_with($relative, 'src/Build/') && $relative !== 'src/Build/ReleaseManifest.php');
+            $excluded = str_starts_with($relative, 'src/Admin/') || str_starts_with($relative, 'src/Auth/') || (str_starts_with($relative, 'src/Build/') && $relative !== 'src/Build/ReleaseManifest.php');
             if (str_ends_with($path, '.php') && !$excluded) {
                 $files[] = $path;
             }

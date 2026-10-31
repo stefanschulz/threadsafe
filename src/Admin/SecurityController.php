@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace ThreadSafe\Admin;
 
+use InvalidArgumentException;
+use ThreadSafe\Auth\QrCode;
 use ThreadSafe\Auth\RecoveryCodes;
 use ThreadSafe\Auth\Totp;
 use ThreadSafe\Auth\TwoFactorException;
@@ -188,8 +190,15 @@ final class SecurityController
         $key = implode(' ', str_split($secret, 4));
         $address = Totp::uri($secret, $context->user() ?? 'admin', self::host($context));
 
+        try {
+            $picture = QrCode::svg($address, 'QR code that holds the key for the authenticator app');
+        } catch (InvalidArgumentException) {
+            $picture = ''; // an address that is too long for the code: the key as text is always there
+        }
+
         return '<h2>Add the key to your app</h2>'
-            . '<p>In the app choose to add an account and enter this key (a "time-based" key, six digits, 30 seconds):</p>'
+            . ($picture !== '' ? '<p>In the app choose to add an account and scan this code:</p>' . $picture . '<p>Or choose to enter a key by hand (a "time-based" key, six digits, 30 seconds):</p>'
+                : '<p>In the app choose to add an account and enter this key (a "time-based" key, six digits, 30 seconds):</p>')
             . '<p><code id="totp-key" class="secret">' . Html::e($key) . '</code> <button type="button" class="secondary js-only" data-copy="#totp-key">Copy</button></p>'
             . '<p class="hint">On the phone itself, <a href="' . Html::e($address) . '">this link</a> opens the app with the key filled in.</p>'
             . '<h2>Enter a code</h2>'
@@ -336,6 +345,7 @@ final class SecurityController
     /** The host name of the request, as a label for the entry in the app (it only tells installations apart). */
     private static function host(Context $context): string
     {
-        return preg_replace('/[^A-Za-z0-9.\-:\[\]]/', '', (string) $context->request->header('host')) ?? '';
+        // at most 30 characters: the address (and so the QR code) holds the label twice, and a code has room for 213 bytes
+        return substr(preg_replace('/[^A-Za-z0-9.\-:\[\]]/', '', (string) $context->request->header('host')) ?? '', 0, 30);
     }
 }
