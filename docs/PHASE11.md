@@ -1,6 +1,6 @@
 # Phase 11 – two-factor authentication for the web interface
 
-**Status:** **in progress** (planned 2026-10-31; the decisions of section 7.2 were settled with the owner the same day, all as recommended; work package 1 is built, see section 8).
+**Status:** **in progress** (planned 2026-10-31; the decisions of section 7.2 were settled with the owner the same day, all as recommended; work packages 1 and 2 are built, see section 8).
 **Context:** [WEB.md](WEB.md) ("Logging in", "Security in short") is the login as it works today; [PHASE4.md](PHASE4.md) 3.2 is its design (sessions in files, the throttle, the audit log). The login stays the password; this phase adds a second step after it.
 
 ## 1. Goal and scope
@@ -178,3 +178,12 @@ Each with the recommendation. **Settled on 2026-10-31: every decision as recomme
 - `Totp`: `newSecret()` (20 random bytes as 32 Base32 characters), `step($time)`, `code($secret, $step, $digits = 6)`, `verify($secret, $typed, $time, $lastStep = 0)` and `uri($secret, $account, $host = '')`. `verify()` returns the step that matched (or null); the caller keeps it as `lastStep`, and a code of that step or an older one is refused. All three steps of the window are compared whether or not an earlier one matched. The typed code is 6 digits, spaces and hyphens ignored.
 - Proof: the SHA-1 vectors of RFC 6238 appendix B (all six times) and the vectors of RFC 4648 section 10; `composer lint` and `composer stan` clean. The checks against a real tool (`oathtool`) wait for package 7.
 - Differs from the plan: the `issuer` is `ThreadSafe (host)`, the same as the label (3.1 now says so).
+
+**Work package 2 (2026-10-31): `Auth\TwoFactorStore`, `Auth\RecoveryCodes`, `Auth\TwoFactorException`** in `src/Auth/`.
+
+- `TwoFactorStore` keeps `data/two-factor.json` (0600, the directory 0700, the list form `{"users": [{"name", "secret", "enrolled", "lastStep", "recovery": [sha256...]}]}`). Methods: `fileExists()`, `isOn()`, `secret()`, `enrolled()`, `recoveryLeft()`, `enable()` (also replaces: new secret, `lastStep` 0), `replaceRecoveryCodes()`, `acceptCode()`, `useRecoveryCode()`, `disable()` (removes the file when nobody keeps a factor).
+- `acceptCode()` does the check **and** keeps the step in one locked piece of work, and `useRecoveryCode()` strikes the code out in the same way (`two-factor.json.lock`, `flock`), so that two requests with the same code cannot both succeed. The lock file stays behind, empty and harmless; deleting `two-factor.json` alone still switches the factor off (3.5).
+- A file that exists and cannot be read, is not JSON, or holds a user without a name or a Base32 secret makes **every** method throw `TwoFactorException`, and the file is left as it was. Only "no file" and "no users" mean off. Recovery hashes that are not 64 hex characters are dropped when reading (so a damaged one does not count as a code that works).
+- `RecoveryCodes::generate()` makes ten codes of 12 characters (`XXXX-XXXX-XXXX`, alphabet without 0, 1, I and O, 5 bits per character straight from `random_bytes`); `hash()` is SHA-256 of the characters (case, hyphens and spaces ignored); `looksLike()` tells a recovery code from six digits, which package 3 needs to pick the check.
+- Proof: `RecoveryCodesTest` and `TwoFactorStoreTest` (57 tests with package 1 in the filter `Auth`): the file form and modes, no recovery code in the file in any spelling, a code accepted once and across requests, the replay of the previous step, a wrong code leaves the file byte for byte, recovery codes once, replaced, case-insensitive, damaged files of eight kinds never read as off, a change of the password through `AdminStore` leaves the factor. The whole unit suite (3669 tests), `composer lint` and `composer stan` are clean.
+- Not tested here: two processes at the same moment (the lock is the standard `flock`; the stack tests of package 7 are the place for it).
