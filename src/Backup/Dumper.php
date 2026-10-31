@@ -12,23 +12,24 @@ use ThreadSafe\Engine\Task;
 use ThreadSafe\Engine\TickOutcome;
 
 /**
- * Writes the database as SQL files, one per table (`0007_product.sql`: the real table name in the statements, structure
- * first, then the rows), plus `_views.sql` and `_triggers.sql`, into a work directory. The files are what a plain
- * `mysql` client imports; a later phase of the backup puts them into the archive.
+ * Writes the database as SQL files, one per table (`0007_product.sql`: the real table name in the statements, structure first, then the
+ * rows), plus `_views.sql` and `_triggers.sql`, into a work directory. A plain `mysql` client imports the files; the backup later puts them
+ * into the archive.
  *
- * - **Resumable:** tables are read in pages ordered by the primary key (`WHERE key > last ORDER BY key LIMIT n`); the state
- *   holds the table, the last key and the length of the file. A tick stops between pages when its budget is used up.
- * - **A table without a (usable) primary key** is read in one pass as one unit, which may take longer than a tick.
- * - **Exact values:** see {@see SqlWriter} and {@see Column}. FLOAT and DOUBLE are read as `(column + 0e0)`, binary columns
- *   as hex, the time zone of the connection is UTC so that TIMESTAMP values come out unshifted.
- * - **Large cells:** a cell above `bigCellBytes` is not fetched with the row. It is read in pieces and written as an
- *   `INSERT` with the first piece and `UPDATE ... CONCAT` statements for the rest, which keeps every statement within the
- *   default `max_allowed_packet` of the importing server and memory constant.
- * - **Consistency:** with `snapshot` each tick runs inside `START TRANSACTION WITH CONSISTENT SNAPSHOT`; a run that is done
- *   in one tick is consistent across all tables ("snapshot"), one that needed several is consistent per tick ("table").
+ * - **Resumable:** tables are read in pages ordered by the primary key (`WHERE key > last ORDER BY key LIMIT n`); a tick stops between
+ *   pages when its budget is used up. A table without a usable primary key is read in one pass as one unit, which may take longer than a
+ *   tick.
+ * - **Exact values:** {@see SqlWriter} and {@see Column}. FLOAT and DOUBLE are read as `(column + 0e0)`, binary columns as hex, and the
+ *   time zone of the connection is UTC so that TIMESTAMP values come out unshifted.
+ * - **Large cells:** a cell above `bigCellBytes` is not fetched with the row but read in pieces and written as an `INSERT` with the first
+ *   piece and `UPDATE ... CONCAT` for the rest, which keeps every statement within the default `max_allowed_packet` of the importing server
+ *   and memory constant.
+ * - **Consistency:** with `snapshot` each tick runs inside `START TRANSACTION WITH CONSISTENT SNAPSHOT`: a run done in one tick is
+ *   consistent across all tables ("snapshot"), one that needed several is consistent per tick ("table").
  *
- * Parameters of {@see initialState()}: `directory` (where the files go; must exist), `snapshot`, `structureOnly` (tables
- * of which no rows are dumped), and for tests `statementBytes`, `bigCellBytes`, `pieceBytes`, `maxPacket` (default: the server's `max_allowed_packet`; cells above it are reported).
+ * Parameters of {@see initialState()}: `directory` (must exist), `snapshot`, `structureOnly` (tables of which no rows are dumped), and for
+ * tests `statementBytes`, `bigCellBytes`, `pieceBytes`, `maxPacket` (default: the server's `max_allowed_packet`; cells above it are
+ * reported).
  */
 final class Dumper implements Task
 {

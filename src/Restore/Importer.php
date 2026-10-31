@@ -12,21 +12,17 @@ use ThreadSafe\Engine\Budget;
 use ThreadSafe\Engine\TickOutcome;
 
 /**
- * Imports the SQL files of a backup (`db/0001_<table>.sql` ... then `_views.sql`, `_triggers.sql`) into the database of the
- * connection, in ticks, without the `mysql` client: the statements are cut out of the files by {@see SqlSplitter} and run one
- * by one. Optionally the table prefix is changed on the way ({@see PrefixRewriter}).
+ * Imports the SQL files of a backup (`db/0001_<table>.sql` ... then `_views.sql`, `_triggers.sql`) into the database of the connection, in
+ * ticks, without the `mysql` client: {@see SqlSplitter} cuts the statements out of the files and they run one by one. Optionally the table
+ * prefix is changed on the way ({@see PrefixRewriter}).
  *
- * The state is the index of the file and the byte offset (and delimiter) after the last statement run. A tick begins with
- * the session settings every dump file starts with, because it may continue in the middle of a file.
+ * The state is the index of the file and the byte offset (and delimiter) after the last statement run. A tick begins with the session
+ * settings every dump file starts with, because it may continue in the middle of a file.
  *
- * Crash safety: a statement that ran but whose tick did not save its state would run a second time on resume and fail on a
- * duplicate key. So a tick leaves a marker file while it works and removes it when it ends in order; a marker found at the
- * start of a tick means the previous tick died, and the file in progress starts again from its beginning (it begins with
- * `DROP TABLE IF EXISTS`, so that is safe). Same after an error.
- *
- * State: `directory`, `files` (names), `sizes`, `file` (index of the file in progress), `offset`, `delimiter`, `statements`,
- * `restarts`, `prefixFrom`, `prefixTo` (null: no change), `firstTable` and `lastTable` (the first and the most recent table created, or
- * null: a resumed import looks for them, see {@see tick()}), `bytes` and `total` (for progress).
+ * Crash safety: a statement that ran but whose tick did not save its state would run a second time on resume and fail on a duplicate key.
+ * So a tick leaves a marker file while it works and removes it when it ends in order; a marker found at the start of a tick means the
+ * previous tick died, and the file in progress starts again from its beginning (it begins with `DROP TABLE IF EXISTS`, so that is safe).
+ * Same after an error.
  */
 final class Importer
 {

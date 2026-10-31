@@ -9,17 +9,13 @@ use ThreadSafe\Engine\Budget;
 use ThreadSafe\Replace\TableRewriteResult;
 
 /**
- * The bookkeeping of replacing the old domain in the database content in ticks, the same for every website type: a list of
- * jobs (one per table, or two for a table that is rewritten twice), the job in progress, and the results of the finished jobs.
- * What a job does is up to the website type (it passes a closure).
+ * The bookkeeping of replacing the old domain in the database content in ticks, the same for every website type: a list of jobs (one per
+ * table, or two for a table that is rewritten twice), the job in progress, and the results of the finished jobs. What a job does is up to
+ * the website type (it passes a closure).
  *
- * A table is rewritten chunk by chunk in the order of its primary key; when the budget is used up between two chunks the key of
- * the last row is kept and the next tick continues after it. A chunk that was written but not recorded (a crash) is harmless:
+ * A table is rewritten chunk by chunk in the order of its primary key; when the budget is used up between two chunks the key of the last
+ * row is kept ({@see encodeKey()}) and the next tick continues after it. A chunk that was written but not recorded (a crash) is harmless:
  * its rows no longer contain the old domain.
- *
- * State: `jobs` (list of [table, kind]), `job` (index), `after` (key of the last row done in the job in progress, in the form
- * of {@see encodeKey()}), `current` (result of the job in progress so far), `results` (finished jobs in which something was
- * found), `rows` (rows changed).
  */
 final class ContentRewriteRun
 {

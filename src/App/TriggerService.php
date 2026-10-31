@@ -27,14 +27,14 @@ use ThreadSafe\Storage\SpaceCheck;
 /**
  * What the trigger does when it is called (docs/PHASE5.md 3.3), for both ways of calling it:
  *
- *   - {@see work()}, the command `threadsafe cron`: a command line process, no time limit; continues interrupted runs, then starts
- *     every scheduled backup that is due, one after the other, each to its end, the database read in one snapshot;
- *   - {@see call()}, the address `/cron/<secret>`: starts a detached worker that does the same (`worker` mode), or does one tick of
- *     work in the request (`ticks` mode: the database is then read table by table).
+ * - {@see work()}, the command `threadsafe cron`: a command line process with no time limit; it continues interrupted runs, then starts
+ *   every scheduled backup that is due, one after the other, each to its end, the database read in one snapshot;
+ * - {@see call()}, the address `/cron/<secret>`: starts a detached worker that does the same (`worker` mode), or does one tick of work in
+ *   the request (`ticks` mode: the database is then read table by table).
  *
- * Only one trigger works at a time (`locks/cron.lock`); a second call finds that out and ends. Scheduled backups wait for a manual
- * one and the other way round (one backup at a time, as everywhere). The scheduler's state follows every run: started, succeeded,
- * failed (tried again, or given up), so a run that was interrupted and is continued later reports to the right scheduled instant.
+ * Only one trigger works at a time (`locks/cron.lock`); a second call finds that out and ends. Scheduled backups wait for a manual one and
+ * the other way round. The scheduler's state follows every run (started, succeeded, failed: tried again or given up), so a run that was
+ * interrupted and is continued later reports to the right scheduled instant.
  */
 final class TriggerService
 {

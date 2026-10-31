@@ -17,15 +17,14 @@ use ThreadSafe\Storage\SpaceCheck;
 /**
  * What stays in the storage of a profile and what goes (docs/PHASE5.md 3.4).
  *
- * The rules of the profile are `keep` (at most this many backups), `maxAgeDays` (none older) and `maxBytes` (together at most this
- * much); every rule is optional. Only **complete, usable** backups count (status `ok`, `ok-with-warnings`, `unverified`). Never
- * deleted: the newest usable backup, whatever the rules say (a failing schedule or a rule set wrongly must not leave the site without
- * a backup); a **pinned** backup, which does not count towards `keep`; a backup that a run is writing or a check is reading. A faulty or
- * incomplete backup is left alone (it may be recoverable by hand). Leftovers of runs that died (work directories, `.part` files) that no
- * run claims and that are older than a week are removed as well.
+ * The rules are `keep`, `maxAgeDays` and `maxBytes`; every rule is optional. Only **complete, usable** backups count (status `ok`,
+ * `ok-with-warnings`, `unverified`). Never deleted: the newest usable backup, whatever the rules say (a failing schedule or a rule set
+ * wrongly must not leave the site without a backup); a **pinned** backup, which does not count towards `keep`; a backup that a run is
+ * writing or a check is reading. A faulty or incomplete backup is left alone (it may be recoverable by hand). Leftovers of runs that died
+ * (work directories, `.part` files) that no run claims and that are older than a week are removed as well.
  *
- * {@see plan()} works out what would be deleted, oldest first, with the numbers recomputed after each deletion (a plan changes nothing:
- * it is the dry run and the preview); {@see apply()} carries the plan out. When the storage cannot be read nothing is deleted.
+ * {@see plan()} changes nothing: it works out what would go, oldest first, with the numbers recomputed after each deletion (the dry run and
+ * the preview); {@see apply()} carries it out. When the storage cannot be read nothing is deleted.
  */
 final class Retention
 {

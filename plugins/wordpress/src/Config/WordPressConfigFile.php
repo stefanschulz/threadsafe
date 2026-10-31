@@ -12,16 +12,14 @@ use ThreadSafe\WordPress\Exception\InvalidConfigFile;
 /**
  * Safe reader and writer for the `wp-config.php` of a WordPress site (docs/PHASE9.md 3.2).
  *
- * Reading never runs the file (see {@see WordPressConfigParser}). Writing is surgical: only the text of the literal that changes is replaced,
- * so everything else - the salts, the settings a site or a plugin added, the comments, the line ends - stays byte for byte what it was. A
- * new value is written the way WordPress writes it (strings in single quotes, `true`, `false`, numbers as they are). The file is written
- * through a temporary file and a rename, which keeps its mode.
+ * Reading never runs the file (see {@see WordPressConfigParser}). Writing is surgical: only the text of the literal that changes is
+ * replaced, so everything else (the salts, the settings a site or a plugin added, the comments, the line ends) stays byte for byte what it
+ * was; a new value is written the way WordPress writes it. The file goes through a temporary file and a rename, which keeps its mode.
  *
- * **Nothing is ever added.** A setting that is not in the file is not made up: {@see with()} refuses, {@see withIfPresent()} leaves the file
- * as it is. A setting that cannot be written back - its value is computed (`getenv_docker(...)`), or it is defined more than once (an `if`
- * with two branches) - is refused with a message that names it and says why, never guessed.
- *
- * The file holds secrets (the password of the database, the salts): nothing here puts a value into a message.
+ * **Nothing is ever added.** A setting that is not in the file is not made up: {@see with()} refuses, {@see withIfPresent()} leaves the
+ * file as it is. A setting that cannot be written back (its value is computed, `getenv_docker(...)`, or it is defined more than once, an
+ * `if` with two branches) is refused with a message that names it and says why, never guessed. The file holds secrets (the database
+ * password, the salts): nothing here puts a value into a message.
  *
  * Instances are immutable: every `with...()` returns a new instance.
  */

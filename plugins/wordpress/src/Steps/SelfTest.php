@@ -22,21 +22,22 @@ use ThreadSafe\Replace\Stats;
 use ThreadSafe\WordPress\State;
 
 /**
- * Asks the migrated site whether it works, as a visitor would (docs/PHASE9.md 3.5, step 8): the front page answers 200 and carries no link to
- * the old domain, `/wp-login.php` shows its login form, and the REST index (`/?rest_route=/`, which works with every kind of permalinks) is
- * JSON that names the new address.
+ * Asks the migrated site whether it works, as a visitor would (docs/PHASE9.md 3.5, step 8): the front page answers 200 and carries no link
+ * to the old domain, `/wp-login.php` shows its login form, and the REST index (`/?rest_route=/`, which works with every kind of permalinks)
+ * is JSON that names the new address.
  *
- * A site that has **not** been adapted answers every front-end request with `301` to its old address (work package 1, finding 3): the client
- * reports a redirect to another host as a problem, which is exactly what this finds. Only when the request names a new domain; without one
- * there is no address to ask for.
+ * A site that has **not** been adapted answers every front-end request with `301` to its old address (work package 1, finding 3); the
+ * client reports a redirect to another host, which is exactly what this finds. Only when the request names a new domain: without one there
+ * is no address to ask for.
  *
- * **Maintenance mode** (field test feedback): the first request to a restored site starts the cron of WordPress, which runs what is overdue -
- * among it the automatic updates -, and while an update is installed WordPress answers every request with `503` and "Briefly unavailable for
- * scheduled maintenance" (a file `.maintenance`). So the step works in ticks and
+ * **Maintenance mode** (field test): the first request to a restored site starts the WordPress cron, which runs what is overdue, among it
+ * the automatic updates, and while one is installed WordPress answers every request with `503` "Briefly unavailable for scheduled
+ * maintenance" (a file `.maintenance`). So the step works in ticks and
  *
- *  - **waits** while the answer is the maintenance page, up to {@see MAINTENANCE_SECONDS}, and fails only if it does not end;
- *  - after the checks have passed, **lets the cron finish** what the checks started (the transient `doing_cron` of the options table), and asks
- *    once more (only if it was seen working), so that the restore does not end - and the page does not offer the link to the site - while WordPress is still busy.
+ * - **waits** while the answer is the maintenance page, up to {@see MAINTENANCE_SECONDS}, and fails only if it does not end;
+ * - after the checks have passed, **lets the cron finish** what the checks started (the transient `doing_cron` in the options table) and
+ *   asks once more (only if it was seen working), so that the restore does not end, and the page does not offer the link to the site, while
+ *   WordPress is still busy.
  */
 final class SelfTest implements ResumableStep, AlwaysRuns
 {

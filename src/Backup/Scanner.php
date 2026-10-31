@@ -11,16 +11,14 @@ use ThreadSafe\Engine\Budget;
 /**
  * Walks the directory tree of a site and says what goes into the backup, in a fixed order, in steps that can be continued.
  *
- * - **Order:** depth first, the names of a directory sorted bytewise, a directory's own entry before its contents. The
- *   same tree always gives the same sequence, so archives are reproducible.
- * - **Resumable:** the state is a stack of `(directory, last name done)` frames - small, plain data. A call re-reads the
- *   directories on the stack, so files that appeared or vanished between two calls are simply seen or not seen.
- * - **Filters:** an excluded directory is not entered; it makes no entry and no warning.
- * - **What is skipped, with a warning:** symbolic links (never followed), sockets, devices and other special files,
- *   unreadable directories, names that are not valid UTF-8 or that a ZIP archive must not hold (backslashes ...), files
- *   that disappear while the tree is walked.
- *
- * Directories get their own entries, so that empty directories and the permissions of directories survive.
+ * - **Order:** depth first, the names of a directory sorted bytewise, a directory's own entry before its contents: the same tree always
+ *   gives the same sequence, so archives are reproducible. Directories get their own entries, so that empty directories and their
+ *   permissions survive.
+ * - **Resumable:** the state is a stack of `(directory, last name done)` frames. A call re-reads the directories on the stack, so files
+ *   that appeared or vanished between two calls are simply seen or not seen.
+ * - **Skipped, with a warning:** symbolic links (never followed), sockets, devices and other special files, unreadable directories, names
+ *   that are not valid UTF-8 or that a ZIP archive must not hold (backslashes ...), files that disappear while the tree is walked. An
+ *   excluded directory ({@see Filters}) is not entered and makes no warning.
  */
 final class Scanner
 {

@@ -8,16 +8,16 @@ use DateTimeImmutable;
 use DateTimeZone;
 
 /**
- * A classic five-field cron expression (minute, hour, day of month, month, day of week) and the arithmetic on it: the next and
- * the previous instant at which it is due, in the time zone of the instant that is given (docs/PHASE5.md 3.2).
+ * A classic five-field cron expression (minute, hour, day of month, month, day of week) and the arithmetic on it: the next and the previous
+ * instant at which it is due, in the time zone of the instant that is given (docs/PHASE5.md 3.2).
  *
- * Fields take `*`, numbers, ranges `a-b`, lists `a,b`, steps (`a-b/n`, `a/n`, or `n` after a `*` and a slash), and names for months and days of the week; the
- * shortcuts are `@hourly`, `@daily`, `@weekly` and `@monthly`. Sunday is 0 or 7. When both day fields are restricted either may
- * match (the rule of Vixie cron); a field that starts with `*` counts as unrestricted, also with a step.
+ * Fields take `*`, numbers, ranges, lists, steps and names for months and days of the week; the shortcuts are `@hourly`, `@daily`,
+ * `@weekly` and `@monthly`. Sunday is 0 or 7. When both day fields are restricted either may match (the rule of Vixie cron); a field that
+ * starts with `*` counts as unrestricted, also with a step.
  *
- * All arithmetic is done on the wall clock and the instant is decided here, not by PHP, which resolves a repeated local time
- * differently per zone (docs/PHASE5.md section 8, finding 5): a time that exists twice (the clock goes back) is due once, at its
- * first occurrence; a time that does not exist (the clock jumps forward) is due at the first instant after the gap.
+ * All arithmetic is done on the wall clock and the instant is decided here, not by PHP, which resolves a repeated local time differently
+ * per zone (docs/PHASE5.md section 8, finding 5): a time that exists twice (the clock goes back) is due once, at its first occurrence; a
+ * time that does not exist (the clock jumps forward) is due at the first instant after the gap.
  */
 final class CronExpression
 {

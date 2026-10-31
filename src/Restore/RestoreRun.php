@@ -28,24 +28,23 @@ use ThreadSafe\Plugin\WebsiteType;
 use ThreadSafe\Web\StateDirectory;
 
 /**
- * Puts a backup back (docs/PHASE3.md 3.3): **preflight** (everything that can be checked before a byte is written), **extract**
- * the files and the SQL files, **import** the dump, **adapt** the restored installation to its new place (the migration of
- * phase 1, in ticks), **finalize** (the SQL files go, the secrets are scrubbed from the state).
+ * Puts a backup back (docs/PHASE3.md 3.3): **preflight** (everything that can be checked before a byte is written), **extract**,
+ * **import**, **adapt** (the migration of phase 1, in ticks) and **finalize** (the SQL files go, the secrets are scrubbed from the state).
  *
- * It restores onto an empty target and never deletes or overwrites an installation (3.8). A failure stops the run in the phase
- * it happened and says where; the state is that of the last finished tick, and running the same command again continues
- * (a file that was being extracted or imported starts again from its beginning where it cannot continue in the middle).
+ * It restores onto an empty target and never deletes or overwrites an installation (3.8). A failure stops the run in the phase where it
+ * happened; running the same command again continues from the last finished tick (a file that was being extracted or imported starts again
+ * from its beginning where it cannot continue in the middle).
  *
- * Parameters ({@see initialState()}): `archive` (any part of the backup), `root` (target directory), `settings` (the request
- * settings of the website type, see {@see \ThreadSafe\Migration\RequestBuilder}, without `root`; `database` holds the target
- * database, the password included), `type` (override the website type of the backup), `allowLeftovers`, `dropTables` (delete the tables of the target's table prefix before the import instead of refusing a database that has some), `work` (default
- * `<root>/.threadsafe-restore`), `unlock` (what opens an encrypted backup: {@see Unlock::toArray()}), `journalDirectory` (default `<work>/journal`), `protected` (paths below the root that are
- * never written: default `threadsafe-restore.php`, `threadsafe-restore-key.php`, the work directory), `guard` (paths of the tool's files below the root that the
- * `.htaccess` of the restored site must not lock out, see {@see ToolGuard}; the wizard names its own script, the command none).
+ * Parameters of {@see initialState()}: `archive` (any part of the backup), `root`, `settings` (the request settings of the website type,
+ * see {@see \ThreadSafe\Migration\RequestBuilder}, without `root`; `database` holds the target database, password included), `type`
+ * (overrides the type of the backup), `allowLeftovers`, `dropTables` (delete the tables with the target's prefix before the import instead
+ * of refusing a database that has some), `work` (default `<root>/.threadsafe-restore`), `unlock` ({@see Unlock::toArray()}),
+ * `journalDirectory` (default `<work>/journal`), `protected` (paths below the root that are never written: by default the tool's own files
+ * and the work directory), `guard` (the tool's files that the `.htaccess` of the restored site must not lock out, {@see ToolGuard}).
  *
- * The state holds the secret key or passphrase of an encrypted backup until the extraction is done and the database password until the last
- * tick, which blanks it: the file the {@see \ThreadSafe\Engine\RunStore} writes
- * is private (mode 0600) and the caller deletes it when the run is finished.
+ * The state holds the secret key or passphrase of an encrypted backup until the extraction is done, and the database password until the
+ * last tick, which blanks it; the file that {@see \ThreadSafe\Engine\RunStore} writes is private (mode 0600) and the caller deletes it when
+ * the run is finished.
  */
 final class RestoreRun implements Task
 {

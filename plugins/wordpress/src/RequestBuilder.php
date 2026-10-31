@@ -18,13 +18,9 @@ use ThreadSafe\WordPress\Config\WordPressConfigFile;
 use ThreadSafe\WordPress\Exception\InvalidConfigFile;
 
 /**
- * The request builder for WordPress: the common settings ({@see BaseRequestBuilder}) plus
- *
- *   path         string  new base path, e.g. "/sub/" (the directory of the domain the site lives in); default: unchanged. The site must be at
- *                        the root of its old domain: a path that changes is not something a replacement of hosts can do
- *   mode         string  production (default) or dev: a development or staging copy that sends no mail and keeps search engines out
- *   keepDropIns  bool    keep `object-cache.php`, `advanced-cache.php` and `db.php` (default: they are switched off, decision 4)
- *   includeGuid  bool    also replace the address in `wp_posts.guid` (default: it is left alone, decision 5)
+ * The request builder for WordPress: the common settings ({@see BaseRequestBuilder}) plus `path`, `mode` (production or dev), `keepDropIns`
+ * and `includeGuid` (docs/MIGRATE.md section 14). The site must be at the root of its old domain: a path that changes is not something a
+ * replacement of hosts can do.
  *
  * The database values that are not given come from `wp-config.php`; the old address is what the database says (`home`), so `--to` alone is
  * enough. The content replacement skips the tables of sessions and logs that a backup keeps empty anyway.

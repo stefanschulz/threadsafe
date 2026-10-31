@@ -17,17 +17,17 @@ use ThreadSafe\Joomla\State;
 use ThreadSafe\Migration\MigrationRequest;
 
 /**
- * Adapts `configuration.php` to the host the site now runs on, changing only the values that must change and nothing else of the
- * file (`secret`, the mail settings, the properties of the site's own stay byte for byte):
+ * Adapts `configuration.php` to the host the site now runs on, changing only the values that must change (`secret`, the mail settings and
+ * the site's own properties stay byte for byte):
  *
- *  - the database (host, port, user, password, name, prefix) if the request names another one;
- *  - `dbtype`: `mysqli` or `pdomysql` - the one that `--db-driver` names, else by what this PHP has (a host often has only one of them,
- *    and the PHP of a command line is not always the PHP of the web server: then the driver is named);
- *  - `log_path` and `tmp_path`, which hold the absolute paths of the old host;
- *  - in dev mode: `mailonline` off (the copy sends no mail), `robots` "noindex, nofollow" (the meta tag of every page) and a "[DEV] " in front
- *    of the site name, so that nobody mistakes the copy for the site;
- *  - `live_site`: a stale value breaks the site (the front page answers with a redirect), so it follows the new address, and is
- *    cleared if it names a host that is not part of the move.
+ * - the database (host, port, user, password, name, prefix) if the request names another one;
+ * - `dbtype`, `mysqli` or `pdomysql`: the one that `--db-driver` names, else by what this PHP has (a host often has only one of them, and
+ *   the PHP of a command line is not always the PHP of the web server: then the driver is named);
+ * - `log_path` and `tmp_path`, which hold the absolute paths of the old host;
+ * - `live_site`: a stale value breaks the site (the front page answers with a redirect), so it follows the new address and is cleared if it
+ *   names a host that is not part of the move;
+ * - in dev mode: `mailonline` off, `robots` "noindex, nofollow" and a "[DEV] " in front of the site name, so that nobody mistakes the copy
+ *   for the site.
  */
 final class WriteConfiguration implements Step
 {

@@ -8,34 +8,13 @@ use ThreadSafe\Backup\Filters;
 use ThreadSafe\Database\DatabaseSettings;
 
 /**
- * One site to back up: where it is, what kind of application it is, where its backups go, and what to leave out. The
- * profile is plain data; it is stored by {@see ProfileStore} as `data/profiles/<id>.json`.
+ * One site to back up: where it is, what kind of application it is, where its backups go, and what to leave out. The profile is plain data;
+ * {@see ProfileStore} keeps it as `data/profiles/<id>.json` (the fields are in docs/BACKUP.md).
  *
- * ```json
- * {
- *     "id": "shop",
- *     "name": "Webshop (live)",
- *     "type": "prestashop9",
- *     "path": "/var/www/shop",
- *     "database": null,
- *     "storage": "/var/backups/threadsafe/shop",
- *     "excludePaths": ["var/log-old"],
- *     "structureOnlyTables": [],
- *     "useDefaultFilters": true,
- *     "compression": 6,
- *     "partSize": null,
- *     "note": "live, shared hosting",
- *     "schedule": {"every": "day", "at": "03:30"},
- *     "retention": {"keep": 14, "maxAgeDays": 90, "maxBytes": 21474836480},
- *     "encryption": {"recipients": ["age1..."]}
- * }
- * ```
- *
- * `database: null` means: read the credentials from the application's own configuration (PrestaShop: `parameters.php`),
- * so that no second copy of the password exists; a type without such a configuration (`generic`) needs the block
- * `{"host", "port", "name", "user", "password", "prefix", "driver"}`, or `null` for a site without a database.
- * `schedule`, `retention` and `encryption` are optional (`null` or absent: no schedule, no retention rule, no encryption; a stored
- * profile without them reads as before, and one without them is written without them).
+ * `database: null` means: read the credentials from the application's own configuration (PrestaShop: `parameters.php`), so that no second
+ * copy of the password exists; a type without such a configuration (`generic`) needs the block
+ * `{"host", "port", "name", "user", "password", "prefix", "driver"}`, or `null` for a site without a database. `schedule`, `retention` and
+ * `encryption` are optional: absent or `null` means none, and a profile without them reads and writes as before.
  */
 final readonly class SiteProfile
 {

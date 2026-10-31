@@ -22,17 +22,16 @@ use ThreadSafe\WordPress\State;
 /**
  * Clears what WordPress rebuilds and what holds the old host (docs/PHASE9.md 3.5, step 5):
  *
- *  - the **transients** (the rows `_transient_*` and `_site_transient_*` of the options table, which are caches and often hold the old address);
- *  - the option **`rewrite_rules`**, which WordPress makes again from the permalink settings;
- *  - the files of `wp-content/cache` (caching plugins make theirs again) and of `wp-content/upgrade`;
- *  - the **drop-ins** `object-cache.php`, `advanced-cache.php` and `db.php`, which are **renamed to `<name>.threadsafe-off`** unless the request
- *    says `keepDropIns`: a drop-in that serves a service of the old host (Redis, a page cache, a database proxy) takes the whole site down with
- *    an error on every page, and a drop-in is only loaded under its exact name (work package 1, finding 5). The plugin that owns it can write it
- *    again, and the file keeps its content under the new name.
- *
- * and what plugins generate from the content and keep (`resources/generated.json`, field test feedback): the CSS files of Elementor, which name
- * the address of the images and are not made again as long as the record `_elementor_css` of the post says they exist, so the directory and
- * the records go and Elementor makes them again when a page is seen. Which plugin writes what is data, not code.
+ * - the **transients** (the rows `_transient_*` and `_site_transient_*` of the options table: caches that often hold the old address);
+ * - the option **`rewrite_rules`**, which WordPress makes again from the permalink settings;
+ * - the files of `wp-content/cache` (caching plugins make theirs again) and of `wp-content/upgrade`;
+ * - the **drop-ins** `object-cache.php`, `advanced-cache.php` and `db.php`, **renamed to `<name>.threadsafe-off`** unless the request says
+ *   `keepDropIns`: a drop-in that serves a service of the old host (Redis, a page cache, a database proxy) takes the whole site down with
+ *   an error on every page, and a drop-in is only loaded under its exact name (work package 1, finding 5). The plugin that owns it can
+ *   write it again, and the file keeps its content under the new name;
+ * - what plugins generate from the content and keep (`resources/generated.json`, field test): the CSS files of Elementor name the address
+ *   of the images and are not made again as long as the record `_elementor_css` of the post says they exist, so the directory and the
+ *   records go and Elementor makes them when a page is seen. Which plugin writes what is data, not code.
  *
  * Nothing that is content is touched.
  */

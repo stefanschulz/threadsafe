@@ -14,21 +14,17 @@ use ThreadSafe\Engine\TickOutcome;
 use Throwable;
 
 /**
- * The {@see Runner} for a run that has to continue in another process: on a web host every request is a tick of a few seconds,
- * and a step like the content replacement in a big database takes longer than that.
+ * The {@see Runner} for a run that has to continue in another process: on a web host every request is a tick of a few seconds, and a step
+ * like the content replacement in a big database takes longer than that.
  *
- * It applies and does not plan for show (there is no dry run): the first tick checks the guards and plans all steps, as the
- * Runner does before it applies anything, and keeps in its state everything the later ticks need - the plans, the findings
- * of the steps that look at the installation ({@see HasFindings}), the reports so far, the position and the state of the step in
- * progress ({@see ResumableStep}) - as plain data. A step that is not resumable is applied whole inside a tick; one that was cut
- * off by a crash is simply applied again on resume (steps are idempotent). A tick ends between two steps once the budget is
- * used up, or inside a resumable step.
+ * It applies and does not plan for show (there is no dry run). The first tick checks the guards and plans all steps, as the Runner does
+ * before it applies anything, and keeps in its state, as plain data, everything the later ticks need: the plans, the findings of the steps
+ * that look at the installation ({@see HasFindings}), the reports so far, the position and the state of the step in progress
+ * ({@see ResumableStep}). A step that is not resumable is applied whole inside a tick; one that was cut off by a crash is simply applied
+ * again on resume (steps are idempotent). A tick ends between two steps once the budget is used up, or inside a resumable step.
  *
- * The caller makes the {@see Context} of every tick; it must carry the same request and a journal that continues the file
- * named in the state's `journal` ({@see FileJournal}'s `$resume`).
- *
- * State: `stage` (`start`, `apply`, `done`), `next`, `stepState`, `plans`, `findings`, `reports`, `startedAt`, `journal`,
- * `progress` (what the step in progress said), `failure` (null, or `kind` guard / step / selftest, `step`, `message`).
+ * The caller makes the {@see Context} of every tick; it must carry the same request and a journal that continues the file named in the
+ * state's `journal` ({@see FileJournal}'s `$resume`).
  */
 final class TickedRunner
 {

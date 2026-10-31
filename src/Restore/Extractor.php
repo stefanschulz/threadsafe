@@ -14,26 +14,19 @@ use ThreadSafe\Engine\Budget;
 use ThreadSafe\Engine\TickOutcome;
 
 /**
- * Unpacks the parts of a backup in ticks: the entries `files/<path>` into the root of the site, the entries `db/<file>.sql`
- * into a work directory (where {@see Importer} reads them), everything else (`threadsafe.json`, the part markers) is not
- * touched.
+ * Unpacks the parts of a backup in ticks: `files/<path>` into the root of the site, `db/<file>.sql` into a work directory (where
+ * {@see Importer} reads them); everything else (`threadsafe.json`, the part markers) is left alone.
  *
- * - **Safe by construction:** the names are checked by {@see ZipReader} (no absolute paths, `..`, NUL, backslashes); on top of
- *   that no existing path inside the root that is a symbolic link is ever followed, a file never replaces a directory, and the
- *   paths in `protected` (the restore tool itself and its work directory) are never written, whatever the archive says.
- * - **Resumable:** the state holds the part, the index and the position of the next record in the central directory, so a tick
- *   does not read the records before it. A tick ends between two entries. A big *stored* entry (media files, archives) stops
- *   when the budget is used up and continues at the byte it reached, with the target cut back to that length first; a
- *   *deflated* entry cannot continue in the middle and is therefore always finished in the tick that began it, even if that
- *   takes longer than the budget (restarting it would never get further if it does not fit). Measured: the pure PHP reader
- *   inflates 15-364 MB/s, so only a single file of hundreds of MB can exceed a web request.
- * - **Exact:** every entry is checked against its CRC32 and size while it is written.
- * - Modes (without setuid, setgid and sticky) and modification times of files are restored; directories get the recorded mode
- *   but at least `u+rwx`, so that the extraction can go on; their modification times are not restored (they change with every
- *   file created in them). Ownership stays that of the PHP user.
- *
- * State: `parts`, `root`, `database`, `protected`, `part`, `index`, `position`, `current` (null, or the byte reached in the
- * stored entry in progress), `files` (below `files/`), `databaseFiles` (SQL files), `directories`, `bytes`, `ignored`, `warnings`, and `entries`/`total` for the progress.
+ * - **Safe by construction:** {@see ZipReader} checks the names (no absolute paths, `..`, NUL, backslashes); in addition no existing
+ *   symbolic link inside the root is ever followed, a file never replaces a directory, and the paths in `protected` (the restore tool and
+ *   its work directory) are never written, whatever the archive says.
+ * - **Resumable:** a tick ends between two entries; the state holds the part, the index and the position of the next central-directory
+ *   record. A big *stored* entry continues at the byte it reached (the target is cut back to that length first); a *deflated* entry cannot
+ *   continue in the middle, so it is finished in the tick that began it even if that exceeds the budget (restarting it would never get
+ *   further). The pure PHP reader inflates 15-364 MB/s, so only a single file of hundreds of MB can exceed a web request.
+ * - **Exact:** every entry is checked against its CRC32 and size while it is written. Modes (without setuid, setgid and sticky) and
+ *   modification times of files are restored; directories get the recorded mode but at least `u+rwx` and no modification time (it changes
+ *   with every file created in them). Ownership stays that of the PHP user.
  */
 final class Extractor
 {

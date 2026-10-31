@@ -12,32 +12,11 @@ use ThreadSafe\Archive\ZipException;
 use ThreadSafe\Archive\ZipReader;
 
 /**
- * What a backup is, written into its last archive part as `threadsafe.json` and, with sizes and checksums of the parts,
- * into the sidecar file. It contains no secret: no database host, user or password, no absolute path of the server.
+ * What a backup is, written into its last archive part as `threadsafe.json` and, with sizes and checksums of the parts, into the sidecar
+ * file (the format is in docs/BACKUP.md). It contains no secret: no database host, user or password, no absolute path of the server.
  *
- * ```json
- * {
- *     "format": 1,
- *     "backupId": "shop_20261020-123456_ab12cd34",
- *     "toolVersion": "0.0.0-dev",
- *     "profile": {"id": "shop", "name": "Webshop"},
- *     "type": "prestashop9",
- *     "application": {"name": "PrestaShop", "version": "9.0.2"},
- *     "php": "8.4.2",
- *     "database": {"server": "mariadb", "version": "10.11.6", "driver": "pdo", "name": "shop", "prefix": "ps_", "charset": "utf8mb4", "collations": ["utf8mb4_general_ci"]},
- *     "consistency": "snapshot",
- *     "extras": {...},
- *     "filters": {"excludePaths": [...], "structureOnlyTables": [...], "literalExcludes": [...]},
- *     "counts": {"files": 0, "directories": 0, "fileBytes": 0, "tables": 0, "rows": 0, "databaseBytes": 0},
- *     "parts": [{"file": "shop_..._ab12cd34.zip", "entries": 0}],
- *     "started": "2026-10-20T12:34:56Z", "finished": "2026-10-20T12:40:00Z",
- *     "warnings": [], "unsupportedObjects": [{"type": "function", "name": "f"}]
- * }
- * ```
- *
- * `database` is empty for a site without a database; `consistency` is `snapshot`, `table` or `none`. The manifest lists the
- * parts by name and entry count; their sizes and SHA-256 sums cannot be inside the part they describe, they are in the
- * sidecar file.
+ * `database` is empty for a site without a database; `consistency` is `snapshot`, `table` or `none`. The manifest lists the parts by name
+ * and entry count; their sizes and SHA-256 sums cannot be inside the part they describe, so they are only in the sidecar file.
  */
 final readonly class Manifest
 {

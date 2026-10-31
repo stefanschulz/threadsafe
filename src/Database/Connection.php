@@ -59,7 +59,6 @@ final class Connection
         return $this->driver->name();
     }
 
-    /** The version string the server reported. */
     public function serverVersion(): string
     {
         return $this->server->raw;

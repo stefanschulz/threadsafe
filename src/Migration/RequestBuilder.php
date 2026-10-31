@@ -11,25 +11,13 @@ use ThreadSafe\Database\DatabaseSettings;
 use ThreadSafe\Replace\DomainMapping;
 
 /**
- * Turns plain settings (from command line options and/or a JSON request file) into a {@see MigrationRequest}. The
- * settings every website type understands are handled here; a website type adds its own through three hooks.
+ * Turns plain settings (command line options and/or a JSON request file) into a {@see MigrationRequest}. The settings every website type
+ * understands are handled here (`root`, `from`, `to`, `domains`, `serverPath`, `database`, `replaceBare`, `skipTables`, `chunkSize`,
+ * `selfTest`, `selfTestUrl`, `selfTestInsecure`; their meaning is in docs/MIGRATE.md); a website type adds its own through three hooks.
+ * `from` and every part of `database` default to what the website type reads from the installation.
  *
- * Common settings (all optional except `root`):
- *   root          string   directory of the installation
- *   from, to      string   old and new domain; `from` defaults to what the website type finds out
- *   domains       list     further mappings, each "old=new" or {"from": …, "to": …}
- *   serverPath    string   where the web server sees the installation, if different from root
- *   database      object   host, port, name, user, password, passwordFile, prefix – each defaults to what the website type
- *                          reads from the installation – and driver: auto (default), pdo or mysqli
- *   replaceBare   bool     also replace bare domain names
- *   skipTables    list     extra tables to skip
- *   chunkSize     int      rows per chunk
- *   selfTest      bool     check the migrated site over HTTP at the end (default true)
- *   selfTestUrl   string   address the web server answers on, if not the site's domain, e.g. http://web (scheme, host, port)
- *   selfTestInsecure bool  do not verify TLS certificates in the self-test
- *
- * The database password is never taken from a plain setting on the command line: use `passwordFile`, the
- * environment variable THREADSAFE_DB_PASSWORD, or put it in the request file.
+ * The database password is never taken from a plain setting on the command line: use `passwordFile`, the environment variable
+ * THREADSAFE_DB_PASSWORD, or the request file.
  */
 abstract class RequestBuilder
 {

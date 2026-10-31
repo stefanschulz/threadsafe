@@ -34,20 +34,18 @@ use ThreadSafe\Storage\SpaceCheck;
 /**
  * The backup of one site profile as a task that works in ticks (see {@see Task}).
  *
- * Phases: **init** (test the profile, make the storage ready, name the backup) -> **scan** (list the files in the order of
- * the archive) -> space check -> **dump** (the database into SQL files in the work directory) -> **pack** (files, then dump
- * files, into archive parts) -> **finale** (manifest into the last part, sidecar file, confirm, clean up). A phase that is
- * not finished when the budget runs out continues in the next tick; with an unlimited budget (the command line) one tick
- * does everything, which is what lets the database dump run inside one consistent snapshot.
+ * Phases: **init** (test the profile, make the storage ready, name the backup), **scan** (list the files in archive order), space check,
+ * **dump** (the database into SQL files in the work directory), **pack** (files, then dump files, into archive parts), **finale** (manifest
+ * into the last part, sidecar file, confirm, clean up). With an unlimited budget (the command line) one tick does everything, which is what
+ * lets the dump run inside one consistent snapshot.
  *
- * **Encrypted backups** (the profile has public keys, or the run has a passphrase; docs/PHASE5.md 3.5) write each part into the work
- * directory and seal it into the `age` format (`<part>.zip.age`) as soon as it is closed, in ticks ({@see PartSealer}); the last part
- * is closed in the phase **close** (with the manifest) and sealed in **seal**; the sidecar file is the minimal one.
+ * **Encrypted backups** (the profile has public keys, or the run has a passphrase; docs/PHASE5.md 3.5): each part is written into the work
+ * directory and sealed into the `age` format (`<part>.zip.age`) as soon as it is closed, in ticks ({@see PartSealer}). The last part is
+ * closed in the phase **close** (with the manifest) and sealed in **seal**; the sidecar file is the minimal one.
  *
- * The state holds no secret, except for an encrypted backup: its file key (while a part is being sealed) and a passphrase typed for
- * this run, both in the 0600 file of the run, blanked when the run is done. The profile is loaded from its store in every tick and
- * must not change while the run lasts. A run that fails is cleaned up by {@see abandon()}; one whose process dies is continued from its
- * saved state.
+ * The state holds no secret, except for an encrypted backup: its file key (while a part is being sealed) and a passphrase typed for this
+ * run, both in the 0600 file of the run and blanked when it is done. The profile is loaded from its store in every tick and must not change
+ * while the run lasts. A run that fails is cleaned up by {@see abandon()}; one whose process dies is continued from its saved state.
  */
 final class BackupRun implements Task
 {

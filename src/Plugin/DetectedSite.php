@@ -27,7 +27,6 @@ final readonly class DetectedSite
         return $this->version === null ? $this->application : $this->application . ' ' . $this->version;
     }
 
-    /** A string detail, or null. */
     public function detail(string $key): ?string
     {
         $value = $this->details[$key] ?? null;

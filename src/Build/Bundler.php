@@ -7,15 +7,14 @@ namespace ThreadSafe\Build;
 use RuntimeException;
 
 /**
- * Turns a set of PHP source files into one: each file becomes a `namespace X { ... }` block, in an order in which every class
- * comes after the classes it extends, implements or uses as a trait. Needs no autoloader and no Composer where it runs, and
- * behaves like the original (the unit suite runs against the bundle, `composer test:bundle`).
+ * Turns a set of PHP source files into one: each file becomes a `namespace X { ... }` block, in an order in which every class comes after
+ * the classes it extends, implements or uses as a trait. It needs no autoloader and no Composer where it runs and behaves like the original
+ * (the unit suite runs against the bundle, `composer test:bundle`).
  *
- * Token-based, no regular expressions on source text. What it understands: one `namespace X;` per file, `use` imports (also
- * `use function` and `use const`, which stay in the block), classes, interfaces, traits, enums, anonymous classes, attributes.
- * What it refuses with a message, instead of producing a bundle that fails later: grouped imports (`use A\{B, C}`), files with
- * no namespace, circular inheritance. Only inheritance orders the files; everything else (constants, default values, `new`) is
- * evaluated when the code runs, when all classes exist.
+ * Token-based, no regular expressions on source text. It understands one `namespace X;` per file, `use` imports (also `use function` and
+ * `use const`, which stay in the block), classes, interfaces, traits, enums, anonymous classes and attributes. It refuses with a message,
+ * instead of producing a bundle that fails later, grouped imports (`use A\{B, C}`), files with no namespace and circular inheritance. Only
+ * inheritance orders the files; everything else (constants, default values, `new`) is evaluated when the code runs, when all classes exist.
  *
  * The bundle keeps `declare(strict_types=1)` once at its top, which holds for every file in it: the sources all use it.
  */

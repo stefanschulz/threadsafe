@@ -8,14 +8,14 @@ use ThreadSafe\Core\AtomicFile;
 
 /**
  * Keeps the restore tool reachable while the restored `.htaccess` is in place. The `.htaccess` of a restored site is meant for the site: a
- * security extension (Admin Tools of Akeeba, for one) refuses every direct request for a PHP file except `index.php`, and that includes
- * `threadsafe-restore.php`, the page that carries the restore through. From the moment the file is unpacked the next step answers "Access forbidden" and
- * the restore stops, with nothing left to press the button of deleting the tool with. So a block at the top of the file lets the tool through
- * (`RewriteRule ^threadsafe-restore\.php$ - [L]` ends the rewriting before any rule of the site can refuse it); the tool takes the block out again when it is
- * deleted.
+ * security extension (Admin Tools of Akeeba, for one) refuses every direct request for a PHP file except `index.php`,
+ * `threadsafe-restore.php` included, and from the moment the file is unpacked the next step answers "Access forbidden" and the restore
+ * stops with nothing left to press the button of deleting the tool with. So a block at the top of the file lets the tool through
+ * (`RewriteRule ^threadsafe-restore\.php$ - [L]` ends the rewriting before any rule of the site can refuse it); the tool takes the block
+ * out again when it is deleted.
  *
  * Only the rules of `mod_rewrite` are met this way, which is what such extensions write; a server that refuses PHP files in another way is
- * not. The block is made by {@see protect()} each time an `.htaccess` has been written, so that it is there at every step.
+ * not. {@see protect()} makes the block each time an `.htaccess` has been written, so that it is there at every step.
  */
 final class ToolGuard
 {

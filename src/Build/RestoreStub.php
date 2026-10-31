@@ -5,18 +5,18 @@ declare(strict_types=1);
 namespace ThreadSafe\Build;
 
 /**
- * The first part of `threadsafe-restore.php`: the only part that every PHP version has to be able to read. It is written in the syntax of PHP
- * 5.2 - no namespaces, closures, short arrays, `__DIR__`, `?:` or types, and no name with a backslash in it - because a parse
- * error in an old PHP would show nothing but a white page. It
+ * The first part of `threadsafe-restore.php`: the only part that every PHP version has to be able to read. It is written in the syntax of
+ * PHP 5.2 (no namespaces, closures, short arrays, `__DIR__`, `?:` or types, no name with a backslash) because a parse error in an old PHP
+ * would show nothing but a white page. It
  *
  * 1. refuses to go on below PHP 8.4, with a message that says what to do;
- * 2. on the web, shows an explanation and writes nothing as long as the key file is missing (docs/PHASE3.md 3.2);
- * 3. unpacks the payload behind `__halt_compiler()` once - the bundled code and the plugin files the code reads from disk - into
- *    `.threadsafe-restore/` (mode 0700, closed to the web), keyed by size and time of the file so that a new upload unpacks anew;
+ * 2. on the web, explains and writes nothing as long as the key file is missing (docs/PHASE3.md 3.2);
+ * 3. unpacks the payload behind `__halt_compiler()` once into `.threadsafe-restore/` (mode 0700, closed to the web), keyed by size and time
+ *   of the file so that a new upload unpacks anew: `bundle.php` is the code, every other file goes below `program/`, which
+ *   THREADSAFE_PROGRAM_DIR names;
  * 4. loads the bundle and hands over to {@see \ThreadSafe\Web\Entry}.
  *
- * Payload (after the stub, deflated): for each file `<name> TAB <size> LF <bytes>`; the file `bundle.php` is the code, every other
- * one is written below `.threadsafe-restore/program/`, which is what THREADSAFE_PROGRAM_DIR names.
+ * The payload (after the stub, deflated) is, for each file, `<name> TAB <size> LF <bytes>`.
  */
 final class RestoreStub
 {

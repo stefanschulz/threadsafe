@@ -19,16 +19,16 @@ use ThreadSafe\Profile\CheckLevel;
 /**
  * The update from a package as a task in ticks (docs/PHASE7.md 3.5):
  *
- *   1. **verify:** the SHA-256 of the file is the one the person typed; the manifest is read; the version is newer (or an older one was
- *      asked for); the data is not newer than the package writes; this host meets its requirements. Nothing has changed yet.
- *   2. **extract:** the package into `releases/<version>.partial/`, every file checked against the manifest ({@see Unpacker}). The running
- *      program is not touched.
- *   3. **switch:** nothing may be running; a copy of the state files; the release gets its name; the pointer is written (the old release
- *      becomes `previous`); the health check asks the new version to answer. If it does not, **the pointer goes back and the copy is put
- *      back**, and the run finishes with `rolledBack` in its result. If it does, the old releases beyond the previous one are removed.
+ * 1. **verify:** the SHA-256 of the file is the one the person typed; the manifest is readable; the version is newer (or an older one was
+ *   asked for); the data is not newer than the package writes; this host meets its requirements. Nothing has changed yet.
+ * 2. **extract:** the package into `releases/<version>.partial/`, every file checked against the manifest ({@see Unpacker}). The running
+ *   program is not touched.
+ * 3. **switch:** nothing may be running; a copy of the state files; the release gets its name; the pointer is written (the old release
+ *   becomes `previous`); the health check asks the new version to answer. If it does not, **the pointer goes back and the copy is put
+ *   back**, and the run finishes with `rolledBack` in its result. If it does, the old releases beyond the previous one are removed.
  *
- * A failure in 1 to 3 before the pointer is written leaves the installation as it was (the run fails with the message; a half-unpacked
- * directory is removed by the next start). No code of the package runs before the checks of 1 and 2 have passed.
+ * A failure in 1 to 3 before the pointer is written leaves the installation as it was (a half-unpacked directory is removed by the next
+ * start). No code of the package runs before the checks of 1 and 2 have passed.
  */
 final class UpdateRun implements Task
 {

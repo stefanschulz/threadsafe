@@ -18,19 +18,11 @@ use ThreadSafe\PrestaShop9\Exception\InvalidParametersFile;
 use ThreadSafe\PrestaShop9\Modules\ModuleRules;
 
 /**
- * The request builder for PrestaShop 9: the common settings ({@see BaseRequestBuilder}) plus
+ * The request builder for PrestaShop 9: the common settings ({@see BaseRequestBuilder}) plus `path`, `ssl` (none, login, all), `mode`
+ * (production or dev: cut live mail, payment and cloud connections), `mailCatcher`, `devSkip` (ids of rules to leave out, see
+ * `plugins/prestashop9/resources/dev-mode.json`), `devRules`, `rulesDir` and `finalize` (docs/MIGRATE.md).
  *
- *   path          string   new base path, e.g. "/shop/"
- *   ssl           string   none | login | all
- *   mode          string   production (default) or dev: cut live mail, payment and cloud connections
- *   mailCatcher   string   dev mode: HOST or HOST:PORT of the SMTP server that receives all mail (default: no mail at all)
- *   devSkip       list     dev mode: ids of rules to leave out (see plugins/prestashop9/resources/dev-mode.json)
- *   devRules      string   dev mode: JSON file with more rules
- *   rulesDir      string   directory with the user's module rules (default: data/rules next to the program)
- *   finalize      bool     let PrestaShop clear its caches itself at the end (default true)
- *
- * Database values that are not given come from `app/config/parameters.php`; `from` defaults to the main domain in the
- * shop's database.
+ * Database values that are not given come from `app/config/parameters.php`; `from` defaults to the main domain in the shop's database.
  */
 final class RequestBuilder extends BaseRequestBuilder
 {

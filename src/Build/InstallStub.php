@@ -5,18 +5,18 @@ declare(strict_types=1);
 namespace ThreadSafe\Build;
 
 /**
- * The first part of `threadsafe-install.php`: the only part that every PHP version has to be able to read (docs/PHASE7.md 3.3). Like the stub of
- * `threadsafe-restore.php` it is written in the syntax of PHP 5.2 (no namespaces, closures, short arrays, `__DIR__`, `?:` or types, no name with a
- * backslash), because a parse error on an old PHP would show nothing but a white page. It
+ * The first part of `threadsafe-install.php`: the only part that every PHP version has to be able to read (docs/PHASE7.md 3.3). Like the
+ * stub of `threadsafe-restore.php` it is written in the syntax of PHP 5.2 (no namespaces, closures, short arrays, `__DIR__`, `?:` or types,
+ * no name with a backslash), because a parse error on an old PHP would show nothing but a white page. It
  *
  * 1. refuses to go on below PHP 8.4, with a message that says what to do;
  * 2. on the web, explains and writes nothing as long as the key file `threadsafe-install-key.php` is missing;
  * 3. unpacks the installer's code, which follows the line `__halt_compiler`, once into `.threadsafe-install/` (mode 0700, closed to the
- *    web), keyed by size and time of the file;
+ *   web), keyed by size and time of the file;
  * 4. loads that code and hands over to {@see \ThreadSafe\Install\Entry}.
  *
- * Behind the line `__halt_compiler();` come the length of the deflated code and a line feed, the deflated code, and then the release
- * package, a ZIP archive whose offsets are shifted by everything before it ({@see ZipShift}).
+ * Behind `__halt_compiler();` come the length of the deflated code and a line feed, the deflated code, and then the release package, a ZIP
+ * archive whose offsets are shifted by everything before it ({@see ZipShift}).
  */
 final class InstallStub
 {

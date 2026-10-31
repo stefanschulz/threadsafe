@@ -7,23 +7,19 @@ namespace ThreadSafe\Archive;
 use HashContext;
 
 /**
- * Writes one part of a backup archive as a standard ZIP file, in steps that can span PHP processes.
+ * Writes one part of a backup archive as a standard ZIP file, in steps that can span PHP processes. It knows nothing about backups: the
+ * caller adds entries and decides when to roll over to the next part ({@see needsRollover()}).
  *
- * - **Streaming:** local headers carry the "data descriptor" flag, so an entry is written without knowing its size or CRC in
- *   advance; the central directory is collected in a side file and appended when the part is closed.
- * - **Fixed blocks:** the data of an entry is handed over in blocks of exactly {@see BLOCK} bytes (the last one shorter).
- *   Each block is compressed on its own as a raw deflate stream ended with a full flush, the last one with a finish; the
- *   concatenation is one valid deflate stream. Because the block size never depends on when a tick ends, the archive is
- *   byte-identical however the work was cut into ticks (verified by the tests).
- * - **Resumable:** {@see state()} returns everything needed to go on in a new process (offsets, the CRC and SHA-256 hash
- *   contexts as serialised data); {@see resume()} truncates the file to the saved offset, so bytes a dead process wrote after the
- *   last saved state are dropped.
- * - **ZIP64:** an entry whose size is unknown or large gets ZIP64 records; the end records switch when counts or offsets
- *   exceed the classic limits. `forceZip64` makes every entry and the end records use them (for tests).
- * - **Atomic:** the part is written as `<path>.part` and renamed to `<path>` when it is closed; {@see PartInfo} carries its SHA-256.
- *
- * The writer knows nothing about backups: it adds entries. Rolling over to the next part is the caller's decision
- * ({@see needsRollover()}); it closes this writer and creates the next.
+ * - **Streaming:** local headers carry the "data descriptor" flag, so an entry is written without knowing its size or CRC in advance; the
+ *   central directory is collected in a side file and appended when the part is closed.
+ * - **Fixed blocks:** entry data comes in blocks of exactly {@see BLOCK} bytes (the last shorter); each block is a raw deflate stream ended
+ *   with a full flush (the last one with a finish), and the concatenation is one valid deflate stream. The block size never depends on when
+ *   a tick ends, so the archive is byte-identical however the work was cut into ticks (tested).
+ * - **Resumable:** {@see state()} holds everything needed to go on in a new process (offsets, the CRC and SHA-256 contexts as serialised
+ *   data); {@see resume()} truncates the file to the saved offset, dropping what a dead process wrote after the last saved state.
+ * - **ZIP64** for an entry of unknown or large size, and in the end records when counts or offsets exceed the classic limits; `forceZip64`
+ *   uses it everywhere (tests).
+ * - **Atomic:** written as `<path>.part` and renamed when closed; {@see PartInfo} carries the SHA-256.
  */
 final class ZipWriter
 {

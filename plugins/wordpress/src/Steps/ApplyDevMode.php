@@ -19,21 +19,20 @@ use ThreadSafe\WordPress\State;
 /**
  * Dev mode, a small first cut (docs/PHASE9.md 3.6): a copy for development or staging that sends no mail and keeps search engines out.
  *
- *  - the option **`blog_public`** is set to 0 ("discourage search engines": WordPress then adds the robots meta tag and a `Disallow: /` to its
- *    own `robots.txt`; a physical `robots.txt` is not made, because the site's own would be hidden by it);
- *  - a block at the top of **`.htaccess`** sends `X-Robots-Tag: noindex, nofollow` with every response (a page that a search engine already
- *    knows is only dropped by a noindex); `.htaccess` is made if the site has none;
- *  - the **must-use plugin** `wp-content/mu-plugins/threadsafe-dev.php` stops `wp_mail()` (the filter `pre_wp_mail`) and shows a notice in the
- *    administration that this is a copy. There is no setting for outgoing mail, and a must-use plugin needs no knowledge of the mail plugins
- *    that send through `wp_mail()`; a plugin that talks to a mail service on its own is not stopped.
+ * - **`blog_public`** is set to 0 (WordPress then adds the robots meta tag and a `Disallow: /` to its own `robots.txt`; a physical
+ *   `robots.txt` is not made, because it would hide the site's own).
+ * - A block at the top of **`.htaccess`** sends `X-Robots-Tag: noindex, nofollow` (a page that a search engine already knows is only
+ *   dropped by a noindex); `.htaccess` is made if the site has none.
+ * - The **must-use plugin** `wp-content/mu-plugins/threadsafe-dev.php` stops `wp_mail()` (the filter `pre_wp_mail`) and shows a notice in
+ *   the administration that this is a copy. There is no setting for outgoing mail, and a must-use plugin needs no knowledge of the mail
+ *   plugins that send through `wp_mail()`; a plugin that talks to a mail service on its own is not stopped.
+ * - **WooCommerce webhooks** (`wc_webhooks`) that are `active` are set to `paused`: the next order, product or customer event on the copy
+ *   would otherwise post to the CRM or accounting tool that the live shop posts to (field test in Docker). A paused webhook delivers
+ *   nothing, also what was queued; it is switched on again under WooCommerce > Settings > Advanced > Webhooks.
  *
- *  - the **webhooks of WooCommerce** (the table `wc_webhooks`) that are `active` are set to `paused`: the next order, product or customer event on
- *    the copy would otherwise post to the other service (a CRM, an accounting tool) that the live shop posts to (field test in Docker). A paused
- *    webhook delivers nothing, also what was queued before; it is switched on again under WooCommerce > Settings > Advanced > Webhooks.
- *
- * The step says in words what it does not do: payment gateways in live mode and the keys of other services are plugin knowledge, and nothing
- * else is switched off by guess. In a migration that is not dev mode, a copy that carries the must-use plugin is reported (a backup of a dev copy
- * holds it, and a restore of that backup in production would go on keeping mail back).
+ * The step says in words what it does not do: payment gateways in live mode and the keys of other services are plugin knowledge, and
+ * nothing else is switched off by guess. In a migration that is not dev mode, a copy that carries the must-use plugin is reported (a
+ * restore of the backup of a dev copy would otherwise go on keeping mail back).
  */
 final class ApplyDevMode implements Step
 {

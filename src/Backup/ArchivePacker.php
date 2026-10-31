@@ -14,22 +14,20 @@ use ThreadSafe\Storage\LocalStorage;
 /**
  * Puts the files of the site and the dump files into the archive parts, in steps that can span PHP processes.
  *
- * Layout of the archive: every part starts with `threadsafe-part.json`; then come `files/<path>` (directories as entries of
- * their own, in the order of the scan), then `db/<file>.sql`; the last part ends with `threadsafe.json`. A new part starts
- * when `partSize` is set and the next entry would not fit; an entry is never split, so a file larger than the part size gets
- * a part of its own.
+ * Layout: every part starts with `threadsafe-part.json`, then `files/<path>` (directories as entries of their own, in scan order), then
+ * `db/<file>.sql`; the last part ends with `threadsafe.json`. A new part starts when `partSize` is set and the next entry would not fit; an
+ * entry is never split, so a file larger than the part size gets a part of its own.
  *
- * A file is handed to the writer in blocks of {@see ZipWriter::BLOCK}; a tick may end between two blocks, and the next one
- * opens the source again at the offset the state remembers. The tail of the work is therefore always at a block boundary and
- * the archive is the same however the ticks were cut.
+ * A file goes to the writer in blocks of {@see ZipWriter::BLOCK}; a tick may end between two blocks and the next one opens the source again
+ * at the remembered offset, so the archive is the same however the ticks were cut.
  *
- * **Encrypted backups** (`$plainDirectory` given): the parts are written to that directory (the work directory, closed to the web like
- * the storage) under their plain names, the manifest names the parts by their sealed names (`.zip.age`), and `pack()` returns each time a
- * part has been closed, so that the caller can seal it and delete the plain part before the next one grows: at most one plain part is on
- * the disk at a time.
+ * **Encrypted backups** (`$plainDirectory` given): the parts are written to that directory (the work directory, closed to the web like the
+ * storage) under their plain names, the manifest names them by their sealed names (`.zip.age`), and `pack()` returns each time a part has
+ * been closed, so that the caller can seal it and delete the plain part before the next one grows: at most one plain part is on the disk at
+ * a time.
  *
- * Trouble with single files is never fatal: a file that cannot be opened is skipped, one that disappears or shrinks while it
- * is read is stored as far as it was read; each case is a warning in the state.
+ * Trouble with single files is never fatal: a file that cannot be opened is skipped, one that disappears or shrinks while it is read is
+ * stored as far as it was read; each case is a warning in the state.
  */
 final class ArchivePacker
 {

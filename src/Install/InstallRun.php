@@ -15,13 +15,13 @@ use ThreadSafe\Web\StateDirectory;
 /**
  * The installation as a task in ticks (docs/PHASE7.md 3.3), so that it fits the time limit of a request and goes on after a cut-off:
  *
- *   1. **prepare:** the home and its directories (`releases/`, `data/` closed to the web, `bin/`);
- *   2. **extract:** the package into `releases/<version>.partial/`, entry by entry, each file checked against its size and SHA-256 in
- *      `release.json` while it is written; a file that is not in the manifest, a path that leaves the directory or an entry that is no
- *      plain file stops the installation;
- *   3. **finish:** the release gets its name, then `bin/threadsafe`, the stub and `.htaccess` of the document root, the setup key and,
- *      **last**, the pointer `current.php`. Until the pointer exists the stub says that nothing is installed, so a cut-off leaves nothing
- *      that half works.
+ * 1. **prepare:** the home and its directories (`releases/`, `data/` closed to the web, `bin/`);
+ * 2. **extract:** the package into `releases/<version>.partial/`, each file checked against its size and SHA-256 in `release.json` while it
+ *   is written; a file that is not in the manifest, a path that leaves the directory or an entry that is no plain file stops the
+ *   installation;
+ * 3. **finish:** the release gets its name, then `bin/threadsafe`, the stub and `.htaccess` of the document root, the setup key and,
+ *   **last**, the pointer `current.php`. Until the pointer exists the stub says that nothing is installed, so a cut-off leaves nothing that
+ *   half works.
  *
  * Every step can be repeated: the state remembers where the extraction was, and a file that was cut off is written again.
  */
