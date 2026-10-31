@@ -23,6 +23,7 @@ final class Config
         'web.enabled' => ['bool', false, null, null],
         'web.prettyUrls' => ['bool', true, null, null],
         'web.sessionIdleMinutes' => ['int', 120, 5, 1440],
+        'web.requireTwoFactor' => ['bool', false, null, null],
         'download.warnAbove' => ['int', 524288000, 1048576, null],
         'download.accel' => ['enum', 'none', null, ['none', 'sendfile', 'nginx']],
         'download.accelPrefix' => ['prefix', '', null, null],
@@ -98,6 +99,12 @@ final class Config
     public function prettyUrls(): bool
     {
         return $this->get('web.prettyUrls') === true;
+    }
+
+    /** Whether a login without a second factor reaches the Security page and nothing else (docs/PHASE11.md 3.7). */
+    public function requireTwoFactor(): bool
+    {
+        return $this->get('web.requireTwoFactor') === true;
     }
 
     public function sessionIdleSeconds(): int

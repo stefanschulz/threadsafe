@@ -8,6 +8,8 @@ use ThreadSafe\Admin\AdminStore;
 use ThreadSafe\Admin\AuditLog;
 use ThreadSafe\Admin\Config;
 use ThreadSafe\Admin\ConfigException;
+use ThreadSafe\Auth\TwoFactorException;
+use ThreadSafe\Auth\TwoFactorStore;
 use ThreadSafe\App\TriggerHelp;
 use ThreadSafe\Core\Exception\GuardFailed;
 use ThreadSafe\Core\ExitCode;
@@ -42,7 +44,7 @@ final class AdminCommand implements Command
 
     public function usage(): string
     {
-        return 'admin password [--password-file=FILE] | enable | disable | status | set KEY VALUE | cron-secret [--show | --remove]';
+        return 'admin password [--password-file=FILE] | enable | disable | status | set KEY VALUE | cron-secret [--show | --remove] | two-factor [status | --disable]';
     }
 
     public function options(): array
@@ -52,13 +54,18 @@ final class AdminCommand implements Command
             new OptionSpec('json', 'status: output as JSON'),
             new OptionSpec('show', 'cron-secret: show the secret of the trigger address again, make none'),
             new OptionSpec('remove', 'cron-secret: remove the secret, so that the trigger address no longer exists'),
+            new OptionSpec('disable', 'two-factor: switch the second factor of the login off (the way back when the phone is lost)'),
         ];
     }
 
     public function run(Input $input, Output $output): ExitCode
     {
         $action = $input->argument(0) ?? throw new UsageError('Say what to do: password, enable, disable, status or set.');
-        $allowed = $action === 'set' ? 3 : 1;
+        $allowed = match ($action) {
+            'set' => 3,
+            'two-factor' => 2,
+            default => 1,
+        };
         if (count($input->arguments()) > $allowed) {
             throw new UsageError('Unexpected argument "' . $input->arguments()[$allowed] . '".');
         }
@@ -71,8 +78,9 @@ final class AdminCommand implements Command
                 'disable' => $this->enable($data, false, $output),
                 'status' => $this->status($data, $input, $output),
                 'cron-secret' => $this->cronSecret($data, $input, $output),
+                'two-factor' => $this->twoFactor($data, $input, $output),
                 'set' => $this->set($data, $input->argument(1) ?? throw new UsageError('admin set needs a setting and a value, e.g. schedule.timezone Europe/Berlin ("admin status" lists the settings).'), $input->argument(2) ?? throw new UsageError('admin set needs a value after the setting (an empty one is written as "").'), $output),
-                default => throw new UsageError("Unknown action \"$action\" (password, enable, disable, status, set)."),
+                default => throw new UsageError("Unknown action \"$action\" (password, enable, disable, status, set, cron-secret, two-factor)."),
             };
         } catch (ConfigException $e) {
             throw new GuardFailed($e->getMessage(), 0, $e);
@@ -152,6 +160,74 @@ final class AdminCommand implements Command
         return ExitCode::Ok;
     }
 
+    /**
+     * `admin two-factor [status]` tells whether the second factor of the login is on; `--disable` switches it off, which is the way back when
+     * the phone is lost and the recovery codes are gone (docs/PHASE11.md 3.5). Switching it on is done in the browser only, so that the key
+     * is never on a terminal or in a log. A damaged file does not stop `--disable`: it is the thing that is removed.
+     */
+    private function twoFactor(string $data, Input $input, Output $output): ExitCode
+    {
+        $word = $input->argument(1);
+        if ($word !== null && $word !== 'status') {
+            throw new UsageError('two-factor takes "status" or --disable (switching it on is done on the Security page).');
+        }
+        if ($input->has('disable') && $word !== null) {
+            throw new UsageError('--disable and "status" contradict each other.');
+        }
+        $file = $data . '/two-factor.json';
+        $store = new TwoFactorStore($file);
+
+        if (!$input->has('disable')) {
+            $state = $this->twoFactorState($store);
+            $output->writeln('Second factor:  ' . $state['text']);
+            if ($state['damaged']) {
+                throw new GuardFailed('The file of the second factor cannot be read, so the web login is refused. Repair it, or run "admin two-factor --disable".');
+            }
+
+            return ExitCode::Ok;
+        }
+
+        try {
+            $was = $store->disable(AdminStore::DEFAULT_USER);
+            $damaged = false;
+        } catch (TwoFactorException) {
+            // a file that cannot be read is what is in the way: it goes
+            if (!@unlink($file) && is_file($file)) {
+                throw new GuardFailed("Cannot remove the file \"$file\". Delete it by hand.");
+            }
+            $was = true;
+            $damaged = true;
+        }
+        if (!$was) {
+            $output->writeln('The second factor was not on.');
+
+            return ExitCode::Ok;
+        }
+        StateDirectory::prepare($data);
+        (new AuditLog($data . '/audit.log', Config::load($data . '/config.json')->auditMaxBytes()))->record('twofactor.disabled', AdminStore::DEFAULT_USER, '', ['source' => 'command line']);
+        $output->writeln($damaged ? 'The file of the second factor was damaged and is removed. The second factor is off.' : 'The second factor is off. The login asks for the password only.');
+
+        return ExitCode::Ok;
+    }
+
+    /**
+     * @return array{on: bool, damaged: bool, text: string, enrolled: string|null, recoveryLeft: int}
+     */
+    private function twoFactorState(TwoFactorStore $store): array
+    {
+        try {
+            if (!$store->isOn(AdminStore::DEFAULT_USER)) {
+                return ['on' => false, 'damaged' => false, 'text' => 'off', 'enrolled' => null, 'recoveryLeft' => 0];
+            }
+            $enrolled = $store->enrolled(AdminStore::DEFAULT_USER);
+            $left = $store->recoveryLeft(AdminStore::DEFAULT_USER);
+
+            return ['on' => true, 'damaged' => false, 'text' => 'on' . ($enrolled !== null && $enrolled !== '' ? " since $enrolled" : '') . " ($left recovery " . ($left === 1 ? 'code' : 'codes') . ' left)', 'enrolled' => $enrolled, 'recoveryLeft' => $left];
+        } catch (TwoFactorException $e) {
+            return ['on' => false, 'damaged' => true, 'text' => 'DAMAGED (' . $e->getMessage() . ')', 'enrolled' => null, 'recoveryLeft' => 0];
+        }
+    }
+
     private function set(string $data, string $key, string $value, Output $output): ExitCode
     {
         StateDirectory::prepare($data);
@@ -166,9 +242,11 @@ final class AdminCommand implements Command
     private function status(string $data, Input $input, Output $output): ExitCode
     {
         $config = Config::load($data . '/config.json');
+        $second = $this->twoFactorState(new TwoFactorStore($data . '/two-factor.json'));
         $state = [
             'enabled' => $config->enabled(),
             'administrator' => (new AdminStore($data . '/admin.json'))->exists(),
+            'twoFactor' => ['on' => $second['on'], 'damaged' => $second['damaged'], 'enrolled' => $second['enrolled'], 'recoveryLeft' => $second['recoveryLeft']],
             'setupKeyFile' => is_file($data . '/setup-key.php'),
             'passwordAlgorithm' => AdminStore::algorithmName(),
             'settings' => $config->all(),
@@ -180,6 +258,7 @@ final class AdminCommand implements Command
         }
         $output->writeln('Web interface:  ' . ($state['enabled'] ? 'on' : 'off'));
         $output->writeln('Administrator:  ' . ($state['administrator'] ? 'set (' . $state['passwordAlgorithm'] . ')' : 'not set'));
+        $output->writeln('Second factor:  ' . $second['text']);
         if ($state['setupKeyFile']) {
             $output->writeln('Setup key file: present (the browser setup is open until an administrator exists; delete the file to close it)');
         }

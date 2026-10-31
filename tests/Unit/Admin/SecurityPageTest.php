@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace ThreadSafe\Tests\Unit\Admin;
 
 use PHPUnit\Framework\TestCase;
+use ThreadSafe\Admin\Config;
 use ThreadSafe\Auth\QrCode;
 use ThreadSafe\Auth\RecoveryCodes;
 use ThreadSafe\Auth\Totp;
@@ -364,6 +365,121 @@ final class SecurityPageTest extends TestCase
         self::assertSame(array_unique($ids[1]), $ids[1], 'no id twice on the page');
         self::assertStringContainsString('autocomplete="current-password"', $page);
         self::assertStringContainsString('If the phone is lost', $page);
+    }
+
+    private function require(): void
+    {
+        Config::load($this->browser->data . '/config.json')->with('web.requireTwoFactor', true)->save($this->browser->data . '/config.json');
+    }
+
+    public function testWhenTheFactorIsRequiredALoginWithoutOneReachesOnlyTheSecurityPage(): void
+    {
+        $this->require();
+
+        foreach (['/', '/profiles', '/schedule', '/system', '/about', '/new-profile'] as $route) {
+            $answer = $this->browser->get($route);
+            self::assertSame(303, $answer->status, $route);
+            self::assertSame('/security', $answer->header('Location'), $route);
+        }
+        self::assertSame('/security', $this->browser->post('/profiles', ['id' => 'x'])->header('Location'), 'a change is not reached either');
+        $page = $this->browser->get('/security');
+        self::assertSame(200, $page->status);
+        self::assertStringContainsString('This installation requires a second factor for the login.', $page->body);
+        self::assertStringContainsString('Set up the second factor', $page->body);
+        $script = $this->browser->send('GET', '/profiles', [], ['x-csrf-token' => 'x']);
+        self::assertSame(403, $script->status);
+        self::assertStringContainsString('requires a second factor', $script->body);
+    }
+
+    public function testWhenTheFactorIsRequiredItCanBeSetUpAndThenEverythingIsOpen(): void
+    {
+        $this->require();
+
+        $result = $this->switchOn();
+
+        self::assertCount(10, $result['codes']);
+        self::assertSame(200, $this->browser->get('/profiles')->status);
+        self::assertSame(200, $this->browser->get('/')->status);
+    }
+
+    public function testWhenTheFactorIsRequiredTheWayOutIsOpenToo(): void
+    {
+        $this->require();
+        $this->browser->get('/security');
+
+        self::assertSame('/login', $this->browser->post('/logout')->header('Location'));
+    }
+
+    public function testWithTheFactorOnNothingIsBlockedWhetherOrNotItIsRequired(): void
+    {
+        $this->browser->enableTwoFactor();
+        $this->browser->get('/login');
+        $this->browser->send('POST', '/login', ['user' => 'admin', 'password' => AdminBrowser::PASSWORD]);
+        $this->browser->send('POST', '/login/code', ['code' => $this->browser->code()]);
+        $this->require();
+
+        self::assertSame(200, $this->browser->get('/profiles')->status);
+    }
+
+    public function testAnotherPageOfTheFactorThatIsOffNeverBlocksWithoutTheRequirement(): void
+    {
+        self::assertSame(200, $this->browser->get('/profiles')->status);
+        self::assertSame(200, $this->browser->get('/system')->status);
+    }
+
+    public function testASecondFactorThatCannotBeReadDoesNotBlockTheSessionThatIsAlreadyIn(): void
+    {
+        $this->require();
+        file_put_contents($this->browser->data . '/two-factor.json', '{ damaged');
+
+        self::assertSame(200, $this->browser->get('/profiles')->status, 'the login refuses a damaged file; a session that is in is not locked out of its own repair');
+    }
+
+    public function testTheSystemPageWarnsWhileTheLoginIsOnePasswordAndNotAfterwards(): void
+    {
+        $off = $this->browser->get('/system')->body;
+        self::assertStringContainsString('The login has only a password.', $off);
+        self::assertMatchesRegularExpression('~<tr class="warning">.*?Second factor.*?The login has only a password~s', $off);
+
+        $this->switchOn();
+        $on = $this->browser->get('/system')->body;
+        self::assertStringNotContainsString('The login has only a password.', $on);
+        self::assertStringContainsString('asks for a code from an authenticator app', $on);
+    }
+
+    public function testTheSystemPageNamesADamagedFile(): void
+    {
+        file_put_contents($this->browser->data . '/two-factor.json', '{ damaged');
+
+        $page = $this->browser->get('/system')->body;
+
+        self::assertStringContainsString('not valid JSON', $page);
+        self::assertStringContainsString('The login is refused until it is repaired', $page);
+    }
+
+    public function testTheRequirementIsAChoiceOnTheSettingsPage(): void
+    {
+        $fields = ['idle' => '120', 'days' => '7', 'warn_mb' => '500', 'accel' => 'none', 'prefix' => '', 'audit_mb' => '5', 'pretty' => '1'];
+        self::assertStringContainsString('Require the second factor for every login', $this->browser->get('/system?tab=settings')->body);
+        self::assertStringNotContainsString('name="require_2fa" type="checkbox" value="1" checked', $this->browser->get('/system?tab=settings')->body);
+
+        $this->browser->enableTwoFactor(); // so that this login is not shut out by what it sets
+        $this->browser->post('/system/settings', $fields + ['require_2fa' => '1']);
+        self::assertTrue(Config::load($this->browser->data . '/config.json')->requireTwoFactor());
+        self::assertMatchesRegularExpression('~name="require_2fa"[^>]*checked~', $this->browser->get('/system?tab=settings')->body);
+
+        $this->browser->post('/system/settings', $fields);
+        self::assertFalse(Config::load($this->browser->data . '/config.json')->requireTwoFactor(), 'an unticked box switches it off again');
+    }
+
+    public function testTheRequirementIsInForceAtOnceForALoginWithoutAFactor(): void
+    {
+        $fields = ['idle' => '120', 'days' => '7', 'warn_mb' => '500', 'accel' => 'none', 'prefix' => '', 'audit_mb' => '5', 'pretty' => '1'];
+
+        $this->browser->get('/system?tab=settings');
+        $this->browser->post('/system/settings', $fields + ['require_2fa' => '1']);
+
+        self::assertSame('/security', $this->browser->get('/profiles')->header('Location'));
     }
 
     public function testEveryRouteOfThePageNeedsALogin(): void

@@ -8,6 +8,8 @@ use PHPUnit\Framework\TestCase;
 use ThreadSafe\Admin\AdminStore;
 use ThreadSafe\Admin\AuditLog;
 use ThreadSafe\Admin\Config;
+use ThreadSafe\Auth\RecoveryCodes;
+use ThreadSafe\Auth\TwoFactorStore;
 use ThreadSafe\Cli\AdminCommand;
 use ThreadSafe\Cli\Application;
 use ThreadSafe\Cli\BufferedOutput;
@@ -65,6 +67,94 @@ final class AdminCommandTest extends TestCase
         self::assertTrue((new AdminStore($this->data . '/admin.json'))->verify('admin', 'a long enough password'), 'the line break of the file is not part of it');
         self::assertFalse(Config::load($this->data . '/config.json')->enabled());
         self::assertStringContainsString('Require all denied', (string) file_get_contents($this->data . '/.htaccess'), 'the data directory is closed to the web');
+    }
+
+    private function switchTwoFactorOn(): void
+    {
+        (new TwoFactorStore($this->data . '/two-factor.json'))->enable('admin', 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ', RecoveryCodes::generate());
+    }
+
+    public function testTheSecondFactorIsOffUntilItIsSwitchedOnInTheBrowser(): void
+    {
+        [$code, $out] = $this->cli(['two-factor']);
+        [, $status] = $this->cli(['status']);
+        [, $json] = $this->cli(['status', '--json']);
+
+        self::assertSame(0, $code);
+        self::assertSame("Second factor:  off\n", $out);
+        self::assertStringContainsString('Second factor:  off', $status);
+        self::assertFalse(json_decode($json, true)['twoFactor']['on']);
+        self::assertSame(0, $this->cli(['two-factor', 'status'])[0]);
+        self::assertFileDoesNotExist($this->data . '/two-factor.json', 'asking writes nothing');
+    }
+
+    public function testTheStatusSaysSinceWhenAndHowManyRecoveryCodesAreLeft(): void
+    {
+        $this->switchTwoFactorOn();
+
+        [, $out] = $this->cli(['two-factor']);
+        [, $json] = $this->cli(['status', '--json']);
+
+        self::assertMatchesRegularExpression('/^Second factor:  on since \d{4}-\d\d-\d\dT[\d:]+Z \(10 recovery codes left\)$/', trim($out));
+        $state = json_decode($json, true)['twoFactor'];
+        self::assertTrue($state['on']);
+        self::assertSame(10, $state['recoveryLeft']);
+        self::assertStringNotContainsString('GEZDGNBV', $json . $out, 'the secret is never printed');
+    }
+
+    public function testDisableSwitchesTheSecondFactorOffAndWritesTheAuditLog(): void
+    {
+        $this->switchTwoFactorOn();
+
+        [$code, $out] = $this->cli(['two-factor', '--disable']);
+
+        self::assertSame(0, $code);
+        self::assertStringContainsString('The second factor is off.', $out);
+        self::assertFileDoesNotExist($this->data . '/two-factor.json');
+        $audit = (new AuditLog($this->data . '/audit.log'))->recent(1)[0];
+        self::assertSame('twofactor.disabled', $audit['event']);
+        self::assertSame('command line', $audit['source']);
+        self::assertStringContainsString('was not on', $this->cli(['two-factor', '--disable'])[1]);
+    }
+
+    public function testDisableRemovesAFileThatCannotBeReadAndStatusSaysItIsDamaged(): void
+    {
+        mkdir($this->data, 0700, true);
+        file_put_contents($this->data . '/two-factor.json', '{ damaged');
+
+        [$statusCode, $statusOut, $statusErr] = $this->cli(['two-factor']);
+        self::assertSame(2, $statusCode);
+        self::assertStringContainsString('DAMAGED', $statusOut);
+        self::assertStringContainsString('admin two-factor --disable', $statusErr);
+        self::assertTrue(json_decode($this->cli(['status', '--json'])[1], true)['twoFactor']['damaged']);
+
+        [$code, $out] = $this->cli(['two-factor', '--disable']);
+
+        self::assertSame(0, $code);
+        self::assertStringContainsString('was damaged and is removed', $out);
+        self::assertFileDoesNotExist($this->data . '/two-factor.json');
+    }
+
+    public function testTheSecondFactorCannotBeSwitchedOnFromTheCommandLine(): void
+    {
+        [$code, , $err] = $this->cli(['two-factor', 'enable']);
+
+        self::assertSame(1, $code);
+        self::assertStringContainsString('Security page', $err);
+        self::assertSame(1, $this->cli(['two-factor', 'status', '--disable'])[0]);
+        self::assertFileDoesNotExist($this->data . '/two-factor.json');
+    }
+
+    public function testTheRequirementIsASettingThatCanBeSetOnTheCommandLine(): void
+    {
+        self::assertFalse(Config::load($this->data . '/config.json')->requireTwoFactor());
+
+        [$code, $out] = $this->cli(['set', 'web.requireTwoFactor', 'true']);
+
+        self::assertSame(0, $code);
+        self::assertStringContainsString('web.requireTwoFactor is now true', $out);
+        self::assertTrue(Config::load($this->data . '/config.json')->requireTwoFactor());
+        self::assertStringContainsString('web.requireTwoFactor', $this->cli(['status'])[1]);
     }
 
     public function testThePasswordCanComeFromTheEnvironment(): void

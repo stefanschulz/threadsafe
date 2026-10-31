@@ -50,6 +50,7 @@ final class SystemController
         $values = [
             'idle' => trim((string) $request->post('idle')),
             'pretty' => $request->post('pretty') === '1' ? '1' : '0',
+            'require_2fa' => $request->post('require_2fa') === '1' ? '1' : '0',
             'days' => trim((string) $request->post('days')),
             'warn_mb' => trim((string) $request->post('warn_mb')),
             'accel' => trim((string) $request->post('accel')),
@@ -68,6 +69,7 @@ final class SystemController
         };
         $set('web.sessionIdleMinutes', $values['idle']);
         $set('web.prettyUrls', $values['pretty'] === '1');
+        $set('web.requireTwoFactor', $values['require_2fa'] === '1');
         $set('dashboard.warnAfterDays', $values['days']);
         $warn = self::megabytes($values['warn_mb'], 'Warn above', $errors);
         if ($warn !== null) {
@@ -266,6 +268,7 @@ final class SystemController
         $values ??= [
             'idle' => (string) $config->get('web.sessionIdleMinutes'),
             'pretty' => $config->prettyUrls() ? '1' : '0',
+            'require_2fa' => $config->requireTwoFactor() ? '1' : '0',
             'days' => (string) $config->get('dashboard.warnAfterDays'),
             'warn_mb' => self::trim((int) $config->get('download.warnAbove') / 1048576),
             'accel' => $config->downloadAccel(),
@@ -289,6 +292,7 @@ final class SystemController
             . View::field('grace', 'How late a scheduled backup may still be made up (minutes)', 'text', $values['grace'], ['inputmode' => 'numeric'], '1 to 10080. A scheduled time older than this is given up.')
             . View::field('interval', 'The trigger is meant to come every (minutes)', 'text', $values['interval'], ['inputmode' => 'numeric'], '1 to 1440; 1440 for a cron job that runs once a day. The warning on the dashboard comes when it stays away twice as long.')
             . View::select('cron_mode', 'How the trigger address works', ['auto' => 'Automatic (a worker process where the host allows it, otherwise one tick per call)', 'worker' => 'Start a worker process (the backup runs outside the request)', 'ticks' => 'One tick of work per call'], $values['cron_mode'], 'Only the address is affected; the command line trigger always works in one process.')
+            . View::checkbox('require_2fa', 'Require the second factor for every login', $values['require_2fa'] === '1', 'A login without a second factor then reaches only the Security page, where it can be set up, until one is on.')
             . View::checkbox('pretty', 'Use plain addresses (/profiles/shop)', $values['pretty'] === '1', 'Needs the rewrite rule of public/.htaccess (or the equivalent for nginx). If pages stop working after changing this, set "web.prettyUrls" to false in data/config.json.')
             . '<button type="submit">Save the settings</button>';
 

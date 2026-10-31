@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace ThreadSafe\Admin;
 
+use ThreadSafe\Auth\TwoFactorException;
 use ThreadSafe\Core\Environment;
 use ThreadSafe\Profile\Check;
 
@@ -34,11 +35,26 @@ final class SystemChecks
         return [
             ...$php,
             Environment::connection($https, $local),
+            $this->secondFactor(),
             ...$process,
             ...Environment::installation(),
             ...Environment::dataDirectory($this->services->data),
             ...Environment::profiles($this->services->data),
         ];
+    }
+
+    /** The second factor of the login: on, off (a warning: the login is one password) or a file that cannot be read. */
+    private function secondFactor(): Check
+    {
+        try {
+            if ($this->services->twoFactor->isOn(AdminStore::DEFAULT_USER)) {
+                return Check::ok('Second factor', 'The login asks for a code from an authenticator app after the password.');
+            }
+        } catch (TwoFactorException $e) {
+            return Check::failure('Second factor', $e->getMessage() . ' The login is refused until it is repaired (Security page).');
+        }
+
+        return Check::warning('Second factor', 'The login has only a password. Set up a second factor under Security: a code from an app on your phone then belongs to it.');
     }
 
     /**

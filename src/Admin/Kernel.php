@@ -7,6 +7,7 @@ namespace ThreadSafe\Admin;
 use Closure;
 use Throwable;
 use ThreadSafe\App\TriggerService;
+use ThreadSafe\Auth\TwoFactorException;
 use ThreadSafe\Core\Paths;
 use ThreadSafe\Core\Version;
 use ThreadSafe\Schedule\CronSecret;
@@ -246,6 +247,12 @@ final class Kernel
         if ($match === null) {
             return View::page($context, 'Not found', '<p>There is no such page.</p>', '', 404);
         }
+        if (!$public && $services !== null) {
+            $blocked = $this->secondFactorRequired($services, $context, $method, $route, $isScript);
+            if ($blocked !== null) {
+                return $blocked;
+            }
+        }
         if ($method === 'POST') {
             if (!Csrf::sameOrigin($request)) {
                 return $this->refuse($context, 'The request came from another site.', $isScript);
@@ -263,6 +270,34 @@ final class Kernel
         }
 
         return $response;
+    }
+
+    /**
+     * `web.requireTwoFactor` (docs/PHASE11.md 3.7): a login without a second factor reaches the page where one is set up, the way out, and
+     * nothing else. A file of the factor that cannot be read does not block here (the login refuses it already).
+     */
+    private function secondFactorRequired(Services $services, Context $context, string $method, string $route, bool $isScript): ?Response
+    {
+        if (!$services->config->requireTwoFactor() || in_array($method . ' ' . $route, ['GET /security', 'POST /security/start', 'POST /security/confirm', 'POST /security/cancel', 'POST /logout'], true)) {
+            return null;
+        }
+        try {
+            if ($services->twoFactor->isOn($context->user() ?? '')) {
+                return null;
+            }
+        } catch (TwoFactorException) {
+            return null;
+        }
+        $message = 'This installation requires a second factor for the login. Set it up here first.';
+        if ($isScript) {
+            return Response::json(['status' => 'refused', 'error' => $message], 403);
+        }
+        $context->flash('warning', $message);
+        if ($context->sessionToken !== null && $context->session !== null) {
+            $services->sessions->save($context->sessionToken, $context->session); // this answer leaves before the save of the end of run()
+        }
+
+        return Response::redirect($context->urls->to('/security'));
     }
 
     private function refuse(Context $context, string $message, bool $isScript): Response
