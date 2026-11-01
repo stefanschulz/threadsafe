@@ -378,6 +378,27 @@ final class BackupRunTest extends TestCase
         self::assertSame(BackupStatus::OkWithWarnings->value, $forced['status']);
     }
 
+    public function testAFileThatCannotBeReadIsStoredEmptyWithOneWarningNotTwo(): void
+    {
+        $executor = new Executor($this->runs, $this->task(), static fn (): Budget => new Budget(0.0));
+        $run = $executor->start(['profile' => 'blog']);
+        for ($i = 0; $i < 50; ++$i) {
+            $run = $executor->execute($run->id, 1);
+            if (($run->state['phase'] ?? '') === BackupState::PACK) {
+                break;
+            }
+        }
+        unlink($this->site . '/index.php'); // gone between the scan and the packing: the open fails like it does for a file the user may not read
+        $result = $this->finishedResult($executor->execute($run->id));
+
+        $warnings = Manifest::fromArchive($this->storage . '/' . $result['parts'][0])->warnings;
+        $about = array_values(array_filter($warnings, static fn (string $w): bool => str_ends_with($w, ': /index.php')));
+        self::assertCount(1, $about, implode("\n", $warnings));
+        self::assertStringStartsWith('Stored empty, the file cannot be read', $about[0]);
+        self::assertStringNotContainsString('changed while it was backed up', implode("\n", $warnings), 'the size that differs is the same trouble, not a second one');
+        self::assertSame(BackupStatus::OkWithWarnings->value, $result['status']);
+    }
+
     public function testAFileThatChangesWhileTheRunLastsIsAWarning(): void
     {
         $executor = new Executor($this->runs, $this->task(), static fn (): Budget => new Budget(0.0));

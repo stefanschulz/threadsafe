@@ -6,6 +6,10 @@ of the GitHub release (see "Making a release" in [AGENTS.md](AGENTS.md)).
 
 ## [Unreleased]
 
+### Fixed
+
+- A file that the backup cannot read gave **two warnings** that contradicted each other: "Stored empty, the file cannot be read" and then "The file changed while it was backed up (read 0 bytes, N when scanned)". Only the first, which names the cause, is given now; a change while a file is read still gets its own warning. [docs/BACKUP.md](docs/BACKUP.md) says what usually makes a file unreadable and what to do.
+
 ## [0.9.0-beta.4] - 2026-10-31
 
 The web login can have a **second factor**: a code from an authenticator app. An installation made with 0.9.0-beta.1 to beta.3 can be updated to this version from the System page (or with `threadsafe update`); the factor is off until you switch it on on the new page *Security*. Going back to a release from before it logs in with the password only, see "Changed".

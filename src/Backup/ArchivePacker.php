@@ -220,7 +220,7 @@ final class ArchivePacker
             $s->warnings[] = $open['offset'] === 0
                 ? "Stored empty, the file cannot be read: /{$this->display($open['name'])}"
                 : "Stored incomplete, the file disappeared while it was read: /{$this->display($open['name'])}";
-            $this->finishEntry($s, $writer, '', $open);
+            $this->finishEntry($s, $writer, '', $open, explained: true);
 
             return;
         }
@@ -247,8 +247,9 @@ final class ArchivePacker
 
     /**
      * @param array{name: string, path: string, offset: int, size: int, database: bool} $open
+     * @param bool                                                                      $explained a warning that names the cause is given already: no second one for the size
      */
-    private function finishEntry(PackState $s, ZipWriter $writer, string $tail, array $open): void
+    private function finishEntry(PackState $s, ZipWriter $writer, string $tail, array $open, bool $explained = false): void
     {
         $writer->endFile($tail);
         $total = $open['offset'] + strlen($tail);
@@ -258,7 +259,7 @@ final class ArchivePacker
         }
         ++$s->files;
         $s->fileBytes += $total;
-        if ($total !== $open['size']) {
+        if (!$explained && $total !== $open['size']) {
             $s->warnings[] = "The file changed while it was backed up (read {$total} bytes, {$open['size']} when scanned): /{$this->display($open['name'])}";
         }
     }
