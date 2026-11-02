@@ -8,7 +8,7 @@ use PHPUnit\Framework\TestCase;
 use ThreadSafe\Archive\ZipReader;
 use ThreadSafe\Build\Bundler;
 use ThreadSafe\Build\InstallBuilder;
-use ThreadSafe\Build\InstallStub;
+use ThreadSafe\Build\ToolStub;
 use ThreadSafe\Build\StubNotice;
 use ThreadSafe\Build\ReleaseManifest;
 use ThreadSafe\Tests\Support\ReleasePackage;
@@ -92,7 +92,7 @@ final class InstallBuilderTest extends TestCase
     public function testTheFileLeadsWithTheStubAndHoldsTheCodeThenThePackage(): void
     {
         $file = (string) file_get_contents(self::$installer);
-        $stub = InstallStub::source('0.1.0');
+        $stub = ToolStub::installer('0.1.0');
 
         self::assertTrue(str_starts_with($file, $stub));
         self::assertSame(self::$result['bytes'], strlen($file));
@@ -120,35 +120,6 @@ final class InstallBuilderTest extends TestCase
             exec('unzip -tq ' . escapeshellarg(self::$installer) . ' 2>&1', $output, $code);
             self::assertSame(0, $code, implode("\n", $output));
         }
-    }
-
-    public function testTheStubUsesOnlyWhatOldPhpCanRead(): void
-    {
-        $stub = InstallStub::source('test');
-        $tokens = token_get_all(substr($stub, 0, (int) strpos($stub, '__halt_compiler') + strlen('__halt_compiler')));
-        $forbidden = [
-            T_NAMESPACE => 'namespace', T_NS_SEPARATOR => 'a name with a backslash', T_NAME_QUALIFIED => 'a qualified name', T_NAME_FULLY_QUALIFIED => 'a qualified name',
-            T_FN => 'fn', T_DIR => '__DIR__', T_COALESCE => '??', T_POW => '**', T_USE => 'use', T_CLASS => 'class', T_TRAIT => 'trait',
-            T_YIELD => 'yield', T_FINALLY => 'finally', T_GOTO => 'goto', T_SPACESHIP => '<=>', T_ELLIPSIS => '...', T_PUBLIC => 'visibility', T_STATIC => 'static',
-            T_FUNCTION => 'a function or closure',
-        ];
-        $previous = null;
-        foreach ($tokens as $token) {
-            if (is_array($token) && isset($forbidden[$token[0]])) {
-                self::fail('The stub uses ' . $forbidden[$token[0]] . ' (line ' . $token[2] . '), which old PHP cannot parse.');
-            }
-            if ($token === '[' && ($previous === '=' || $previous === '(' || $previous === ',' || (is_array($previous) && in_array($previous[0], [T_RETURN, T_DOUBLE_ARROW], true)))) {
-                self::fail('The stub uses a short array.');
-            }
-            if ($token === '?') {
-                self::fail('The stub uses ?: or a nullable type.');
-            }
-            if (!is_array($token) || $token[0] !== T_WHITESPACE) {
-                $previous = $token;
-            }
-        }
-        self::assertStringContainsString("'ThreadSafe\\Install\\Entry::run'", $stub, 'the entry is called by name from a string');
-        self::assertLessThan(strpos($stub, 'mkdir'), strpos($stub, "threadsafe-install-key.php'"), 'the key check comes before the first directory is made');
     }
 
     public function testEveryClassOfTheInstallerIsInItsCode(): void

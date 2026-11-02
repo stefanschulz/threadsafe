@@ -11,7 +11,7 @@ use RuntimeException;
 use ThreadSafe\Core\Version;
 
 /**
- * Builds the web installer `threadsafe-install.php` (docs/PHASE7.md 3.3): {@see InstallStub}, the installer's code (the bundle of the program
+ * Builds the web installer `threadsafe-install.php` (docs/PHASE7.md 3.3): {@see ToolStub}, the installer's code (the bundle of the program
  * without the web interface and the build tools, deflated), and behind them the release package as a ZIP archive with shifted offsets
  * ({@see ZipShift}), so that the file is the installer, the package, and a ZIP archive that `unzip` opens.
  *
@@ -72,7 +72,7 @@ final class InstallBuilder
             throw new RuntimeException('Cannot read the package or compress the installer.');
         }
 
-        $prefix = InstallStub::source($version) . strlen($deflated) . "\n" . $deflated;
+        $prefix = ToolStub::installer($version) . strlen($deflated) . "\n" . $deflated;
         $file = $prefix . ZipShift::shift($zip, strlen($prefix));
 
         $directory = dirname($output);

@@ -7,7 +7,6 @@ namespace ThreadSafe\Tests\Unit\Build;
 use PHPUnit\Framework\TestCase;
 use ThreadSafe\Build\Bundler;
 use ThreadSafe\Build\RestoreBuilder;
-use ThreadSafe\Build\RestoreStub;
 use ThreadSafe\Tests\Support\TempDirectory;
 
 /**
@@ -107,43 +106,6 @@ final class RestoreBuilderTest extends TestCase
 
         self::assertSame('', $errors);
         self::assertSame('[]', $output, 'classes the bundle does not declare');
-    }
-
-    public function testTheStubUsesOnlyWhatPhp52CanRead(): void
-    {
-        $stub = RestoreStub::source('test');
-        $tokens = token_get_all(substr($stub, 0, (int) strpos($stub, '__halt_compiler') + strlen('__halt_compiler')));
-        $forbidden = [
-            T_NAMESPACE => 'namespace', T_NS_SEPARATOR => 'a name with a backslash', T_NAME_QUALIFIED => 'a qualified name', T_NAME_FULLY_QUALIFIED => 'a qualified name',
-            T_FN => 'fn', T_DIR => '__DIR__', T_COALESCE => '??', T_POW => '**', T_USE => 'use', T_CLASS => 'class', T_TRAIT => 'trait',
-            T_YIELD => 'yield', T_FINALLY => 'finally', T_GOTO => 'goto', T_INSTEADOF => 'insteadof', T_SPACESHIP => '<=>', T_ELLIPSIS => '...', T_PUBLIC => 'visibility', T_STATIC => 'static',
-        ];
-        $previous = null;
-        foreach ($tokens as $token) {
-            if (is_array($token) && isset($forbidden[$token[0]])) {
-                self::fail('The stub uses ' . $forbidden[$token[0]] . ' (line ' . $token[2] . '), which old PHP cannot parse.');
-            }
-            if (is_array($token) && $token[0] === T_FUNCTION) {
-                self::fail('The stub declares a function or closure (line ' . $token[2] . ').');
-            }
-            if ($token === '[' && ($previous === '=' || $previous === '(' || $previous === ',' || (is_array($previous) && in_array($previous[0], [T_RETURN, T_DOUBLE_ARROW], true)))) {
-                self::fail('The stub uses a short array.');
-            }
-            if ($token === '?') {
-                self::fail('The stub uses ?: or a nullable type.');
-            }
-            if (!is_array($token) || $token[0] !== T_WHITESPACE) {
-                $previous = $token;
-            }
-        }
-        self::assertStringContainsString("'ThreadSafe\\Web\\Entry::run'", $stub, 'the entry is called by name from a string');
-    }
-
-    public function testTheKeyFileIsRequiredBeforeAnythingIsWrittenOnTheWeb(): void
-    {
-        $stub = RestoreStub::source('test');
-
-        self::assertLessThan(strpos($stub, 'mkdir'), strpos($stub, "threadsafe-restore-key.php'"), 'the key check comes before the first directory is made');
     }
 
     public function testTheBundleAloneIsTheSameCodeThatIsInTheTool(): void

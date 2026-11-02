@@ -11,7 +11,7 @@ use RuntimeException;
 use ThreadSafe\Core\Version;
 
 /**
- * Builds the universal restore tool, `dist/threadsafe-restore.php` (docs/PHASE3.md 3.1): the stub ({@see RestoreStub}) followed by the
+ * Builds the universal restore tool, `dist/threadsafe-restore.php` (docs/PHASE3.md 3.1): the stub ({@see ToolStub}) followed by the
  * deflated payload, which is the bundle of all the code ({@see Bundler}) and the plugins' data files. It is the same file for every
  * backup and every website type; it is built once and kept with the backups.
  *
@@ -85,6 +85,19 @@ final class RestoreBuilder
      */
     public function build(string $output): array
     {
+        return $this->buildWith(ToolStub::restore($this->version ?? Version::CURRENT), $output);
+    }
+
+    /**
+     * Writes a tool that has this program in it and the given stub: the restore tool, or the backup tool ({@see BackupBuilder}), which have the same
+     * code and the same plugin files and differ in their stub and in the entry that the stub calls.
+     *
+     * @return array{bytes: int, bundleBytes: int, files: int, resources: int}
+     *
+     * @throws RuntimeException the file cannot be written, or the sources cannot be bundled
+     */
+    public function buildWith(string $stub, string $output): array
+    {
         $bundle = $this->bundle();
         $resources = $this->resources();
 
@@ -101,7 +114,7 @@ final class RestoreBuilder
         if (!is_dir($directory) && !@mkdir($directory, 0777, true) && !is_dir($directory)) {
             throw new RuntimeException("Cannot create the directory \"$directory\".");
         }
-        $file = RestoreStub::source($this->version ?? Version::CURRENT) . $deflated;
+        $file = $stub . $deflated;
         if (@file_put_contents($output, $file) === false) {
             throw new RuntimeException("Cannot write \"$output\".");
         }
@@ -113,7 +126,7 @@ final class RestoreBuilder
     private static function entry(string $name, string $content): string
     {
         if (str_contains($name, "\t") || str_contains($name, "\n") || str_contains($name, '..')) {
-            throw new RuntimeException("The file name \"$name\" cannot be put into the restore tool.");
+            throw new RuntimeException("The file name \"$name\" cannot be put into the tool.");
         }
 
         return $name . "\t" . strlen($content) . "\n" . $content;
