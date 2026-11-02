@@ -12,6 +12,7 @@ use ThreadSafe\Profile\ProfileStore;
 use ThreadSafe\Profile\SiteProfile;
 use ThreadSafe\Schedule\ScheduleState;
 use ThreadSafe\Schedule\ScheduleStore;
+use ThreadSafe\Tests\Support\JoomlaSite;
 use ThreadSafe\Tests\Support\TempDirectory;
 
 /**
@@ -218,5 +219,36 @@ final class ProfileServiceTest extends TestCase
                 self::assertStringContainsString($message, $e->getMessage());
             }
         }
+    }
+
+    public function testASiteIsRecognisedByItsTypeAndAnythingElseIsAnyWebsite(): void
+    {
+        JoomlaSite::build($this->base . '/joomla');
+
+        [$type, $detection] = $this->service->autodetect($this->base . '/joomla');
+        self::assertSame('joomla', $type);
+        self::assertStringContainsString('Joomla', $detection->site->describe());
+        self::assertNotNull($detection->database, 'read from the configuration of the site');
+
+        [$type, $detection] = $this->service->autodetect($this->base . '/site');
+        self::assertSame('generic', $type);
+        self::assertNull($detection->database);
+    }
+
+    public function testASiteTheTypeRecognisesButCannotReadIsAnErrorNotAnyWebsite(): void
+    {
+        JoomlaSite::build($this->base . '/joomla');
+        unlink($this->base . '/joomla/configuration.php');
+        file_put_contents($this->base . '/joomla/configuration.php', '<?php // not a configuration');
+
+        $this->expectException(ProfileException::class);
+        $this->service->autodetect($this->base . '/joomla');
+    }
+
+    public function testAutodetectSaysWhyADirectoryCannotBeRead(): void
+    {
+        $this->expectException(ProfileException::class);
+        $this->expectExceptionMessage('not a readable directory');
+        $this->service->autodetect($this->base . '/nowhere');
     }
 }

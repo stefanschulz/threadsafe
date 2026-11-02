@@ -21,13 +21,20 @@ use ThreadSafe\Core\Version;
  */
 final class RestoreBuilder
 {
+    /** What only the restore tool needs: its wizard and its entry. The backup tool leaves these out. */
+    public const array ONLY_RESTORE = ['src/Web/Wizard.php', 'src/Web/Entry.php'];
+
+    /** What only the backup tool needs ({@see BackupBuilder}). The restore tool leaves these out. */
+    public const array ONLY_BACKUP = ['src/Web/BackupEntry.php', 'src/Web/BackupWizard.php', 'src/Web/BackupWorkspace.php', 'src/Web/BackupTarget.php'];
+
     private readonly string $root;
 
     /**
      * @param string|null $version the version the tool says it is (the header of the file); default: the one of the running code. A release
      *                             builds the tool from its staged tree, whose Version.php is stamped, with that version.
+     * @param list<string> $leaveOut files (relative to the root) that are not part of the program: those of the other tool
      */
-    public function __construct(string $root, private readonly ?string $version = null)
+    public function __construct(string $root, private readonly ?string $version = null, private readonly array $leaveOut = self::ONLY_BACKUP)
     {
         $this->root = rtrim(str_replace('\\', '/', $root), '/');
     }
@@ -41,7 +48,7 @@ final class RestoreBuilder
         foreach ([$this->root . '/src', $this->root . '/plugins'] as $directory) {
             foreach ($this->walk($directory) as $path) {
                 $relative = substr($path, strlen($this->root) + 1);
-                if (str_ends_with($path, '.php') && !str_starts_with($relative, 'src/Build/') && !str_starts_with($relative, 'src/Admin/') && !str_starts_with($relative, 'src/Auth/') && !str_contains($relative, '/resources/')) {
+                if (str_ends_with($path, '.php') && !str_starts_with($relative, 'src/Build/') && !str_starts_with($relative, 'src/Admin/') && !str_starts_with($relative, 'src/Auth/') && !str_contains($relative, '/resources/') && !in_array($relative, $this->leaveOut, true)) {
                     $files[] = $path;
                 }
             }

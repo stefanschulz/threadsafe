@@ -80,7 +80,7 @@ final class BackupBuilderTest extends TestCase
         self::assertStringNotContainsString('threadsafe-restore-key.php', substr($content, 0, (int) strpos($content, '__halt_compiler')));
     }
 
-    public function testItHasTheSameProgramAsTheRestoreToolAndTheEntryOfItsOwn(): void
+    public function testItHasTheProgramOfTheRestoreToolButTheWizardOfItsOwn(): void
     {
         $backup = $this->directory . '/threadsafe-backup.php';
         $restore = $this->directory . '/threadsafe-restore.php';
@@ -90,10 +90,21 @@ final class BackupBuilderTest extends TestCase
         $inBackup = $this->payload($backup);
         $inRestore = $this->payload($restore);
 
-        self::assertSame($inRestore, $inBackup, 'the program and the plugin files are the same: only the stub differs');
-        self::assertStringContainsString('final class BackupEntry', $inBackup['bundle.php']);
-        self::assertStringContainsString('final class BackupRun', $inBackup['bundle.php'], 'the engine of the backup is in it');
-        self::assertStringNotContainsString('namespace ThreadSafe\\Admin', $inBackup['bundle.php'], 'the web interface of the app is not');
+        $bundleOfBackup = $inBackup['bundle.php'];
+        $bundleOfRestore = $inRestore['bundle.php'];
+        unset($inBackup['bundle.php'], $inRestore['bundle.php']);
+        self::assertSame($inRestore, $inBackup, 'the plugin files are the same');
+
+        self::assertStringContainsString('final class BackupWizard', $bundleOfBackup);
+        self::assertStringContainsString('final class BackupRun', $bundleOfBackup, 'the engine of the backup is in it');
+        self::assertStringContainsString('final class Download', $bundleOfBackup, 'it hands the archive out like the app');
+        self::assertStringNotContainsString("'threadsafe_restore'", $bundleOfBackup, 'the wizard of the restore is not');
+        self::assertStringNotContainsString('namespace ThreadSafe\Admin', $bundleOfBackup, 'the web interface of the app is not');
+
+        self::assertStringContainsString("'threadsafe_restore'", $bundleOfRestore);
+        self::assertStringNotContainsString('BackupWizard', $bundleOfRestore, 'the restore tool has none of the backup tool');
+        self::assertStringNotContainsString('BackupWorkspace', $bundleOfRestore);
+        self::assertStringNotContainsString('BackupTarget', $bundleOfRestore);
     }
 
     public function testWithoutAKeyFileTheToolOnlyExplainsAndWritesNothingOnTheWeb(): void

@@ -116,6 +116,26 @@ final class ProfileService
         return new Detection($site, $root, $database, count($defaults->excludePaths), count($defaults->structureOnlyTables));
     }
 
+    /**
+     * Looks at a directory with the eyes of every website type and takes the first specific one that recognises it, else "any website".
+     * A type that recognises the directory but cannot read the database access from it is an error, not a reason to take another type.
+     *
+     * @return array{string, Detection} the id of the type and what it found
+     *
+     * @throws ProfileException the directory cannot be read, or the type that recognises it cannot make anything of it
+     */
+    public function autodetect(string $path): array
+    {
+        $root = SitePath::resolve($path);
+        foreach (array_keys($this->types()) as $type) {
+            if ($type !== 'generic' && $this->plugins->backupable($type)->detect($root) !== null) {
+                return [$type, $this->detect($type, $root)];
+            }
+        }
+
+        return ['generic', $this->detect('generic', $root)];
+    }
+
     public function test(SiteProfile $profile): TestReport
     {
         return (new ConnectionTest($this->plugins, $this->dataDirectory))->run($profile);
