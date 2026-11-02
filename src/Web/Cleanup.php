@@ -13,10 +13,12 @@ final class Cleanup
 {
     /**
      * @param list<string> $files files to delete (the script, the key file, archive parts)
+     * @param list<string> $keep  paths that lie in the state directory and stay (the archive of the backup tool): the rest of the state directory goes, the
+     *                            directory itself stays
      *
      * @return list<string> what could not be deleted, as messages for the person
      */
-    public static function run(array $files, string $stateDirectory): array
+    public static function run(array $files, string $stateDirectory, array $keep = []): array
     {
         $problems = [];
         foreach ($files as $file) {
@@ -24,11 +26,39 @@ final class Cleanup
                 $problems[] = "Delete the file \"$file\" by hand.";
             }
         }
-        if (is_dir($stateDirectory) && !self::removeTree($stateDirectory)) {
+        $kept = is_dir($stateDirectory) ? self::keptBelow($stateDirectory, $keep) : [];
+        if (is_dir($stateDirectory) && $kept === [] && !self::removeTree($stateDirectory)) {
             $problems[] = "Delete the directory \"$stateDirectory\" by hand.";
+        }
+        foreach ($kept === [] ? [] : (scandir($stateDirectory) ?: []) as $name) {
+            if ($name !== '.' && $name !== '..' && !in_array($name, $kept, true) && !self::removeTree($stateDirectory . '/' . $name)) {
+                $problems[] = "Delete \"$stateDirectory/$name\" by hand.";
+            }
         }
 
         return $problems;
+    }
+
+    /**
+     * The names of the entries of a directory that hold one of the paths.
+     *
+     * @param list<string> $paths
+     *
+     * @return list<string>
+     */
+    private static function keptBelow(string $directory, array $paths): array
+    {
+        $base = rtrim(str_replace('\\', '/', (string) realpath($directory)), '/') . '/';
+        $names = [];
+        foreach ($paths as $path) {
+            $real = realpath($path);
+            $real = $real === false ? '' : str_replace('\\', '/', $real) . '/';
+            if ($real !== '' && str_starts_with($real, $base)) {
+                $names[] = explode('/', substr($real, strlen($base)), 2)[0];
+            }
+        }
+
+        return $names;
     }
 
     private static function removeTree(string $path): bool

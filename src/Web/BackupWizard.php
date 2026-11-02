@@ -6,6 +6,8 @@ namespace ThreadSafe\Web;
 
 use Closure;
 use Throwable;
+use ThreadSafe\App\BackupService;
+use ThreadSafe\App\CatalogService;
 use ThreadSafe\App\Detection;
 use ThreadSafe\App\ProfileService;
 use ThreadSafe\Backup\Filters;
@@ -13,13 +15,19 @@ use ThreadSafe\Core\OpenBasedir;
 use ThreadSafe\Crypto\AgeKeys;
 use ThreadSafe\Crypto\CryptoException;
 use ThreadSafe\Crypto\Passphrases;
+use ThreadSafe\Core\Exception\GuardFailed;
 use ThreadSafe\Database\DatabaseSettings;
+use ThreadSafe\Engine\Budget;
+use ThreadSafe\Engine\EngineException;
+use ThreadSafe\Engine\Run;
+use ThreadSafe\Engine\RunStatus;
 use ThreadSafe\Plugin\PluginRegistry;
 use ThreadSafe\Profile\CheckLevel;
 use ThreadSafe\Profile\EncryptionSettings;
 use ThreadSafe\Profile\ProfileException;
 use ThreadSafe\Profile\SiteProfile;
 use ThreadSafe\Profile\TestReport;
+use ThreadSafe\Storage\BackupEntry;
 use ThreadSafe\Storage\LocalStorage;
 use ThreadSafe\Storage\SpaceCheck;
 use ThreadSafe\Storage\StorageException;
@@ -31,13 +39,17 @@ use ThreadSafe\Storage\StorageException;
  * Nothing happens without the key file ({@see AccessKey}). What the person chose is kept in the profile `site` of the tool's own data directory
  * (the engine runs on it unchanged) and in the session file (what must not be in a profile: the passphrase of this backup).
  *
- * Steps: key → site → options → summary (with the probe that the archive cannot be fetched through the web server).
+ * Steps: key → site → options → summary (with the probe that the archive cannot be fetched through the web server) → run (one tick per request, from a few
+ * lines of script) → done (the parts, a download per part, the clean-up). A backup that was started and not finished is continued when the person comes back.
  */
 final class BackupWizard
 {
     public const string COOKIE = 'threadsafe_backup';
 
     public const string KEY_FILE = 'threadsafe-backup-key.php';
+
+    /** What to do when the web server refuses a step of the backup with HTTP 403. */
+    private const string HINT_403 = 'HTTP 403 usually means that a rule of the web server refuses this file: a security extension of the site (such as Admin Tools) refuses direct requests for PHP files, or the host does. Allow this file for now, then press "Continue".';
 
     private const array STEPS = ['site' => 'Site', 'options' => 'Options', 'summary' => 'Summary', 'run' => 'Backup', 'done' => 'Done'];
 
@@ -62,12 +74,14 @@ final class BackupWizard
      * @param string              $baseDirectory the directory the tool and the key file are in
      * @param string              $script        the file name of the tool
      * @param Closure(): int|null $clock         for tests
+     * @param Closure(): Budget|null $budgets   the budget of a tick; default: a share of the request time limit
      */
     public function __construct(
         private readonly string $baseDirectory,
         ?PluginRegistry $plugins = null,
         private readonly string $script = 'threadsafe-backup.php',
         ?Closure $clock = null,
+        private readonly ?Closure $budgets = null,
     ) {
         $this->workspace = BackupWorkspace::in($baseDirectory);
         $this->target = new BackupTarget($baseDirectory, $script, self::KEY_FILE);
@@ -124,7 +138,14 @@ final class BackupWizard
             'use-keys' => $this->useKeys($request, $session),
             'suggest-passphrase', 'save-options' => $this->saveOptions($request, $session, $action === 'save-options', $action === 'suggest-passphrase'),
             'probe' => $this->recordProbe($request, $session),
-            default => $this->show($request->query('step') ?? 'site', $session),
+            'start' => $this->start($request, $session),
+            'tick' => $this->tick($request, $session),
+            'retry' => $this->retry($session),
+            'abandon' => $this->abandon($session),
+            'again' => $this->again($session),
+            'delete-archive' => $this->deleteArchive($request, $session),
+            'cleanup' => $this->cleanup($request, $session),
+            default => $this->show($request, $request->query('step') ?? 'site', $session),
         };
     }
 
@@ -151,9 +172,14 @@ final class BackupWizard
         }
         [$token, $data] = $this->sessions()->create();
         $data['plain'] = $this->plainHttp($request);
+        // a backup that was started and not finished (the browser was closed, the connection lost) goes on where it was; a finished one is shown again
+        $run = $this->latestRun();
+        if ($run !== null) {
+            $data['runId'] = $run->id;
+        }
         $this->sessions()->save($token, $data);
 
-        return Response::redirect('?step=site')->withHeader($this->cookie($token, $request));
+        return Response::redirect($run === null ? '?step=site' : ($run->status === RunStatus::Finished ? '?step=done' : '?step=run'))->withHeader($this->cookie($token, $request));
     }
 
     private function logout(): Response
@@ -203,9 +229,13 @@ final class BackupWizard
     /**
      * @param array<string, mixed> $session
      */
-    private function show(string $step, array $session): Response
+    private function show(Request $request, string $step, array $session): Response
     {
         return match (true) {
+            $step === 'run' => $this->runPage($session),
+            $step === 'status' => $this->statusAnswer($session),
+            $step === 'done' => $this->donePage($session),
+            $step === 'file' => $this->file($request, $session),
             $step === 'options' && ($session['siteDone'] ?? false) === true => $this->optionsPage($session),
             $step === 'summary' && ($session['optionsDone'] ?? false) === true => $this->summaryPage($session),
             $step === 'options', $step === 'summary' => Response::redirect('?step=' . (($session['siteDone'] ?? false) === true ? 'options' : 'site')),
@@ -693,7 +723,7 @@ final class BackupWizard
     /**
      * @param array<string, mixed> $session
      */
-    private function summaryPage(array $session): Response
+    private function summaryPage(array $session, string $error = ''): Response
     {
         try {
             $profile = $this->service()->load(BackupWorkspace::PROFILE);
@@ -723,12 +753,19 @@ final class BackupWizard
         $table .= '</table>';
 
         $result = is_string(($session['probe']['result'] ?? null)) ? $session['probe']['result'] : '';
-        $body = '<div class="box">' . $table . '</div>'
+        $body = ($error !== '' ? '<p class="fail">' . Html::e($error) . '</p>' : '')
+            . '<div class="box">' . $table . '</div>'
             . '<h3>Can the archive be fetched through the web server?</h3>'
             . '<p id="probe-result" class="' . ($result === 'reachable' ? 'fail' : '') . '">' . Html::e($this->probeText($result)) . '</p>'
             . '<p class="help">The page asks the web server for a small file in the directory of the archive. If it can be fetched, so could the archive: choose a directory outside the document root on the options page.</p>'
-            . '<p><a class="button secondary" href="?step=options">Back</a></p>'
-            . '<p class="help">Nothing has been written yet except the small test file. Starting the backup comes with the next step of the tool (docs/PHASE12.md, work package 5).</p>';
+            . $this->form(
+                '<div id="probe-tick"' . ($result === 'closed' ? ' hidden' : '') . '><label><input type="checkbox" name="probe_ok" value="1">I have made sure that the directory of the archive cannot be opened in a browser</label>'
+                . '<p class="help">Only needed if the test above does not say "No".</p></div>'
+                . '<label><input type="checkbox" name="force" value="1">Go on even if the free space looks too small</label>'
+                . '<p class="help">Nothing has been written yet except the small test file.</p>'
+                . '<p><button name="action" value="start" id="start"' . ($result === 'reachable' ? ' disabled' : '') . '>Back up now</button> <a class="button secondary" href="?step=options">Back</a></p>',
+                (string) $session['csrf'],
+            );
 
         return $this->page('Summary', $body, 200, 'summary', $this->probeScript((string) $session['csrf'], $probe));
     }
@@ -800,6 +837,7 @@ final class BackupWizard
             . "  var out = document.getElementById('probe-result'), texts = $texts, csrf = $csrf, token = $token;\n"
             . "  function report(result) {\n"
             . "    out.textContent = texts[result]; out.className = result === 'reachable' ? 'fail' : '';\n"
+            . "    document.getElementById('probe-tick').hidden = result === 'closed'; document.getElementById('start').disabled = result === 'reachable';\n"
             . "    fetch('?', {method: 'POST', credentials: 'same-origin', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: 'csrf=' + encodeURIComponent(csrf) + '&action=probe&result=' + result}).catch(function () {});\n"
             . "  }\n"
             . "  fetch($url, {credentials: 'omit', cache: 'no-store'}).then(function (r) { return r.ok ? r.text() : ''; })\n"
@@ -822,6 +860,367 @@ final class BackupWizard
         return Response::json(['recorded' => in_array($result, ['closed', 'reachable', 'unknown'], true)]);
     }
 
+    // ------------------------------------------------------------------------------------------------- the run
+
+    private function backups(): BackupService
+    {
+        return new BackupService($this->workspace->profiles(), $this->plugins, $this->workspace->runs(), $this->workspace->data(), $this->budgets, $this->clock);
+    }
+
+    private function catalog(): CatalogService
+    {
+        return new CatalogService($this->workspace->profiles(), $this->workspace->runs(), $this->budgets, $this->clock);
+    }
+
+    /**
+     * The newest backup run on record that is worth looking at: one that is going on or interrupted, or a finished one (its page shows the archive
+     * again). A failed one has left nothing behind and is dismissed.
+     */
+    private function latestRun(): ?Run
+    {
+        $service = $this->backups();
+        foreach ($service->runs() as $run) {
+            if ($run->status === RunStatus::Failed) {
+                $service->dismiss($run->id);
+
+                continue;
+            }
+
+            return $run;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $session
+     */
+    private function currentRun(array $session): ?Run
+    {
+        if (!is_string($session['runId'] ?? null)) {
+            return null;
+        }
+        try {
+            return $this->backups()->find($session['runId']);
+        } catch (EngineException) {
+            return null;
+        }
+    }
+
+    /**
+     * Starts the backup, once the probe says the archive is out of the web's reach (or the person says they made sure) and never when it says it can
+     * be fetched.
+     *
+     * @param array<string, mixed> $session
+     */
+    private function start(Request $request, array $session): Response
+    {
+        if (($session['optionsDone'] ?? false) !== true) {
+            return Response::redirect('?step=site');
+        }
+        $probe = is_array($session['probe'] ?? null) && is_string($session['probe']['result'] ?? null) ? $session['probe']['result'] : '';
+        if ($probe === 'reachable') {
+            return $this->summaryPage($session, 'The test file can be fetched through the web server, and so could the archive. Choose a directory for the archive outside the document root (on the options page), or ask the host to close this directory.');
+        }
+        if ($probe !== 'closed' && $request->post('probe_ok') !== '1') {
+            return $this->summaryPage($session, 'Let the test above finish, or tick that you have made sure the directory of the archive cannot be opened in a browser.');
+        }
+        try {
+            $run = $this->backups()->startWeb(BackupWorkspace::PROFILE, $request->post('force') === '1', is_string($session['passphrase'] ?? null) ? $session['passphrase'] : '');
+        } catch (GuardFailed $e) {
+            return $this->summaryPage($session, $e->getMessage());
+        }
+        $this->removeProbe($session);
+        unset($session['probe']);
+        $session['runId'] = $run->id;
+        $this->save($session);
+
+        return Response::redirect('?step=run');
+    }
+
+    /**
+     * @param array<string, mixed> $session
+     */
+    private function removeProbe(array $session): void
+    {
+        $file = is_array($session['probe'] ?? null) ? ($session['probe']['file'] ?? null) : null;
+        if (!is_string($file) || preg_match('/^probe-[0-9a-f]{16}\.txt$/', $file) !== 1) {
+            return;
+        }
+        try {
+            @unlink($this->service()->load(BackupWorkspace::PROFILE)->storage . '/' . $file);
+        } catch (ProfileException) {
+            // no profile, no storage: nothing to remove
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $session
+     */
+    private function runPage(array $session): Response
+    {
+        $run = $this->currentRun($session);
+        if ($run === null) {
+            return Response::redirect(($session['optionsDone'] ?? false) === true ? '?step=summary' : '?step=site');
+        }
+        if ($run->status === RunStatus::Finished) {
+            return Response::redirect('?step=done');
+        }
+        $csrf = (string) $session['csrf'];
+        $failed = $run->status === RunStatus::Failed;
+        $body = '<p>The backup works in steps; this page keeps it going. <strong>Keep this page open.</strong> If it is closed or the connection is lost, open the tool again: the backup goes on where it was.</p>'
+            . RunView::panel($run, $this->percent($run), $failed)
+            . $this->form(RunView::buttons($failed) . ' <button class="secondary" name="action" value="abandon">Give up this backup</button>', $csrf)
+            . '<noscript><p class="help">Without JavaScript press "Continue" again and again until the page says it is done.</p></noscript>';
+
+        return $this->page('Backing up', $body, 200, 'run', RunView::script($csrf, $failed, 'backup', self::HINT_403));
+    }
+
+    private function percent(Run $run): int
+    {
+        return (int) ($this->backups()->progress($run)['percent'] ?? 0);
+    }
+
+    /**
+     * What the step that is working does right now (the page asks while the step runs), as JSON.
+     *
+     * @param array<string, mixed> $session
+     */
+    private function statusAnswer(array $session): Response
+    {
+        $run = $this->currentRun($session);
+
+        return Response::json($run === null ? ['working' => false, 'note' => '', 'seconds' => 0, 'elapsed' => 0] : $this->backups()->live($run));
+    }
+
+    /**
+     * One tick of the backup. With `format=json` (the page's script) the answer is data, otherwise a redirect back to the page.
+     *
+     * @param array<string, mixed> $session
+     */
+    private function tick(Request $request, array $session): Response
+    {
+        $run = $this->currentRun($session);
+        $json = $request->post('format') === 'json';
+        if ($run === null) {
+            return $json ? Response::json(['status' => 'failed', 'error' => 'There is no backup to continue.']) : Response::redirect('?step=summary');
+        }
+        $answer = ['status' => 'running'];
+        try {
+            $run = $this->backups()->tick($run->id);
+        } catch (EngineException $e) {
+            $answer = $e->isBusy() ? ['status' => 'busy'] : ['status' => 'failed', 'error' => $e->getMessage()];
+            $run = $this->currentRun($session) ?? $run;
+        } catch (Throwable $e) {
+            $answer = ['status' => 'failed', 'error' => 'The step failed: ' . $e->getMessage()];
+            $run = $this->currentRun($session) ?? $run;
+        }
+        if ($run->status === RunStatus::Finished) {
+            $answer = ['status' => 'finished'];
+        }
+        $answer += ['progress' => (string) $run->progress, 'percent' => $this->percent($run)];
+
+        return $json ? Response::json($answer) : Response::redirect('?step=run');
+    }
+
+    /**
+     * A failed backup has left nothing behind ({@see BackupService::tick()} cleans up), so trying again is starting again from the beginning.
+     *
+     * @param array<string, mixed> $session
+     */
+    private function retry(array $session): Response
+    {
+        $run = $this->currentRun($session);
+        if ($run === null || $run->status !== RunStatus::Failed) {
+            return Response::json(['status' => 'running']);
+        }
+        $service = $this->backups();
+        try {
+            $service->dismiss($run->id);
+            $new = $service->startWeb(BackupWorkspace::PROFILE, (bool) ($run->state['force'] ?? false), is_string($session['passphrase'] ?? null) ? $session['passphrase'] : '');
+        } catch (GuardFailed | EngineException $e) {
+            return Response::json(['status' => 'failed', 'error' => $e->getMessage()]);
+        }
+        $session['runId'] = $new->id;
+        $this->save($session);
+
+        return Response::json(['status' => 'running']);
+    }
+
+    /**
+     * @param array<string, mixed> $session
+     */
+    private function abandon(array $session): Response
+    {
+        $run = $this->currentRun($session);
+        if ($run !== null && $run->status !== RunStatus::Finished) {
+            try {
+                $this->backups()->abandon($run->id);
+            } catch (GuardFailed | EngineException) {
+                return Response::redirect('?step=run');   // a step is working right now: the person looks again in a moment
+            }
+        }
+        unset($session['runId']);
+        $this->save($session);
+
+        return Response::redirect(($session['optionsDone'] ?? false) === true ? '?step=summary' : '?step=site');
+    }
+
+    /**
+     * Back to the summary for another backup; the archive of this one stays.
+     *
+     * @param array<string, mixed> $session
+     */
+    private function again(array $session): Response
+    {
+        $run = $this->currentRun($session);
+        if ($run !== null && $run->status === RunStatus::Finished) {
+            $this->backups()->dismiss($run->id);
+        }
+        unset($session['runId']);
+        $this->save($session);
+
+        return Response::redirect(($session['optionsDone'] ?? false) === true ? '?step=summary' : '?step=site');
+    }
+
+    // ------------------------------------------------------------------------------------------------- done
+
+    /**
+     * @param array<string, mixed> $session
+     */
+    private function donePage(array $session, string $error = ''): Response
+    {
+        $run = $this->currentRun($session);
+        if ($run === null || $run->status !== RunStatus::Finished) {
+            return Response::redirect('?step=run');
+        }
+        $result = $this->backups()->result($run) ?? [];
+        $csrf = (string) $session['csrf'];
+        try {
+            $entry = $this->catalog()->find(BackupWorkspace::PROFILE, (string) ($result['backup'] ?? ''));
+            $directory = $this->catalog()->storageDirectory(BackupWorkspace::PROFILE);
+        } catch (ProfileException | StorageException $e) {
+            return $this->page('Done', '<p class="fail">The archive of this backup is not there any more: ' . Html::e($e->getMessage()) . '</p>' . $this->form('<button name="action" value="again">Back up again</button>', $csrf), 200, 'done');
+        }
+        $sidecar = $entry->sidecar;
+        if ($sidecar === null) {
+            return $this->page('Done', '<p class="fail">The archive of this backup cannot be read.</p>' . $this->form('<button name="action" value="again">Back up again</button>', $csrf), 200, 'done');
+        }
+
+        $parts = '';
+        foreach ($sidecar->parts as $part) {
+            $parts .= '<tr><td><code>' . Html::e($part->file) . '</code></td><td>' . Html::e(SpaceCheck::format($part->size)) . '</td><td><code>' . Html::e($part->sha256) . '</code></td>'
+                . '<td><a class="button secondary" href="?step=file&amp;part=' . rawurlencode($part->file) . '">Download</a></td></tr>';
+        }
+        $warnings = '';
+        foreach ($sidecar->manifest->warnings as $warning) {
+            $warnings .= '<li>' . Html::e($warning) . '</li>';
+        }
+        $encrypted = $sidecar->encryption !== null;
+        $first = $sidecar->parts[0]->file ?? 'BACKUP.zip';
+
+        $body = ($error !== '' ? '<p class="fail">' . Html::e($error) . '</p>' : '')
+            . ((int) ($result['files'] ?? 0) === 0
+                ? '<p class="fail"><strong>No file was saved.</strong> The directory holds nothing but this tool (and the tool is never part of a backup). Go back and choose the directory of the site on the first page.</p>'
+                : '<p class="ok"><strong>The backup is made.</strong></p>')
+            . '<div class="box">' . Html::e((string) ($result['backup'] ?? '')) . ': ' . (int) ($result['files'] ?? 0) . ' files, ' . (int) ($result['tables'] ?? 0) . ' tables, '
+            . Html::e(SpaceCheck::format((int) ($result['size'] ?? 0))) . ($encrypted ? ', encrypted' : ', <strong>not encrypted</strong>') . ', status ' . Html::e((string) ($result['status'] ?? '')) . '</div>'
+            . ($warnings !== '' ? '<p>Please read:</p><ul>' . $warnings . '</ul>' : '')
+            . '<h3>Fetch the backup</h3><table><thead><tr><th scope="col">Part</th><th scope="col">Size</th><th scope="col">SHA-256</th><th></th></tr></thead><tbody>' . $parts . '</tbody></table>'
+            . '<p class="help">Compare the SHA-256 of what you fetched with the one above. A large backup is better fetched by SFTP than through the web server: <code>scp USER@HOST:' . Html::e($directory . '/' . $first) . ' .</code> or <code>rsync -av --partial USER@HOST:' . Html::e($directory) . '/ ./</code>.</p>'
+            . ($encrypted ? '<p class="help">The backup is encrypted. Only the secret key or the passphrase you chose opens it, and this server does not have it.</p>' : '')
+            . '<p class="help">To restore it on another server, put <code>threadsafe-restore.php</code> and its key file there, together with all the parts, and open it in a browser (see docs/RESTORE.md of ThreadSafe).</p>'
+            . '<h3>When you have it</h3>'
+            . $this->form('<label><input type="checkbox" name="sure" value="1">I have the backup somewhere else</label><button class="secondary" name="action" value="delete-archive">Delete the archive from this server</button> <button class="secondary" name="action" value="again">Back up again</button>', $csrf)
+            . '<h3>Remove the tool</h3><p><strong>Do this when you are done.</strong> This tool can read the whole site for anyone who has its key. It deletes <code>' . Html::e($this->script) . '</code>, the key file and its own state (the data, the sessions).</p>'
+            . $this->form('<label><input type="checkbox" name="archive" value="1">Also delete the archive</label><p class="help">Unticked, the archive stays in <code>' . Html::e($directory) . '</code> for you to fetch and delete.</p><button name="action" value="cleanup">Delete the tool now</button>', $csrf);
+
+        return $this->page('Done', $body, 200, 'done');
+    }
+
+    /**
+     * One part of the finished backup, sent with `Range` so that a broken download can be resumed. The address works for the session that made the
+     * backup (the cookie is `SameSite=Strict`), for the parts the record of the backup names and for nothing else.
+     *
+     * @param array<string, mixed> $session
+     */
+    private function file(Request $request, array $session): Response
+    {
+        $run = $this->currentRun($session);
+        $missing = new Response(404, ['Content-Type: text/plain; charset=utf-8'], "Not found.\n");
+        if ($run === null || $run->status !== RunStatus::Finished) {
+            return $missing;
+        }
+        $file = (string) $request->query('part');
+        try {
+            $part = $this->catalog()->part(BackupWorkspace::PROFILE, (string) ($this->backups()->result($run)['backup'] ?? ''), $file);
+        } catch (ProfileException | StorageException) {
+            return $missing;
+        }
+
+        return Download::response($request, $part['path'], $file, $part['sha256'], contentType: str_ends_with($file, '.age') ? 'application/octet-stream' : 'application/zip');
+    }
+
+    /**
+     * @param array<string, mixed> $session
+     */
+    private function deleteArchive(Request $request, array $session): Response
+    {
+        $run = $this->currentRun($session);
+        if ($run === null || $run->status !== RunStatus::Finished) {
+            return Response::redirect('?step=run');
+        }
+        if ($request->post('sure') !== '1') {
+            return $this->donePage($session, 'Tick that you have the backup somewhere else: deleted, it is gone.');
+        }
+        try {
+            $this->catalog()->delete(BackupWorkspace::PROFILE, (string) ($this->backups()->result($run)['backup'] ?? ''));
+        } catch (GuardFailed | ProfileException | StorageException $e) {
+            return $this->donePage($session, $e->getMessage());
+        }
+        $this->backups()->dismiss($run->id);
+        unset($session['runId']);
+        $this->save($session);
+
+        return $this->page('Archive deleted', '<p class="ok"><strong>The archive is deleted from this server.</strong></p>' . $this->form('<button name="action" value="again">Back up again</button>', (string) $session['csrf']), 200, 'done');
+    }
+
+    /**
+     * Takes the tool off the server: itself, the key file and its state. The archive stays unless the person says it should go: it is what they came for.
+     *
+     * @param array<string, mixed> $session
+     */
+    private function cleanup(Request $request, array $session): Response
+    {
+        $run = $this->currentRun($session);
+        if ($run === null || $run->status !== RunStatus::Finished) {
+            return Response::redirect('?step=run');
+        }
+        $name = (string) ($this->backups()->result($run)['backup'] ?? '');
+        try {
+            $directory = $this->catalog()->storageDirectory(BackupWorkspace::PROFILE);
+        } catch (ProfileException) {
+            $directory = '';
+        }
+        $deleteArchive = $request->post('archive') === '1';
+        $problems = [];
+        if ($deleteArchive) {
+            try {
+                $this->catalog()->delete(BackupWorkspace::PROFILE, $name);
+            } catch (GuardFailed | ProfileException | StorageException $e) {
+                $problems[] = 'The archive could not be deleted: ' . $e->getMessage();
+            }
+        }
+        $base = rtrim($this->baseDirectory, '/\\');
+        $problems = [...$problems, ...Cleanup::run([$base . '/' . $this->script, $base . '/' . self::KEY_FILE], $this->workspace->directory(), $deleteArchive || $directory === '' ? [] : [$directory])];
+
+        $body = $problems === []
+            ? '<p class="ok"><strong>The tool is gone.</strong></p>' . ($deleteArchive ? '' : '<p>The archive is in <code>' . Html::e($directory) . '</code>. Fetch it, then delete that directory.</p>')
+            : '<p class="fail"><strong>Not everything could be deleted.</strong> Delete these by hand, now:</p><ul><li>' . implode('</li><li>', array_map(Html::e(...), $problems)) . '</li></ul>';
+
+        return $this->page('Tool removed', $body);
+    }
+
     // ------------------------------------------------------------------------------------------------- output
 
     private function page(string $title, string $body, int $status = 200, ?string $step = null, string $script = ''): Response
@@ -834,11 +1233,11 @@ final class BackupWizard
     {
         return new Response($response->status, [
             ...$response->headers,
-            'Cache-Control: no-store',
+            ...($response->header('Cache-Control') === null ? ['Cache-Control: no-store'] : []),
             'X-Content-Type-Options: nosniff',
             'X-Frame-Options: DENY',
             'Referrer-Policy: no-referrer',
             "Content-Security-Policy: default-src 'none'; img-src data:; style-src 'nonce-{$this->nonce}'; script-src 'nonce-{$this->nonce}'; connect-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'",
-        ], $response->body);
+        ], $response->body, $response->stream);
     }
 }

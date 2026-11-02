@@ -27,10 +27,11 @@ final class ToolClient
 
     /**
      * @param array<string, string> $query
+     * @param array<string, string> $headers request headers, names in lower case
      */
-    public function get(array $query = [], bool $follow = true): Response
+    public function get(array $query = [], bool $follow = true, array $headers = []): Response
     {
-        return $this->send(new Request('GET', $query, [], $this->cookies(), $this->https, $this->address, $this->path, []), $follow);
+        return $this->send(new Request('GET', $query, [], $this->cookies(), $this->https, $this->address, $this->path, $headers), $follow);
     }
 
     /**
