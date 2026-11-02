@@ -1,8 +1,8 @@
 <?php
 
 /**
- * Builds the release (docs/PHASE7.md 3.1): threadsafe-X.Y.Z.zip, the web installer threadsafe-install.php (the same package behind a stub) and the
- * file of checksums SHA256SUMS.
+ * Builds the release (docs/PHASE7.md 3.1): threadsafe-X.Y.Z.zip, the web installer threadsafe-install.php (the same package behind a stub), the
+ * single-file tools threadsafe-restore.php and threadsafe-backup.php (docs/PHASE12.md) and the file of checksums SHA256SUMS.
  *
  *   php tools/build-release.php [--version=X.Y.Z] [--output=DIR] [--keep] [--composer=PATH]
  *
@@ -19,6 +19,7 @@
 declare(strict_types=1);
 
 use ThreadSafe\Archive\ZipReader;
+use ThreadSafe\Build\BackupBuilder;
 use ThreadSafe\Build\InstallBuilder;
 use ThreadSafe\Build\ReleaseBuilder;
 use ThreadSafe\Build\ReleaseManifest;
@@ -111,7 +112,11 @@ try {
     $restorePath = rtrim($output, '/') . '/threadsafe-restore.php';
     (new RestoreBuilder($stage, $version))->build($restorePath);
 
-    $sums = ReleaseBuilder::checksums([ReleaseBuilder::packageName($version) => $zipPath, 'threadsafe-install.php' => $installPath, 'threadsafe-restore.php' => $restorePath]);
+    // and the backup tool of this version, from the same tree
+    $backupPath = rtrim($output, '/') . '/threadsafe-backup.php';
+    (new BackupBuilder($stage, $version))->build($backupPath);
+
+    $sums = ReleaseBuilder::checksums([ReleaseBuilder::packageName($version) => $zipPath, 'threadsafe-install.php' => $installPath, 'threadsafe-restore.php' => $restorePath, 'threadsafe-backup.php' => $backupPath]);
     file_put_contents(rtrim($output, '/') . '/SHA256SUMS', $sums);
 } catch (RuntimeException $e) {
     fwrite(STDERR, 'error: ' . $e->getMessage() . "\n");
@@ -127,5 +132,5 @@ if ($options['keep']) {
     $remove($stage);
 }
 @chmod($zipPath, 0644);
-printf("%s: %d files, %.2f MB; threadsafe-install.php: %.2f MB; threadsafe-restore.php: %d KB (built %s)\n", ReleaseBuilder::packageName($version), count($manifest->files) + 1, filesize($zipPath) / 1048576, filesize($installPath) / 1048576, filesize($restorePath) / 1024, gmdate('Y-m-d H:i:s', $epoch) . ' UTC');
+printf("%s: %d files, %.2f MB; threadsafe-install.php: %.2f MB; threadsafe-restore.php: %d KB; threadsafe-backup.php: %d KB (built %s)\n", ReleaseBuilder::packageName($version), count($manifest->files) + 1, filesize($zipPath) / 1048576, filesize($installPath) / 1048576, filesize($restorePath) / 1024, filesize($backupPath) / 1024, gmdate('Y-m-d H:i:s', $epoch) . ' UTC');
 echo $sums;

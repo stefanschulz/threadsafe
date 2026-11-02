@@ -3,7 +3,7 @@
   Phing build file of ThreadSafe (docs/PHASE7.md 3.1, AGENTS.md "Making a release").
 
   Builds the release: the package threadsafe-X.Y.Z.zip, the web installer threadsafe-install.php (the same package behind a stub, also a ZIP archive),
-  the generic restore tool threadsafe-restore.php of that version, and the file of checksums SHA256SUMS. The work is done by tools/build-release.php, which
+  the generic restore tool threadsafe-restore.php and the backup tool threadsafe-backup.php of that version, and the file of checksums SHA256SUMS. The work is done by tools/build-release.php, which
   the release workflow (.github/workflows/release.yml) runs as well, so a build made here is the one a tag would give.
 
     vendor/bin/phing                          build 0.0.0-dev into dist/release (a package for trying out)
@@ -48,7 +48,7 @@
     </target>
 
     <target name="build" depends="check-version,clean"
-            description="Builds threadsafe-X.Y.Z.zip, threadsafe-install.php, threadsafe-restore.php and SHA256SUMS into the output directory">
+            description="Builds threadsafe-X.Y.Z.zip, threadsafe-install.php, threadsafe-restore.php, threadsafe-backup.php and SHA256SUMS into the output directory">
         <echo message="Building ThreadSafe ${release.version} into ${output}"/>
         <exec executable="${php.interpreter}" dir="${project.basedir}" checkreturn="true" passthru="true">
             <arg value="tools/build-release.php"/>
@@ -66,7 +66,7 @@
     <target name="installer" depends="build" description="Same as build: the installer threadsafe-install.php is among the files"/>
 
     <target name="verify" depends="build"
-            description="Builds, then tests the built files on their own (checksums, unzip, the unpacked package, the installer's wizard, threadsafe-restore.php)">
+            description="Builds, then tests the built files on their own (checksums, unzip, the unpacked package, the installer's wizard, threadsafe-restore.php, threadsafe-backup.php)">
         <exec executable="${php.interpreter}" dir="${project.basedir}" checkreturn="true" passthru="true">
             <arg value="tools/test-release.php"/>
             <arg value="${output}"/>
@@ -77,6 +77,12 @@
     <target name="restore" description="Builds only the generic restore tool as a development build, dist/dev/threadsafe-restore.php (version 0.0.0-dev; the one to hand out is dist/release/threadsafe-restore.php)">
         <exec executable="${php.interpreter}" dir="${project.basedir}" checkreturn="true" passthru="true">
             <arg value="tools/build-restore.php"/>
+        </exec>
+    </target>
+
+    <target name="backup" description="Builds only the backup tool as a development build, dist/dev/threadsafe-backup.php (version 0.0.0-dev; the one to hand out is dist/release/threadsafe-backup.php)">
+        <exec executable="${php.interpreter}" dir="${project.basedir}" checkreturn="true" passthru="true">
+            <arg value="tools/build-backup.php"/>
         </exec>
     </target>
 

@@ -187,6 +187,75 @@ final class BackupBuilderTest extends TestCase
         self::assertCount(1, glob($site . '/.threadsafe-backup/bundle-*.php') ?: [], 'unpacked once');
     }
 
+    /**
+     * The wizard run from the bundle alone: a PHP that has no autoloader and no other file of the program than the plugin data (THREADSAFE_PROGRAM_DIR),
+     * so that a class the bundle lacks is a fatal error. It goes from the key to the finished backup, and every step on the way is one of the pages.
+     */
+    public function testTheBundleHoldsEverythingTheWizardNeedsToMakeABackup(): void
+    {
+        $tool = $this->directory . '/built.php';
+        (new BackupBuilder(dirname(__DIR__, 3)))->build($tool);
+        file_put_contents($this->directory . '/bundle.php', $this->payload($tool)['bundle.php']);
+        $site = $this->directory . '/site';
+        mkdir($site);
+        file_put_contents($site . '/index.php', '<?php echo 1;');
+        file_put_contents($site . '/threadsafe-backup-key.php', "<?php return 'correct horse battery';");
+
+        $script = <<<'PHP'
+        <?php
+        define('THREADSAFE_PROGRAM_DIR', $argv[2]);
+        require $argv[1];
+        use ThreadSafe\Web\BackupWizard;
+        use ThreadSafe\Web\Request;
+        $wizard = new BackupWizard($argv[3]);
+        $cookie = null;
+        $csrf = '';
+        $step = static function (string $method, array $query, array $post) use ($wizard, &$cookie, &$csrf): string {
+            $response = $wizard->handle(new Request($method, $query, $post + ($csrf !== '' ? ['csrf' => $csrf] : []), $cookie === null ? [] : [BackupWizard::COOKIE => $cookie], false, '127.0.0.1', '/tool.php'));
+            foreach ($response->headers('Set-Cookie') as $line) {
+                if (preg_match('/^' . BackupWizard::COOKIE . '=([0-9a-f]+);/', $line, $m) === 1) {
+                    $cookie = $m[1];
+                }
+            }
+            $location = $response->header('Location');
+            if ($response->status === 303 && $location !== null) {
+                parse_str((string) parse_url($location, PHP_URL_QUERY), $q);
+                return $GLOBALS['step']('GET', $q, []);
+            }
+            if (preg_match('/name="csrf" value="([0-9a-f]+)"/', $response->body, $m) === 1) {
+                $csrf = $m[1];
+            }
+            return $response->body;
+        };
+        $GLOBALS['step'] = $step;
+        $step('GET', [], []);
+        $page = $step('POST', [], ['action' => 'login', 'key' => 'correct horse battery']);
+        echo str_contains($page, 'Directory of the site') ? "site\n" : "FAILED site\n";
+        $page = $step('POST', [], ['action' => 'save-site', 'root' => $argv[3], 'type' => 'auto', 'no_db' => '1']);
+        echo str_contains($page, 'Who may open this backup?') ? "options\n" : "FAILED options\n";
+        $page = $step('POST', [], ['action' => 'save-options', 'mode' => 'none', 'plain' => '1', 'partMb' => '1', 'exclude' => '', 'note' => '', 'storage' => '']);
+        echo str_contains($page, 'Back up now') ? "summary\n" : "FAILED summary\n";
+        $step('POST', [], ['action' => 'probe', 'result' => 'closed']);
+        $page = $step('POST', [], ['action' => 'start']);
+        echo str_contains($page, 'Backing up') ? "run\n" : "FAILED run\n";
+        for ($i = 0; $i < 100; ++$i) {
+            $answer = json_decode($step('POST', [], ['action' => 'tick', 'format' => 'json']), true);
+            if (($answer['status'] ?? '') !== 'running') {
+                break;
+            }
+        }
+        echo ($answer['status'] ?? '') === 'finished' ? "finished\n" : 'FAILED tick ' . json_encode($answer) . "\n";
+        echo str_contains($step('GET', ['step' => 'done'], []), 'The backup is made') ? "done\n" : "FAILED done\n";
+        PHP;
+        file_put_contents($this->directory . '/walk.php', $script);
+
+        [$out, $errors, $code] = $this->shell($this->directory . '/walk.php', $this->directory . '/bundle.php', dirname(__DIR__, 3), $site);
+
+        self::assertSame("site\noptions\nsummary\nrun\nfinished\ndone\n", $out, $errors);
+        self::assertSame(0, $code, $errors);
+        self::assertNotSame([], glob($site . '/.threadsafe-backup/storage-*/*.zip') ?: []);
+    }
+
     /** Builds the tool once into a scratch place and returns its path. */
     private function build(string $site): string
     {

@@ -9,7 +9,8 @@
  * It checks that the checksums in SHA256SUMS are those of the files, that `unzip` opens the package and the installer, that the
  * unpacked package runs (`bin/threadsafe --version`, `doctor`), that `threadsafe-install.php` installs it through its own wizard into a new document
  * root (key, check, install, remove the installer, hand over to the setup), that the installed command and stub run, and that
- * `threadsafe-restore.php` carries the version. This file uses no class of ThreadSafe and needs no `vendor/`.
+ * `threadsafe-restore.php` carries the version, and that `threadsafe-backup.php` carries it, refuses to make an archive without a choice of key and makes a
+ * backup of the site it lies in (`unzip -t` passes, the tool is not in it). This file uses no class of ThreadSafe and needs no `vendor/`.
  */
 declare(strict_types=1);
 
@@ -60,7 +61,7 @@ $package = "threadsafe-$version.zip";
 echo "PHP " . PHP_VERSION . ", release files in $dir, version $version\n\n";
 
 // ---------------------------------------------------------------------------------------------------- the files and their checksums
-foreach ([$package, 'threadsafe-install.php', 'threadsafe-restore.php', 'SHA256SUMS'] as $name) {
+foreach ([$package, 'threadsafe-install.php', 'threadsafe-restore.php', 'threadsafe-backup.php', 'SHA256SUMS'] as $name) {
     $check("$name is there", is_file("$dir/$name"));
 }
 if ($failures !== []) {
@@ -72,7 +73,7 @@ foreach (file("$dir/SHA256SUMS", FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) 
         $listed[$m[2]] = $m[1];
     }
 }
-foreach ([$package, 'threadsafe-install.php', 'threadsafe-restore.php'] as $name) {
+foreach ([$package, 'threadsafe-install.php', 'threadsafe-restore.php', 'threadsafe-backup.php'] as $name) {
     $check("SHA256SUMS lists $name with its checksum", ($listed[$name] ?? '') === hash_file('sha256', "$dir/$name"));
 }
 
@@ -174,6 +175,29 @@ $head = (string) file_get_contents("$dir/threadsafe-restore.php", false, null, 0
 $check('threadsafe-restore.php carries the version', str_contains($head, "ThreadSafe restore tool $version"), trim(strtok($head, "\n") . ' / ' . strtok("\n")));
 [$code, $out, $err] = $run("$php $dir/threadsafe-restore.php restore");
 $check('threadsafe-restore.php runs as the restore command in a shell', $code === 1 && str_contains($err . $out, 'archive'), trim(substr($out . $err, 0, 200)));
+
+// ---------------------------------------------------------------------------------------------------- threadsafe-backup.php
+$head = (string) file_get_contents("$dir/threadsafe-backup.php", false, null, 0, 200);
+$check('threadsafe-backup.php carries the version', str_contains($head, "ThreadSafe backup tool $version"), trim(strtok($head, "\n") . ' / ' . strtok("\n")));
+[$code, $out, $err] = $run("$php $dir/threadsafe-backup.php backup");
+$check('threadsafe-backup.php refuses to make an archive that nobody chose the key of', $code === 1 && str_contains($err . $out, 'who may open the backup'), trim(substr($out . $err, 0, 200)));
+$site = "$work/backup-site";
+mkdir("$site/assets", 0777, true);
+file_put_contents("$site/index.php", '<?php echo 1;');
+file_put_contents("$site/assets/data.txt", str_repeat("data\n", 2000));
+copy("$dir/threadsafe-backup.php", "$site/threadsafe-backup.php");
+[$code, $out, $err] = $run("$php $site/threadsafe-backup.php backup --no-db --no-encryption");
+$archives = glob("$site/.threadsafe-backup/storage-*/*.zip") ?: [];
+$check('threadsafe-backup.php makes a backup of the site it lies in, in a shell', $code === 0 && $archives !== [], trim(substr($out . $err, 0, 300)));
+if ($archives !== [] && $haveUnzip) {
+    $listing = '';
+    foreach ($archives as $archive) {
+        [$code, $out] = $run('unzip -tq ' . escapeshellarg($archive));
+        $check('unzip -t ' . basename($archive), $code === 0, trim($out));
+        $listing .= $run('unzip -Z1 ' . escapeshellarg($archive))[1];
+    }
+    $check('the archive holds the site and none of the tool', str_contains($listing, 'files/index.php') && !str_contains($listing, 'threadsafe-backup'), trim(substr($listing, 0, 200)));
+}
 
 $remove($work);
 echo "\n" . ($failures === [] ? "The release is in order.\n" : count($failures) . " check(s) failed.\n");
