@@ -4,11 +4,15 @@ declare(strict_types=1);
 
 namespace ThreadSafe\Web;
 
+use ThreadSafe\Cli\Application;
+use ThreadSafe\Cli\CommandLine;
+use ThreadSafe\Cli\StreamOutput;
+use ThreadSafe\Cli\ToolBackupCommand;
 use ThreadSafe\Engine\Budget;
 
 /**
- * What the single-file `threadsafe-backup.php` does once its code is loaded (docs/PHASE12.md 3.2, 3.7): on a web server it is the wizard. **The shell
- * mode is a placeholder until work package 6**, and the wizard stops at the summary until work package 5: the file is built and loads.
+ * What the single-file `threadsafe-backup.php` does once its code is loaded (docs/PHASE12.md 3.2, 3.7): on a web server it is the wizard; in a shell
+ * (`php threadsafe-backup.php backup ...`) it is the command {@see ToolBackupCommand}, which needs no key because shell access is trusted already.
  */
 final class BackupEntry
 {
@@ -20,9 +24,15 @@ final class BackupEntry
     public static function run(string $script): int
     {
         if (Budget::isCommandLine()) {
-            fwrite(STDERR, "This is the ThreadSafe backup tool. Its shell mode is not finished: the wizard needs a web server (docs/PHASE12.md).\n");
+            if (PHP_SAPI !== 'cli') {
+                // the PHP CGI binary has a time limit of its own and prints HTML errors, which a shell does not want
+                @set_time_limit(0);
+                @ini_set('html_errors', '0');
+            }
+            // no $_SERVER['argv'] if register_argc_argv is off (the CGI binary with php.ini-production): the process knows its command line
+            $arguments = CommandLine::arguments($_SERVER['argv'] ?? null, $script) ?? [$script];
 
-            return 1;
+            return (new Application([new ToolBackupCommand(dirname($script), basename($script))]))->run($arguments, StreamOutput::standard());
         }
 
         // a warning of PHP (a path that open_basedir does not allow, say) must never reach the page: it would end the headers

@@ -11,8 +11,8 @@ use ThreadSafe\Build\ToolStub;
 use ThreadSafe\Tests\Support\TempDirectory;
 
 /**
- * The backup tool built from the real sources (docs/PHASE12.md work package 1): it has the program of the restore tool in it behind the stub of its own, and
- * until the wizard exists it loads and says so.
+ * The backup tool built from the real sources (docs/PHASE12.md): it has the program of the restore tool in it, with the wizard and the command of its own,
+ * behind the stub of its own; the built file is run as a person with a shell runs it.
  */
 final class BackupBuilderTest extends TestCase
 {
@@ -105,6 +105,9 @@ final class BackupBuilderTest extends TestCase
         self::assertStringNotContainsString('BackupWizard', $bundleOfRestore, 'the restore tool has none of the backup tool');
         self::assertStringNotContainsString('BackupWorkspace', $bundleOfRestore);
         self::assertStringNotContainsString('BackupTarget', $bundleOfRestore);
+        self::assertStringNotContainsString('ToolBackupCommand', $bundleOfRestore);
+        self::assertStringContainsString('ToolBackupCommand', $bundleOfBackup);
+        self::assertStringNotContainsString('final class RestoreCommand', $bundleOfBackup, 'the restore command is the restore tool\'s');
     }
 
     public function testWithoutAKeyFileTheToolOnlyExplainsAndWritesNothingOnTheWeb(): void
@@ -120,33 +123,68 @@ final class BackupBuilderTest extends TestCase
         self::assertSame(['threadsafe-backup.php'], array_values(array_diff(scandir($site) ?: [], ['.', '..'])), 'nothing was written');
     }
 
-    public function testWithAKeyFileItUnpacksItselfAndSaysThatTheWizardIsNotThereYet(): void
+    /**
+     * Runs the tool as a person with a shell does.
+     *
+     * @return array{string, string, int} standard output, standard error, exit code
+     */
+    private function shell(string $tool, string ...$arguments): array
     {
-        $site = $this->directory . '/site';
-        mkdir($site);
-        copy($this->build($site), $site . '/threadsafe-backup.php');
-        file_put_contents($site . '/threadsafe-backup-key.php', "<?php return 'a secret key';");
+        $command = [PHP_BINARY, '-d', 'display_errors=0', $tool];
+        foreach ($arguments as $argument) {
+            $command[] = $argument;
+        }
+        $process = proc_open($command, [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
+        self::assertIsResource($process);
+        $output = (string) stream_get_contents($pipes[1]);
+        $errors = (string) stream_get_contents($pipes[2]);
 
-        // a CLI process counts as a shell even with a request method set, so the placeholder answers on the standard error
-        [, $errors] = $this->php('$_SERVER["REQUEST_METHOD"] = "GET"; include $argv[1];', $site . '/threadsafe-backup.php');
-
-        self::assertStringContainsString('not finished', $errors);
-        self::assertDirectoryExists($site . '/.threadsafe-backup');
-        self::assertSame(0700, fileperms($site . '/.threadsafe-backup') & 0777);
-        self::assertFileExists($site . '/.threadsafe-backup/.htaccess', 'closed to the web');
-        self::assertCount(1, glob($site . '/.threadsafe-backup/bundle-*.php') ?: []);
+        return [$output, $errors, proc_close($process)];
     }
 
-    public function testInAShellItSaysSoOnTheStandardErrorAndFails(): void
+    public function testInAShellItIsTheBackupCommandAndNeedsNoKeyFile(): void
     {
         $site = $this->directory . '/site';
         mkdir($site);
         copy($this->build($site), $site . '/threadsafe-backup.php');
 
-        [, $errors, $code] = $this->php('include $argv[1];', $site . '/threadsafe-backup.php');
+        [$overview, , $code] = $this->shell($site . '/threadsafe-backup.php');
+        self::assertSame(0, $code);
+        self::assertStringContainsString('backup', $overview);
+        self::assertStringNotContainsString('restore', $overview, 'it is not the restore tool');
 
+        [, $errors, $code] = $this->shell($site . '/threadsafe-backup.php', 'backup');
         self::assertSame(1, $code);
-        self::assertStringContainsString('not finished', $errors);
+        self::assertStringContainsString('Say who may open the backup', $errors);
+    }
+
+    public function testInAShellItMakesABackupOfTheSiteItLiesIn(): void
+    {
+        $site = $this->directory . '/site';
+        mkdir($site);
+        file_put_contents($site . '/index.php', '<?php echo 1;');
+        file_put_contents($site . '/data.txt', str_repeat("data\n", 3000));
+        copy($this->build($site), $site . '/threadsafe-backup.php');
+
+        [$out, $errors, $code] = $this->shell($site . '/threadsafe-backup.php', 'backup', '--no-db', '--no-encryption');
+
+        self::assertSame(0, $code, $errors . $out);
+        $storages = glob($site . '/.threadsafe-backup/storage-*', GLOB_ONLYDIR) ?: [];
+        self::assertCount(1, $storages);
+        $parts = glob($storages[0] . '/*.zip') ?: [];
+        self::assertNotSame([], $parts);
+        $names = [];
+        foreach ($parts as $part) {
+            foreach (\ThreadSafe\Archive\ZipReader::open($part)->entries() as $entry) {
+                $names[] = $entry->name;
+            }
+        }
+        self::assertContains('files/index.php', $names);
+        self::assertContains('files/data.txt', $names);
+        self::assertSame([], array_values(array_filter($names, static fn (string $n): bool => str_contains($n, 'threadsafe-backup'))), 'the tool and its directory are not in it');
+        self::assertSame(0700, fileperms($site . '/.threadsafe-backup') & 0777);
+        self::assertFileExists($site . '/.threadsafe-backup/.htaccess', 'closed to the web');
+        self::assertCount(1, glob($site . '/.threadsafe-backup/bundle-*.php') ?: [], 'unpacked once');
     }
 
     /** Builds the tool once into a scratch place and returns its path. */
