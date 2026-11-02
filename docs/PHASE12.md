@@ -1,0 +1,161 @@
+# Phase 12 – `threadsafe-backup.php`: a backup without the ThreadSafe app
+
+**Status:** **planned** (2026-11-02, at the owner's request; the decisions of section 7.2 are for the owner, each with a recommendation; nothing is built).
+**Context:** [PHASE3.md](PHASE3.md) is the model: `threadsafe-restore.php`, the single file that restores a backup on a host where nothing else is installed ([RESTORE.md](RESTORE.md)). [BACKUP.md](BACKUP.md) is the backup engine and the archive; [PHASE4.md](PHASE4.md) 3.3 and [WEB.md](WEB.md) are the backup in the browser, in steps; [PHASE7.md](PHASE7.md) is the installer, the other single file that is handed out. The engine, the website types and the encryption are built and proven; this phase adds a front end.
+
+## 1. Goal and scope
+
+**The wish:** upload **one file** (and a key file) to a site that has no ThreadSafe, open it in the browser, and get a standard ThreadSafe backup of that site - Joomla, WordPress, PrestaShop or any site - which `threadsafe-restore.php` (or `unzip` and the `mariadb` client) brings back. No installation, no profile, no data directory left behind; the tool deletes itself like the restore tool.
+
+**Why it is not a big job:** `RestoreBuilder` bundles all of `src/` except `src/Admin`, `src/Build` and `src/Auth`, so the backup engine (`BackupRun`, `Dumper`, `ArchivePacker`, `ZipWriter`, `Filters`, `Scanner`), the website types' detection and backup side (`plugins/*`), the `age` encryption and the engine of ticks are **already inside `threadsafe-restore.php`**. A backup in the browser under 5 s and 64 MB is proven (phase 4b). What is missing is the entry, a wizard for a person who has no profile, the way to hand the archive out, and the build.
+
+**What it is for, and what it is not:** the installer ([INSTALL.md](../INSTALL.md)) puts ThreadSafe on a server in a few minutes; this tool is for the one-off case where nothing should stay: a backup before an update, a handover, a host where the owner may not or will not install. It has **no schedule, no retention, no dashboard and no list of sites**.
+
+| In scope | Out of scope (later, or never) |
+|---|---|
+| the single file `threadsafe-backup.php` and a **wizard** (key file, the site, options, summary, the run in steps, the result) | schedules, retention, several sites, the web interface of the app |
+| every website type that has a backup side (PrestaShop 9, Joomla, WordPress, generic): the type is found by detection, as in the app | a remote source (a site on another server), remote storage |
+| the archive in the **standard format**: restorable by `threadsafe-restore.php` and by hand | a new archive format, or a lighter one |
+| **encryption** with the `age` format: a key pair made in the wizard (the secret key shown once) or a public key typed in; a passphrase for this backup | a backup that is encrypted for a passphrase *and* keys (not possible in `age`) |
+| the result **handed out**: a download through the tool with resume (as the app does it), or fetched by SFTP | a backup that is sent to another server by the tool |
+| the **shell mode** of the single file: `php threadsafe-backup.php backup --root=DIR ...` in one process | an interactive command line |
+| the tool is part of every release (`threadsafe-backup.php` beside the other files, in `SHA256SUMS`) | a change of the restore tool's behaviour |
+
+**No migration.** Nothing in the data of an installation changes; the restore tool keeps its behaviour (its tests stay as they are).
+
+## 2. Deliverables
+
+1. `Build\ToolStub` (the stub of the restore tool and of the installer, made one class with a name, a key file and a directory as parameters; PHP 5.2 syntax kept) and `Build\BackupBuilder` (the file `threadsafe-backup.php`, built like `RestoreBuilder`; `src/Auth` and `src/Admin` stay out); the build script and the release (the workflow, `tools/build-release.php`, `tools/test-release.php`, `build.xml`).
+2. `Web\Download` and `Web\ByteRange` (moved out of `src/Admin`, no change of behaviour) so that the app and the tool send a file in the same way (`Range`, `If-Range`, an `ETag` that is the SHA-256).
+3. `Backup\Tool` (or `Web\BackupSession`): the **data directory of its own** below the tool's work directory, with one profile made from what detection found, so that `BackupService`, `BackupRun`, `Executor` and `RunStore` run unchanged; the self-exclusion (the tool, its work directory, its key file, the storage).
+4. `Web\BackupWizard` and `Web\BackupEntry`: the pages and the ticks (3.2), the key pair and the passphrase, the downloads, the clean-up; and the shell mode (3.7).
+5. Tests (section 4), the stack group `backup-tool` in `tests/stack/run.sh`, and the documentation: `BACKUP.md` (a section), `README.md`, `INSTALL.md` (a line), `CHANGELOG.md`, `AGENTS.md`, this plan's "As built".
+
+## 3. Design
+
+### 3.1 The file and its directories
+
+`threadsafe-backup.php` has the form of the restore tool: the stub (PHP 5.2 syntax: it must show a page on an old PHP), then the deflated payload with the bundle and the plugin files. On the web it does **nothing, and writes nothing, until the key file `threadsafe-backup-key.php` is next to it** (the same rule and the same text as the restore tool: a PHP file that returns the secret, so that it is never served as text). The tool unpacks itself once into `.threadsafe-backup/` (mode 0700, closed to the web by `.htaccess` and an empty `index.html`), keyed by the size and time of the file.
+
+Below that directory the tool keeps what it makes: `data/` (the profile `site`, the runs, the sessions, the throttle: the layout of a data directory of the app, so that the engine needs no special case), `work/` (the dump and the plain parts of an encrypted backup) and `storage/` (the finished archive and its sidecar file). **The names of `work/` and `storage/` carry a random part of 128 bits** (`storage-7f3c...`): on a server that does not read `.htaccess` (nginx) a closed directory is only closed by the rule that is not there, and the name of a backup (`site_20261102-091500_ab12cd34`) has 32 random bits only. A probe (3.4) says whether the directory is reachable.
+
+### 3.2 The wizard
+
+One address, the steps selected by `?step=` as in the restore wizard; every change is a POST with the token of the session; the session is a file in `data/sessions`; the cookie is `threadsafe_backup`.
+
+1. **Key:** the key file, throttled as in the restore tool ([PHASE3.md](PHASE3.md) 3.2).
+2. **Site:** the directory (by default the directory of the tool; 3.3 says which others are allowed) and the website type. Detection (`ProfileService::detect()`, the same as the profile form of the app) runs over the types and shows the application, its version and **where the database access comes from** (the application's own configuration); a site the types do not know is the `generic` type, which asks for the database access. The connection is tested as the app does it at the start of a backup.
+3. **Options:** encryption (3.5), what to leave out (the default filters of the type, plus a list), the size of a part (default 500 MB, so that a download can be repeated per part), a note.
+4. **Summary:** the free space (the check of the app: the files plus one and a half times the database, plus the database again for the dump), the closed-directory probe (3.4), and what the tool will do.
+5. **Run:** the page of a running backup (`RunView`: the bar, the clock, what the working step does), one tick per request from a few lines of script (a button without). It is the run of the app: a step is at most 20 seconds, the database is read table by table, an interrupted run is continued from the point it had reached.
+6. **Done:** the name of the backup, its parts with sizes and SHA-256, the warnings, a **download per part** with resume (3.6), the command for `scp`/`rsync`, the way to restore it (a button that explains `threadsafe-restore.php`), and the buttons *Delete the archive* and *Delete this tool* (the clean-up of the restore tool: the file, `.threadsafe-backup/`, the key file; the archive only if the person says so).
+
+### 3.3 Which directory may be backed up
+
+The tool can read what the PHP user can read, and whoever holds the key can make it do that. So the directory to back up must be **the directory that holds the tool or one of its parents** (a tool in `/var/www/site/tools/` may back up `/var/www/site/`, not `/var/www/other/`), and it must lie inside `open_basedir` (the check of the app). One key, one site.
+
+### 3.4 Keeping the archive away from the web
+
+The backup holds the database credentials and the customer data of the site. The measures, in the order they matter:
+
+- the **archive is encrypted** by default (3.5), so that a copy that leaks is useless;
+- `storage-<random>/` and `work-<random>/` are closed (`.htaccess`, `index.html`) **and** unguessable (3.1);
+- the download needs the token of the session and the key; a token lives as long as the session;
+- a **probe** before the run: the tool writes a small file into `storage-<random>/` and asks for it through the browser (a request of the page's own script to the address where the file would be served). "Not reachable" lets the run start; **reachable** stops it with a message (the same test as the System page of the app, [WEB.md](WEB.md)), until the person has chosen a directory outside the document root that `open_basedir` allows;
+- the tool never backs up **itself**: the tool file, the key file, `.threadsafe-backup/` and any `.threadsafe-restore/` are excluded as literal paths (the filters have this since phase 2), as are the storage and work directories of the app's own profiles.
+
+### 3.5 Encryption
+
+The wizard asks one question: **who may open this backup?** (a) *A key pair made here*: the secret key is shown **once** with the means to keep it (copy, save, print; as on the keys page of the app, [PHASE5.md](PHASE5.md) 3.5) and the public key is used; nothing of the secret half is stored. (b) *A public key I have* (typed in). (c) *A passphrase for this backup*, typed twice. (d) *No encryption*, which needs a tick on "I accept that this archive on the server can be read by whoever finds it". The restore tool opens every one of these with the key or the passphrase ([RESTORE.md](RESTORE.md) section 12).
+
+### 3.6 Handing the archive out
+
+Per part, `Web\Download::response()` (moved from `src/Admin`): `Range` and `If-Range`, the `ETag` is the SHA-256 of the part, `Content-Disposition` with a safe file name, no caching. The tool's session token does for the address, as in the app. For hosts where PHP cannot send a few hundred MB through the web server (the open item of [PHASE4.md](PHASE4.md) 8, finding 1) the page names `scp`, `rsync` and SFTP first; the download is the convenience, not the only way.
+
+### 3.7 Shell mode
+
+`php threadsafe-backup.php backup --root=DIR [--storage=DIR] [--part-size=500M] [--recipient=age1...|--passphrase-file=FILE] [--exclude=PATTERN]` runs one backup in **one process** (no time limit, one consistent snapshot of the database, as the command `backup` does) and prints the result; no key file, because shell access is trusted already (as `threadsafe-restore.php restore`). The profile is made in a temporary data directory that is removed afterwards. Passwords are never options: the database access is read from the application, or comes from `--db-password-file` or THREADSAFE_DB_PASSWORD.
+
+### 3.8 One stub, not three
+
+The stubs of the restore tool and of the installer are largely the same code twice (the version check, the missing key file, the unpacking into a hidden directory, the hand-over). A third copy would be a third place to fix a bug that only shows on an old PHP. Work package 1 makes them one class with parameters and proves by the existing tests that the two built files behave as they did; the restore tool is the first thing to check, because it is the one that is handed out most.
+
+## 4. Test strategy
+
+### 4.1 Unit tests (no database)
+
+- `ToolStub`: the three tools' stubs parse as PHP 5.2 syntax (the test of the restore stub, run for each), refuse below 8.4, show the page of the missing key, unpack once and not again for the same file; the built restore tool and installer are **unchanged in behaviour** (their existing tests pass unchanged).
+- `Web\Download`, `ByteRange`: the tests move with them and pass unchanged.
+- The tool's data directory: the profile made from a detection, a profile for each type, the self-exclusion (the tool, the key file, `.threadsafe-backup/`, a `.threadsafe-restore/`), the directory that may be backed up (the tool's own, a parent, a sibling: refused; one outside `open_basedir`: refused), the random names (128 bits, never the same twice).
+- The wizard over `Request`/`Response` (as `WizardHttpTest`): no key, wrong key and the throttle, every step, the CSRF token, the options, the key pair shown once and **not stored** (not in the session, not in a file, not in the log), the passphrase, the refusal of an unencrypted archive without the tick, the probe that says "reachable", the downloads with a range and a wrong `If-Range`, the clean-up (what is deleted, what stays).
+- The shell mode: the options, no password as an option, the result, the exit codes.
+
+### 4.2 Integration (the stack)
+
+- A group `backup-tool` in `tests/stack/run.sh` (after phase 4b): the tool and its key file are put into a **writable copy** of a seeded site (the service `fresh`, Apache with limits of 5 s and 64 MB, [PHASE7.md](PHASE7.md); the app's `web` service has the shops read-only); the wizard makes a backup in steps (the number of steps is checked: more than one), the archive passes `unzip -t` and `verify`, and **`threadsafe-restore.php` restores it onto the target stack** and the shop works (the check of phase 4). For Joomla and WordPress the same through the services `joomla5` and `wordpress7`.
+- Encrypted: the archive is opened by the real `age` tool (the oracle of phase 4d); the secret key of the wizard is nowhere in the data directory.
+- The probe: on the weaker layout of phase 4b (port 81, the whole tree below the web root) the directories are closed by `.htaccess`; with the `.htaccess` taken away the probe says "reachable" and the run does not start.
+- All three database servers (MariaDB 10.11, MySQL 8.4, MariaDB 11.8).
+- `tools/a11y-audit.js` on every page of the wizard in both colour schemes, and at phone width.
+
+## 5. Work packages
+
+| # | Package | Needs | Proof |
+|---|---|---|---|
+| 1 | One stub for the restore tool, the installer and the backup tool (`ToolStub`); the build of `threadsafe-backup.php` with a placeholder entry | - | unit tests of 4.1; the restore and installer tests unchanged |
+| 2 | `Download` and `ByteRange` into `src/Web` | - | the moved tests |
+| 3 | The tool's data directory: the profile from a detection, the self-exclusion, the allowed directory, the random names | 1 | unit tests |
+| 4 | The wizard: key, site, options (the key pair, the passphrase), summary, the probe | 1, 3 | HTTP tests |
+| 5 | The run and the result: the ticks, the downloads, the clean-up | 2 to 4 | HTTP tests |
+| 6 | The shell mode of the single file | 3 | command tests |
+| 7 | The release: the workflow, `tools/build-release.php`, `tools/test-release.php`, Phing | 1 | `phing verify` |
+| 8 | The group `backup-tool` of `run.sh`, the audit, the look in both schemes and at phone width | 5, 6 | `run.sh` phase of the group, matrix, audit |
+| 9 | Documentation (`BACKUP.md`, `README.md`, `INSTALL.md`, `CHANGELOG.md`, `AGENTS.md`, "As built") | all | read through |
+| 10 | **Field test** by the owner: the tool on a real site that has no ThreadSafe (a shared host), a backup in the browser, the download, the restore with `threadsafe-restore.php` on another host | 9 | the findings |
+
+Packages 1 and 2 are refactorings that change nothing a user sees (the largest risk of the phase is breaking the restore tool in package 1, so it comes first and alone); 3 to 5 are the heart; 6 and 7 are small. One commit per package (`Phase 12, work package N: ...`). The effort is roughly that of the restore wizard without the extraction, import and adaptation: the engine exists.
+
+## 6. Acceptance criteria
+
+1. A person who puts `threadsafe-backup.php` and a key file into the directory of a site that has no ThreadSafe gets, in the browser under 5 s and 64 MB per request, a backup of that site (PrestaShop 9, Joomla, WordPress or generic) that `threadsafe-restore.php` restores onto another host, with the same result as a backup made by the app (the comparison of phase 4).
+2. Without the key file the tool does nothing and writes nothing; a wrong key is slowed down; the backup of a directory that is not the tool's own or a parent of it is refused.
+3. The tool does not back up itself, its work directory or its key file.
+4. By default the archive is encrypted: the secret key is shown once and is nowhere on the server afterwards; an unencrypted archive needs a tick that says what it means.
+5. A directory of the tool that the web server would serve is **found out before the run** and stops it.
+6. A download resumes (a range), and the SHA-256 of what was fetched is the recorded one.
+7. The tool deletes itself on request, with its directory and key file, and leaves the archive unless the person says otherwise.
+8. `threadsafe-restore.php` and the installer behave as before (their tests pass unchanged), and `composer check` and all three database servers stay green; every page of the wizard passes the contrast audit in both colour schemes.
+
+## 7. Risks and decisions
+
+### 7.1 Risks
+
+| Risk | Handling |
+|---|---|
+| **The key opens a lot:** whoever holds the key file's secret can make the tool read the whole site and hand the archive out | the allowed directory (3.3); an encrypted archive by default (3.5); the throttle; the tool deletes itself; the page says plainly that the key is the door |
+| **The archive is reachable by URL** (a server that ignores `.htaccess`, such as nginx) | unguessable names (3.1), the probe that stops the run (3.4), the download only with the token, and encryption by default |
+| The tool backs up its own work directory and the archive grows without end | literal self-exclusion (3.4), tested |
+| One stub for three tools breaks the restore tool on an old PHP | package 1 first and alone; the PHP 5.2 syntax test for every stub; the existing tests of the restore tool and the installer unchanged |
+| A host with little free space cannot hold the archive beside the site | the space check of the app before the run; the page says how much is needed |
+| The limits of the host (`max_execution_time`, memory, `open_basedir`) differ from the lab | the same engine, the same budget of a step (at most 20 s); the requirements of the app's check; the owner's field test on a real shared host |
+| A very large site takes long in the browser | it is a run in steps that can be continued; the shell mode exists for hosts with SSH |
+| The tool is a second front end to keep in step with the app | it shares the engine, the plugins and the download; only the wizard is its own |
+
+### 7.2 Decisions (owner)
+
+Each with the recommendation; none is settled yet.
+
+1. **Go.** Build it as a convenience for one-off backups **(recommended)**; the alternative is the installer, which exists and needs no new work.
+2. **Names.** `threadsafe-backup.php`, the key file `threadsafe-backup-key.php`, the directory `.threadsafe-backup/` **(recommended)**: the same pattern as the restore tool.
+3. **Encryption.** On by default: a key pair made in the wizard, a public key, or a passphrase; no encryption only after an explicit tick **(recommended)**. Or: off by default, like the app's profiles.
+4. **Which directory.** The tool's own directory or a parent **(recommended)**; or any directory the PHP user may read (more flexible, and a larger door).
+5. **Handing out.** A download per part with resume **and** the `scp`/`rsync` hint **(recommended)**; or only the hint (less code, no download through PHP).
+6. **Where the archive lies.** In `storage-<random>/` of the tool's directory, closed and probed; the wizard offers a directory outside the document root where `open_basedir` allows it **(recommended)**.
+7. **Shell mode.** Yes **(recommended)**, a small job on top of the engine; for hosts with SSH and no wish to install.
+8. **Part size.** 500 MB by default in the tool (a download is repeated per part); the app's default (one archive) stays.
+9. **One stub.** Make the stubs of the restore tool, the installer and the backup tool one class **(recommended)**; or copy the restore stub a third time (faster, a third place to fix).
+10. **Order of work.** When the owner wants it, after the field experience with 0.9.0-beta.4 and later; packages 1 and 2 are refactorings and can be done first, alone.
+
+## 8. As built
+
+Not built yet.

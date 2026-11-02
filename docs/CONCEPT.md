@@ -330,6 +330,7 @@ Downloading in the web interface is a **convenience, not a reliable transport fo
 | 9 (**done**, field test partly) | **The website type WordPress** ([PHASE9.md](PHASE9.md), [WORDPRESS.md](WORDPRESS.md)) | a third application |
 | 10 (planned) | **A retention strategy:** staged rules, presets, the cost shown ([PHASE10.md](PHASE10.md)) | a sensible number of backups |
 | 11 (**done**, 2026-10-31) | **A second factor for the web login:** TOTP, recovery codes, a QR code ([PHASE11.md](PHASE11.md), [WEB.md](WEB.md) "Security") | a safer login |
+| 12 (planned) | **`threadsafe-backup.php`:** a backup without the ThreadSafe app, one file with a wizard ([PHASE12.md](PHASE12.md)) | a one-off backup where nothing stays installed |
 | later | SFTP/S3 export (fills "transferred"), anonymisation of customer data, restoring over an existing installation | extensibility |
 
 Phase 1 deliberately comes before the engine: it solves the actual problem (the move), works with existing Akeeba backups and is the riskiest domain logic.
