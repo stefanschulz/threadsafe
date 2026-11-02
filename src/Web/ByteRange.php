@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace ThreadSafe\Admin;
+namespace ThreadSafe\Web;
 
 /**
  * The `Range` header of a download request (RFC 9110, section 14): which bytes of a file of a known size are wanted.

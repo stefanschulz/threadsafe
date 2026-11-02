@@ -2,11 +2,9 @@
 
 declare(strict_types=1);
 
-namespace ThreadSafe\Admin;
+namespace ThreadSafe\Web;
 
 use Closure;
-use ThreadSafe\Web\Request;
-use ThreadSafe\Web\Response;
 
 /**
  * Sends a file to the browser (docs/PHASE4.md 3.6; the technique was measured in spike 1a): `Content-Length`, `Accept-Ranges`, a

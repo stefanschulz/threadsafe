@@ -14,6 +14,7 @@ use ThreadSafe\Profile\ProfileStore;
 use ThreadSafe\Storage\BackupEntry;
 use ThreadSafe\Storage\SpaceCheck;
 use ThreadSafe\Storage\StorageException;
+use ThreadSafe\Web\Download;
 use ThreadSafe\Web\Html;
 use ThreadSafe\Web\Response;
 

@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace ThreadSafe\Tests\Unit\Admin;
+namespace ThreadSafe\Tests\Unit\Web;
 
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
-use ThreadSafe\Admin\ByteRange;
-use ThreadSafe\Admin\Download;
 use ThreadSafe\Tests\Support\TempDirectory;
+use ThreadSafe\Web\ByteRange;
+use ThreadSafe\Web\Download;
 use ThreadSafe\Web\Request;
 use ThreadSafe\Web\Response;
 
