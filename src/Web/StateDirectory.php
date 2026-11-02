@@ -7,7 +7,7 @@ namespace ThreadSafe\Web;
 use RuntimeException;
 
 /**
- * The directory the restore keeps its state in (sessions, the run, the journal, the unpacked SQL files): mode 0700, closed to
+ * The directory a single-file tool keeps its state in (the restore: sessions, the run, the journal, the unpacked SQL files): mode 0700, closed to
  * the web server by an `.htaccess` (Apache) and an empty index page, so that nothing in it can be fetched even if the host
  * ignores the first.
  */
@@ -21,7 +21,7 @@ final class StateDirectory
     public static function prepare(string $directory): void
     {
         if (!is_dir($directory) && !@mkdir($directory, 0700, true) && !is_dir($directory)) {
-            throw new RuntimeException("Cannot create the directory \"$directory\" for the state of the restore.");
+            throw new RuntimeException("Cannot create the directory \"$directory\" for the state of the tool.");
         }
         @chmod($directory, 0700);
         $htaccess = $directory . '/.htaccess';
