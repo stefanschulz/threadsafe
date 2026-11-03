@@ -36,17 +36,21 @@ final class BackupWorkspaceTest extends TestCase
         self::assertDirectoryDoesNotExist($workspace->directory());
     }
 
-    public function testTheDataDirectoryIsClosedToTheWeb(): void
+    public function testTheDataDirectoryIsClosedToTheWebAndItsNameCannotBeGuessed(): void
     {
         $workspace = BackupWorkspace::in($this->base);
+        self::assertNull($workspace->existingData());
         $data = $workspace->data();
 
-        self::assertSame($workspace->directory() . '/data', $data);
+        self::assertMatchesRegularExpression('~/\.threadsafe-backup/data-[0-9a-f]{32}$~', $data, 'the profile (a database password) and the runs (a passphrase) are not at a fixed address');
+        self::assertSame($data, BackupWorkspace::in($this->base)->data(), 'one data directory per tool: a second request finds it');
+        self::assertSame($data, $workspace->existingData());
         foreach ([$workspace->directory(), $data] as $directory) {
             self::assertSame(0700, fileperms($directory) & 0777, $directory);
             self::assertFileExists($directory . '/.htaccess');
             self::assertFileExists($directory . '/index.html');
         }
+        self::assertNotSame(basename($data), basename(BackupWorkspace::in($this->tempDirectory())->data()));
     }
 
     public function testTheStorageNameHas128RandomBitsAndStaysTheSame(): void

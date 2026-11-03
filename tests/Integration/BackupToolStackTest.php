@@ -158,11 +158,17 @@ final class BackupToolStackTest extends IntegrationTestCase
         self::assertStringContainsString('Back up now', $summary['body'], $summary['body']);
         self::assertStringContainsString('Encrypted for the public key ' . self::$public, $summary['body']);
 
-        // the probe, made by the test as the script of the page would make it: the archive is out of the web's reach
-        $probe = self::found('~fetch\("([^"]+/probe-[0-9a-f]{16}\.txt)"~', $summary['body']);
-        self::assertStringStartsWith('.threadsafe-backup/storage-', $probe);
-        self::assertSame(403, $browser->stranger($probe)['status'], 'Apache reads the .htaccess of the storage: the probe file cannot be fetched');
-        foreach (['.threadsafe-backup/', '.threadsafe-backup/data/profiles/site.json', '.threadsafe-backup/access.log'] as $inside) {
+        // the probe, made by the test as the script of the page would make it: neither the archive nor the directory of the tool is in the web's reach
+        $probes = json_decode('[' . self::found('~urls = \[([^\]]+)\]~', $summary['body']) . ']', true);
+        self::assertIsArray($probes);
+        self::assertCount(2, $probes, 'one file in the directory of the tool, one in the directory of the archive');
+        foreach ($probes as $probe) {
+            self::assertMatchesRegularExpression('~^\.threadsafe-backup/(storage-[0-9a-f]{32}/)?probe-[0-9a-f]{16}\.txt$~', (string) $probe);
+            self::assertSame(403, $browser->stranger((string) $probe)['status'], 'Apache reads the .htaccess of the directory: the probe file cannot be fetched');
+        }
+        $data = basename((string) (glob(self::SHOP . '/.threadsafe-backup/data-*', GLOB_ONLYDIR)[0] ?? ''));
+        self::assertMatchesRegularExpression('~^data-[0-9a-f]{32}$~', $data, 'the data directory has a name that cannot be guessed');
+        foreach (['.threadsafe-backup/', ".threadsafe-backup/$data/profiles/site.json", '.threadsafe-backup/access.log'] as $inside) {
             self::assertContains($browser->stranger($inside)['status'], [403, 404], "$inside is not served");
         }
         // and the counter-example: the same kind of file where nothing closes it is served, with its token

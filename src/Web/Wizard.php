@@ -55,7 +55,11 @@ final class Wizard
 
     private readonly Sessions $sessions;
 
+    private readonly ReachProbe $probe;
+
     private readonly PluginRegistry $plugins;
+
+    private string $token = '';
 
     private string $nonce = '';
 
@@ -78,6 +82,7 @@ final class Wizard
         $this->stateDirectory = rtrim($baseDirectory, '/\\') . '/' . StateDirectory::NAME;
         $this->key = new AccessKey(rtrim($baseDirectory, '/\\') . '/' . self::KEY_FILE, $this->stateDirectory . '/attempts.json', $this->stateDirectory . '/access.log', $clock);
         $this->sessions = new Sessions($this->stateDirectory . '/sessions', $clock);
+        $this->probe = new ReachProbe($baseDirectory);
         $this->plugins = $plugins ?? PluginRegistry::load();
     }
 
@@ -111,6 +116,8 @@ final class Wizard
             return $request->isPost() && $request->post('action') === 'login' ? $this->login($request) : $this->loginPage($request);
         }
 
+        $this->token = $token;
+
         if ($request->isPost() && !hash_equals((string) $session['csrf'], (string) $request->post('csrf'))) {
             return $this->page('The page has expired', '<p>The form was not accepted (wrong or missing token). <a href="?">Start again</a>.</p>', 403);
         }
@@ -121,6 +128,7 @@ final class Wizard
             $action === 'logout' => $this->logout($token),
             $action === 'choose-backup' => $this->chooseBackup($request, $token, $session),
             $action === 'save-target', $action === 'test-db' => $this->saveTarget($request, $token, $session, $action === 'test-db'),
+            $action === 'probe' => $this->recordProbe($request, $session),
             $action === 'start' => $this->start($request, $token, $session),
             $action === 'tick' => $this->tick($request, $session),
             $action === 'retry' => $this->retry($session),
@@ -562,15 +570,50 @@ final class Wizard
         $table .= '</table>';
 
         $plain = ($session['plain'] ?? false) === true;
+        $probe = $this->probe->prepare((array) ($session['probe'] ?? []), [$this->stateDirectory]);
+        if ($probe !== ($session['probe'] ?? null)) {
+            $session['probe'] = $probe;
+            $this->sessions->save($this->token, $session);
+        }
         $start = $inspection->ok()
-            ? '<button name="action" value="start">Restore now</button>'
+            ? '<button name="action" value="start" id="start"' . ($probe['result'] === 'reachable' ? ' disabled' : '') . '>Restore now</button>'
             : '<p class="fail">Fix the problems and look at this page again.</p>';
         $body = ($error !== '' ? '<p class="fail">' . Html::e($error) . '</p>' : '')
             . '<div class="box">' . $table . '</div>' . Html::checks($inspection->checks)
+            . '<h3>Can the files of the restore be fetched through the web server?</h3>'
+            . '<p id="probe-result" class="' . ($probe['result'] === 'reachable' ? 'fail' : '') . '">' . Html::e($this->probeText($probe['result'])) . '</p>'
+            . '<p class="help">The restore unpacks the database as plain SQL files into <code>' . Html::e(StateDirectory::NAME) . '</code> and keeps its journal there. The page asks the web server for a small file in this directory. Apache reads the <code>.htaccess</code> that closes it (if the host lets <code>.htaccess</code> files count); nginx and IIS do not: add a rule, for nginx <code>location ~ /\.threadsafe-restore { deny all; }</code>, and look at this page again.</p>'
             . '<p class="help">Nothing has been written yet. ' . (((bool) ($state['dropTables'] ?? false)) ? 'The restore never overwrites or deletes files that are already there; the tables named above are the one thing it deletes, because you asked.' : 'The restore never overwrites or deletes anything that is already there.') . ($plain ? ' This connection is not encrypted.' : '') . '</p>'
             . $this->form($start . ' <a class="button secondary" href="?step=target">Back</a>', (string) $session['csrf']);
 
-        return $this->page('Summary', $body, 200, 'summary');
+        $texts = ['closed' => $this->probeText('closed'), 'reachable' => $this->probeText('reachable'), 'unknown' => $this->probeText('unknown')];
+
+        return $this->page('Summary', $body, 200, 'summary', $inspection->ok() ? $this->probe->script((string) $session['csrf'], $this->probe->urls($probe['file'], [$this->stateDirectory]), $probe['token'], $texts) : '');
+    }
+
+    private function probeText(string $result): string
+    {
+        return match ($result) {
+            'closed' => 'No: the web server does not hand the test file out.',
+            'reachable' => 'Yes: the test file can be fetched, and so could the database and the journal of the restore. Close the directory (see below), then look at this page again.',
+            'unknown' => 'The test could not be made (the page needs JavaScript for it). Make sure by hand that the directory ' . StateDirectory::NAME . ' cannot be opened in a browser.',
+            default => 'The page is asking the web server ...',
+        };
+    }
+
+    /**
+     * @param array<string, mixed> $session
+     */
+    private function recordProbe(Request $request, array $session): Response
+    {
+        $result = (string) $request->post('result');
+        $known = in_array($result, ReachProbe::RESULTS, true);
+        if ($known && is_array($session['probe'] ?? null)) {
+            $session['probe']['result'] = $result;
+            $this->sessions->save($this->token, $session);
+        }
+
+        return Response::json(['recorded' => $known]);
     }
 
     /**
@@ -591,6 +634,9 @@ final class Wizard
         }
         if (!$inspection->ok()) {
             return Response::redirect('?step=summary');
+        }
+        if (is_array($session['probe'] ?? null) && ($session['probe']['result'] ?? null) === 'reachable') {
+            return $this->summaryPage($session, $source, 'The test file can be fetched through the web server, and so could the database and the journal of the restore. Close the directory ' . StateDirectory::NAME . ' first (the rule for nginx is below), then look at this page again.');
         }
         $run = $this->store()->create($task->id(), $state);
         $session['runId'] = $run->id;

@@ -9,10 +9,11 @@ use ThreadSafe\Engine\RunStore;
 use ThreadSafe\Profile\ProfileStore;
 
 /**
- * What the backup tool keeps next to itself (docs/PHASE12.md 3.1): `.threadsafe-backup/` with a `data/` directory laid out like the data
+ * What the backup tool keeps next to itself (docs/PHASE12.md 3.1): `.threadsafe-backup/` with a `data-<random>/` directory laid out like the data
  * directory of the app (profiles, runs, sessions), so that the engine runs on it unchanged, and the **storage**, whose name carries 128 random
- * bits. On a server that does not read `.htaccess` a closed directory is closed by nothing, and the name of a backup has 32 random bits only;
- * the name of the storage is what keeps the archive from being guessed. The work files of a run are in the storage already (`.work-<backup>/`).
+ * bits. On a server that does not read `.htaccess` a closed directory is closed by nothing, and the name of a backup or of a run has 32 random bits
+ * only; the names of the storage and of the data directory are what keep the archive, the profile (with a database password the person typed) and
+ * the state of a run (with a passphrase) from being guessed. The work files of a run are in the storage already (`.work-<backup>/`).
  */
 final class BackupWorkspace
 {
@@ -22,6 +23,8 @@ final class BackupWorkspace
     public const string PROFILE = 'site';
 
     private const string STORAGE_PATTERN = '/^storage-[0-9a-f]{32}$/';
+
+    private const string DATA_PATTERN = '/^data-[0-9a-f]{32}$/';
 
     private function __construct(private readonly string $directory)
     {
@@ -47,7 +50,13 @@ final class BackupWorkspace
      */
     public function data(): string
     {
-        return $this->prepared($this->directory . '/data');
+        return $this->prepared($this->existingData() ?? $this->directory . '/data-' . bin2hex(random_bytes(16)));
+    }
+
+    /** The data directory if it has been made, else null (nothing is made). */
+    public function existingData(): ?string
+    {
+        return $this->existing(self::DATA_PATTERN);
     }
 
     /**
@@ -57,20 +66,20 @@ final class BackupWorkspace
      */
     public function storage(): string
     {
-        $found = $this->existingStorage();
-        if ($found === null) {
-            $found = $this->directory . '/storage-' . bin2hex(random_bytes(16));
-        }
-
-        return $this->prepared($found);
+        return $this->prepared($this->existingStorage() ?? $this->directory . '/storage-' . bin2hex(random_bytes(16)));
     }
 
     /** The storage if it has been made, else null (nothing is made). */
     public function existingStorage(): ?string
     {
+        return $this->existing(self::STORAGE_PATTERN);
+    }
+
+    private function existing(string $pattern): ?string
+    {
         $names = is_dir($this->directory) ? (scandir($this->directory) ?: []) : [];
         foreach ($names as $name) {
-            if (preg_match(self::STORAGE_PATTERN, $name) === 1 && is_dir($this->directory . '/' . $name)) {
+            if (preg_match($pattern, $name) === 1 && is_dir($this->directory . '/' . $name)) {
                 return $this->directory . '/' . $name;
             }
         }

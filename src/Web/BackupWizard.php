@@ -59,6 +59,8 @@ final class BackupWizard
 
     private readonly AccessKey $key;
 
+    private readonly ReachProbe $probe;
+
     private readonly PluginRegistry $plugins;
 
     /** @var Closure(): int */
@@ -85,6 +87,7 @@ final class BackupWizard
     ) {
         $this->workspace = BackupWorkspace::in($baseDirectory);
         $this->target = new BackupTarget($baseDirectory, $script, self::KEY_FILE);
+        $this->probe = new ReachProbe($baseDirectory);
         $this->clock = $clock ?? time(...);
         $this->key = new AccessKey(
             rtrim($baseDirectory, '/\\') . '/' . self::KEY_FILE,
@@ -731,7 +734,12 @@ final class BackupWizard
         } catch (ProfileException | StorageException $e) {
             return $this->optionsPage($session, $e->getMessage());
         }
-        $probe = $this->probeFile($session, $profile->storage);
+        $directories = $this->probeDirectories($profile->storage);
+        $probe = $this->probe->prepare((array) ($session['probe'] ?? []), $directories);
+        if ($probe !== ($session['probe'] ?? null)) {
+            $session['probe'] = $probe;
+            $this->save($session);
+        }
         $free = (new SpaceCheck())->check($profile->storage, 0)->free;
 
         $encryption = $profile->encryption !== null
@@ -752,12 +760,12 @@ final class BackupWizard
         }
         $table .= '</table>';
 
-        $result = is_string(($session['probe']['result'] ?? null)) ? $session['probe']['result'] : '';
+        $result = $probe['result'];
         $body = ($error !== '' ? '<p class="fail">' . Html::e($error) . '</p>' : '')
             . '<div class="box">' . $table . '</div>'
             . '<h3>Can the archive be fetched through the web server?</h3>'
             . '<p id="probe-result" class="' . ($result === 'reachable' ? 'fail' : '') . '">' . Html::e($this->probeText($result)) . '</p>'
-            . '<p class="help">The page asks the web server for a small file in the directory of the archive. If it can be fetched, so could the archive: choose a directory outside the document root on the options page.</p>'
+            . '<p class="help">The page asks the web server for a small file in the directory of the archive and for one in the directory of this tool (which holds the settings, among them a database password you typed). If one can be fetched, so could what else is in that directory: choose a directory for the archive outside the document root on the options page, and have the web server close <code>' . Html::e(BackupWorkspace::NAME) . '</code>.</p>'
             . $this->form(
                 '<div id="probe-tick"' . ($result === 'closed' ? ' hidden' : '') . '><label><input type="checkbox" name="probe_ok" value="1">I have made sure that the directory of the archive cannot be opened in a browser</label>'
                 . '<p class="help">Only needed if the test above does not say "No".</p></div>'
@@ -767,83 +775,30 @@ final class BackupWizard
                 (string) $session['csrf'],
             );
 
-        return $this->page('Summary', $body, 200, 'summary', $this->probeScript((string) $session['csrf'], $probe));
+        $texts = ['closed' => $this->probeText('closed'), 'reachable' => $this->probeText('reachable'), 'unknown' => $this->probeText('unknown')];
+
+        return $this->page('Summary', $body, 200, 'summary', $this->probe->script((string) $session['csrf'], $this->probe->urls($probe['file'], $directories), $probe['token'], $texts));
     }
 
     private function probeText(string $result): string
     {
         return match ($result) {
-            'closed' => 'No: the web server does not hand the test file out.',
-            'reachable' => 'Yes: the test file can be fetched. Choose a directory for the archive outside the document root, or ask the host to close this directory.',
-            'unknown' => 'The test could not be made (the page needs JavaScript for it). Make sure by hand that the directory of the archive cannot be opened in a browser.',
+            'closed' => 'No: the web server does not hand the test files out.',
+            'reachable' => 'Yes: a test file can be fetched. Choose a directory for the archive outside the document root, and ask the host to close the directory of this tool.',
+            'unknown' => 'The test could not be made (the page needs JavaScript for it). Make sure by hand that the directory of the archive and the directory of this tool cannot be opened in a browser.',
             default => 'The page is asking the web server ...',
         };
     }
 
     /**
-     * Writes the small file the probe asks for, once per session.
+     * The directories the probe puts a file into: the one of the tool (its settings, sessions and run records are in it, and the archive too, unless
+     * it is kept elsewhere) and the one of the archive.
      *
-     * @param array<string, mixed> $session
-     *
-     * @return array{url: string, token: string}
+     * @return list<string>
      */
-    private function probeFile(array $session, string $storage): array
+    private function probeDirectories(string $storage): array
     {
-        $probe = (array) ($session['probe'] ?? []);
-        $file = is_string($probe['file'] ?? null) ? $probe['file'] : '';
-        $token = is_string($probe['token'] ?? null) ? $probe['token'] : '';
-        if ($file === '' || $token === '' || !is_file($storage . '/' . $file)) {
-            $file = 'probe-' . bin2hex(random_bytes(8)) . '.txt';
-            $token = bin2hex(random_bytes(16));
-            file_put_contents($storage . '/' . $file, 'ThreadSafe probe ' . $token);
-            $session['probe'] = ['file' => $file, 'token' => $token, 'result' => ''];
-            $this->save($session);
-        }
-
-        return ['url' => self::relativeUrl($this->baseDirectory, $storage . '/' . $file), 'token' => $token];
-    }
-
-    /**
-     * The address of a file as the page of the tool would write it: relative to the directory of the tool, with `..` where the file is above it.
-     */
-    public static function relativeUrl(string $fromDirectory, string $file): string
-    {
-        $from = array_values(array_filter(explode('/', str_replace('\\', '/', realpath($fromDirectory) ?: $fromDirectory)), static fn (string $s): bool => $s !== ''));
-        $to = array_values(array_filter(explode('/', str_replace('\\', '/', (realpath(dirname($file)) ?: dirname($file)) . '/' . basename($file))), static fn (string $s): bool => $s !== ''));
-        $common = 0;
-        while ($common < count($from) && $common < count($to) - 1 && $from[$common] === $to[$common]) {
-            ++$common;
-        }
-        $parts = [...array_fill(0, count($from) - $common, '..'), ...array_map(rawurlencode(...), array_slice($to, $common))];
-
-        return implode('/', $parts);
-    }
-
-    /**
-     * @param array{url: string, token: string} $probe
-     */
-    private function probeScript(string $csrf, array $probe): string
-    {
-        $url = json_encode($probe['url'], JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP) ?: '""';
-        $token = json_encode($probe['token']) ?: '""';
-        $csrf = json_encode($csrf) ?: '""';
-        $texts = json_encode([
-            'closed' => $this->probeText('closed'),
-            'reachable' => $this->probeText('reachable'),
-            'unknown' => $this->probeText('unknown'),
-        ], JSON_HEX_TAG | JSON_HEX_AMP) ?: '{}';
-
-        return "(function () {\n"
-            . "  var out = document.getElementById('probe-result'), texts = $texts, csrf = $csrf, token = $token;\n"
-            . "  function report(result) {\n"
-            . "    out.textContent = texts[result]; out.className = result === 'reachable' ? 'fail' : '';\n"
-            . "    document.getElementById('probe-tick').hidden = result === 'closed'; document.getElementById('start').disabled = result === 'reachable';\n"
-            . "    fetch('?', {method: 'POST', credentials: 'same-origin', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: 'csrf=' + encodeURIComponent(csrf) + '&action=probe&result=' + result}).catch(function () {});\n"
-            . "  }\n"
-            . "  fetch($url, {credentials: 'omit', cache: 'no-store'}).then(function (r) { return r.ok ? r.text() : ''; })\n"
-            . "    .then(function (t) { report(t.indexOf(token) >= 0 ? 'reachable' : 'closed'); })\n"
-            . "    .catch(function () { report('closed'); });\n"
-            . '})();';
+        return array_values(array_unique([$this->workspace->directory(), $storage]));
     }
 
     /**
@@ -852,12 +807,13 @@ final class BackupWizard
     private function recordProbe(Request $request, array $session): Response
     {
         $result = (string) $request->post('result');
-        if (is_array($session['probe'] ?? null) && in_array($result, ['closed', 'reachable', 'unknown'], true)) {
+        $known = in_array($result, ReachProbe::RESULTS, true);
+        if ($known && is_array($session['probe'] ?? null)) {
             $session['probe']['result'] = $result;
             $this->save($session);
         }
 
-        return Response::json(['recorded' => in_array($result, ['closed', 'reachable', 'unknown'], true)]);
+        return Response::json(['recorded' => $known]);
     }
 
     // ------------------------------------------------------------------------------------------------- the run
@@ -943,14 +899,11 @@ final class BackupWizard
      */
     private function removeProbe(array $session): void
     {
-        $file = is_array($session['probe'] ?? null) ? ($session['probe']['file'] ?? null) : null;
-        if (!is_string($file) || preg_match('/^probe-[0-9a-f]{16}\.txt$/', $file) !== 1) {
-            return;
-        }
+        $record = (array) ($session['probe'] ?? []);
         try {
-            @unlink($this->service()->load(BackupWorkspace::PROFILE)->storage . '/' . $file);
+            $this->probe->remove($record, $this->probeDirectories($this->service()->load(BackupWorkspace::PROFILE)->storage));
         } catch (ProfileException) {
-            // no profile, no storage: nothing to remove
+            $this->probe->remove($record, [$this->workspace->directory()]);   // no profile, no storage: only the directory of the tool is left
         }
     }
 

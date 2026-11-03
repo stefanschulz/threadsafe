@@ -292,7 +292,7 @@ final class BackupWizardTest extends TestCase
         $good = $client->post($this->options(['mode' => 'passphrase', 'passphrase' => 'a long passphrase of mine', 'passphrase2' => 'a long passphrase of mine']));
         self::assertStringContainsString('Encrypted with a passphrase', $good->body);
         self::assertNull($this->profile()->encryption, 'a passphrase is not a recipient, and is not in the profile');
-        foreach ($this->filesOf($this->web . '/.threadsafe-backup/data/profiles') as $file) {
+        foreach ($this->filesOf((string) BackupWorkspace::in($this->web)->existingData() . '/profiles') as $file) {
             self::assertStringNotContainsString('a long passphrase', (string) file_get_contents($file));
         }
     }
@@ -355,18 +355,48 @@ final class BackupWizardTest extends TestCase
 
     // ------------------------------------------------------------------------------------------------- the summary and the probe
 
-    public function testTheSummaryWritesAProbeFileAndTheScriptAsksForIt(): void
+    public function testTheSummaryWritesAProbeFileIntoTheToolAndTheArchiveDirectoryAndTheScriptAsksForBoth(): void
     {
         $client = $this->loggedIn();
         $this->siteDone($client);
         $summary = $client->post($this->options());
 
         $storage = $this->profile()->storage;
+        $workspace = BackupWorkspace::in($this->web)->directory();
         $probes = glob($storage . '/probe-*.txt') ?: [];
         self::assertCount(1, $probes);
+        self::assertCount(1, glob($workspace . '/probe-*.txt') ?: [], 'the settings, the sessions and the run records are in the directory of the tool: it is looked at too');
         $token = substr((string) file_get_contents($probes[0]), strlen('ThreadSafe probe '));
         self::assertStringContainsString($token, $summary->body, 'the script compares what comes back with the token');
         self::assertStringContainsString('".threadsafe-backup/' . basename($storage) . '/' . basename($probes[0]) . '"', $summary->body, 'the address is relative to the tool');
+        self::assertStringContainsString('".threadsafe-backup/' . basename($probes[0]) . '"', $summary->body);
+    }
+
+    public function testAnArchiveDirectoryOutsideTheToolGetsItsOwnProbeAndTheToolStillIsLookedAt(): void
+    {
+        $client = $this->loggedIn();
+        $this->siteDone($client);
+        $elsewhere = $this->base . '/archives';
+        $summary = $client->post($this->options(['storage' => $elsewhere]));
+
+        $probes = glob($elsewhere . '/probe-*.txt') ?: [];
+        self::assertCount(1, $probes);
+        self::assertCount(1, glob(BackupWorkspace::in($this->web)->directory() . '/probe-*.txt') ?: []);
+        self::assertStringContainsString('"../archives/' . basename($probes[0]) . '"', $summary->body);
+        self::assertStringContainsString('".threadsafe-backup/' . basename($probes[0]) . '"', $summary->body, 'a closed archive directory says nothing about the directory of the tool');
+    }
+
+    public function testStartingTheBackupRemovesBothProbeFiles(): void
+    {
+        $client = $this->loggedIn();
+        $this->siteDone($client);
+        $client->post($this->options());
+        $client->post(['action' => 'probe', 'result' => 'closed']);
+
+        $client->post(['action' => 'start']);
+
+        self::assertSame([], glob($this->profile()->storage . '/probe-*.txt') ?: []);
+        self::assertSame([], glob(BackupWorkspace::in($this->web)->directory() . '/probe-*.txt') ?: []);
     }
 
     public function testTheProbeResultIsKeptAndShown(): void
@@ -378,29 +408,14 @@ final class BackupWizardTest extends TestCase
         $answer = $client->post(['action' => 'probe', 'result' => 'reachable']);
         self::assertStringContainsString('"recorded":true', $answer->body);
         $summary = $client->get(['step' => 'summary']);
-        self::assertStringContainsString('Yes: the test file can be fetched', $summary->body);
+        self::assertStringContainsString('Yes: a test file can be fetched', $summary->body);
         self::assertCount(1, glob($this->profile()->storage . '/probe-*.txt') ?: [], 'the same file, not a new one per look');
 
         $client->post(['action' => 'probe', 'result' => 'closed']);
-        self::assertStringContainsString('No: the web server does not hand the test file out', $client->get(['step' => 'summary'])->body);
+        self::assertStringContainsString('No: the web server does not hand the test files out', $client->get(['step' => 'summary'])->body);
 
         $client->post(['action' => 'probe', 'result' => 'rubbish']);
         self::assertStringContainsString('No: the web server', $client->get(['step' => 'summary'])->body, 'a result that is none of the three changes nothing');
-    }
-
-    public function testTheAddressOfTheProbeIsRelativeToTheDirectoryOfTheTool(): void
-    {
-        $tool = $this->base . '/site/tools';
-        mkdir($tool . '/.threadsafe-backup/storage-aaaa', 0777, true);
-        file_put_contents($tool . '/.threadsafe-backup/storage-aaaa/probe-1.txt', 'x');
-        mkdir($this->base . '/site/archives');
-        file_put_contents($this->base . '/site/archives/probe-2.txt', 'x');
-        mkdir($this->base . '/elsewhere');
-        file_put_contents($this->base . '/elsewhere/probe 3.txt', 'x');
-
-        self::assertSame('.threadsafe-backup/storage-aaaa/probe-1.txt', BackupWizard::relativeUrl($tool, $tool . '/.threadsafe-backup/storage-aaaa/probe-1.txt'));
-        self::assertSame('../archives/probe-2.txt', BackupWizard::relativeUrl($tool, $this->base . '/site/archives/probe-2.txt'));
-        self::assertSame('../../elsewhere/probe%203.txt', BackupWizard::relativeUrl($tool, $this->base . '/elsewhere/probe 3.txt'));
     }
 
     public function testLoggingOutEndsTheSession(): void

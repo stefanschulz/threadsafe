@@ -12,6 +12,7 @@ of the GitHub release (see "Making a release" in [AGENTS.md](AGENTS.md)).
 
 ### Changed
 
+- **Single-file tools on a web server that ignores `.htaccess` (nginx, IIS).** The summary page of `threadsafe-restore.php` now asks the web server for a small file in its state directory (where the database is unpacked as plain SQL) and **does not start the restore while it can be fetched**; the summary of `threadsafe-backup.php` looks at the directory of the tool as well as at the directory of the archive, and the tool's data directory (profile, run records) has a name of 128 random bits (`.threadsafe-backup/data-<random>/`). Found by a code review; see [docs/PHASE12.md](docs/PHASE12.md) section 8.
 - The stubs of `threadsafe-restore.php` and `threadsafe-install.php` are made by one class (`Build\ToolStub`); the generated stubs are byte for byte the same as before.
 - `Download` and `ByteRange` (the resumable download) live in `src/Web` now, so that the web interface and the backup tool send a file in the same way; they are part of `threadsafe-restore.php` (a few KB).
 - The radio buttons of the wizards (`Html::css()`) are drawn in the colours of the design, so that they are visible in the dark scheme.

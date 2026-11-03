@@ -340,7 +340,8 @@ The backup holds the database password and all customer data. In the order that 
 
 1. **The archive is encrypted** by default, so that a copy that leaks is useless.
 2. It lies in `.threadsafe-backup/storage-<32 random hex digits>/`: closed by an `.htaccess` and an empty `index.html`, and **unguessable** (the name of an ordinary backup has only 32 random bits), which also helps on a server that ignores `.htaccess` (nginx, IIS).
-3. **The test.** Before the run the page writes a small file with a random token into the storage and asks the web server for it. If the answer is the file ("reachable"), **the run does not start**: choose a directory outside the document root that `open_basedir` allows, or have the host close the directory. If the answer is "closed" the run starts. If the test gave no answer (no JavaScript), the run starts only with the tick "I have made sure the directory cannot be opened in a browser".
+   The settings of the tool (the profile, with a database password if you typed one, and the records of the run, with a passphrase) are in `.threadsafe-backup/data-<32 random hex digits>/`, which is unguessable in the same way.
+3. **The test.** Before the run the page writes a small file with a random token into the directory of the archive **and** one into the directory of the tool (`.threadsafe-backup/`), and asks the web server for both. If one answer is the file ("reachable"), **the run does not start**: choose a directory outside the document root that `open_basedir` allows, and have the host close `.threadsafe-backup/` (on nginx: `location ~ /\.threadsafe-backup { deny all; }`). If both are "closed" the run starts. If the test gave no answer (no JavaScript), the run starts only with the tick "I have made sure the directory cannot be opened in a browser".
 4. The download needs the login of the session.
 
 ### 11.5 Limits

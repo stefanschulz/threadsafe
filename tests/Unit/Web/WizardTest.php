@@ -355,6 +355,40 @@ final class WizardTest extends TestCase
         }
     }
 
+    public function testTheSummaryAsksForAFileOfTheStateDirectoryAndARestoreIsRefusedWhileItIsServed(): void
+    {
+        $this->upload();
+        $this->key();
+        $root = $this->base . '/restored';
+        $client = $this->loggedIn();
+        $client->post(['action' => 'choose-backup', 'choice' => basename($this->parts[0]), 'path' => '']);
+        $client->post(['action' => 'save-target', 'root' => $root]);
+
+        $summary = $client->get(['step' => 'summary']);
+        $probes = glob($this->web . '/.threadsafe-restore/probe-*.txt') ?: [];
+        self::assertCount(1, $probes, 'the database is unpacked into this directory: the page looks at it');
+        $token = substr((string) file_get_contents($probes[0]), strlen('ThreadSafe probe '));
+        self::assertStringContainsString($token, $summary->body, 'the script compares what comes back with the token');
+        self::assertStringContainsString('".threadsafe-restore/' . basename($probes[0]) . '"', $summary->body);
+        self::assertStringContainsString('location ~ /\.threadsafe-restore', $summary->body, 'the page says what to do on nginx');
+
+        $answer = $client->post(['action' => 'probe', 'result' => 'rubbish']);
+        self::assertStringContainsString('"recorded":false', $answer->body);
+        self::assertStringContainsString('"recorded":true', $client->post(['action' => 'probe', 'result' => 'reachable'])->body);
+        $again = $client->get(['step' => 'summary']);
+        self::assertStringContainsString('Yes: the test file can be fetched', $again->body);
+        self::assertStringContainsString('id="start" disabled', $again->body);
+        self::assertCount(1, glob($this->web . '/.threadsafe-restore/probe-*.txt') ?: [], 'the same file, not a new one per look');
+
+        $refused = $client->post(['action' => 'start']);
+        self::assertStringContainsString('can be fetched through the web server', $refused->body);
+        self::assertStringNotContainsString('Keep this page open', $refused->body);
+        self::assertDirectoryDoesNotExist($root, 'nothing is restored while the files of the restore are served');
+
+        $client->post(['action' => 'probe', 'result' => 'closed']);
+        self::assertStringContainsString('Keep this page open', $client->post(['action' => 'start'])->body);
+    }
+
     /**
      * @return array<string, mixed> the last answer of the run
      */
