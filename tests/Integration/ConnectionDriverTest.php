@@ -75,6 +75,27 @@ final class ConnectionDriverTest extends IntegrationTestCase
         self::assertSame('0', (string) $db->scalar('SELECT COUNT(*) FROM ps_t'));
     }
 
+    /**
+     * `run()` sends one statement. A second one in the same string is refused and not executed: the importer runs the statements of a dump as they
+     * are, so a statement that the splitter took for one must not be able to carry another (docs/PHASE12.md section 8, the review of the import).
+     */
+    #[DataProvider('drivers')]
+    public function testRunRefusesASecondStatementInTheSameString(string $driver): void
+    {
+        $db = $this->open($driver);
+
+        try {
+            $db->run("INSERT INTO ps_t (label) VALUES ('one'); INSERT INTO ps_t (label) VALUES ('two')");
+            self::fail('Two statements in one run() were accepted.');
+        } catch (DatabaseError) {
+            // refused
+        }
+
+        self::assertSame(0, (int) $db->scalar("SELECT COUNT(*) FROM ps_t WHERE label = 'two'"), 'the second statement was run');
+        $db->run("INSERT INTO ps_t (label) VALUES ('three')");   // and the connection is still usable
+        self::assertSame(1, (int) $db->scalar("SELECT COUNT(*) FROM ps_t WHERE label = 'three'"));
+    }
+
     #[DataProvider('drivers')]
     public function testParametersNullUtf8AndBinary(string $driver): void
     {

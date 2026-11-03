@@ -35,6 +35,8 @@ final class PdoDriver implements Driver
                     PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
                     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
                     PDO::ATTR_EMULATE_PREPARES => false,
+                    // one statement per call, as with mysqli: the importer runs what the splitter calls one statement
+                    PDO::MYSQL_ATTR_MULTI_STATEMENTS => false,
                 ],
             ));
         } catch (PDOException $e) {
