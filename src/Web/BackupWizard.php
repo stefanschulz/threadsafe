@@ -1207,6 +1207,9 @@ final class BackupWizard
             'X-Content-Type-Options: nosniff',
             'X-Frame-Options: DENY',
             'Referrer-Policy: no-referrer',
+            'Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()',
+            'Cross-Origin-Opener-Policy: same-origin',
+            'Cross-Origin-Resource-Policy: same-origin',
             "Content-Security-Policy: default-src 'none'; img-src data:; style-src 'nonce-{$this->nonce}'; script-src 'nonce-{$this->nonce}'; connect-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'",
         ], $response->body, $response->stream);
     }

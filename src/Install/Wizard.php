@@ -504,6 +504,9 @@ final class Wizard
             // installation posts to the interface, which refuses an origin it cannot compare ("The request came from another site"). Nothing
             // is sent to other sites with "same-origin" either.
             'Referrer-Policy: same-origin',
+            'Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()',
+            'Cross-Origin-Opener-Policy: same-origin',
+            'Cross-Origin-Resource-Policy: same-origin',
             "Content-Security-Policy: default-src 'none'; img-src data:; style-src 'nonce-{$this->nonce}'; script-src 'nonce-{$this->nonce}'; connect-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'",
         ], $response->body);
     }

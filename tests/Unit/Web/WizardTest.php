@@ -259,6 +259,9 @@ final class WizardTest extends TestCase
             self::assertSame('nosniff', $response->header('X-Content-Type-Options'));
             self::assertSame('DENY', $response->header('X-Frame-Options'));
             self::assertSame('no-referrer', $response->header('Referrer-Policy'));
+            self::assertSame('camera=(), microphone=(), geolocation=(), payment=(), usb=()', $response->header('Permissions-Policy'));
+            self::assertSame('same-origin', $response->header('Cross-Origin-Opener-Policy'));
+            self::assertSame('same-origin', $response->header('Cross-Origin-Resource-Policy'));
             $policy = (string) $response->header('Content-Security-Policy');
             self::assertStringContainsString("default-src 'none'", $policy);
             self::assertStringContainsString('img-src data:', $policy, 'the favicon is a data address');

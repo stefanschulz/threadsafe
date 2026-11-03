@@ -183,6 +183,15 @@ final class WizardTest extends TestCase
         self::assertSame('same-origin', $this->send()->header('Referrer-Policy'));
     }
 
+    public function testThePageCarriesThePolicyHeadersOfTheOtherWizards(): void
+    {
+        $response = $this->send();
+
+        self::assertSame('camera=(), microphone=(), geolocation=(), payment=(), usb=()', $response->header('Permissions-Policy'));
+        self::assertSame('same-origin', $response->header('Cross-Origin-Opener-Policy'));
+        self::assertSame('same-origin', $response->header('Cross-Origin-Resource-Policy'));
+    }
+
     public function testWhatTheHostSaysIsATableWithASymbolForEachLevel(): void
     {
         [$token] = $this->login();

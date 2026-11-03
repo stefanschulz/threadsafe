@@ -439,6 +439,9 @@ final class KernelTest extends TestCase
             self::assertSame('DENY', $response->header('X-Frame-Options'));
             self::assertSame('no-store', $response->header('Cache-Control'));
             self::assertSame('same-origin', $response->header('Referrer-Policy'));
+            self::assertSame('camera=(), microphone=(), geolocation=(), payment=(), usb=()', $response->header('Permissions-Policy'));
+            self::assertSame('same-origin', $response->header('Cross-Origin-Opener-Policy'));
+            self::assertSame('same-origin', $response->header('Cross-Origin-Resource-Policy'));
         }
     }
 

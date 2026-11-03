@@ -74,6 +74,7 @@ final readonly class Assets
         $headers = [
             'Content-Type: ' . (self::TYPES[strtolower(pathinfo($path, PATHINFO_EXTENSION))] ?? 'application/octet-stream'),
             'X-Content-Type-Options: nosniff',
+            'Cross-Origin-Resource-Policy: same-origin',
             'ETag: ' . $etag,
             'Cache-Control: ' . ($this->immutable && $request->query('v') === $this->version ? 'public, max-age=31536000, immutable' : 'no-cache'),
         ];

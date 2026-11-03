@@ -337,6 +337,7 @@ final class Kernel
     private function secure(Response $response): Response
     {
         return new Response($response->status, [...$response->headers, 'X-Content-Type-Options: nosniff', 'X-Frame-Options: DENY', 'Referrer-Policy: same-origin',
+            'Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()', 'Cross-Origin-Opener-Policy: same-origin', 'Cross-Origin-Resource-Policy: same-origin',
             'Content-Security-Policy: ' . self::CSP, ...($response->header('Cache-Control') === null ? ['Cache-Control: no-store'] : [])], $response->body, $response->stream);
     }
 }

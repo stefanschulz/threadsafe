@@ -10,6 +10,15 @@ Options -Indexes
     RewriteRule ^ index.php [L]
 </IfModule>
 
+# The style sheet, the script, the fonts and the icon are files, which Apache sends itself, without the headers that index.php puts on a
+# page (the same ones, as far as a file needs them: no sniffing of the type, nothing loaded from another site).
+<IfModule mod_headers.c>
+    <FilesMatch "\.(css|js|svg|woff2?|txt)$">
+        Header always set X-Content-Type-Options "nosniff"
+        Header always set Cross-Origin-Resource-Policy "same-origin"
+    </FilesMatch>
+</IfModule>
+
 # Only these are served from here; the rest of the program directory is closed by the .htaccess one level up, this one opens
 # the directory again (a later .htaccess replaces the rule of an earlier one).
 <IfModule mod_authz_core.c>

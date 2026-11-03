@@ -158,6 +158,9 @@ final class BackupWizardTest extends TestCase
         $headers = implode("\n", $response->headers);
         self::assertStringContainsString('Cache-Control: no-store', $headers);
         self::assertStringContainsString('X-Frame-Options: DENY', $headers);
+        self::assertStringContainsString('Permissions-Policy: camera=()', $headers);
+        self::assertStringContainsString('Cross-Origin-Opener-Policy: same-origin', $headers);
+        self::assertStringContainsString('Cross-Origin-Resource-Policy: same-origin', $headers);
         self::assertStringContainsString("default-src 'none'", $headers);
     }
 

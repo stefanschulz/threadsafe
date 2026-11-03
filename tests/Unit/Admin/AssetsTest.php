@@ -68,6 +68,7 @@ final class AssetsTest extends TestCase
         self::assertSame('text/css; charset=utf-8', $response->header('Content-Type'));
         self::assertSame('public, max-age=31536000, immutable', $response->header('Cache-Control'));
         self::assertSame('nosniff', $response->header('X-Content-Type-Options'));
+        self::assertSame('same-origin', $response->header('Cross-Origin-Resource-Policy'));
     }
 
     public function testWithoutTheVersionOrInAClonetheFileIsRevalidatedEveryTime(): void
