@@ -19,6 +19,7 @@ of the GitHub release (see "Making a release" in [AGENTS.md](AGENTS.md)).
 
 ### Fixed
 
+- **The slow-down of wrong keys and passwords could be got round with requests that arrive together.** The throttle looked at the wait and noted the attempt in two steps, so 30 guesses sent at once against a fresh state were all compared (and only one or two noted). An attempt is now counted before the key, password, code or trigger secret is checked, in one step under a lock on the file (`Throttle::begin()`); it applies to the key of the three single-file tools, the login, the second factor, the setup and the trigger address of the web interface, and the Security page. Found by a code review; see [docs/PHASE12.md](docs/PHASE12.md) section 8.
 - A file that the backup cannot read gave **two warnings** that contradicted each other: "Stored empty, the file cannot be read" and then "The file changed while it was backed up (read 0 bytes, N when scanned)". Only the first, which names the cause, is given now; a change while a file is read still gets its own warning. [docs/BACKUP.md](docs/BACKUP.md) says what usually makes a file unreadable and what to do.
 
 ## [0.9.0-beta.4] - 2026-10-31

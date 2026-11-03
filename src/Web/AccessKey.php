@@ -11,7 +11,7 @@ use Closure;
  * secret (`<?php return 'a secret you choose';`). Fetched over HTTP such a file executes and prints nothing, where a text file
  * would be served. Nothing works without it.
  *
- * Wrong keys are slowed down by a {@see Throttle}: after three failures within a quarter of an hour the next attempt has to wait
+ * Wrong keys are slowed down by a {@see Throttle}: after three attempts within a quarter of an hour the next attempt has to wait
  * (5 s, doubling, up to 5 minutes) and an attempt during the wait is not even compared. Every failure is logged (time and address).
  */
 final class AccessKey
@@ -68,7 +68,7 @@ final class AccessKey
      */
     public function check(string $given, string $address): ?string
     {
-        $wait = $this->waitSeconds();
+        $wait = $this->throttle->begin();   // the attempt is counted before the key is compared: parallel guesses cannot all go through
         if ($wait > 0) {
             return "Too many wrong keys. Wait $wait seconds before trying again.";
         }
@@ -79,7 +79,7 @@ final class AccessKey
             return null;
         }
 
-        $this->throttle->fail($address, 'wrong key');
+        $this->throttle->failed($address, 'wrong key');
 
         return 'This is not the key.';
     }

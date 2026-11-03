@@ -130,11 +130,11 @@ final class Kernel
         }
         StateDirectory::prepare($this->data);
         $throttle = new Throttle($services->throttleDirectory() . '/cron.json', null, $services->clock);
-        if ($throttle->waitSeconds() > 0) {
+        if ($throttle->begin() > 0) {
             return $this->notFound();
         }
         if (!$secret->matches($candidate)) {
-            $throttle->fail($request->remoteAddress, 'wrong trigger secret');
+            $throttle->failed($request->remoteAddress, 'wrong trigger secret');
 
             return $this->notFound();
         }

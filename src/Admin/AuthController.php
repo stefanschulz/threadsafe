@@ -48,15 +48,20 @@ final class AuthController
         $user = trim((string) $request->post('user'));
         $throttle = $this->loginThrottle();
 
-        $wait = $throttle->waitSeconds();
+        if (self::plainHttp($context) && $request->post('plain') !== '1') {
+            // no password is looked at here, so no attempt is spent; a wait that runs is still named
+            $wait = $throttle->waitSeconds();
+
+            return $wait > 0
+                ? $this->loginForm($context, "Too many wrong attempts. Wait $wait seconds before trying again.", 429)->withHeader('Retry-After: ' . $wait)
+                : $this->loginForm($context, 'Confirm that you accept the unencrypted connection, or use https.', 403);
+        }
+        $wait = $throttle->begin();   // the attempt is counted before the password is checked: parallel guesses cannot all go through
         if ($wait > 0) {
             return $this->loginForm($context, "Too many wrong attempts. Wait $wait seconds before trying again.", 429)->withHeader('Retry-After: ' . $wait);
         }
-        if (self::plainHttp($context) && $request->post('plain') !== '1') {
-            return $this->loginForm($context, 'Confirm that you accept the unencrypted connection, or use https.', 403);
-        }
         if (!$this->services->admin->verify($user === '' ? AdminStore::DEFAULT_USER : $user, (string) $request->post('password'))) {
-            $throttle->fail($request->remoteAddress, 'wrong login');
+            $throttle->failed($request->remoteAddress, 'wrong login');
             $this->services->audit->record('login.failed', $user, $request->remoteAddress);
 
             return $this->loginForm($context, 'The user name or the password is wrong.', 403);
@@ -123,7 +128,7 @@ final class AuthController
         $now = ($this->services->clock)();
 
         $throttle = $this->codeThrottle();
-        $wait = $throttle->waitSeconds();
+        $wait = $throttle->begin();   // counted before the code is checked, as the password is
         if ($wait > 0) {
             return $this->codeForm($context, "Too many wrong codes. Wait $wait seconds before trying again.", 429)->withHeader('Retry-After: ' . $wait);
         }
@@ -143,7 +148,7 @@ final class AuthController
         }
 
         if (!$right) {
-            $throttle->fail($request->remoteAddress, 'wrong code');
+            $throttle->failed($request->remoteAddress, 'wrong code');
             $this->services->audit->record('login.code.failed', $name, $request->remoteAddress);
             $tries = $pending['tries'] + 1;
             if ($tries >= self::PENDING_TRIES) {

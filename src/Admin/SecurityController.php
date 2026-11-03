@@ -266,12 +266,12 @@ final class SecurityController
     private function checkPassword(Context $context, string $user, string $field = 'password'): ?array
     {
         $throttle = $this->throttle('login');
-        $wait = $throttle->waitSeconds();
+        $wait = $throttle->begin();   // counted before the password is checked: parallel guesses cannot all go through
         if ($wait > 0) {
             return ["Too many wrong attempts. Wait $wait seconds before trying again.", 429];
         }
         if (!$this->services->admin->verify($user, (string) $context->request->post($field))) {
-            $throttle->fail($context->request->remoteAddress, 'wrong password on the security page');
+            $throttle->failed($context->request->remoteAddress, 'wrong password on the security page');
             $this->services->audit->record('security.password.failed', $user, $context->request->remoteAddress);
 
             return ['The password is wrong.', 403];
@@ -289,13 +289,17 @@ final class SecurityController
     private function checkPasswordAndCode(Context $context, string $user, string $prefix): ?array
     {
         $codes = $this->throttle('login-code');
-        $wait = $codes->waitSeconds();
+        $wait = $codes->waitSeconds();   // only a look: a wrong password is no wrong code, so it must not use up a try of the codes
         if ($wait > 0) {
             return ["Too many wrong codes. Wait $wait seconds before trying again.", 429];
         }
         $refused = $this->checkPassword($context, $user, $prefix . 'password');
         if ($refused !== null) {
             return $refused;
+        }
+        $wait = $codes->begin();
+        if ($wait > 0) {
+            return ["Too many wrong codes. Wait $wait seconds before trying again.", 429];
         }
 
         $typed = trim((string) $context->request->post($prefix . 'code'));
@@ -307,7 +311,7 @@ final class SecurityController
             return [$e->getMessage(), 500];
         }
         if (!$right) {
-            $codes->fail($context->request->remoteAddress, 'wrong code on the security page');
+            $codes->failed($context->request->remoteAddress, 'wrong code on the security page');
             $this->services->audit->record('security.code.failed', $user, $context->request->remoteAddress);
 
             return ['The code is wrong, or it was used a moment ago: wait for the next one from the app. The time here is ' . gmdate('Y-m-d H:i:s', ($this->services->clock)()) . ' UTC.', 403];
