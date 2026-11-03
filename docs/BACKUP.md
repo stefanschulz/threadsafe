@@ -1,6 +1,6 @@
 # Backups – reference
 
-How ThreadSafe backs up a site from the command line (the web interface, [WEB.md](WEB.md), runs the same engine and reads the same files): the profile file, the commands, what a backup consists of, how to check it and how to take it apart with ordinary tools when nothing else is at hand. For the design and the reasons see [PHASE2.md](PHASE2.md); for what to do with a backup afterwards see [MIGRATE.md](MIGRATE.md) (`threadsafe migrate`). Restoring from the backup in one step (`threadsafe-restore.php`, `threadsafe restore`) is described in [RESTORE.md](RESTORE.md); the manual way is in section 8.
+How ThreadSafe backs up a site from the command line (the web interface, [WEB.md](WEB.md), runs the same engine and reads the same files): the profile file, the commands, what a backup consists of, how to check it and how to take it apart with ordinary tools when nothing else is at hand. For the design and the reasons see [PHASE2.md](PHASE2.md); for what to do with a backup afterwards see [MIGRATE.md](MIGRATE.md) (`threadsafe migrate`). Restoring from the backup in one step (`threadsafe-restore.php`, `threadsafe restore`) is described in [RESTORE.md](RESTORE.md); the manual way is in section 8. A site that has no ThreadSafe at all can be backed up with the single file `threadsafe-backup.php` (section 11).
 
 ## 1. Quick start
 
@@ -16,7 +16,7 @@ php bin/threadsafe backups
 php bin/threadsafe verify shop
 ```
 
-The backup is a standard ZIP archive and a small `.json` file next to it in the storage directory. **Keep the storage directory outside the web root and out of reach of other users**: a backup holds the database password in `app/config/parameters.php` and all customer data. There is no encryption yet (phase 5).
+The backup is a standard ZIP archive and a small `.json` file next to it in the storage directory. **Keep the storage directory outside the web root and out of reach of other users**: a backup holds the database password in `app/config/parameters.php` and all customer data. A backup can be encrypted ([ENCRYPTION.md](ENCRYPTION.md)).
 
 ## 2. Terms
 
@@ -284,3 +284,71 @@ The tests of the repository use the Docker shop and synthetic fixtures. A real s
 **Done once (2026-10-30, by the maintainer, with 0.9.0-beta.1 on a shared host).** A real PrestaShop 9 shop: 67,231 files in 11,655 directories, 318 tables with 272,812 rows. Backed up from the web interface: 710 MB, 506 seconds, `verify` passed; the same backup from the shell took 42 seconds. Restored on another site: the shop, its back office and the pages looked right, nothing was missing. The backup tool used before (Akeeba Solo, JPA format) made about 2 GB of the same shop; the difference was **not analysed** (the filters of `backup-defaults.json` leave out caches, logs, sessions and the contents of the statistics tables, which is the likely part of it). Findings of that run: a web step was the whole backup because the host says `max_execution_time` 50000 (fixed, [PHASE7.md](PHASE7.md) section 8, finding 6), and the browser run was twelve times slower than the shell run. With 0.9.0-beta.2 (steps of at most 20 seconds) the same backup took 47 seconds in the browser, so the slow part was the one long request, not the work. No customer data went into the repository.
 
 **A second real site (2026-11-01, the maintainer, with 0.9.0-beta.4):** a backup of 5.4 GB, beyond the 4 GiB that the classic ZIP format holds, so the first archive with real ZIP64 records (before that only the encoders were tested, with simulated sizes). `verify` (the full check) passed, and the real `unzip -t` read it. Its size is close to that of the Akeeba backup of the same site, which Akeeba splits into three files; the content looked right. So the gap in size on the shop above is not general: it comes from what the profile leaves out of that shop (caches, logs). No customer data went into the repository.
+
+## 11. A site without ThreadSafe: `threadsafe-backup.php`
+
+For the one-off case where nothing should stay on the server: a backup before an update, a handover, a host where you may not or will not install ThreadSafe (for the installed application see [INSTALL.md](../INSTALL.md)). `threadsafe-backup.php` is one file with a wizard, the counterpart of `threadsafe-restore.php` ([RESTORE.md](RESTORE.md)). It makes the **standard backup** of this document (a ZIP archive with the files and the database as plain SQL), which `threadsafe-restore.php`, `threadsafe restore` or `unzip` and the `mariadb` client bring back. It has no schedule, no retention, no list of sites and no web interface. It is part of every release, beside the other files and in `SHA256SUMS`; `php tools/build-backup.php` makes a development build (`dist/dev/threadsafe-backup.php`).
+
+### 11.1 In the browser
+
+1. **Upload** `threadsafe-backup.php` to the directory of the site (the document root of a site, or a directory below it) and create the key file next to it, `threadsafe-backup-key.php`, with a secret of your own choice (at least 8 characters):
+
+   ```php
+   <?php return 'a secret you choose';
+   ```
+
+   It is a PHP file so that nobody can fetch it as text. **Without it the tool does nothing and writes nothing.** A wrong key is slowed down (a throttle, as in the restore wizard).
+2. **Open** `https://your-site.example/threadsafe-backup.php` and enter the key.
+3. **Site.** The directory (by default the one of the tool; see 11.3 for the others) and the kind of website. *Detect it* looks at the directory and says what it found - PrestaShop 9, Joomla, WordPress - and where the database access comes from (the application's own configuration file). A site of no known kind is the generic type: the page asks for the database (host, port, name, user, password, table prefix) or for the tick "this site has no database". The connection is tested before you go on.
+4. **Options.** *Who may open this backup?*
+   - **A key pair made here** (the default): the secret key is shown **once**, with *Copy*, *Save as a file* and *Print*. Keep it away from this server; the tool stores no secret key anywhere. Tick "I have stored it" to go on. The public half encrypts the backup.
+   - **A public key** you have (`age1...`), typed in.
+   - **A passphrase** for this backup, typed twice (or a suggested one). It is kept in the session of the wizard only, not in a profile.
+   - **No encryption**, which needs a tick that says what it means: whoever finds the archive on the server can read it.
+
+   Further: more patterns to leave out ([section 3](#3-the-profile-file)), the size of a part (default 500 MB, so that a download can be repeated per part), a note, and the directory of the archive. The default is a closed directory next to the tool (11.4).
+5. **Summary.** What will be backed up and how, the free space of the disk, and **the test of the archive's directory** (11.4). *Back up now* starts the run.
+6. **The run** is the backup of the web interface: steps of at most 20 seconds, a bar, the clock, what the step does now. Keep the page open; if it is closed, open the tool again and log in: a run that was going on continues where it stood.
+7. **Done.** The parts with size and SHA-256 and a **download button for each**, the warnings, the paths for `scp`/`rsync` (use these first for a large archive: a download through PHP is a convenience, not the only way), and how to restore. The buttons: *Delete the archive from this server* (needs the tick "I have the backup somewhere else"), *Back up again*, and *Delete the tool now*.
+
+A download is a request with the cookie of the session. It can be resumed (`Range`, `If-Range`), and the `ETag` of a part is its SHA-256, which is also the one on the page.
+
+**Taking the tool off.** *Delete the tool now* removes `threadsafe-backup.php`, the key file and the hidden directory `.threadsafe-backup/`. **The archive stays unless you tick "also delete the archive"**, because it is what you came for; by default it lies in `.threadsafe-backup/storage-<random>/`, so that this one directory is all that is left, and the page names it. If PHP may not delete a file, the page says which to delete by hand.
+
+### 11.2 In a shell
+
+```bash
+php threadsafe-backup.php backup --recipient=age1... [--root=DIR] [--storage=DIR] [--type=TYPE] \
+    [--exclude=PATTERN]... [--part-size=500M] [--report=FILE] [--force]
+```
+
+One process, no time limit, the database read in one consistent snapshot (`consistency: snapshot` in the manifest), the result printed as `backup` prints it. There is **no key file** (shell access is trusted, as for `threadsafe-restore.php restore`); `php threadsafe-backup.php help backup` lists all options. On a host whose `php` is old, use the PHP 8.4 binary (`/usr/bin/php8.4 -q threadsafe-backup.php ...`).
+
+- **Encryption is a choice that must be made:** `--recipient=KEY` (more than once for several public keys), `--passphrase-file=FILE` (or the environment variable THREADSAFE_PASSPHRASE) or `--no-encryption`. With none of them the command refuses; with two it refuses too.
+- **The database** is read from the application. For a site of no known kind give `--db-host`, `--db-port`, `--db-name`, `--db-user`, `--db-prefix` and the password as `--db-password-file=FILE` (or THREADSAFE_DB_PASSWORD), or `--no-db` for files only. **A password is never an option.**
+- The archive goes to `--storage` or, by default, to the closed storage with a random name next to the tool; the command says where.
+
+### 11.3 Which directory, and what the tool leaves out
+
+The tool can read what the PHP user can read, and whoever holds the key can make it do that. So the directory to back up must be **the directory that holds the tool or one of its parents** (a tool in `/var/www/site/tools/` may back up `/var/www/site/`, never `/var/www/other/`), and it must lie inside `open_basedir`. One key, one site.
+
+The tool never backs up itself: the tool file, its key file, `.threadsafe-backup/` and a `.threadsafe-restore/` are left out as literal paths (a file of the same name elsewhere in the site is the site's and stays), and so is the storage.
+
+### 11.4 Keeping the archive away from the web
+
+The backup holds the database password and all customer data. In the order that matters:
+
+1. **The archive is encrypted** by default, so that a copy that leaks is useless.
+2. It lies in `.threadsafe-backup/storage-<32 random hex digits>/`: closed by an `.htaccess` and an empty `index.html`, and **unguessable** (the name of an ordinary backup has only 32 random bits), which also helps on a server that ignores `.htaccess` (nginx, IIS).
+3. **The test.** Before the run the page writes a small file with a random token into the storage and asks the web server for it. If the answer is the file ("reachable"), **the run does not start**: choose a directory outside the document root that `open_basedir` allows, or have the host close the directory. If the answer is "closed" the run starts. If the test gave no answer (no JavaScript), the run starts only with the tick "I have made sure the directory cannot be opened in a browser".
+4. The download needs the login of the session.
+
+### 11.5 Limits
+
+- **No schedule, no retention, no history:** the tool is for one backup now. For regular backups install ThreadSafe ([INSTALL.md](../INSTALL.md)).
+- **No passphrase and keys together** (not possible in the `age` format), and no copy to another server by the tool.
+- A very large archive is better fetched with `scp`/`rsync`/SFTP than through PHP; the download of a few hundred MB through some FastCGI setups has not been tried (the open item in [PHASE4.md](PHASE4.md) section 8).
+- A WordPress multisite is refused, as everywhere ([WORDPRESS.md](WORDPRESS.md)).
+- **Tested** in Docker on all three database servers against a real PrestaShop shop behind an Apache with limits of 5 seconds and 64 MB (the group `backup-tool`, phase 4e of `tests/stack/run.sh`). **Not yet** on a real shared host or with a restore of its backup on another host: that is the field test ([PHASE12.md](PHASE12.md) work package 10).
+
+The design and the reasons are in [PHASE12.md](PHASE12.md).

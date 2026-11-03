@@ -9,6 +9,8 @@ the updates differ (section 5).
 | a shell, and no wish to use Composer | **the package** `threadsafe-X.Y.Z.zip`, unpacked by hand (section 3) |
 | a shell, Git and Composer | **a clone** of the repository (section 4) |
 
+If you only want **one backup of a site** and nothing should stay on the server, you need no installation: the single file `threadsafe-backup.php` (from the same release) makes it and takes itself off again, see [docs/BACKUP.md](docs/BACKUP.md) section 11.
+
 ## 1. What the host needs
 
 - **PHP 8.4 or newer**, as the web server's PHP. Many hosts offer it as a setting in the control panel. If the installer says it needs PHP 8.4,

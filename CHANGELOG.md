@@ -6,6 +6,16 @@ of the GitHub release (see "Making a release" in [AGENTS.md](AGENTS.md)).
 
 ## [Unreleased]
 
+### Added
+
+- **`threadsafe-backup.php`**, a new file of every release (beside the installer and the restore tool, and in `SHA256SUMS`): a backup of a site **that has no ThreadSafe**, as one file with a wizard. Upload it with a key file `threadsafe-backup-key.php` to the site, open it in the browser, and it detects the application (PrestaShop 9, Joomla, WordPress or any site with a database), makes the standard backup in steps that fit the limits of a web request, and offers a **download per part** that can be resumed. The archive is **encrypted by default** (a key pair made in the wizard, whose secret key is shown once and stored nowhere; a public key; or a passphrase), lies in a closed directory with a random name, and the run does not start if a test shows that the directory can be fetched through the web server. The tool backs up only its own directory or a parent, never itself, and deletes itself on request (the archive stays unless you say otherwise). In a shell: `php threadsafe-backup.php backup --recipient=age1...` (one process, one consistent snapshot of the database; encryption is a choice that must be made). Restore with `threadsafe-restore.php`. No schedule, no retention, no list of sites: it is for the one-off backup. Documentation: [docs/BACKUP.md](docs/BACKUP.md) section 11; plan and what was proven: [docs/PHASE12.md](docs/PHASE12.md). **Tried in Docker on all three database servers, not yet on a real shared host.**
+
+### Changed
+
+- The stubs of `threadsafe-restore.php` and `threadsafe-install.php` are made by one class (`Build\ToolStub`); the generated stubs are byte for byte the same as before.
+- `Download` and `ByteRange` (the resumable download) live in `src/Web` now, so that the web interface and the backup tool send a file in the same way; they are part of `threadsafe-restore.php` (a few KB).
+- The radio buttons of the wizards (`Html::css()`) are drawn in the colours of the design, so that they are visible in the dark scheme.
+
 ### Fixed
 
 - A file that the backup cannot read gave **two warnings** that contradicted each other: "Stored empty, the file cannot be read" and then "The file changed while it was backed up (read 0 bytes, N when scanned)". Only the first, which names the cause, is given now; a change while a file is read still gets its own warning. [docs/BACKUP.md](docs/BACKUP.md) says what usually makes a file unreadable and what to do.
