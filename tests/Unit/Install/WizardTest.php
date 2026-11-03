@@ -103,6 +103,39 @@ final class WizardTest extends TestCase
         self::assertStringContainsString('Wait', $this->send('POST', ['action' => 'login', 'key' => 'a long secret key'])->body, 'even the right key waits after three wrong ones');
     }
 
+    public function testAnErrorBeforeTheLoginGivesAStrangerNeitherTheMessageNorAPath(): void
+    {
+        file_put_contents($this->docroot . '/threadsafe-install-key.php', "<?php return 'a long secret key';");
+        file_put_contents($this->docroot . '/.threadsafe-install', 'a file where the state directory should be');
+        $log = $this->docroot . '/../php-errors.log';
+        $before = ini_set('error_log', $log);
+
+        try {
+            $response = $this->send('POST', ['action' => 'login', 'key' => 'nope']);
+        } finally {
+            ini_set('error_log', (string) $before);
+        }
+
+        self::assertSame(500, $response->status);
+        self::assertStringContainsString('could not do what was asked', $response->body);
+        self::assertStringNotContainsString('Cannot create', $response->body);
+        self::assertStringNotContainsString($this->docroot, $response->body);
+        self::assertStringContainsString('Cannot create the directory', (string) file_get_contents($log), 'the detail goes to the error log of the host');
+    }
+
+    public function testAnErrorAfterTheRightKeySaysWhatAndWhereToThePerson(): void
+    {
+        file_put_contents($this->docroot . '/threadsafe-install-key.php', "<?php return 'a long secret key';");
+        mkdir($this->docroot . '/.threadsafe-install');
+        file_put_contents($this->docroot . '/.threadsafe-install/sessions', 'a file where the sessions should be');
+
+        $response = $this->send('POST', ['action' => 'login', 'key' => 'a long secret key']);
+
+        self::assertSame(500, $response->status);
+        self::assertStringContainsString('Cannot write the session file', $response->body);
+        self::assertStringContainsString($this->docroot, $response->body);
+    }
+
     public function testEveryPageNeedsTheLogin(): void
     {
         file_put_contents($this->docroot . '/threadsafe-install-key.php', "<?php return 'a long secret key';");

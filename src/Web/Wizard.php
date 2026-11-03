@@ -63,6 +63,9 @@ final class Wizard
 
     private string $nonce = '';
 
+    /** Whether the person has shown the key (a login, or a session): only then does an error page say what went wrong and where. */
+    private bool $trusted = false;
+
     /** The host this page is served at (the Host header, with its port), for the proposal of the new domain. */
     private string $host = '';
 
@@ -94,8 +97,20 @@ final class Wizard
         try {
             return $this->secure($this->route($request));
         } catch (Throwable $e) {
-            return $this->secure($this->page('Something went wrong', '<p class="fail">' . Html::e($e->getMessage()) . '</p><p class="help">Reload the page. If this stays, check that this program may write in <code>' . Html::e($this->stateDirectory) . '</code>.</p>', 500));
+            return $this->secure($this->failure($e));
         }
+    }
+
+    /** The page for an error nobody expected: a stranger gets neither the message nor a path (they go to the error log of the host), the person with the key gets both. */
+    private function failure(Throwable $e): Response
+    {
+        if (!$this->trusted) {
+            @error_log('ThreadSafe restore tool: ' . $e->getMessage());
+
+            return $this->page('Something went wrong', '<p class="fail">The tool could not do what was asked.</p><p class="help">Reload the page. If this stays, check that this program may write in its directory, or look in the error log of the host.</p>', 500);
+        }
+
+        return $this->page('Something went wrong', '<p class="fail">' . Html::e($e->getMessage()) . '</p><p class="help">Reload the page. If this stays, check that this program may write in <code>' . Html::e($this->stateDirectory) . '</code>.</p>', 500);
     }
 
     // ------------------------------------------------------------------------------------------------- routing
@@ -117,6 +132,7 @@ final class Wizard
         }
 
         $this->token = $token;
+        $this->trusted = true;
 
         if ($request->isPost() && !hash_equals((string) $session['csrf'], (string) $request->post('csrf'))) {
             return $this->page('The page has expired', '<p>The form was not accepted (wrong or missing token). <a href="?">Start again</a>.</p>', 403);
@@ -160,6 +176,7 @@ final class Wizard
         if ($wrong !== null) {
             return $this->loginPage($request, $wrong);
         }
+        $this->trusted = true;
         [$token, $data] = $this->sessions->create();
         $data['plain'] = $this->plainHttp($request);
         // a restore that was started and not finished (the browser was closed, the connection lost, a step failed) goes on where it was:

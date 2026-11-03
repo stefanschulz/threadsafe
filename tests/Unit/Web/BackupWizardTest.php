@@ -102,6 +102,40 @@ final class BackupWizardTest extends TestCase
         self::assertDirectoryDoesNotExist($this->web . '/.threadsafe-backup');
     }
 
+    public function testAnErrorBeforeTheLoginGivesAStrangerNeitherTheMessageNorAPath(): void
+    {
+        $this->key();
+        file_put_contents($this->web . '/.threadsafe-backup', 'a file where the directory of the tool should be');
+        $log = $this->base . '/php-errors.log';
+        $before = ini_set('error_log', $log);
+
+        try {
+            $response = $this->client()->get();
+        } finally {
+            ini_set('error_log', (string) $before);
+        }
+
+        self::assertSame(500, $response->status);
+        self::assertStringContainsString('could not do what was asked', $response->body);
+        self::assertStringNotContainsString('Cannot create', $response->body);
+        self::assertStringNotContainsString($this->web, $response->body);
+        self::assertStringContainsString('Cannot create the directory', (string) file_get_contents($log), 'the detail goes to the error log of the host');
+    }
+
+    public function testAnErrorAfterTheRightKeySaysWhatAndWhereToThePerson(): void
+    {
+        $this->key();
+        file_put_contents(BackupWorkspace::in($this->web)->data() . '/sessions', 'a file where the sessions should be');
+        $client = $this->client();
+        $client->get();
+
+        $response = $client->post(['action' => 'login', 'key' => self::KEY], [], true, false);
+
+        self::assertSame(500, $response->status);
+        self::assertStringContainsString('Cannot write the session file', $response->body);
+        self::assertStringContainsString($this->web . '/.threadsafe-backup', $response->body);
+    }
+
     public function testAWrongKeyIsRefusedAndTheRightOneLogsIn(): void
     {
         $this->key();

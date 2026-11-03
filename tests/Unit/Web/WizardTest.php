@@ -104,6 +104,41 @@ final class WizardTest extends TestCase
         self::assertSame(['.', '..'], scandir($this->web), 'not even the state directory is made');
     }
 
+    public function testAnErrorBeforeTheLoginGivesAStrangerNeitherTheMessageNorAPath(): void
+    {
+        $this->key();
+        file_put_contents($this->web . '/.threadsafe-restore', 'a file where the state directory should be');
+        $log = $this->base . '/php-errors.log';
+        $before = ini_set('error_log', $log);
+
+        try {
+            $response = (new WizardClient($this->wizard()))->get();
+        } finally {
+            ini_set('error_log', (string) $before);
+        }
+
+        self::assertSame(500, $response->status);
+        self::assertStringContainsString('could not do what was asked', $response->body);
+        self::assertStringNotContainsString('Cannot create', $response->body);
+        self::assertStringNotContainsString($this->web, $response->body);
+        self::assertStringContainsString('Cannot create the directory', (string) file_get_contents($log), 'the detail goes to the error log of the host');
+    }
+
+    public function testAnErrorAfterTheRightKeySaysWhatAndWhereToThePerson(): void
+    {
+        $this->key();
+        mkdir($this->web . '/.threadsafe-restore');
+        file_put_contents($this->web . '/.threadsafe-restore/sessions', 'a file where the sessions should be');
+        $client = new WizardClient($this->wizard());
+        $client->get();
+
+        $response = $client->post(['action' => 'login', 'key' => self::KEY], [], true, false);
+
+        self::assertSame(500, $response->status);
+        self::assertStringContainsString('Cannot write the session file', $response->body);
+        self::assertStringContainsString($this->web . '/.threadsafe-restore', $response->body);
+    }
+
     public function testAKeyThatIsTooShortIsRefused(): void
     {
         $this->key('abc');

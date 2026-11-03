@@ -61,7 +61,7 @@ final class RestoreBuilderTest extends TestCase
 
         self::assertStringStartsWith("<?php\n// ThreadSafe restore tool", $file);
         self::assertSame(self::$result['bytes'], strlen($file));
-        self::assertLessThan(400 * 1024, strlen($file), 'a few hundred KB, not megabytes');
+        self::assertLessThan(450 * 1024, strlen($file), 'a few hundred KB, not megabytes');
         self::assertGreaterThan(100 * 1024, strlen($file));
     }
 
