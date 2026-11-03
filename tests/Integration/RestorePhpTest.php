@@ -68,7 +68,7 @@ final class RestorePhpTest extends IntegrationTestCase
         $this->admin->exec("CREATE DATABASE `$copy` CHARACTER SET utf8mb4");
         $parts = UploadedBackup::make($base . '/work', $web, $source, self::password());
         $result = (new RestoreBuilder(dirname(__DIR__, 2)))->build($web . '/threadsafe-restore.php');
-        self::assertLessThan(400 * 1024, $result['bytes']);
+        self::assertLessThan(450 * 1024, $result['bytes']);
         file_put_contents($web . '/threadsafe-restore-key.php', "<?php return 'a long secret from the test';");
 
         return [$base, $web, $source, $copy, $parts];

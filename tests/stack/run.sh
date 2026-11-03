@@ -61,7 +61,7 @@ phpunit() {
 }
 
 log "Integration tests, phase 1: baseline, steps, migration of the clone"
-phpunit --exclude-group after-migration --exclude-group dev-migration --exclude-group backup-roundtrip --exclude-group disaster-prepare --exclude-group disaster-restore --exclude-group cross-server --exclude-group restore-variant --exclude-group web-ui --exclude-group trigger --exclude-group encryption --exclude-group backup-tool --exclude-group joomla --exclude-group fresh --exclude-group wordpress --exclude-group wordpress-disaster-prepare --exclude-group wordpress-disaster-restore "$@"
+phpunit --exclude-group after-migration --exclude-group dev-migration --exclude-group backup-roundtrip --exclude-group disaster-prepare --exclude-group disaster-restore --exclude-group cross-server --exclude-group restore-variant --exclude-group web-ui --exclude-group trigger --exclude-group encryption --exclude-group backup-tool --exclude-group joomla --exclude-group fresh --exclude-group wordpress --exclude-group wordpress-disaster-prepare --exclude-group wordpress-disaster-restore --exclude-group wordpress-plugins "$@"
 
 "$STACK_DIR/oracle.sh" target
 
