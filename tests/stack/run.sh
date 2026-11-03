@@ -19,6 +19,10 @@
 #      service `web` makes it by ticks (5 s / 64 MB) or through a detached worker, a trigger killed in the middle is continued; retention on real backups (a pinned and a faulty one stay).
 #   6d. phase 4d: encrypted backups (group "encryption"): the seeded shop backed up for a key pair, opened by the real `age` tool, restored by `threadsafe restore --identity-file`
 #      and through the wizard under 5 s / 64 MB with the key typed in; a passphrase backup opens with `age`. It wipes the target stack, like phase 4.
+#   6e. phase 4e: the backup tool (group "backup-tool"): threadsafe-backup.php is put into the working shop of the target stack, whose own Apache (5 s / 64 MB) serves it; an encrypted
+#      backup of the shop is made in many steps through the wizard, the archive cannot be fetched through the web server (the probe file answers 403), the parts are downloaded (one in
+#      two requests with Range), the real `age` tool opens them with the key that was shown once, `threadsafe restore` puts the backup into a copy whose tables equal the live shop's,
+#      the tool takes itself off and leaves the shop as it was; a backup of the same shop in a shell is made in one snapshot. It leaves the target shop as it found it.
 #   7. phase five: disaster recovery (groups "disaster-prepare" and "disaster-restore"): the working target shop is backed up, the
 #      target's containers and volumes are DESTROYED and made again empty on the same address, threadsafe-restore.php is uploaded into the
 #      empty web directory and the wizard (served by the target's own Apache, with limits of 5 seconds and 64 MB) brings the shop
@@ -57,7 +61,7 @@ phpunit() {
 }
 
 log "Integration tests, phase 1: baseline, steps, migration of the clone"
-phpunit --exclude-group after-migration --exclude-group dev-migration --exclude-group backup-roundtrip --exclude-group disaster-prepare --exclude-group disaster-restore --exclude-group cross-server --exclude-group restore-variant --exclude-group web-ui --exclude-group trigger --exclude-group encryption --exclude-group joomla --exclude-group fresh --exclude-group wordpress --exclude-group wordpress-disaster-prepare --exclude-group wordpress-disaster-restore "$@"
+phpunit --exclude-group after-migration --exclude-group dev-migration --exclude-group backup-roundtrip --exclude-group disaster-prepare --exclude-group disaster-restore --exclude-group cross-server --exclude-group restore-variant --exclude-group web-ui --exclude-group trigger --exclude-group encryption --exclude-group backup-tool --exclude-group joomla --exclude-group fresh --exclude-group wordpress --exclude-group wordpress-disaster-prepare --exclude-group wordpress-disaster-restore "$@"
 
 "$STACK_DIR/oracle.sh" target
 
@@ -86,6 +90,9 @@ phpunit --group trigger "$@"
 
 log "Integration tests, phase 4d: encrypted backups opened by the real age tool, restored by the command and through the wizard (5 s / 64 MB)"
 phpunit --group encryption "$@"
+
+log "Integration tests, phase 4e: the backup tool threadsafe-backup.php on the working shop (the target's Apache, 5 s / 64 MB): an encrypted backup in many steps, downloads with Range, age, a restore, the clean-up, and a backup in a shell"
+phpunit --group backup-tool "$@"
 
 log "Integration tests, phase 5: disaster recovery"
 phpunit --group disaster-prepare "$@"

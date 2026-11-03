@@ -5,7 +5,7 @@ Integration tests run against two PrestaShop 9 stacks defined in `.docker/docker
 | Stack | Services | Purpose |
 |---|---|---|
 | **source** | `db` (MariaDB 10.11, MySQL 8.4 or MariaDB 11.8), `prestashop`, `mailpit` | A freshly installed shop at `localhost:8190`, seeded with problem cases and with the live connections of a real shop (`seed-live-links.sql`) |
-| **target** | `target-db`, `target-prestashop` | Apache + PHP only, in an **isolated network**. Receives a clone of the source and is then migrated (`localhost:8290`) |
+| **target** | `target-db`, `target-prestashop` | Apache + PHP only, in an **isolated network**. Receives a clone of the source and is then migrated (`localhost:8290`). Its Apache has limits of 5 seconds and 64 MB for `threadsafe-restore.php` and `threadsafe-backup.php` only (`.docker/target-restore-limits.conf`); the shop keeps the limits of the image |
 | **web** | `web` (profile `web`) | The web interface of ThreadSafe itself: Apache + PHP 8.4 with limits of 5 seconds and 64 MB, the program directory read-only, the source shop read-only as a site to back up, its own data and storage volumes (the tools container mounts them at `/web-data` and `/web-storage`). Port 80 (`localhost:8390`) has the document root on `public/`; port 81 (`localhost:8391`) has the whole program directory below the web root, to test the `.htaccess` protection |
 
 The target has its own network on purpose: the cloned `parameters.php` still says "database host: `db`", and inside
@@ -22,7 +22,10 @@ tests/stack/run.sh            # seed → clone → PHPUnit phase 1 (incl. the mi
                               # once, security, the restore kit from the page restoring that backup onto the target, the second factor: switched on through the pages, the
                               # codes of the real `oathtool`, the QR code of the page read by the real `zbarimg`, a recovery code used by two requests at once) → phase 4c (group `trigger`: `threadsafe cron`, the address `/cron/<secret>` by ticks and
                               # through a detached worker under 5 s / 64 MB, a killed trigger continued, retention on real backups) → phase 4d (group `encryption`: the shop backed up for a key
-                              # pair, opened by the real `age` tool, restored by the command and through the wizard with the key typed in) → phase 5 (disaster recovery: the
+                              # pair, opened by the real `age` tool, restored by the command and through the wizard with the key typed in) → phase 4e (group `backup-tool`: `threadsafe-backup.php`
+                              # is put into the working target shop and makes an encrypted backup of it in many steps under 5 s / 64 MB, the probe file answers 403, the parts are downloaded
+                              # (one in two requests with `Range`), opened by `age`, restored by `threadsafe restore` into a copy whose tables equal the live shop's, the tool takes itself
+                              # off; then a backup of the same shop in a shell in one snapshot, `docs/PHASE12.md` 4.2) → phase 5 (disaster recovery: the
                               # target's containers and volumes are destroyed and made again empty; threadsafe-restore.php, served by the target's own
                               # Apache under limits of 5 seconds and 64 MB, brings the shop back)
                               # → phase 6 (group `joomla`: two seeded Joomla sites, Joomla 5.4 and 6, backed up and restored on another domain, into a sub-directory and through

@@ -93,7 +93,7 @@ services:
       - "${TARGET_PORT:-8290}:80"
     volumes:
       - target_ps_data:/var/www/html
-      # tight limits for threadsafe-restore.php only, see the file
+      # tight limits for threadsafe-restore.php and threadsafe-backup.php only, see the file
       - ./target-restore-limits.conf:/etc/apache2/conf-enabled/threadsafe-restore-limits.conf:ro
     networks: [target]
 
