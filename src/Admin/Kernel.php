@@ -233,16 +233,21 @@ final class Kernel
         $request = $context->request;
         $isScript = $request->header(Csrf::HEADER) !== null;
 
+        $notAllowed = null;
         try {
             $match = $router->match($method, $route);
         } catch (MethodNotAllowed $e) {
-            return new Response(405, ['Allow: ' . implode(', ', $e->allowed), 'Content-Type: text/plain; charset=utf-8'], $e->getMessage() . "\n");
+            $match = null;
+            $notAllowed = $e;
         }
         $public = $match !== null && $match['public'];
         // a session without a user is not a login: it is the half of one that waits for the code of the second factor (docs/PHASE11.md 3.3)
         if (!$public && $context->user() === null) {
-            // nothing behind the login is revealed, not even whether the address exists
+            // nothing behind the login is revealed, not even whether the address exists (a 405 with its Allow header would say that it does)
             return $isScript ? Response::json(['status' => 'login', 'error' => 'The session has ended. Log in again.'], 401) : Response::redirect($context->urls->to('/login'));
+        }
+        if ($notAllowed !== null) {
+            return new Response(405, ['Allow: ' . implode(', ', $notAllowed->allowed), 'Content-Type: text/plain; charset=utf-8'], $notAllowed->getMessage() . "\n");
         }
         if ($match === null) {
             return View::page($context, 'Not found', '<p>There is no such page.</p>', '', 404);

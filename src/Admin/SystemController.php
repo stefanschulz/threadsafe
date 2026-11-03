@@ -139,10 +139,12 @@ final class SystemController
         $request = $context->request;
         $checks = new SystemChecks($this->services);
         $probeWritten = $checks->writeProbe();
+        $scriptDirectory = dirname((string) ($_SERVER['SCRIPT_FILENAME'] ?? ''));
+        $storages = $checks->writeStorageProbes($checks->storagesBelow($scriptDirectory));
 
         return '<h2>Installation check</h2>' . View::checks($checks->run($request->https, $request->isLocal()))
             . '<h2>Trigger</h2>' . $this->trigger()
-            . '<h2>Can the data directory be fetched from outside?</h2>' . $this->probe($context, $probeWritten);
+            . '<h2>Can the data directory and the backups be fetched from outside?</h2>' . $this->probe($context, $probeWritten, $storages, $scriptDirectory);
     }
 
     /**
@@ -245,17 +247,49 @@ final class SystemController
         return array_values(array_unique($urls));
     }
 
-    private function probe(Context $context, bool $written): string
+    /**
+     * The addresses where a storage directory would be served, for the storages that lie below the directory of `index.php` (the document root, or below it):
+     * the probe file `probe.txt` of the directory.
+     *
+     * @param string       $base            the path of the directory `index.php` is in, without a trailing slash
+     * @param string       $scriptDirectory the directory on the disk that `index.php` is in
+     * @param list<string> $storages        directories on the disk, as {@see SystemChecks::storagesBelow()} gives them
+     *
+     * @return list<string>
+     */
+    public static function storageProbeUrls(string $base, string $scriptDirectory, array $storages): array
+    {
+        $root = rtrim(str_replace('\\', '/', (string) (realpath($scriptDirectory) ?: $scriptDirectory)), '/');
+        $urls = [];
+        foreach ($storages as $storage) {
+            if ($root === '' || !str_starts_with($storage . '/', $root . '/')) {
+                continue;
+            }
+            $path = array_filter(explode('/', substr($storage, strlen($root))), static fn (string $part): bool => $part !== '');
+            $urls[] = $base . ($path === [] ? '' : '/' . implode('/', array_map(rawurlencode(...), $path))) . '/probe.txt';
+        }
+
+        return array_values(array_unique($urls));
+    }
+
+    /**
+     * @param list<string> $storages the storage directories of the profiles that lie below the directory of `index.php`
+     */
+    private function probe(Context $context, bool $written, array $storages, string $scriptDirectory): string
     {
         if (!$written) {
             return '<p class="flash warning">The probe file could not be written to the data directory, so this cannot be tested.</p>';
         }
         $items = '';
-        foreach (self::probeUrls($context->urls->base, Paths::home(), dirname((string) ($_SERVER['SCRIPT_FILENAME'] ?? ''))) as $url) {
+        $urls = [...self::probeUrls($context->urls->base, Paths::home(), $scriptDirectory), ...self::storageProbeUrls($context->urls->base, $scriptDirectory, $storages)];
+        foreach ($urls as $url) {
             $items .= '<li data-probe="' . Html::e($url) . '" data-expect="' . Html::e(SystemChecks::PROBE) . '"><code>' . Html::e($url) . '</code>: <span class="result">needs script to check</span></li>';
         }
+        $backups = $storages === []
+            ? ''
+            : ' A storage directory of a profile lies below the web root, so it is tested too: a web server that does not read <code>.htaccess</code> files (nginx) hands out the backups in it unless a rule of its own closes it. Keep the storage outside the web root, or close it with such a rule.';
 
-        return '<p class="hint">The page asks your browser for a small file in the data directory at the addresses where it would be served if this program lay below the web root. "Not reachable" is what you want to see. If the document root is the directory <code>public</code>, nothing in <code>data</code> can be fetched at all.</p><ul class="plain">' . $items . '</ul>';
+        return '<p class="hint">The page asks your browser for a small file in the data directory at the addresses where it would be served if this program lay below the web root. "Not reachable" is what you want to see. If the document root is the directory <code>public</code>, nothing in <code>data</code> can be fetched at all.' . $backups . '</p><ul class="plain">' . $items . '</ul>';
     }
 
     /**

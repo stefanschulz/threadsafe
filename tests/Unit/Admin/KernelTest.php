@@ -357,6 +357,23 @@ final class KernelTest extends TestCase
         self::assertSame(303, $this->send('GET', '/')->status, 'the old session is gone');
     }
 
+    public function testAStrangerLearnsNothingAboutWhichAddressesExistNotEvenFromAMethodThatIsNotAllowed(): void
+    {
+        $this->installed();
+
+        foreach (['/logout', '/system/update/upload', '/profiles/blog/backup', '/nothing/here'] as $path) {
+            $response = $this->send('GET', $path);
+
+            self::assertSame(303, $response->status, $path);
+            self::assertNull($response->header('Allow'), $path);
+            self::assertSame('/login', $response->header('Location'), $path);
+        }
+        self::assertSame(303, $this->send('DELETE', '/login')->status, 'also a method nobody uses');
+
+        $this->login();
+        self::assertSame(405, $this->send('GET', '/system/update/upload')->status, 'the person who is logged in is told');
+    }
+
     public function testLoggingOutEndsTheSessionAndNeedsAPostWithTheToken(): void
     {
         $this->installed();

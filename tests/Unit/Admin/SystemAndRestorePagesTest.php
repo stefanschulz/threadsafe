@@ -202,6 +202,45 @@ final class SystemAndRestorePagesTest extends TestCase
         self::assertStringContainsString('data-probe="/ts/public/data/probe.txt"', $page->body);
     }
 
+    public function testAStorageBelowTheWebRootGetsAProbeFileAndTheBrowserIsAskedForIt(): void
+    {
+        $storage = $this->fixture->storageDirectory;
+        is_dir($storage) || mkdir($storage, 0777, true);
+
+        $page = $this->systemPageWithScriptIn(dirname($storage));
+
+        self::assertSame(SystemChecks::PROBE, trim((string) file_get_contents($storage . '/probe.txt')), 'the backups of a profile are asked for like the data directory');
+        self::assertStringContainsString('data-probe="/storage/probe.txt"', $page->body);
+        self::assertStringContainsString('A storage directory of a profile lies below the web root', $page->body);
+    }
+
+    public function testAStorageOutsideTheWebRootGetsNoProbeFile(): void
+    {
+        $storage = $this->fixture->storageDirectory;
+        is_dir($storage) || mkdir($storage, 0777, true);
+
+        $page = $this->systemPageWithScriptIn($this->fixture->site);
+
+        self::assertFileDoesNotExist($storage . '/probe.txt');
+        self::assertStringNotContainsString('/storage/probe.txt', $page->body);
+        self::assertStringNotContainsString('lies below the web root', $page->body);
+    }
+
+    private function systemPageWithScriptIn(string $directory): Response
+    {
+        $before = $_SERVER['SCRIPT_FILENAME'] ?? null;
+        $_SERVER['SCRIPT_FILENAME'] = $directory . '/index.php';
+        try {
+            return $this->browser->get('/system');
+        } finally {
+            if ($before === null) {
+                unset($_SERVER['SCRIPT_FILENAME']);
+            } else {
+                $_SERVER['SCRIPT_FILENAME'] = $before;
+            }
+        }
+    }
+
     public function testLeftoversOfARestoreAndOfTheSetupAreReported(): void
     {
         file_put_contents($this->fixture->site . '/threadsafe-restore.php', '<?php');

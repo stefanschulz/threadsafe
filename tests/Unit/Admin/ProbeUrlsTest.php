@@ -45,4 +45,27 @@ final class ProbeUrlsTest extends TestCase
     {
         self::assertSame(['/data/probe.txt'], SystemController::probeUrls('', '/srv/www2/threadsafe-home', '/srv/www'));
     }
+
+    // ------------------------------------------------------------------------------------------------- the storages
+
+    public function testAStorageBelowTheWebRootIsAskedAtItsOwnAddress(): void
+    {
+        $root = '/srv/www/html';
+
+        self::assertSame(
+            ['/threadsafe-home/backups/shop/probe.txt', '/a%20b/probe.txt'],
+            SystemController::storageProbeUrls('', $root, [$root . '/threadsafe-home/backups/shop', $root . '/a b']),
+        );
+    }
+
+    public function testAStorageInASubDirectoryOfTheSiteCarriesTheBasePath(): void
+    {
+        self::assertSame(['/backup/storage/probe.txt'], SystemController::storageProbeUrls('/backup', '/srv/www/backup', ['/srv/www/backup/storage']));
+    }
+
+    public function testAStorageOutsideTheDirectoryOrWithALikeNameIsNotAsked(): void
+    {
+        self::assertSame([], SystemController::storageProbeUrls('', '/srv/www', ['/srv/www2/storage', '/somewhere/else', '/srv']));
+        self::assertSame([], SystemController::storageProbeUrls('', '/srv/www', []));
+    }
 }

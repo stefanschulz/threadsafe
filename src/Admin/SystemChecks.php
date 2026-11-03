@@ -7,6 +7,7 @@ namespace ThreadSafe\Admin;
 use ThreadSafe\Auth\TwoFactorException;
 use ThreadSafe\Core\Environment;
 use ThreadSafe\Profile\Check;
+use ThreadSafe\Profile\ProfileStore;
 
 /**
  * The installation check of the System page (docs/PHASE4.md 3.9): what this server, this PHP and this installation allow, and what is
@@ -72,5 +73,52 @@ final class SystemChecks
         }
 
         return is_file($file);
+    }
+
+    /**
+     * The storage directories of the profiles that lie inside a directory (the one `index.php` is in: the document root, or below it). A backup there is
+     * served by a web server that does not read the `.htaccess` of the storage (nginx), unless a rule of its own closes it.
+     *
+     * @return list<string> the directories as they are on the disk, without a trailing slash
+     */
+    public function storagesBelow(string $scriptDirectory): array
+    {
+        $root = $scriptDirectory === '' ? false : realpath($scriptDirectory);
+        if ($root === false) {
+            return [];
+        }
+        $root = rtrim(str_replace('\\', '/', $root), '/');
+        $found = [];
+        foreach ((new ProfileStore($this->services->data . '/profiles'))->all() as $profile) {
+            $real = is_dir($profile->storage) ? realpath($profile->storage) : false;
+            if ($real !== false && str_starts_with(str_replace('\\', '/', $real) . '/', $root . '/')) {
+                $found[] = rtrim(str_replace('\\', '/', $real), '/');
+            }
+        }
+
+        return array_values(array_unique($found));
+    }
+
+    /**
+     * Writes the file the browser is asked for into each storage directory, as {@see writeProbe()} does for `data/`.
+     *
+     * @param list<string> $storages
+     *
+     * @return list<string> the directories that have the file now
+     */
+    public function writeStorageProbes(array $storages): array
+    {
+        $written = [];
+        foreach ($storages as $storage) {
+            $file = $storage . '/probe.txt';
+            if (!is_file($file) || trim((string) @file_get_contents($file)) !== self::PROBE) {
+                @file_put_contents($file, self::PROBE . "\n");
+            }
+            if (is_file($file)) {
+                $written[] = $storage;
+            }
+        }
+
+        return $written;
     }
 }
