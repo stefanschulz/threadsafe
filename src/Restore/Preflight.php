@@ -12,6 +12,7 @@ use ThreadSafe\Database\Connection;
 use ThreadSafe\Database\ConnectionFailed;
 use ThreadSafe\Database\DatabaseError;
 use ThreadSafe\Database\DatabaseSettings;
+use ThreadSafe\Database\ServerInfo;
 use ThreadSafe\Plugin\Restorable;
 use ThreadSafe\Storage\LocalStorage;
 use ThreadSafe\Storage\SpaceCheck;
@@ -217,13 +218,9 @@ final class Preflight
             $checks[] = Check::warning(sprintf('The backup was made on %s, this is %s. Tables and data are portable; the collations are checked next.', $sourceKind, $db->server->describe()));
         }
         foreach ((array) ($manifest->database['collations'] ?? []) as $collation) {
-            $collation = (string) $collation;
-            if ($db->server->isMariaDb() && str_contains($collation, '0900')) {
-                $checks[] = Check::error("The backup uses the MySQL 8 collation \"$collation\", which MariaDB does not have.", 'Restore onto MySQL 8, or change the collation of the tables in the source before the backup.');
-            } elseif (!$db->server->isMariaDb() && str_contains($collation, 'uca1400')) {
-                $checks[] = Check::error("The backup uses the MariaDB collation \"$collation\", which MySQL does not have.", 'Restore onto MariaDB 11.5 or newer.');
-            } elseif ($db->server->isMariaDb() && str_contains($collation, 'uca1400') && version_compare($db->server->version, '11.5', '<')) {
-                $checks[] = Check::error("The backup uses the collation \"$collation\", which MariaDB {$db->server->version} does not have.", 'Restore onto MariaDB 11.5 or newer.');
+            $obstacle = self::collationObstacle((string) $collation, $db->server);
+            if ($obstacle !== null) {
+                $checks[] = Check::error($obstacle[0], $obstacle[1]);
             }
         }
 
@@ -242,6 +239,31 @@ final class Preflight
      * The size of the largest cell the backup itself reported (it warns about cells above the packet limit of the server it was made
      * on, in the words of {@see \ThreadSafe\Backup\Dumper}); 0 if there is none.
      */
+    /**
+     * Why a server cannot hold a table of this collation, as [message, hint]; null when it can. The collations of the UCA 14.0.0
+     * family (`utf8mb4_uca1400_ai_ci`, the default of MariaDB from 11.5) exist from MariaDB 11.4 on (checked on 10.11.18, 11.3.2 and
+     * 11.4.13); the `0900` ones are MySQL 8's.
+     *
+     * @return array{string, string}|null
+     */
+    public static function collationObstacle(string $collation, ServerInfo $server): ?array
+    {
+        if ($server->isMariaDb() && str_contains($collation, '0900')) {
+            return ["The backup uses the MySQL 8 collation \"$collation\", which MariaDB does not have.", 'Restore onto MySQL 8, or change the collation of the tables in the source before the backup.'];
+        }
+        if (!str_contains($collation, 'uca1400')) {
+            return null;
+        }
+        if (!$server->isMariaDb()) {
+            return ["The backup uses the MariaDB collation \"$collation\", which MySQL does not have.", 'Restore onto MariaDB 11.4 or newer.'];
+        }
+        if (version_compare($server->version, '11.4', '<')) {
+            return ["The backup uses the collation \"$collation\", which MariaDB {$server->version} does not have.", 'Restore onto MariaDB 11.4 or newer, or change the collation of the tables in the source before the backup.'];
+        }
+
+        return null;
+    }
+
     private static function largestCell(Manifest $manifest): int
     {
         $largest = 0.0;
