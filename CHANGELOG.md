@@ -6,6 +6,10 @@ of the GitHub release (see "Making a release" in [AGENTS.md](AGENTS.md)).
 
 ## [Unreleased]
 
+## [0.10.0-beta.1] - 2026-11-04
+
+The new tool **`threadsafe-backup.php`** (a backup of a site that has no ThreadSafe), the findings of a security review and a scan with OWASP ZAP, and the first fix from the field test of that tool. An installation made with 0.9.0-beta.1 or later can be updated to this version from the System page (or with `threadsafe update`); the format of the files in `data/` has not changed.
+
 ### Added
 
 - **`threadsafe-backup.php`**, a new file of every release (beside the installer and the restore tool, and in `SHA256SUMS`): a backup of a site **that has no ThreadSafe**, as one file with a wizard. Upload it with a key file `threadsafe-backup-key.php` to the site, open it in the browser, and it detects the application (PrestaShop 9, Joomla, WordPress or any site with a database), makes the standard backup in steps that fit the limits of a web request, and offers a **download per part** that can be resumed. The archive is **encrypted by default** (a key pair made in the wizard, whose secret key is shown once and stored nowhere; a public key; or a passphrase), lies in a closed directory with a random name, and the run does not start if a test shows that the directory can be fetched through the web server. The tool backs up only its own directory or a parent, never itself, and deletes itself on request (the archive stays unless you say otherwise). In a shell: `php threadsafe-backup.php backup --recipient=age1...` (one process, one consistent snapshot of the database; encryption is a choice that must be made). Restore with `threadsafe-restore.php`. No schedule, no retention, no list of sites: it is for the one-off backup. Documentation: [docs/BACKUP.md](docs/BACKUP.md) section 11; plan and what was proven: [docs/PHASE12.md](docs/PHASE12.md). **Tried in Docker on all three database servers, and in the field with a real PrestaShop site (backup and restore worked after one fix, see "Fixed").**
