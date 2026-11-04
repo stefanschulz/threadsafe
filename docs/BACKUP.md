@@ -350,6 +350,6 @@ The backup holds the database password and all customer data. In the order that 
 - **No passphrase and keys together** (not possible in the `age` format), and no copy to another server by the tool.
 - A very large archive is better fetched with `scp`/`rsync`/SFTP than through PHP; the download of a few hundred MB through some FastCGI setups has not been tried (the open item in [PHASE4.md](PHASE4.md) section 8).
 - A WordPress multisite is refused, as everywhere ([WORDPRESS.md](WORDPRESS.md)).
-- **Tested** in Docker on all three database servers against a real PrestaShop shop behind an Apache with limits of 5 seconds and 64 MB (the group `backup-tool`, phase 4e of `tests/stack/run.sh`). **Not yet** on a real shared host or with a restore of its backup on another host: that is the field test ([PHASE12.md](PHASE12.md) work package 10).
+- **Tested** in Docker on all three database servers against a real PrestaShop shop behind an Apache with limits of 5 seconds and 64 MB (the group `backup-tool`, phase 4e of `tests/stack/run.sh`). **Field test:** the owner backed up a real PrestaShop site with it and restored the backup with `threadsafe-restore.php`; it worked after one fix (the check of the collation `utf8mb4_uca1400_ai_ci`, [PHASE12.md](PHASE12.md) section 8). Joomla and WordPress sites have not been tried with the tool.
 
 The design and the reasons are in [PHASE12.md](PHASE12.md).
