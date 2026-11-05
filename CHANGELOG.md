@@ -6,6 +6,10 @@ of the GitHub release (see "Making a release" in [AGENTS.md](AGENTS.md)).
 
 ## [Unreleased]
 
+## [0.10.0-beta.4] - 2026-11-05
+
+Three fixes of the restore from the field test: the done page of the wizard shows the warnings of the adaptation, the buttons to the restored site come back for an encrypted backup, and a sentence in the report of older backups of `threadsafe-backup.php` that said nothing about the restore is left out. An installation of 0.9.0-beta.1 or later can be updated to this version from the System page (or with `threadsafe update`); the format of the files in `data/` has not changed.
+
 ### Fixed
 
 - **No buttons "Open the site" and "Administration login" after the restore of an encrypted backup.** The page "The tool is gone" reads the type and the new domain from the archive, but the secret key or passphrase of an encrypted backup is not in the session any more once the run has started (the run has it until the files are unpacked), so the archive could not be opened and the page said nothing. It reads the manifest that the run kept now. Found in the field (backups of `threadsafe-backup.php` are encrypted by default).
