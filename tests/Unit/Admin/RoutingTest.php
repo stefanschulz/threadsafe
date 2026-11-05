@@ -75,6 +75,15 @@ final class RoutingTest extends TestCase
         }
     }
 
+    public function testALineBreakAfterTheLastPlaceholderIsNotPartOfAnyRoute(): void
+    {
+        $router = new Router();
+        $router->add('GET', '/profiles/{id}', self::handler());
+
+        self::assertNotNull($router->match('GET', '/profiles/shop'));
+        self::assertNull($router->match('GET', "/profiles/shop\n"), '"$" lets a line break through unless the pattern says otherwise');
+    }
+
     public function testAnotherMethodOnAKnownPathIsNotAllowedRatherThanNotFound(): void
     {
         $router = new Router();

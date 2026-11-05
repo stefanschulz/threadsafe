@@ -39,6 +39,7 @@ final class StateBackupAndRollbackTest extends TestCase
         file_put_contents($data . '/schedule/shop.json', '{"next": 1}');
         file_put_contents($data . '/config.json', '{"a": 1}');
         file_put_contents($data . '/admin.json', '{"hash": "x"}');
+        file_put_contents($data . '/two-factor.json', '{"admin": {}}');
         file_put_contents($data . '/runs/old.json', 'a run, which is not part of the copy');
         file_put_contents($data . '/audit.log', 'not part of the copy');
 
@@ -56,6 +57,7 @@ final class StateBackupAndRollbackTest extends TestCase
         self::assertSame('{"next": 1}', file_get_contents($copy . '/schedule/shop.json'));
         self::assertFileExists($copy . '/config.json');
         self::assertFileExists($copy . '/admin.json');
+        self::assertFileExists($copy . '/two-factor.json', 'a migration that fails must not leave the second factor half changed');
         self::assertFileDoesNotExist($copy . '/runs/old.json');
         self::assertFileDoesNotExist($copy . '/audit.log');
         if (DIRECTORY_SEPARATOR === '/') {

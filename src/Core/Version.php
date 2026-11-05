@@ -22,6 +22,6 @@ final class Version
     /** Whether the given string is a valid semantic version (with optional pre-release suffix). */
     public static function isValid(string $version): bool
     {
-        return preg_match('/^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/', $version) === 1;
+        return preg_match('/^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/D', $version) === 1;
     }
 }

@@ -12,7 +12,7 @@ use JsonException;
  */
 final class RunStore
 {
-    private const string ID_PATTERN = '/^[a-z][a-z0-9-]{0,40}-\d{8}-\d{6}-[0-9a-f]{8}$/';
+    private const string ID_PATTERN = '/^[a-z][a-z0-9-]{0,40}-\d{8}-\d{6}-[0-9a-f]{8}$/D';
 
     public function __construct(private readonly string $directory)
     {

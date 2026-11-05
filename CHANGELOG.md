@@ -6,6 +6,11 @@ of the GitHub release (see "Making a release" in [AGENTS.md](AGENTS.md)).
 
 ## [Unreleased]
 
+### Fixed
+
+- **A line break at the end of an id, a version or a route was accepted.** PHP's `$` matches before a final line break, so `"shop\n"` was a valid profile id and `/profiles/shop%0A` a route. The patterns of ids, run ids, versions, the random part of a backup name, the work directories of the backup tool, the cron secret and the router have the modifier `D` now. Nothing could be reached by it; found by the review of the update, the crypto and the controllers (see [docs/PHASE12.md](docs/PHASE12.md) section 8).
+- **A failed update did not put back `two-factor.json`.** The copy of the state files that an update takes (and restores if the new version does not start) was made before the second factor existed. Today no migration touches that file, so nothing was lost; it is in the copy now.
+
 ## [0.10.0-beta.1] - 2026-11-04
 
 The new tool **`threadsafe-backup.php`** (a backup of a site that has no ThreadSafe), the findings of a security review and a scan with OWASP ZAP, and the first fix from the field test of that tool. An installation made with 0.9.0-beta.1 or later can be updated to this version from the System page (or with `threadsafe update`); the format of the files in `data/` has not changed.

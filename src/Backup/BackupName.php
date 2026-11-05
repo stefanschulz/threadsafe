@@ -38,7 +38,7 @@ final readonly class BackupName
             throw new InvalidArgumentException("\"$profileId\" is not a valid profile id.");
         }
         $random ??= bin2hex(random_bytes(4));
-        if (preg_match('/^[0-9a-f]{8}$/', $random) !== 1) {
+        if (preg_match('/^[0-9a-f]{8}$/D', $random) !== 1) {
             throw new InvalidArgumentException('The random part of a backup name is 8 hexadecimal digits.');
         }
 

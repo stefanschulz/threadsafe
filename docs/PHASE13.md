@@ -1,6 +1,6 @@
 # Phase 13 – the connector: a site that cannot run ThreadSafe is backed up, planned and kept by a ThreadSafe elsewhere
 
-**Status:** **planned, not built** (2026-11-03; written down at the owner's request after a discussion; nothing is decided to be built, the decisions of section 7.2 are for the owner, each with a recommendation).
+**Status:** **planned, not built; to be done once the current version is stable, as the next minor with the "satellite" apps** (written down 2026-11-03 at the owner's request after a discussion; on 2026-11-05 the owner decided that it is built once the current version, 0.10.0-beta.x, is stable, as the next minor version; the decisions of section 7.2 are still for the owner, each with a recommendation, and are gone through before the first work package).
 **Context:** [PHASE12.md](PHASE12.md) is `threadsafe-backup.php`, the one-off backup of a site without ThreadSafe (its wizard, its shell mode, its closed directories); [CONCEPT.md](CONCEPT.md) section 9 "A remote source" is the older idea of a profile that reads its site over SFTP, which this plan replaces with a better one for the case below; [SCHEDULE.md](SCHEDULE.md) is the trigger and the schedule that stay as they are; [BACKUP.md](BACKUP.md) section 11 describes the tool; [WORDPRESS.md](WORDPRESS.md) and [JOOMLA.md](JOOMLA.md) the website types.
 
 ## 1. Goal and scope

@@ -24,6 +24,12 @@ final class ProfileStoreTest extends TestCase
         return SiteProfile::fromArray([...SiteProfileTest::minimal(), 'id' => $id, 'database' => ['name' => 'db', 'user' => 'u', 'password' => 'pw']]);
     }
 
+    public function testAnIdWithALineBreakAtTheEndIsNoId(): void
+    {
+        self::assertTrue(ProfileStore::validId('shop'));
+        self::assertFalse(ProfileStore::validId("shop\n"), 'it would become a file name with a line break');
+    }
+
     public function testSaveAndLoad(): void
     {
         $store = new ProfileStore($this->tempDirectory() . '/profiles');

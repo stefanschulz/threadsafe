@@ -1,6 +1,6 @@
 # Phase 10 – a retention strategy: how many backups, for how long
 
-**Status:** **planned** (2026-10-30; the decisions of section 7.2 are for the owner, each with a recommendation).
+**Status:** **shelved** (2026-11-05: the owner does not need it now and set it back completely; planned 2026-10-30; the decisions of section 7.2 are for the owner, each with a recommendation).
 **Context:** [SCHEDULE.md](SCHEDULE.md) section 5 is the retention as it works today; [PHASE5.md](PHASE5.md) 3.4 is its design (the rules, the protections, the go-ahead); [WEB.md](WEB.md) describes the pages; [BACKUP.md](BACKUP.md) the profile file. The engine (`Retention\Retention`, `RetentionService`, the go-ahead, the audit entries) keeps its logic and gets one more kind of rule.
 
 ## 1. Goal and scope

@@ -10,7 +10,7 @@ use RecursiveIteratorIterator;
 
 /**
  * The copy of the small state files of the data directory that an update takes before it switches (docs/PHASE7.md 3.5): the profiles,
- * the configuration, the schedule, the retention state, the administrator, the cron secret and the data format. Not the runs, the
+ * the configuration, the schedule, the retention state, the administrator, the second factor, the cron secret and the data format. Not the runs, the
  * sessions, the audit log and, above all, not the backups. A failed update puts this copy back, so that a migration that stopped half way
  * leaves no trace.
  */
@@ -18,7 +18,7 @@ final class StateBackup
 {
     public const string DIRECTORY = 'update-backup';
 
-    private const array FILES = ['config.json', 'admin.json', 'cron-secret', DataFormat::FILE];
+    private const array FILES = ['config.json', 'admin.json', 'two-factor.json', 'cron-secret', DataFormat::FILE];
 
     private const array DIRECTORIES = ['profiles', 'schedule', 'retention'];
 

@@ -29,5 +29,6 @@ final class VersionTest extends TestCase
         yield 'two parts' => ['1.2', false];
         yield 'leading text' => ['v1.2.3', false];
         yield 'empty' => ['', false];
+        yield 'a line break at the end' => ["1.2.3\n", false];
     }
 }

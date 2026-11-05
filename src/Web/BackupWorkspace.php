@@ -22,9 +22,9 @@ final class BackupWorkspace
     /** The id of the one profile of the tool. */
     public const string PROFILE = 'site';
 
-    private const string STORAGE_PATTERN = '/^storage-[0-9a-f]{32}$/';
+    private const string STORAGE_PATTERN = '/^storage-[0-9a-f]{32}$/D';
 
-    private const string DATA_PATTERN = '/^data-[0-9a-f]{32}$/';
+    private const string DATA_PATTERN = '/^data-[0-9a-f]{32}$/D';
 
     private function __construct(private readonly string $directory)
     {

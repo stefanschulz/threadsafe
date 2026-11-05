@@ -12,7 +12,7 @@ namespace ThreadSafe\Schedule;
 final class CronSecret
 {
     /** 32 random bytes as hexadecimal digits */
-    private const string PATTERN = '/^[0-9a-f]{64}$/';
+    private const string PATTERN = '/^[0-9a-f]{64}$/D';
 
     public function __construct(private readonly string $file)
     {

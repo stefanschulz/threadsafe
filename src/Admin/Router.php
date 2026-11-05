@@ -32,7 +32,7 @@ final class Router
 
             return '(?P<' . $m[1] . '>' . $expression . ')';
         }, $pattern);
-        $this->routes[] = ['method' => strtoupper($method), 'pattern' => $pattern, 'regex' => '#^' . $regex . '$#', 'handler' => $handler, 'public' => $public];
+        $this->routes[] = ['method' => strtoupper($method), 'pattern' => $pattern, 'regex' => '#^' . $regex . '$#D', 'handler' => $handler, 'public' => $public];
     }
 
     /**

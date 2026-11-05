@@ -18,7 +18,7 @@ use ThreadSafe\Database\DatabaseSettings;
  */
 final readonly class SiteProfile
 {
-    public const string ID_PATTERN = '/^[a-z0-9][a-z0-9_-]{0,39}$/';
+    public const string ID_PATTERN = '/^[a-z0-9][a-z0-9_-]{0,39}$/D';
 
     private const array KEYS = ['id', 'name', 'type', 'path', 'database', 'storage', 'excludePaths', 'structureOnlyTables', 'useDefaultFilters', 'compression', 'partSize', 'note', 'schedule', 'retention', 'encryption'];
 
