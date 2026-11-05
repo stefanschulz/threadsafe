@@ -143,6 +143,27 @@ final class ReplaceContentDomainsTest extends IntegrationTestCase
         self::assertTrue(json_validate((string) $rows[2]['content']));
     }
 
+    public function testAValueThatWouldNotFitIntoItsColumnKeepsTheOldDomainInsteadOfStoppingTheRun(): void
+    {
+        // field test (Joomla, #__redirect_links.old_url): the new domain is longer, a value near the limit of its column would be refused (error 1406)
+        $this->shop->exec('CREATE TABLE ps_redirects (id INT PRIMARY KEY, old_url VARCHAR(30) NOT NULL, note TINYTEXT) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4');
+        $fits = 'http://old.test/' . str_repeat('a', 10);       // 26 characters, 29 with the new domain
+        $tooLong = 'http://old.test/' . str_repeat('b', 14);     // 30 characters, 33 with the new domain
+        $this->shop->exec('INSERT INTO ps_redirects (id, old_url, note) VALUES (1, ?, ?), (2, ?, ?)', [$fits, 'http://old.test/x', $tooLong, 'http://old.test/y']);
+
+        $this->applyStep($this->request());
+
+        $rows = $this->shop->rows('SELECT id, old_url, note FROM ps_redirects ORDER BY id');
+        self::assertSame('http://new.example/' . str_repeat('a', 10), $rows[0]['old_url']);
+        self::assertSame('http://new.example/x', $rows[0]['note']);
+        self::assertSame($tooLong, $rows[1]['old_url'], 'left as it was');
+        self::assertSame('http://new.example/y', $rows[1]['note'], 'the other cell of the same row is changed');
+
+        $plan = (new ReplaceContentDomains())->plan($this->context($this->request()));
+        $warnings = array_map(static fn ($n): string => $n->message, array_filter($plan->notices(), static fn ($n): bool => $n->level === NoticeLevel::Warning));
+        self::assertNotSame([], array_filter($warnings, static fn (string $m): bool => str_contains($m, 'too long for the column')));
+    }
+
     public function testBrokenSerializedValueAndNoKeyTableAreLeftAlone(): void
     {
         $this->applyStep($this->request());

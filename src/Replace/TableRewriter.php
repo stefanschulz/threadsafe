@@ -103,7 +103,11 @@ final class TableRewriter
                     $outcome = $this->rewriterFor($treatment?->form)->rewrite($value, $replaceBare || ($treatment->bare ?? false));
                     $columnResult = $result->column($column);
                     $columnResult->stats->add($outcome->stats);
-                    if ($outcome->changed) {
+                    if ($outcome->changed && $table->tooLong($column, $outcome->value)) {
+                        // the new domain is longer than the old one and the value was close to the limit of its column: an UPDATE would fail (error 1406) and
+                        // stop the whole run, so this one value keeps the old domain and the report says so
+                        ++$columnResult->tooLong;
+                    } elseif ($outcome->changed) {
                         ++$columnResult->rowsChanged;
                         $columnResult->sampleBefore ??= $this->excerpt($value);
                         $columnResult->sampleAfter ??= $this->excerpt($outcome->value);

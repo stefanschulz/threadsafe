@@ -11,6 +11,9 @@ final class ColumnResult
 {
     public int $rowsChanged = 0;
 
+    /** Values that were left as they were because the new value would not fit into the column. */
+    public int $tooLong = 0;
+
     public readonly Stats $stats;
 
     /** A short excerpt of the first changed value, before and after. */
@@ -27,6 +30,7 @@ final class ColumnResult
     public function merge(self $other): void
     {
         $this->rowsChanged += $other->rowsChanged;
+        $this->tooLong += $other->tooLong;
         $this->stats->add($other->stats);
         $this->sampleBefore ??= $other->sampleBefore;
         $this->sampleAfter ??= $other->sampleAfter;
@@ -35,7 +39,7 @@ final class ColumnResult
     /** @return array<string, mixed> */
     public function toArray(): array
     {
-        return ['rowsChanged' => $this->rowsChanged, 'stats' => $this->stats->toArray(), 'before' => $this->sampleBefore, 'after' => $this->sampleAfter];
+        return ['rowsChanged' => $this->rowsChanged, 'tooLong' => $this->tooLong, 'stats' => $this->stats->toArray(), 'before' => $this->sampleBefore, 'after' => $this->sampleAfter];
     }
 
     /**
@@ -45,6 +49,7 @@ final class ColumnResult
     {
         $column = new self();
         $column->rowsChanged = (int) ($data['rowsChanged'] ?? 0);
+        $column->tooLong = (int) ($data['tooLong'] ?? 0);
         $column->stats->add(Stats::fromArray((array) ($data['stats'] ?? [])));
         $column->sampleBefore = isset($data['before']) ? (string) $data['before'] : null;
         $column->sampleAfter = isset($data['after']) ? (string) $data['after'] : null;

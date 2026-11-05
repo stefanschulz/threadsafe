@@ -281,6 +281,8 @@ the old domain in **every text column of every table** of the database (serializ
 loop, no redirect to another host, no links to the old domain). It rewrites **no files**, adjusts no configuration and clears
 no caches: that stays with the owner of the site.
 
+The replacement is the same for every website type. A new domain that is **longer** than the old one can make a value too long for its column (a `varchar` that was nearly full, such as `old_url` of the Joomla redirects): such a value keeps the old domain, the report says how many values of which column, and the run goes on (an `UPDATE` would be refused by the server with error 1406 and stop the whole step).
+
 ```bash
 php bin/threadsafe migrate generic --root=/var/www/blog --from=blog.example --to=dev.blog.test \
     --db-host=127.0.0.1 --db-name=blog --db-user=blog --db-password-file=/root/blog.pw \

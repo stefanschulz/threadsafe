@@ -36,6 +36,9 @@ final class ContentReport
                     $outcome->rowsChanged,
                 ));
             }
+            if ($outcome->tooLong > 0) {
+                $plan->notice(Notice::warning("{$outcome->tooLong} value(s) would be too long for the column with the new domain and keep the old one (shorten them by hand if they matter, for example a redirect).", "{$result->table}.$column"));
+            }
             if ($stats->bareFound > 0) {
                 $plan->notice(Notice::info("{$stats->bareFound} value(s) mention the domain without a URL form and are left untouched (replace them with --replace-bare).", "{$result->table}.$column"));
             }

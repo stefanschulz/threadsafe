@@ -26,17 +26,21 @@ final class SchemaInspector
             "SELECT TABLE_NAME AS t, IFNULL(TABLE_ROWS, 0) AS r FROM information_schema.TABLES
              WHERE TABLE_SCHEMA = DATABASE() AND TABLE_TYPE = 'BASE TABLE' ORDER BY TABLE_NAME",
         ) as $row) {
-            $tables[(string) $row['t']] = ['rows' => (int) $row['r'], 'text' => [], 'pk' => []];
+            $tables[(string) $row['t']] = ['rows' => (int) $row['r'], 'text' => [], 'pk' => [], 'limits' => []];
         }
 
         $marks = implode(',', array_fill(0, count(self::TEXT_TYPES), '?'));
         foreach ($this->db->select(
-            "SELECT TABLE_NAME AS t, COLUMN_NAME AS c FROM information_schema.COLUMNS
+            "SELECT TABLE_NAME AS t, COLUMN_NAME AS c, DATA_TYPE AS d, CHARACTER_MAXIMUM_LENGTH AS n FROM information_schema.COLUMNS
              WHERE TABLE_SCHEMA = DATABASE() AND DATA_TYPE IN ($marks) ORDER BY TABLE_NAME, ORDINAL_POSITION",
             self::TEXT_TYPES,
         ) as $row) {
             if (isset($tables[(string) $row['t']])) {
                 $tables[(string) $row['t']]['text'][] = (string) $row['c'];
+                if ($row['n'] !== null) {
+                    // char and varchar are counted in characters; for the text types the figure is in bytes
+                    $tables[(string) $row['t']]['limits'][(string) $row['c']] = [in_array((string) $row['d'], ['char', 'varchar'], true) ? 'chars' : 'bytes', (int) $row['n']];
+                }
             }
         }
 
@@ -51,7 +55,7 @@ final class SchemaInspector
 
         $result = [];
         foreach ($tables as $name => $info) {
-            $result[$name] = new TableInfo($name, $info['text'], $info['pk'], $info['rows']);
+            $result[$name] = new TableInfo($name, $info['text'], $info['pk'], $info['rows'], $info['limits']);
         }
 
         return $result;
