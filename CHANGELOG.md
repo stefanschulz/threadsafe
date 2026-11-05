@@ -8,6 +8,7 @@ of the GitHub release (see "Making a release" in [AGENTS.md](AGENTS.md)).
 
 ### Fixed
 
+- **The done page of the restore wizard did not show the warnings of the adaptation.** It listed the warnings of the checks before the restore and of the extraction, and a table of the steps, but not what the steps themselves had to say: a value that kept the old domain because it would not fit its column (0.10.0-beta.3), structured values that could not be parsed, a table without a primary key. The command line printed them, the wizard did not. The page lists them now ("Please read", with the step and the table.column; at most 30). Found in the field.
 - **The restore of a backup made with `threadsafe-backup.php` before 0.10.0-beta.3 still showed "The backup itself reported: Storage: The storage directory is inside the site ...".** The sentence is part of the report inside the archive, so 0.10.0-beta.3 (which does not write it into new backups) could not remove it from old ones. The restore (command and wizard) now leaves out exactly this sentence for backups of the backup tool (profile `site`); every other warning of a report is shown as before. Found in the field.
 
 ## [0.10.0-beta.3] - 2026-11-05

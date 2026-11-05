@@ -813,7 +813,7 @@ final class Wizard
         }
         $result = (array) ($run->state['result'] ?? []);
         $warnings = '';
-        foreach ((array) ($result['warnings'] ?? []) as $warning) {
+        foreach ([...(array) ($result['warnings'] ?? []), ...self::adaptationWarnings((array) ($result['report'] ?? []))] as $warning) {
             $warnings .= '<li>' . Html::e((string) $warning) . '</li>';
         }
         $steps = '';
@@ -829,6 +829,40 @@ final class Wizard
             . $this->form('<label><input type="checkbox" name="archives" value="1">Also delete the backup files (<code>.zip</code> or <code>.zip.age</code>) next to the tool</label><button name="action" value="cleanup">Delete the tool now</button>', (string) $session['csrf']);
 
         return $this->page('Done', $body, 200, 'done');
+    }
+
+    /**
+     * The warnings that the steps of the adaptation raised (a value too long for its column that kept the old domain, structured values that
+     * could not be parsed, a table without a primary key ...), as lines for the done page: the command line prints them from the same report.
+     * Notices of the level info stay in the report; one line per distinct warning, at most 30 (the rest is counted).
+     *
+     * @param array<string, mixed> $report the report of the adaptation (`Report::toArray()`)
+     *
+     * @return list<string>
+     */
+    public static function adaptationWarnings(array $report): array
+    {
+        $lines = [];
+        foreach ((array) ($report['steps'] ?? []) as $step) {
+            $step = (array) $step;
+            $notices = [...(array) ($step['plan']['notices'] ?? []), ...(array) ($step['result']['notices'] ?? [])];
+            foreach ($notices as $notice) {
+                $notice = (array) $notice;
+                if (($notice['level'] ?? '') !== 'warning') {
+                    continue;
+                }
+                $target = (string) ($notice['target'] ?? '');
+                $line = ((string) ($step['title'] ?? '')) . ': ' . ($target !== '' ? $target . ': ' : '') . (string) ($notice['message'] ?? '');
+                $lines[$line] = $line;
+            }
+        }
+        $lines = array_values($lines);
+        if (count($lines) > 30) {
+            $more = count($lines) - 30;
+            $lines = [...array_slice($lines, 0, 30), "... and $more more warning(s) in the report of the adaptation."];
+        }
+
+        return $lines;
     }
 
     /**
