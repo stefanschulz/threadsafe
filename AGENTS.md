@@ -133,7 +133,7 @@ A release is made by the workflow, not by hand (docs/PHASE7.md 3.7, decision 6):
 
 ## Next steps
 
-Phases 1 to 9, 11 and 12 are built and proven in Docker (phase 10 is shelved, phase 13 is planned for the next minor; phase 12 is field-tested with a PrestaShop site; the current release is 0.10.0-beta.2, and the code review of 2026-11-05 covered the update, the `age` crypto, the admin controllers and the settings, see [docs/PHASE12.md](docs/PHASE12.md) section 8); the table above says which are field-tested. The core of it: `threadsafe migrate`, `profile`, `backup`, `backups`, `verify`, `restore`, `retention`, `keys`,
+Phases 1 to 9, 11 and 12 are built and proven in Docker (phase 10 is shelved, phase 13 is planned for the next minor; phase 12 is field-tested with a PrestaShop site; the current release is 0.10.0-beta.3, and the code review of 2026-11-05 covered the update, the `age` crypto, the admin controllers and the settings, see [docs/PHASE12.md](docs/PHASE12.md) section 8); the table above says which are field-tested. The core of it: `threadsafe migrate`, `profile`, `backup`, `backups`, `verify`, `restore`, `retention`, `keys`,
 `cron` and `admin` work end to end, the single file `threadsafe-restore.php` (`php tools/build-restore.php`) restores a backup (also an encrypted one) behind a web
 server on a host where nothing else is installed, and the web interface (`public/`, switched on with `admin enable`) does profiles, schedules, backups
 in steps, checks, downloads, keys and the restore help in a browser. `tests/stack/run.sh` is the whole proof: baseline and migration, dev mode, the backup

@@ -6,6 +6,10 @@ of the GitHub release (see "Making a release" in [AGENTS.md](AGENTS.md)).
 
 ## [Unreleased]
 
+## [0.10.0-beta.3] - 2026-11-05
+
+Three fixes from the field test: a restore that stopped on a value that no longer fitted its column, a warning that frightened without reason, and a button that did nothing visible. An installation of 0.9.0-beta.1 or later can be updated to this version from the System page (or with `threadsafe update`); the format of the files in `data/` has not changed.
+
 ### Fixed
 
 - **The restore failed in the step "replace-content-domains" with "Data too long for column 'old_url'".** A new domain that is longer than the old one made a value in a nearly full `varchar` column (found: the redirects of a Joomla site) too long for the column, and the server refused the `UPDATE` (error 1406) and stopped the whole step, after the files and the database had been restored. The replacement now knows the length of every text column: a value that would not fit keeps the old domain, and the report (also the plan of a dry run) says how many values of which column; the run goes on. It is the replacement that all website types share (PrestaShop, Joomla, WordPress, generic). Found in the field.
