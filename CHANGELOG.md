@@ -8,6 +8,7 @@ of the GitHub release (see "Making a release" in [AGENTS.md](AGENTS.md)).
 
 ### Fixed
 
+- **A backup made with `threadsafe-backup.php` carried the warning "The storage directory is inside the site ... a web server could serve its files", which the restore showed as "The backup itself reported".** The tool puts its archive into `.threadsafe-backup/storage-<random>/` on purpose (closed by `.htaccess`, unguessable, and the run does not start if the probe can fetch it), so the warning was noise. It is not given for that directory any more; a storage that the person chose inside the site still gets it. Backups made before keep the sentence in their report; it is harmless. Found in the field.
 - **"Give up this backup" in `threadsafe-backup.php` did nothing visible.** While a step was working (the tool is in a step almost all the time) the server refused to remove the run, and the page just reloaded and went on. The button now stops the page from starting new steps, says "Giving up ... waiting for the step that is working to end", asks the server again every 1.5 seconds until the step has ended (at most its time budget), and then removes the backup and shows the summary. If the step that was working turns out to be the last one, the page shows the finished backup instead of removing it. Found in the field.
 
 ## [0.10.0-beta.2] - 2026-11-05

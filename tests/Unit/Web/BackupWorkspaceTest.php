@@ -82,6 +82,7 @@ final class BackupWorkspaceTest extends TestCase
 
         self::assertNull($workspace->existingStorage(), 'only 32 lower-case hex digits count');
         self::assertMatchesRegularExpression('~storage-[0-9a-f]{32}$~', $workspace->storage());
+        self::assertTrue(\ThreadSafe\Profile\ConnectionTest::isToolStorage($workspace->storage()), 'the connection test knows the directory of the tool (no warning about a storage inside the site)');
     }
 
     public function testTheProfileAndTheRunsLiveInTheDataDirectoryLikeThoseOfTheApp(): void

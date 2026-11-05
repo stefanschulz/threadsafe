@@ -181,11 +181,25 @@ final class ConnectionTest
             $checks[] = Check::info('Storage', 'free space: ' . self::megabytes((int) $free));
         }
 
-        if ($siteRoot !== null && ProfileResolver::relativeInside($siteRoot, $storage) !== null) {
+        if ($siteRoot !== null && ProfileResolver::relativeInside($siteRoot, $storage) !== null && !self::isToolStorage($storage)) {
             $checks[] = Check::warning('Storage', 'The storage directory is inside the site. It is left out of the backup automatically, but a web server could serve its files: keep it outside the web root or make sure it is blocked.');
         }
 
         return $checks;
+    }
+
+    /**
+     * The storage of the single-file backup tool (`.threadsafe-backup/storage-<32 hex digits>`, made by the tool's workspace class): it lies in the site on
+     * purpose, is closed by `.htaccess` and an empty `index.html`, has an unguessable name, and the tool refuses to start while its probe shows
+     * that the directory can be fetched. The warning "a web server could serve its files" would only frighten the person who restores the
+     * backup (it is part of the backup's own report), so it is not given for this directory. (The pattern is repeated here because this class is
+     * part of the restore tool, which does not carry the workspace class; a test keeps the two in step.)
+     */
+    public static function isToolStorage(string $storage): bool
+    {
+        $path = str_replace('\\', '/', rtrim($storage, '/\\'));
+
+        return preg_match('#/\.threadsafe-backup/storage-[0-9a-f]{32}$#D', $path) === 1;
     }
 
     /**

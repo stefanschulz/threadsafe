@@ -225,6 +225,20 @@ final class ProfileResolverTest extends TestCase
         self::assertSame('prestashop9' === $profile->type, true);
     }
 
+    public function testTheStorageOfTheBackupToolInsideTheSiteGivesNoWarningButAnotherDirectoryDoes(): void
+    {
+        $site = $this->tempDirectory();
+        $own = $site . '/.threadsafe-backup/storage-' . str_repeat('ab', 16);
+        $report = (new ConnectionTest(PluginRegistry::load(), $this->tempDirectory() . '/data'))->run($this->profile('generic', $site, ['storage' => $own]));
+        self::assertTrue($report->passed());
+        self::assertSame([], $report->messages(\ThreadSafe\Profile\CheckLevel::Warning), 'closed, unguessable and probed by the tool itself');
+
+        foreach ([$site . '/.threadsafe-backup/storage-abc', $site . '/.threadsafe-backup/other', $site . '/storage-' . str_repeat('ab', 16), $own . '-x'] as $other) {
+            self::assertFalse(ConnectionTest::isToolStorage($other), $other);
+        }
+        self::assertTrue(ConnectionTest::isToolStorage($own . '/'), 'a trailing slash does not matter');
+    }
+
     public function testConnectionTestWarnsAboutStorageInsideTheSiteAndRefusesAnUnwritableOne(): void
     {
         $site = $this->tempDirectory();
