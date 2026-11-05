@@ -458,6 +458,31 @@ final class WizardTest extends TestCase
         self::assertStringContainsString('<a class="button" href="https://new.example/">Open the site</a>', $gone->body);
     }
 
+    public function testTheLastPageOffersTheRestoredSiteAlsoForAnEncryptedBackup(): void
+    {
+        // field test: the secret key is not in the session any more once the run has it, so the archive cannot be opened at the end; the buttons
+        // come from the manifest that the run kept
+        $pair = AgeKeys::generate();
+        $this->upload($pair['public']);
+        $this->key();
+        $client = $this->loggedIn(true, '127.0.0.1', 'tool.example');
+        $client->post(['action' => 'choose-backup', 'choice' => basename($this->parts[0]), 'path' => '', 'unlock' => $pair['secret']]);
+        $client->post(['action' => 'save-target', 'root' => $this->base . '/restored', 'f_to' => 'New.Example', 'f_from' => 'old.example']);
+        $client->post(['action' => 'start']);
+        for ($tick = 1; $tick <= 300; ++$tick) {
+            $answer = json_decode($client->post(['action' => 'tick', 'format' => 'json'])->body, true);
+            if ($answer['status'] === 'finished') {
+                break;
+            }
+        }
+        self::assertSame('finished', $answer['status']);
+
+        $gone = $client->post(['action' => 'cleanup']);
+
+        self::assertStringContainsString('The tool is gone', $gone->body);
+        self::assertStringContainsString('class="button"', $gone->body, 'the buttons are there although the archive cannot be opened without the key');
+    }
+
     public function testTheLastPageOffersTheHostOfThePageWhenTheNewDomainWasLeftEmpty(): void
     {
         $this->upload();

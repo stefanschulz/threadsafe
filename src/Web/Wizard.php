@@ -8,6 +8,7 @@ use Closure;
 use Throwable;
 use ThreadSafe\Backup\BackupName;
 use ThreadSafe\Backup\Manifest;
+use ThreadSafe\Backup\ManifestException;
 use ThreadSafe\Database\Connection;
 use ThreadSafe\Database\ConnectionFailed;
 use ThreadSafe\Database\DatabaseError;
@@ -887,8 +888,9 @@ final class Wizard
                 }
             }
         }
-        // what the buttons need is read before the files go: the archive and the restored root
-        $buttons = $this->siteButtons($request, $session, (string) ($run->state['root'] ?? $base));
+        // what the buttons need is read before the files go; it comes from the run, not from the archive: the key of an encrypted backup is not in
+        // the session any more (the run has had it until the files were unpacked), so the archive cannot be opened here
+        $buttons = $this->siteButtons($request, $session, (string) ($run->state['root'] ?? $base), $this->runManifest($run->state));
         // the tool is leaving: the block of its .htaccess goes with it
         ToolGuard::release((string) ($run->state['root'] ?? $base));
         $problems = Cleanup::run($files, $this->stateDirectory);
@@ -901,22 +903,38 @@ final class Wizard
     }
 
     /**
+     * The manifest of the backup as the run kept it (null if it has none or it cannot be read).
+     *
+     * @param array<string, mixed> $state
+     */
+    private function runManifest(array $state): ?Manifest
+    {
+        if (!is_array($state['manifest'] ?? null)) {
+            return null;
+        }
+        try {
+            return Manifest::fromArray($state['manifest']);
+        } catch (ManifestException) {
+            return null;
+        }
+    }
+
+    /**
      * The buttons that open the restored site and the login of its administration (what the website type knows), for the page that says
      * the tool is gone. The address is the domain of the field "new domain" (the host of this page if it was left empty) under the scheme of this page.
      *
      * @param array<string, mixed> $session
      */
-    private function siteButtons(Request $request, array $session, string $root): string
+    private function siteButtons(Request $request, array $session, string $root, ?Manifest $manifest): string
     {
-        $source = $this->source($session);
-        if ($source === null) {
+        if ($manifest === null) {
             return '';
         }
         /** @var array<string, string> $values */
         $values = (array) ($session['values'] ?? []);
-        $type = $this->plugins->restorable($source->manifest->type);
+        $type = $this->plugins->restorable($manifest->type);
         $fieldValues = [];
-        foreach ($type->fields($source->manifest) as $field) {
+        foreach ($type->fields($manifest) as $field) {
             $fieldValues[$field->name] = $values['f_' . $field->name] ?? '';
         }
         $served = $request->path === '' || !str_contains($request->path, '/') ? '/' : substr($request->path, 0, (int) strrpos($request->path, '/') + 1);
@@ -927,7 +945,7 @@ final class Wizard
         }
         $origin = ($request->https ? 'https://' : 'http://') . $domain;
         $html = '';
-        foreach ($type->links($source->manifest, $root, $fieldValues, $served) as $i => $link) {
+        foreach ($type->links($manifest, $root, $fieldValues, $served) as $i => $link) {
             $html .= '<a class="button' . ($i > 0 ? ' secondary' : '') . '" href="' . Html::e($origin . $link['path']) . '">' . Html::e($link['label']) . '</a> ';
         }
 
