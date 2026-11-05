@@ -6,6 +6,10 @@ of the GitHub release (see "Making a release" in [AGENTS.md](AGENTS.md)).
 
 ## [Unreleased]
 
+## [0.10.0-beta.2] - 2026-11-05
+
+Two small hardenings from the review of the update, the crypto and the controllers; no vulnerability was found. An installation of 0.9.0-beta.1 or later can be updated to this version from the System page (or with `threadsafe update`); the format of the files in `data/` has not changed.
+
 ### Fixed
 
 - **A line break at the end of an id, a version or a route was accepted.** PHP's `$` matches before a final line break, so `"shop\n"` was a valid profile id and `/profiles/shop%0A` a route. The patterns of ids, run ids, versions, the random part of a backup name, the work directories of the backup tool, the cron secret and the router have the modifier `D` now. Nothing could be reached by it; found by the review of the update, the crypto and the controllers (see [docs/PHASE12.md](docs/PHASE12.md) section 8).
