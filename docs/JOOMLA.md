@@ -122,6 +122,7 @@ If the restored site shows a database error that the credentials do not explain,
 | The front page redirects to the old domain | The old domain stands somewhere that the restore does not look at (`live_site` is handled): a redirect rule in `.htaccess` of your own, or an extension setting. |
 | The pages work but every link except the front page gives `404` | `mod_rewrite` or `AllowOverride All` is missing on the new host (the `.htaccess` of Joomla needs them), or *Search Engine Friendly URLs → Use URL Rewriting* is on without it. |
 | `Access forbidden` on `threadsafe-restore.php` during a restore through the browser | The `.htaccess` of a site with Admin Tools refuses every direct request for a PHP file. The wizard lets itself through until it is deleted ([RESTORE.md](RESTORE.md) section 8). |
+| `Access forbidden` (HTTP 403) on `threadsafe-backup.php` of a site with Admin Tools | The same rule, on the site that is backed up: the tool cannot let itself through there (it does not change the `.htaccess` of a site it only reads). In *Admin Tools → Web Application Firewall → .htaccess Maker* add `threadsafe-backup.php` to "Allow direct access to these files", save and apply, and take the entry out again when the backup is done (field test, 2026-11-05). |
 | `X-Robots-Tag` is missing on a dev copy | The host has no `mod_headers`; `robots.txt` and the meta tag are there anyway. |
 
 ## 10. Proof
