@@ -20,6 +20,9 @@ use ThreadSafe\Plugin\PluginRegistry;
  */
 final class ConnectionTest
 {
+    /** The warning about a storage inside the site; it also stands in the report of the backups that were made with it (see `Restore\Preflight`). */
+    public const string STORAGE_INSIDE_SITE = 'The storage directory is inside the site. It is left out of the backup automatically, but a web server could serve its files: keep it outside the web root or make sure it is blocked.';
+
     private const array NEEDED_PRIVILEGES = ['SELECT', 'SHOW VIEW', 'TRIGGER'];
 
     public function __construct(private readonly PluginRegistry $plugins, private readonly ?string $dataDirectory = null)
@@ -182,7 +185,7 @@ final class ConnectionTest
         }
 
         if ($siteRoot !== null && ProfileResolver::relativeInside($siteRoot, $storage) !== null && !self::isToolStorage($storage)) {
-            $checks[] = Check::warning('Storage', 'The storage directory is inside the site. It is left out of the backup automatically, but a web server could serve its files: keep it outside the web root or make sure it is blocked.');
+            $checks[] = Check::warning('Storage', self::STORAGE_INSIDE_SITE);
         }
 
         return $checks;

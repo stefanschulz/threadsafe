@@ -14,6 +14,7 @@ use ThreadSafe\Database\DatabaseError;
 use ThreadSafe\Database\DatabaseSettings;
 use ThreadSafe\Database\ServerInfo;
 use ThreadSafe\Plugin\Restorable;
+use ThreadSafe\Profile\ConnectionTest;
 use ThreadSafe\Storage\LocalStorage;
 use ThreadSafe\Storage\SpaceCheck;
 
@@ -26,6 +27,9 @@ use ThreadSafe\Storage\SpaceCheck;
  */
 final class Preflight
 {
+    /** The id of the one profile of the single-file backup tool (the same as in its workspace class, whose name the restore tool does not carry). */
+    private const string TOOL_PROFILE = 'site';
+
     /** Names that may be in the target directory at the start without being in the way (with `allowLeftovers`). */
     private const array PLACEHOLDERS = ['.htaccess', 'index.html', 'index.htm', 'robots.txt', 'favicon.ico', 'cgi-bin', '.well-known'];
 
@@ -71,6 +75,9 @@ final class Preflight
         }
 
         foreach ($manifest->warnings as $warning) {
+            if (self::isOldNoise($warning, $manifest->profileId)) {
+                continue;
+            }
             $checks[] = Check::warning('The backup itself reported: ' . $warning);
         }
         foreach ($manifest->unsupportedObjects as $object) {
@@ -81,6 +88,15 @@ final class Preflight
         }
 
         return $checks;
+    }
+
+    /**
+     * A sentence in the report of a backup that says nothing about the restore: the single-file backup tool keeps its archive in the site on
+     * purpose (closed, unguessable, probed before the run), and backups made before 0.10.0-beta.3 carry the warning about it.
+     */
+    public static function isOldNoise(string $warning, string $profileId): bool
+    {
+        return $profileId === self::TOOL_PROFILE && $warning === 'Storage: ' . ConnectionTest::STORAGE_INSIDE_SITE;
     }
 
     /**

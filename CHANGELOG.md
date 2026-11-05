@@ -6,6 +6,10 @@ of the GitHub release (see "Making a release" in [AGENTS.md](AGENTS.md)).
 
 ## [Unreleased]
 
+### Fixed
+
+- **The restore of a backup made with `threadsafe-backup.php` before 0.10.0-beta.3 still showed "The backup itself reported: Storage: The storage directory is inside the site ...".** The sentence is part of the report inside the archive, so 0.10.0-beta.3 (which does not write it into new backups) could not remove it from old ones. The restore (command and wizard) now leaves out exactly this sentence for backups of the backup tool (profile `site`); every other warning of a report is shown as before. Found in the field.
+
 ## [0.10.0-beta.3] - 2026-11-05
 
 Three fixes from the field test: a restore that stopped on a value that no longer fitted its column, a warning that frightened without reason, and a button that did nothing visible. An installation of 0.9.0-beta.1 or later can be updated to this version from the System page (or with `threadsafe update`); the format of the files in `data/` has not changed.
