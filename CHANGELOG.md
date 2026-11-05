@@ -6,6 +6,10 @@ of the GitHub release (see "Making a release" in [AGENTS.md](AGENTS.md)).
 
 ## [Unreleased]
 
+### Fixed
+
+- **"Give up this backup" in `threadsafe-backup.php` did nothing visible.** While a step was working (the tool is in a step almost all the time) the server refused to remove the run, and the page just reloaded and went on. The button now stops the page from starting new steps, says "Giving up ... waiting for the step that is working to end", asks the server again every 1.5 seconds until the step has ended (at most its time budget), and then removes the backup and shows the summary. If the step that was working turns out to be the last one, the page shows the finished backup instead of removing it. Found in the field.
+
 ## [0.10.0-beta.2] - 2026-11-05
 
 Two small hardenings from the review of the update, the crypto and the controllers; no vulnerability was found. An installation of 0.9.0-beta.1 or later can be updated to this version from the System page (or with `threadsafe update`); the format of the files in `data/` has not changed.

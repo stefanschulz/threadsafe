@@ -101,8 +101,19 @@ final class RunViewTest extends TestCase
         $script = RunView::script('token"</script>', false, 'restore', 'Rename it.');
 
         self::assertStringNotContainsString('</script>', $script, 'the key cannot close the script');
-        self::assertStringContainsString('function buttons(failed) { go.disabled = working || failed; retry.disabled = !failed || working; }', $script);
-        self::assertStringContainsString('if (working && d.working && d.note)', $script);
+        self::assertStringContainsString('function buttons(failed) { go.disabled = cancelling || working || failed; retry.disabled = cancelling || !failed || working; }', $script);
+        self::assertStringContainsString('if (working && !cancelling && d.working && d.note)', $script);
         self::assertStringContainsString('"?step=status"', $script);
+    }
+
+    public function testTheScriptGivesUpByAskingAgainWhileAStepIsWorkingAndStartsNoNewStep(): void
+    {
+        $script = RunView::script('token', false, 'backup', 'Allow it.');
+
+        self::assertStringContainsString("document.getElementById('giveup')", $script);
+        self::assertStringContainsString("if (d.status === 'busy') { setTimeout(giveUpNow, 1500); return; }", $script);
+        self::assertStringContainsString('cancelling = true; stopped = true;', $script, 'no new step after the button');
+        self::assertStringContainsString('if (cancelling) { settle(); return; }', $script, 'the answer of the step that was working is not shown as a result');
+        self::assertStringContainsString('if (giveUp) {', $script, 'the restore and the installation have no such button');
     }
 }

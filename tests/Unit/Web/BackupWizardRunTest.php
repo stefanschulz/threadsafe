@@ -7,6 +7,7 @@ namespace ThreadSafe\Tests\Unit\Web;
 use PHPUnit\Framework\TestCase;
 use ThreadSafe\Crypto\AgeKeys;
 use ThreadSafe\Engine\Budget;
+use ThreadSafe\Engine\Lock;
 use ThreadSafe\Engine\Run;
 use ThreadSafe\Engine\RunStatus;
 use ThreadSafe\Plugin\PluginRegistry;
@@ -299,6 +300,55 @@ final class BackupWizardRunTest extends TestCase
         self::assertStringContainsString('Back up now', $page->body);
         self::assertSame([], BackupWorkspace::in($this->web)->runs()->all('backup'));
         self::assertSame([], array_values(array_filter(scandir($this->storage()) ?: [], static fn (string $f): bool => str_starts_with($f, '.work-') || str_ends_with($f, '.part'))));
+    }
+
+    public function testGivingUpWhileAStepIsWorkingSaysBusyAndTheRunStaysUntilTheStepHasEnded(): void
+    {
+        $client = $this->atTheSummary();
+        $client->post(['action' => 'probe', 'result' => 'closed']);
+        $client->post(['action' => 'start']);
+        $workspace = BackupWorkspace::in($this->web);
+        $run = $workspace->runs()->all('backup')[0];
+        $lock = Lock::tryAcquire($workspace->runs()->lockPath($run->id));   // a tick is working right now
+
+        try {
+            $busy = json_decode($client->post(['action' => 'abandon', 'format' => 'json'])->body, true);
+            self::assertSame(['status' => 'busy'], $busy, 'the page of the person asks again');
+            self::assertCount(1, $workspace->runs()->all('backup'));
+
+            $plain = $client->post(['action' => 'abandon']);
+            self::assertStringContainsString('Backing up', $plain->body, 'without script the run page is shown again');
+        } finally {
+            $lock?->release();
+        }
+
+        $done = json_decode($client->post(['action' => 'abandon', 'format' => 'json'])->body, true);
+        self::assertSame(['status' => 'abandoned', 'next' => '?step=summary'], $done);
+        self::assertSame([], $workspace->runs()->all('backup'));
+    }
+
+    public function testGivingUpAFinishedRunPointsToTheResultInsteadOfRemovingTheBackup(): void
+    {
+        $client = $this->atTheSummary();
+        $this->backedUp($client);
+        $first = $this->parts();
+
+        $answer = json_decode($client->post(['action' => 'abandon', 'format' => 'json'])->body, true);
+
+        self::assertSame(['status' => 'finished', 'next' => '?step=done'], $answer);
+        self::assertSame($first, $this->parts(), 'the archive stays');
+    }
+
+    public function testTheRunPageGivesTheGiveUpButtonToTheScript(): void
+    {
+        $client = $this->atTheSummary();
+        $client->post(['action' => 'probe', 'result' => 'closed']);
+        $client->post(['action' => 'start']);
+
+        $page = $client->get(['step' => 'run'])->body;
+
+        self::assertStringContainsString('id="giveup"', $page);
+        self::assertStringContainsString("post('abandon')", $page);
     }
 
     public function testAgainLeavesTheArchiveAndStartsAnother(): void

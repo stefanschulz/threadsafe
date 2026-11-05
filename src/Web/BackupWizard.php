@@ -160,7 +160,7 @@ final class BackupWizard
             'start' => $this->start($request, $session),
             'tick' => $this->tick($request, $session),
             'retry' => $this->retry($session),
-            'abandon' => $this->abandon($session),
+            'abandon' => $this->abandon($request, $session),
             'again' => $this->again($session),
             'delete-archive' => $this->deleteArchive($request, $session),
             'cleanup' => $this->cleanup($request, $session),
@@ -940,7 +940,7 @@ final class BackupWizard
         $failed = $run->status === RunStatus::Failed;
         $body = '<p>The backup works in steps; this page keeps it going. <strong>Keep this page open.</strong> If it is closed or the connection is lost, open the tool again: the backup goes on where it was.</p>'
             . RunView::panel($run, $this->percent($run), $failed)
-            . $this->form(RunView::buttons($failed) . ' <button class="secondary" name="action" value="abandon">Give up this backup</button>', $csrf)
+            . $this->form(RunView::buttons($failed) . ' <button class="secondary" name="action" value="abandon" id="giveup">Give up this backup</button>', $csrf)
             . '<noscript><p class="help">Without JavaScript press "Continue" again and again until the page says it is done.</p></noscript>';
 
         return $this->page('Backing up', $body, 200, 'run', RunView::script($csrf, $failed, 'backup', self::HINT_403));
@@ -1020,20 +1020,27 @@ final class BackupWizard
     /**
      * @param array<string, mixed> $session
      */
-    private function abandon(array $session): Response
+    private function abandon(Request $request, array $session): Response
     {
+        $json = $request->post('format') === 'json';
+        $next = ($session['optionsDone'] ?? false) === true ? '?step=summary' : '?step=site';
         $run = $this->currentRun($session);
+        if ($run !== null && $run->status === RunStatus::Finished && $json) {
+            // the step that was working when the person pressed the button was the last one: giving up would remove the backup
+            return Response::json(['status' => 'finished', 'next' => '?step=done']);
+        }
         if ($run !== null && $run->status !== RunStatus::Finished) {
             try {
                 $this->backups()->abandon($run->id);
             } catch (GuardFailed | EngineException) {
-                return Response::redirect('?step=run');   // a step is working right now: the person looks again in a moment
+                // a step is working right now: the page of the person asks again until it has ended (the step ends within its time budget)
+                return $json ? Response::json(['status' => 'busy']) : Response::redirect('?step=run');
             }
         }
         unset($session['runId']);
         $this->save($session);
 
-        return Response::redirect(($session['optionsDone'] ?? false) === true ? '?step=summary' : '?step=site');
+        return $json ? Response::json(['status' => 'abandoned', 'next' => $next]) : Response::redirect($next);
     }
 
     /**

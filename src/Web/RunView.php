@@ -76,12 +76,13 @@ final class RunView
   var csrf = $token, noun = $nounJs, hint403 = $hintJs, statusUrl = $statusJs;
   var bar = document.getElementById('bar'), status = document.getElementById('status'), error = document.getElementById('error');
   var go = document.getElementById('go'), retry = document.getElementById('retry'), note = document.getElementById('note'), clock = document.getElementById('clock');
+  var giveUp = document.getElementById('giveup'), cancelling = false;
   var stopped = $failedJs, lost = 0, working = false, stepStart = 0, pageStart = Date.now(), base = parseInt(clock.getAttribute('data-elapsed'), 10) || 0, poll = 0;
   bar.style.width = bar.getAttribute('data-percent') + '%';
   function two(n) { return (n < 10 ? '0' : '') + n; }
   function span(s) { s = Math.max(0, Math.floor(s)); return s >= 3600 ? Math.floor(s / 3600) + ':' + two(Math.floor(s / 60) % 60) + ':' + two(s % 60) : Math.floor(s / 60) + ':' + two(s % 60); }
   // what can be pressed: "Continue" when nothing works and the run has not failed, "Try the failed step again" when it has failed
-  function buttons(failed) { go.disabled = working || failed; retry.disabled = !failed || working; }
+  function buttons(failed) { go.disabled = cancelling || working || failed; retry.disabled = cancelling || !failed || working; }
   function tickClock() {
     var total = base + (Date.now() - pageStart) / 1000;
     clock.textContent = (working ? 'This step: ' + span((Date.now() - stepStart) / 1000) + ' \u00b7 ' : '') + 'All together: ' + span(total);
@@ -90,7 +91,7 @@ final class RunView
   // while a step is working the page asks what it is doing: the step itself can take half a minute
   function watch() {
     fetch(statusUrl, {credentials: 'same-origin', cache: 'no-store', headers: {'Accept': 'application/json'}}).then(function (r) { return r.json(); }).then(function (d) {
-      if (working && d.working && d.note) { note.textContent = d.note + '.'; }
+      if (working && !cancelling && d.working && d.note) { note.textContent = d.note + '.'; }
     }).catch(function () {});
   }
   function begin() { working = true; stepStart = Date.now(); buttons(false); note.textContent = 'Working ...'; tickClock(); clearInterval(poll); poll = setInterval(watch, 2000); }
@@ -112,6 +113,7 @@ final class RunView
   }
   function show(d) {
     lost = 0;
+    if (cancelling) { settle(); return; }
     if (d.percent !== undefined) { bar.style.width = d.percent + '%'; }
     if (d.progress) { status.textContent = d.progress; }
     if (d.status === 'finished') { window.location = '?step=done'; return; }
@@ -123,11 +125,37 @@ final class RunView
     if (stopped) { return; }
     begin();
     post('tick').then(show).catch(function (e) {
+      if (cancelling) { settle(); return; }
       if (e && e.http) { refused(e.http); return; }
       lost += 1;
       end(false);
       note.textContent = 'No answer from the server (' + lost + '); trying again ...';
       setTimeout(tick, 3000);
+    });
+  }
+  // giving up: no new step is started; the step that works now ends within its time budget, then the server can remove the run. The page says so and asks again until it can.
+  function settle() { working = false; clearInterval(poll); buttons(false); tickClock(); }
+  function giveUpNow() {
+    post('abandon').then(function (d) {
+      if (d.status === 'busy') { setTimeout(giveUpNow, 1500); return; }
+      window.location = d.next;
+    }).catch(function (e) {
+      if (e && e.http) {
+        cancelling = false; giveUp.disabled = false; note.textContent = ''; stopped = true; buttons(false);
+        error.textContent = 'Giving up did not work: the web server answered HTTP ' + e.http + '. Nothing is lost; press "Continue" to go on, or try again.';
+        return;
+      }
+      note.textContent = 'No answer from the server; trying again to give up ...';
+      setTimeout(giveUpNow, 3000);
+    });
+  }
+  if (giveUp) {
+    giveUp.addEventListener('click', function (e) {
+      e.preventDefault();
+      if (cancelling) { return; }
+      cancelling = true; stopped = true; giveUp.disabled = true; buttons(false); error.textContent = '';
+      note.textContent = working ? 'Giving up ... waiting for the step that is working to end (up to half a minute), then the backup is removed.' : 'Giving up ...';
+      giveUpNow();
     });
   }
   go.addEventListener('click', function (e) { e.preventDefault(); if (working) { return; } error.textContent = ''; stopped = false; lost = 0; tick(); });

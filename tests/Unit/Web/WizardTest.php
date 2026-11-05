@@ -566,7 +566,7 @@ final class WizardTest extends TestCase
         self::assertStringContainsString('id="note"', $run->body);
         self::assertStringContainsString("var csrf = ", $run->body);
         self::assertStringContainsString("statusUrl = \"?step=status\"", $run->body);
-        self::assertStringContainsString('function buttons(failed) { go.disabled = working || failed; retry.disabled = !failed || working; }', $run->body);
+        self::assertStringContainsString('function buttons(failed) { go.disabled = cancelling || working || failed; retry.disabled = cancelling || !failed || working; }', $run->body);
     }
 
     public function testTheStatusAddressSaysWhatTheWorkingStepIsDoing(): void
