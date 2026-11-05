@@ -6,6 +6,14 @@ of the GitHub release (see "Making a release" in [AGENTS.md](AGENTS.md)).
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-11-05
+
+The first stable release. The program is the one of 0.10.0-beta.4 (no code changed); what changed is the status: the owner field-tested it on real sites and servers and closed the beta phase.
+
+**What was tried in the field:** PrestaShop, Joomla and WordPress sites, backed up (by the app, and by `threadsafe-backup.php` with a key pair and with a passphrase), restored on another domain with the wizard `threadsafe-restore.php`, the installation and the update from the System page, the schedule, the encrypted backups, and the two-factor login (also a recovery code). The Docker proof runs on MariaDB 10.11, MySQL 8.4 and MariaDB 11.8.
+
+**Known limits** (named, not hidden): a WordPress shop with WooCommerce or a caching plugin has not been tried on a real site (it is proven in Docker with the plugins of real shops); sites of other people have not been tried much, so please report what you find; restoring over an existing installation, remote storage, a WordPress multisite and a MySQL 8 backup onto MariaDB are not supported (see [docs/RESTORE.md](docs/RESTORE.md) section 9). An installation of 0.9.0-beta.1 or later can be updated to this version from the System page (or with `threadsafe update`); the format of the files in `data/` has not changed.
+
 ## [0.10.0-beta.4] - 2026-11-05
 
 Three fixes of the restore from the field test: the done page of the wizard shows the warnings of the adaptation, the buttons to the restored site come back for an encrypted backup, and a sentence in the report of older backups of `threadsafe-backup.php` that said nothing about the restore is left out. An installation of 0.9.0-beta.1 or later can be updated to this version from the System page (or with `threadsafe update`); the format of the files in `data/` has not changed.

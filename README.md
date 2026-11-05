@@ -4,7 +4,7 @@
 
 Backup and migration for PHP web applications. One instance backs up many sites, restores them on another domain, path or database, and adjusts the application on the way. Open source (GPL-3.0-or-later), written in plain PHP 8.4, runs on shared hosting as well as on your own server.
 
-> **Beta.** ThreadSafe is feature-complete and has been used on the maintainer's own sites and servers, but not yet on a variety of other people's sites. The versions stay below 1.0.0 for now. Please report what you find.
+> **Version 1.0.** ThreadSafe is feature-complete and has been field-tested on the maintainer's own PrestaShop, Joomla and WordPress sites and servers. Not tried on a real site: a WordPress shop with WooCommerce or a caching plugin (proven in Docker only), and sites of other people. See the known limits in [CHANGELOG.md](CHANGELOG.md). Please report what you find.
 
 ## What it does
 
