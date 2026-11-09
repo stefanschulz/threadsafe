@@ -16,7 +16,11 @@
  *         --token-file=FILE   the token (default: agent-probe.token); never a command line value
  *         --size=MB           size of the test file for the transfer (default 20)
  *         --long=SECONDS      the longest request to try (default 40; 0 = skip, the test lasts about the sum of 10, 20, 30 ... seconds)
- *         --no-redirects      (default) a redirect is reported, not followed: a POST that is redirected is a different request
+ *         --cainfo=FILE       the bundle of certificate authorities, if this PHP has none (the answer "unable to get local issuer certificate");
+ *                             without it the probe looks for one in the usual places, among them the one that Git for Windows brings
+ *         --insecure          do not check the certificate of the host - for this probe only; ThreadSafe itself will always check it
+ *         --remove            let the copy on the host delete itself at the end
+ *         (a redirect is reported, never followed: a POST that is redirected is a different request)
  *
  *   on the host (web): upload agent-probe-upload.php where the agent will live and where the archives will lie - run the check once for
  *   each place:
@@ -221,7 +225,7 @@ function agent_probe_cli(array $argv): int
     if ($command === 'check' && isset($positional[0])) {
         return agent_probe_check($positional[0], $options);
     }
-    fwrite(STDERR, "Usage:\n  php agent-probe.php make [--out=FILE]\n  php agent-probe.php check URL [--token-file=FILE] [--size=MB] [--long=SECONDS] [--remove]\n(see the top of this file)\n");
+    fwrite(STDERR, "Usage:\n  php agent-probe.php make [--out=FILE]\n  php agent-probe.php check URL [--token-file=FILE] [--size=MB] [--long=SECONDS] [--cainfo=FILE] [--insecure] [--remove]\n(see the top of this file)\n");
 
     return 2;
 }
@@ -244,6 +248,42 @@ function agent_probe_make(string $out): int
     echo "Then:    php agent-probe.php check https://YOUR-SITE/wp-content/plugins/threadsafe-probe/" . basename($out) . "\n";
 
     return 0;
+}
+
+/**
+ * How the probe treats the certificate of the host: a bundle file (null: the PHP default), or no check at all.
+ *
+ * @param array{cainfo: string|null, insecure: bool}|null $set
+ *
+ * @return array{cainfo: string|null, insecure: bool}
+ */
+function agent_probe_tls(?array $set = null): array
+{
+    static $tls = array('cainfo' => null, 'insecure' => false);
+    if ($set !== null) {
+        $tls = $set;
+    }
+
+    return $tls;
+}
+
+/** A bundle of certificate authorities in the usual places, for a PHP that has none configured (the Windows builds have none). */
+function agent_probe_find_bundle(): ?string
+{
+    if ((string) ini_get('curl.cainfo') !== '' || (string) ini_get('openssl.cafile') !== '') {
+        return null;   // configured: the default is right
+    }
+    $candidates = array(
+        'C:/Program Files/Git/mingw64/etc/ssl/certs/ca-bundle.crt', 'C:/Program Files (x86)/Git/mingw64/etc/ssl/certs/ca-bundle.crt',
+        '/etc/ssl/certs/ca-certificates.crt', '/etc/pki/tls/certs/ca-bundle.crt', '/etc/ssl/cert.pem', '/usr/local/share/certs/ca-root-nss.crt',
+    );
+    foreach ($candidates as $candidate) {
+        if (is_file($candidate)) {
+            return $candidate;
+        }
+    }
+
+    return null;
 }
 
 /** @return array{status: int, headers: array<string, string>, body: string, error: string, seconds: float} */
@@ -269,6 +309,13 @@ function agent_probe_http(string $method, string $url, array $headers = array(),
             },
         ));
         curl_setopt($handle, CURLOPT_ENCODING, 'identity');
+        $tls = agent_probe_tls();
+        if ($tls['insecure']) {
+            curl_setopt($handle, CURLOPT_SSL_VERIFYPEER, false);
+            curl_setopt($handle, CURLOPT_SSL_VERIFYHOST, 0);
+        } elseif ($tls['cainfo'] !== null) {
+            curl_setopt($handle, CURLOPT_CAINFO, $tls['cainfo']);
+        }
         if ($body !== '') {
             curl_setopt($handle, CURLOPT_POSTFIELDS, $body);
         }
@@ -278,7 +325,12 @@ function agent_probe_http(string $method, string $url, array $headers = array(),
 
         return array('status' => $status, 'headers' => $received, 'body' => $text === false ? '' : (string) $text, 'error' => $error, 'seconds' => microtime(true) - $started);
     }
-    $context = stream_context_create(array('http' => array('method' => $method, 'header' => implode("\r\n", $lines), 'content' => $body, 'timeout' => $timeout, 'ignore_errors' => true, 'follow_location' => 0)));
+    $tls = agent_probe_tls();
+    $ssl = $tls['insecure'] ? array('verify_peer' => false, 'verify_peer_name' => false) : ($tls['cainfo'] !== null ? array('cafile' => $tls['cainfo']) : array());
+    $context = stream_context_create(array(
+        'http' => array('method' => $method, 'header' => implode("\r\n", $lines), 'content' => $body, 'timeout' => $timeout, 'ignore_errors' => true, 'follow_location' => 0),
+        'ssl' => $ssl,
+    ));
     $text = @file_get_contents($url, false, $context);
     $received = array();
     $status = 0;
@@ -334,6 +386,12 @@ function agent_probe_check(string $url, array $options): int
         return 2;
     }
     agent_probe_secret($token);
+    agent_probe_tls(array('cainfo' => isset($options['cainfo']) ? $options['cainfo'] : agent_probe_find_bundle(), 'insecure' => isset($options['insecure'])));
+    if (isset($options['insecure'])) {
+        agent_probe_say('note', 'The certificate of the host is NOT checked (--insecure).');
+    } elseif (agent_probe_tls()['cainfo'] !== null && !isset($options['cainfo'])) {
+        agent_probe_say('info', 'This PHP has no bundle of certificate authorities; the probe uses ' . agent_probe_tls()['cainfo'] . '.');
+    }
     $url = preg_replace('~[?#].*$~', '', $url);
     $q = $url . '?t=' . rawurlencode($token);
     $mb = isset($options['size']) ? max(1, (int) $options['size']) : 20;
@@ -353,6 +411,10 @@ function agent_probe_check(string $url, array $options): int
         return 1;
     }
     $decoded = json_decode($first['body'], true);
+    if ($first['status'] === 0 && preg_match('~certificate|SSL~i', $first['error']) === 1) {
+        agent_probe_say('PROBLEM', 'The certificate of the host cannot be checked by this PHP (' . $first['error'] . '). That is a matter of this machine, not of the host: give --cainfo=FILE (a bundle of certificate authorities) or, for this probe only, --insecure.');
+        return 1;
+    }
     if ($first['status'] !== 200 || !is_array($decoded)) {
         agent_probe_say('PROBLEM', 'No answer from the probe: HTTP ' . $first['status'] . ($first['error'] !== '' ? ' (' . $first['error'] . ')' : '') . '. Is the file there, the URL right, the token the one of this copy? A host page or a firewall page instead of "Not found" would be a finding in itself: ' . agent_probe_words($first['body']));
         return 1;
