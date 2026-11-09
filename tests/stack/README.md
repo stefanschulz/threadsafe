@@ -25,7 +25,10 @@ tests/stack/run.sh            # seed → clone → PHPUnit phase 1 (incl. the mi
                               # pair, opened by the real `age` tool, restored by the command and through the wizard with the key typed in) → phase 4e (group `backup-tool`: `threadsafe-backup.php`
                               # is put into the working target shop and makes an encrypted backup of it in many steps under 5 s / 64 MB, the probe file answers 403, the parts are downloaded
                               # (one in two requests with `Range`), opened by `age`, restored by `threadsafe restore` into a copy whose tables equal the live shop's, the tool takes itself
-                              # off; then a backup of the same shop in a shell in one snapshot, `docs/PHASE12.md` 4.2) → phase 5 (disaster recovery: the
+                              # off; then a backup of the same shop in a shell in one snapshot, `docs/PHASE12.md` 4.2) → phase 4f (group `agent`: the same tool in the plugin directory of the seeded WordPress 7, whose Apache
+                              # now has the limits of 5 s / 64 MB too, paired with its wizard and switched on; the central side - the command line and the real classes with curl - makes a backup through
+                              # the agent, fetches the parts with the SHA-256 of the list, one cut in half and resumed with `Range` (Apache answers 206), the site keeps its newest backup, `age` opens it and
+                              # `threadsafe restore` puts it into a copy equal to the live site; a stranger, a wrong secret and a replayed request get nothing, `docs/PHASE13.md` 9.9) → phase 5 (disaster recovery: the
                               # target's containers and volumes are destroyed and made again empty; threadsafe-restore.php, served by the target's own
                               # Apache under limits of 5 seconds and 64 MB, brings the shop back)
                               # → phase 6 (group `joomla`: two seeded Joomla sites, Joomla 5.4 and 6, backed up and restored on another domain, into a sub-directory and through

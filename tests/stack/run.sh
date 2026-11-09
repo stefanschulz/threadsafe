@@ -23,6 +23,10 @@
 #      backup of the shop is made in many steps through the wizard, the archive cannot be fetched through the web server (the probe file answers 403), the parts are downloaded (one in
 #      two requests with Range), the real `age` tool opens them with the key that was shown once, `threadsafe restore` puts the backup into a copy whose tables equal the live shop's,
 #      the tool takes itself off and leaves the shop as it was; a backup of the same shop in a shell is made in one snapshot. It leaves the target shop as it found it.
+#   6f. phase 4f: the agent of the backup tool (group "agent"): threadsafe-backup.php is put into the plugin directory of the seeded WordPress 7 (Apache, 5 s / 64 MB), paired and switched on
+#      through its wizard; the central side (the tools container: the command line and the real classes with curl) makes a backup through the agent in many requests, fetches the parts with
+#      the SHA-256 of the list (one cut in half and resumed with Range, Apache answers 206), the site keeps its newest backup, the real `age` tool opens it and `threadsafe restore` puts it
+#      into a copy whose tables equal the live site's; a stranger, a wrong secret and a replayed request get nothing. It leaves the site as it found it.
 #   7. phase five: disaster recovery (groups "disaster-prepare" and "disaster-restore"): the working target shop is backed up, the
 #      target's containers and volumes are DESTROYED and made again empty on the same address, threadsafe-restore.php is uploaded into the
 #      empty web directory and the wizard (served by the target's own Apache, with limits of 5 seconds and 64 MB) brings the shop
@@ -61,7 +65,7 @@ phpunit() {
 }
 
 log "Integration tests, phase 1: baseline, steps, migration of the clone"
-phpunit --exclude-group after-migration --exclude-group dev-migration --exclude-group backup-roundtrip --exclude-group disaster-prepare --exclude-group disaster-restore --exclude-group cross-server --exclude-group restore-variant --exclude-group web-ui --exclude-group trigger --exclude-group encryption --exclude-group backup-tool --exclude-group joomla --exclude-group fresh --exclude-group wordpress --exclude-group wordpress-disaster-prepare --exclude-group wordpress-disaster-restore --exclude-group wordpress-plugins "$@"
+phpunit --exclude-group after-migration --exclude-group dev-migration --exclude-group backup-roundtrip --exclude-group disaster-prepare --exclude-group disaster-restore --exclude-group cross-server --exclude-group restore-variant --exclude-group web-ui --exclude-group trigger --exclude-group encryption --exclude-group backup-tool --exclude-group agent --exclude-group joomla --exclude-group fresh --exclude-group wordpress --exclude-group wordpress-disaster-prepare --exclude-group wordpress-disaster-restore --exclude-group wordpress-plugins "$@"
 
 "$STACK_DIR/oracle.sh" target
 
@@ -93,6 +97,11 @@ phpunit --group encryption "$@"
 
 log "Integration tests, phase 4e: the backup tool threadsafe-backup.php on the working shop (the target's Apache, 5 s / 64 MB): an encrypted backup in many steps, downloads with Range, age, a restore, the clean-up, and a backup in a shell"
 phpunit --group backup-tool "$@"
+
+log "Integration tests, phase 4f: the agent of the backup tool on WordPress 7 (Apache, 5 s / 64 MB): paired with the wizard, a backup pulled by the central side with Range and SHA-256, the host keeps its newest, a restore of it"
+dc up -d wordpress7 >/dev/null
+wait_http "http://localhost:${WORDPRESS7_PORT:-8197}/" "localhost:${WORDPRESS7_PORT:-8197}" 120
+phpunit --group agent "$@"
 
 log "Integration tests, phase 5: disaster recovery"
 phpunit --group disaster-prepare "$@"

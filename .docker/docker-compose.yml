@@ -187,6 +187,8 @@ services:
       - "${WORDPRESS7_PORT:-8197}:80"
     volumes:
       - wordpress7_data:/var/www/html
+      # the limits of a modest shared host for the backup tool (phase 4f of tests/stack/run.sh: the agent of threadsafe-backup.php on this site)
+      - ./target-restore-limits.conf:/etc/apache2/conf-enabled/threadsafe-restore-limits.conf:ro
 
   wordpress6:
     profiles: ["wordpress"]
