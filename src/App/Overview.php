@@ -138,7 +138,7 @@ final class Overview
             }
         }
 
-        if (!is_dir($profile->path)) {
+        if (!$profile->isRemote() && !is_dir($profile->path)) {
             $add(self::PROBLEM, 'The site directory no longer exists: ' . $profile->path);
         }
         if (is_dir($profile->storage)) {

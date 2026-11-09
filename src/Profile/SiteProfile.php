@@ -15,12 +15,19 @@ use ThreadSafe\Database\DatabaseSettings;
  * copy of the password exists; a type without such a configuration (`generic`) needs the block
  * `{"host", "port", "name", "user", "password", "prefix", "driver"}`, or `null` for a site without a database. `schedule`, `retention` and
  * `encryption` are optional: absent or `null` means none, and a profile without them reads and writes as before.
+ *
+ * A **remote** profile (the block `remote`, {@see RemoteSettings}) has no site on this machine: a ThreadSafe agent on the site makes the backups and this
+ * machine fetches them (docs/PHASE13.md 3.3). It has no `path` (the empty text) and no `database` of its own, and `type` is the application that the
+ * agent reported, or `remote`. What a backup of it holds is decided on the site, not here.
  */
 final readonly class SiteProfile
 {
     public const string ID_PATTERN = '/^[a-z0-9][a-z0-9_-]{0,39}$/D';
 
-    private const array KEYS = ['id', 'name', 'type', 'path', 'database', 'storage', 'excludePaths', 'structureOnlyTables', 'useDefaultFilters', 'compression', 'partSize', 'note', 'schedule', 'retention', 'encryption'];
+    private const array KEYS = ['id', 'name', 'type', 'path', 'database', 'storage', 'excludePaths', 'structureOnlyTables', 'useDefaultFilters', 'compression', 'partSize', 'note', 'schedule', 'retention', 'encryption', 'remote'];
+
+    /** The website type of a remote profile whose application is not known to this machine (or not told yet). */
+    public const string REMOTE_TYPE = 'remote';
 
     private const array DATABASE_KEYS = ['host', 'port', 'name', 'user', 'password', 'prefix', 'driver'];
 
@@ -48,7 +55,14 @@ final readonly class SiteProfile
         public ?ScheduleSettings $schedule = null,
         public ?RetentionSettings $retention = null,
         public ?EncryptionSettings $encryption = null,
+        public ?RemoteSettings $remote = null,
     ) {
+    }
+
+    /** Whether the site is on another machine and a ThreadSafe agent there makes its backups. */
+    public function isRemote(): bool
+    {
+        return $this->remote !== null;
     }
 
     /**
@@ -71,7 +85,11 @@ final readonly class SiteProfile
         if (preg_match(self::ID_PATTERN, $id) !== 1) {
             throw new ProfileException('The profile id must be 1-40 lower-case letters, digits, hyphens or underscores, starting with a letter or digit.');
         }
-        $type = self::string($data, 'type', required: true);
+        $remote = RemoteSettings::fromArray($data['remote'] ?? null);
+        if ($remote !== null && ($data['database'] ?? null) !== null) {
+            throw new ProfileException('A remote profile has no "database" of its own: the agent reads it on the site.');
+        }
+        $type = $remote !== null ? self::string($data, 'type', default: self::REMOTE_TYPE) : self::string($data, 'type', required: true);
         if (preg_match('/^[a-z][a-z0-9_]*$/', $type) !== 1) {
             throw new ProfileException('The website type must be a plugin id such as "prestashop9".');
         }
@@ -114,7 +132,7 @@ final readonly class SiteProfile
             $id,
             $name,
             $type,
-            self::absolutePath($data, 'path'),
+            $remote !== null && ($data['path'] ?? '') === '' ? '' : self::absolutePath($data, 'path'),
             self::database($data['database'] ?? null),
             self::absolutePath($data, 'storage'),
             $excludePaths,
@@ -126,19 +144,20 @@ final readonly class SiteProfile
             ScheduleSettings::fromArray($data['schedule'] ?? null),
             RetentionSettings::fromArray($data['retention'] ?? null),
             EncryptionSettings::fromArray($data['encryption'] ?? null),
+            $remote,
         );
     }
 
     /**
-     * The profile as data. The password of an explicit database block is part of it only on request, because the stored
-     * file needs it and everything shown to a person must not have it.
+     * The profile as data. The password of an explicit database block and the secret of a remote block are part of it only on request, because the
+     * stored file needs them and everything shown to a person must not have them.
      *
      * @return array<string, mixed>
      */
     public function toArray(bool $withPassword = true): array
     {
         $optional = array_filter(
-            ['schedule' => $this->schedule?->toArray(), 'retention' => $this->retention?->toArray(), 'encryption' => $this->encryption?->toArray()],
+            ['schedule' => $this->schedule?->toArray(), 'retention' => $this->retention?->toArray(), 'encryption' => $this->encryption?->toArray(), 'remote' => $this->remote?->toArray($withPassword)],
             static fn (?array $value): bool => $value !== null,
         );
 

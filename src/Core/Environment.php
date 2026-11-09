@@ -124,6 +124,9 @@ final class Environment
         $checks = [];
         foreach ((new ProfileStore($data . '/profiles'))->all() as $profile) {
             $subject = 'Profile ' . $profile->id;
+            if ($profile->isRemote()) {
+                continue;   // the site is not on this machine: there is no directory to look at (the agent answers for it)
+            }
             if (!is_dir($profile->path)) {
                 $checks[] = Check::failure($subject, 'The site directory "' . $profile->path . '" does not exist.');
             } else {
