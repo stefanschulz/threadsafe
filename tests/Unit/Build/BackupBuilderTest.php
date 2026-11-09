@@ -127,6 +127,30 @@ final class BackupBuilderTest extends TestCase
         self::assertSame(['threadsafe-backup.php'], array_values(array_diff(scandir($site) ?: [], ['.', '..'])), 'nothing was written');
     }
 
+    public function testAnAgentRequestGetsNothingFromAToolThatWasNeverSetUpForAnAgent(): void
+    {
+        $site = $this->directory . '/site';
+        mkdir($site);
+        copy($this->build($site), $site . '/threadsafe-backup.php');
+
+        [$output] = $this->php('$_SERVER["REQUEST_METHOD"] = "GET"; $_GET["api"] = "status"; include $argv[1];', $site . '/threadsafe-backup.php');
+
+        self::assertStringContainsString('does nothing until you give it a key', $output, 'a stranger who adds ?api= gets the same page as before');
+        self::assertSame(['threadsafe-backup.php'], array_values(array_diff(scandir($site) ?: [], ['.', '..'])), 'and nothing is written');
+    }
+
+    public function testAnAgentRequestPassesTheStubOnceTheToolHasTheSettingsOfAnAgent(): void
+    {
+        $site = $this->directory . '/site';
+        mkdir($site . '/.threadsafe-backup/data-' . str_repeat('ab', 16), 0777, true);
+        file_put_contents($site . '/.threadsafe-backup/data-' . str_repeat('ab', 16) . '/agent.json', '{}');
+        copy($this->build($site), $site . '/threadsafe-backup.php');
+
+        $this->php('$_SERVER["REQUEST_METHOD"] = "GET"; $_GET["api"] = "status"; include $argv[1];', $site . '/threadsafe-backup.php');
+
+        self::assertCount(1, glob($site . '/.threadsafe-backup/bundle-*.php') ?: [], 'the stub did not stop at the key: the program was unpacked and the entry was called');
+    }
+
     /**
      * Runs the tool as a person with a shell does.
      *

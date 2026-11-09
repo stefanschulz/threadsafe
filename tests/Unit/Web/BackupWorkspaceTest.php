@@ -93,4 +93,77 @@ final class BackupWorkspaceTest extends TestCase
         self::assertDirectoryExists($workspace->data());
         self::assertSame([], $workspace->runs()->all('backup'));
     }
+
+    // ------------------------------------------------------------------------------------------------- a workspace elsewhere (docs/PHASE13.md 9.2)
+
+    public function testAWorkspaceAtAPlaceOfItsOwnIsCustomAndKeepsTheLayout(): void
+    {
+        $workspace = BackupWorkspace::at($this->base . '/private/ws/');
+
+        self::assertTrue($workspace->isCustom());
+        self::assertFalse(BackupWorkspace::in($this->base)->isCustom());
+        self::assertSame($this->base . '/private/ws', $workspace->directory(), 'no trailing slash');
+        mkdir($this->base . '/private');
+        self::assertMatchesRegularExpression('~/private/ws/data-[0-9a-f]{32}$~', $workspace->data());
+        self::assertMatchesRegularExpression('~/private/ws/storage-[0-9a-f]{32}$~', $workspace->storage());
+        self::assertFileExists($workspace->directory() . '/.htaccess', 'closed to the web like the one next to the tool');
+    }
+
+    public function testAPathThatCouldBeTheWorkspaceOfAToolPasses(): void
+    {
+        $tool = $this->base . '/wp-content/plugins/threadsafe-connector';
+        mkdir($tool, 0777, true);
+
+        self::assertNull(BackupWorkspace::customProblem($this->base . '/wp-content/uploads/threadsafe-abc', $tool), 'not made yet is fine');
+        self::assertNull(BackupWorkspace::customProblem($this->base . '/wp-content/plugins/threadsafe-connector-data', $tool), 'a sibling with a similar name is not inside');
+        self::assertNull(BackupWorkspace::customProblem(dirname($this->base) . '/outside-the-site', $tool));
+    }
+
+    /**
+     * @return array<string, array{string, string}> the path (%s is the temporary directory), a word of the message
+     */
+    public static function badWorkspaces(): array
+    {
+        return [
+            'empty' => ['', 'empty'],
+            'a stream wrapper' => ['phar:///x/y.phar/dir', 'stream wrapper'],
+            'php://' => ['php://memory', 'stream wrapper'],
+            'relative' => ['data/workspace', 'not absolute'],
+            'with ..' => ['%s/wp-content/uploads/../../escape', '".."'],
+            'inside the directory of the tool' => ['%s/wp-content/plugins/threadsafe-connector/data', 'inside the directory of the tool'],
+            'the directory of the tool itself' => ['%s/wp-content/plugins/threadsafe-connector', 'inside the directory of the tool'],
+            'around the tool' => ['%s/wp-content', 'lies inside it'],
+        ];
+    }
+
+    #[\PHPUnit\Framework\Attributes\DataProvider('badWorkspaces')]
+    public function testAPathThatCannotBeTheWorkspaceIsRefusedWithAReason(string $path, string $word): void
+    {
+        $tool = $this->base . '/wp-content/plugins/threadsafe-connector';
+        mkdir($tool, 0777, true);
+
+        $problem = BackupWorkspace::customProblem(sprintf($path, $this->base), $tool);
+
+        self::assertNotNull($problem, $path);
+        self::assertStringContainsString($word, $problem);
+    }
+
+    public function testALinkIntoTheDirectoryOfTheToolIsSeenThroughWhenTheLinkCanBeMade(): void
+    {
+        $tool = $this->base . '/plugin';
+        mkdir($tool);
+        $link = $this->base . '/link';
+        if (!@symlink($tool, $link)) {
+            self::markTestSkipped('This system cannot make symbolic links.');
+        }
+
+        self::assertStringContainsString('inside the directory of the tool', (string) BackupWorkspace::customProblem($link . '/ws', $tool));
+    }
+
+    public function testTheResolvedPathHasForwardSlashesNoTrailingOneAndTheRestOfAMissingPathAppended(): void
+    {
+        mkdir($this->base . '/real');
+
+        self::assertSame(str_replace(chr(92), '/', (string) realpath($this->base . '/real')) . '/not/yet', BackupWorkspace::resolved($this->base . '/real/not/yet/'));
+    }
 }

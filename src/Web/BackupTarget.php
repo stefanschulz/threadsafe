@@ -28,11 +28,14 @@ final class BackupTarget
      * @param string $toolDirectory the directory the tool is in
      * @param string $script        the file name of the tool
      * @param string $keyFile       the file name of its key file
+     * @param string|null $workspace the directory of a workspace that lies elsewhere than next to the tool ({@see BackupWorkspace::at()}); it is never
+     *                               part of the archive either: it holds the profile (with a database password), the pairing secret and the archives
      */
     public function __construct(
         private readonly string $toolDirectory,
         private readonly string $script = 'threadsafe-backup.php',
         private readonly string $keyFile = 'threadsafe-backup-key.php',
+        private readonly ?string $workspace = null,
     ) {
     }
 
@@ -112,8 +115,16 @@ final class BackupTarget
         foreach ([BackupWorkspace::NAME, StateDirectory::NAME] as $directory) {
             $patterns[] = self::pattern($prefix . $directory) . '/';
         }
+        // a workspace that lies elsewhere in the site (a plugin keeps it in wp-content/uploads): its data directory holds the profile with the database
+        // password and the pairing secret, and its storage the archives
+        if ($this->workspace !== null) {
+            $inside = ProfileResolver::relativeInside($root, $this->workspace);
+            if ($inside !== null) {
+                $patterns[] = self::pattern($inside) . '/';
+            }
+        }
 
-        return $patterns;
+        return array_values(array_unique($patterns));
     }
 
     /**

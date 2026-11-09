@@ -37,9 +37,36 @@ final class BackupEntry
 
         // a warning of PHP (a path that open_basedir does not allow, say) must never reach the page: it would end the headers
         @ini_set('display_errors', '0');
-        (new BackupWizard(dirname($script), null, basename($script)))->handle(Request::fromGlobals())->send();
+        $workspace = self::workspace($script, defined('THREADSAFE_WORKSPACE'), defined('THREADSAFE_WORKSPACE') ? constant('THREADSAFE_WORKSPACE') : null);
+        if (is_string($workspace)) {
+            // a path that is not good is not guessed at: the page says that the tool is set up wrongly and the log says why
+            @error_log('ThreadSafe backup tool: THREADSAFE_WORKSPACE cannot be used: ' . $workspace);
+            Response::html('<!doctype html><meta charset="utf-8"><title>Not set up</title><p>This tool is set up wrongly. The error log of the host says why.</p>', 500)->send();
+
+            return 1;
+        }
+        (new BackupWizard(dirname($script), null, basename($script), null, null, $workspace))->handle(Request::fromGlobals())->send();
 
         return 0;
+    }
+
+    /**
+     * The workspace the tool uses: next to the tool, or where a plugin put it (the constant THREADSAFE_WORKSPACE, defined before the tool is loaded;
+     * docs/PHASE13.md 9.2).
+     *
+     * @param bool  $defined whether the constant THREADSAFE_WORKSPACE is defined
+     * @param mixed $value   its value
+     *
+     * @return BackupWorkspace|string|null null: next to the tool; a workspace; or, as a text, why the path cannot be used
+     */
+    public static function workspace(string $script, bool $defined, mixed $value): BackupWorkspace|string|null
+    {
+        if (!$defined) {
+            return null;
+        }
+        $problem = is_string($value) ? BackupWorkspace::customProblem($value, dirname($script)) : 'it is not a text';
+
+        return $problem ?? BackupWorkspace::at((string) $value);
     }
 
     private function __construct()

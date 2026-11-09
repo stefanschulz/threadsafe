@@ -26,7 +26,7 @@ final class BackupWorkspace
 
     private const string DATA_PATTERN = '/^data-[0-9a-f]{32}$/D';
 
-    private function __construct(private readonly string $directory)
+    private function __construct(private readonly string $directory, private readonly bool $custom = false)
     {
     }
 
@@ -36,6 +36,73 @@ final class BackupWorkspace
     public static function in(string $baseDirectory): self
     {
         return new self(rtrim($baseDirectory, '/\\') . '/' . self::NAME);
+    }
+
+    /**
+     * A workspace in a directory of its own, outside the directory of the tool (docs/PHASE13.md 9.2): a plugin that holds the tool keeps the state
+     * and the archives elsewhere, because an update of the plugin replaces its whole directory. Check the path with {@see customProblem()} first.
+     */
+    public static function at(string $directory): self
+    {
+        return new self(rtrim($directory, '/\\'), true);
+    }
+
+    /** Whether the workspace was put where a person or a plugin chose (and not next to the tool). */
+    public function isCustom(): bool
+    {
+        return $this->custom;
+    }
+
+    /**
+     * Why a directory cannot be the workspace of a tool that lies in `$toolDirectory`, or null if it can. A path is not trusted because a plugin
+     * wrote it: no stream wrapper (`phar://`, `php://`), an absolute path without `..`, and neither inside the directory of the tool (an update of a
+     * plugin would delete the pairing and the backups with it) nor around it.
+     */
+    public static function customProblem(string $path, string $toolDirectory): ?string
+    {
+        if ($path === '' || str_contains($path, "\0")) {
+            return 'the path is empty or holds a character that no path holds';
+        }
+        if (str_contains($path, '://')) {
+            return 'a stream wrapper (phar://, php:// ...) is not a directory';
+        }
+        if (preg_match('~^(/|[A-Za-z]:[\\\\/]|\\\\\\\\)~', $path) !== 1) {
+            return 'the path is not absolute';
+        }
+        if (preg_match('~(^|[\\\\/])\.\.([\\\\/]|$)~', $path) === 1) {
+            return 'the path holds ".."';
+        }
+        $directory = self::resolved($path);
+        $tool = self::resolved($toolDirectory);
+        if ($directory === $tool || str_starts_with($directory . '/', $tool . '/')) {
+            return 'it lies inside the directory of the tool (' . $tool . '): an update of a plugin replaces that directory and would delete the pairing and the backups';
+        }
+        if (str_starts_with($tool . '/', $directory . '/')) {
+            return 'the directory of the tool (' . $tool . ') lies inside it';
+        }
+
+        return null;
+    }
+
+    /**
+     * An absolute path with forward slashes and no trailing one, and with the links of its existing part resolved (the rest is not there yet).
+     */
+    public static function resolved(string $path): string
+    {
+        $path = rtrim(str_replace('\\', '/', $path), '/');
+        $rest = '';
+        $existing = $path;
+        while ($existing !== '' && $existing !== '/' && !file_exists($existing)) {
+            $rest = '/' . basename($existing) . $rest;
+            $parent = dirname($existing);
+            if ($parent === $existing || $parent === '.') {
+                break;
+            }
+            $existing = $parent;
+        }
+        $real = $existing === '' ? false : realpath($existing);
+
+        return ($real === false ? $existing : rtrim(str_replace('\\', '/', $real), '/')) . $rest;
     }
 
     public function directory(): string

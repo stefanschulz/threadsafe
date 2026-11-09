@@ -80,6 +80,7 @@ final class BackupWizard
      * @param string              $script        the file name of the tool
      * @param Closure(): int|null $clock         for tests
      * @param Closure(): Budget|null $budgets   the budget of a tick; default: a share of the request time limit
+     * @param BackupWorkspace|null $workspace   where the state and the archives are kept; default: next to the tool ({@see BackupWorkspace::in()})
      */
     public function __construct(
         private readonly string $baseDirectory,
@@ -87,9 +88,10 @@ final class BackupWizard
         private readonly string $script = 'threadsafe-backup.php',
         ?Closure $clock = null,
         private readonly ?Closure $budgets = null,
+        ?BackupWorkspace $workspace = null,
     ) {
-        $this->workspace = BackupWorkspace::in($baseDirectory);
-        $this->target = new BackupTarget($baseDirectory, $script, self::KEY_FILE);
+        $this->workspace = $workspace ?? BackupWorkspace::in($baseDirectory);
+        $this->target = new BackupTarget($baseDirectory, $script, self::KEY_FILE, $this->workspace->isCustom() ? $this->workspace->directory() : null);
         $this->probe = new ReachProbe($baseDirectory);
         $this->clock = $clock ?? time(...);
         $this->key = new AccessKey(

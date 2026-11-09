@@ -109,6 +109,26 @@ final class BackupTargetTest extends TestCase
         self::assertSame([], $target->selfExcludes($this->site . '/other'), 'a directory the tool is not in has nothing of the tool in it');
     }
 
+    public function testAWorkspaceElsewhereInTheSiteIsLeftOutToo(): void
+    {
+        // a plugin keeps the workspace in wp-content/uploads/threadsafe-<random>/: its data directory holds the profile and the pairing secret
+        mkdir($this->site . '/wp-content/uploads', 0777, true);
+        $target = new BackupTarget($this->site . '/tools', workspace: $this->site . '/wp-content/uploads/threadsafe-abc');
+
+        self::assertContains('/wp-content/uploads/threadsafe-abc/', $target->selfExcludes($this->site), 'also when the directory is not made yet');
+        self::assertSame(
+            ['/tools/threadsafe-backup.php', '/tools/threadsafe-backup-key.php', '/tools/.threadsafe-backup/', '/tools/.threadsafe-restore/', '/wp-content/uploads/threadsafe-abc/'],
+            $target->selfExcludes($this->site),
+        );
+    }
+
+    public function testAWorkspaceOutsideTheSiteNeedsNoPattern(): void
+    {
+        $target = new BackupTarget($this->site . '/tools', workspace: dirname($this->site) . '/private/workspace');
+
+        self::assertSame(['/tools/threadsafe-backup.php', '/tools/threadsafe-backup-key.php', '/tools/.threadsafe-backup/', '/tools/.threadsafe-restore/'], $target->selfExcludes($this->site));
+    }
+
     public function testAFileNameWithAPatternCharacterIsWrittenSoThatItMatchesOnlyItself(): void
     {
         $target = new BackupTarget($this->site, 'tool*[1]?.php', 'key\\file.php');

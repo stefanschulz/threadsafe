@@ -56,6 +56,24 @@ final class BackupWizardTest extends TestCase
         return new ToolClient($wizard->handle(...), BackupWizard::COOKIE, '/tools/threadsafe-backup.php');
     }
 
+    public function testAWorkspaceThatWasNamedHoldsTheStateAndIsLeftOutOfTheArchive(): void
+    {
+        $this->key();
+        $named = BackupWorkspace::at($this->web . '/uploads/threadsafe-abc');
+        mkdir($this->web . '/uploads');
+        $wizard = new BackupWizard($this->web, PluginRegistry::load(), 'threadsafe-backup.php', static fn (): int => 1_800_000_000, null, $named);
+        $client = new ToolClient($wizard->handle(...), BackupWizard::COOKIE, '/tools/threadsafe-backup.php');
+        $client->get();
+        $client->post(['action' => 'login', 'key' => self::KEY], [], true, false);
+
+        $client->post(['action' => 'save-site', 'root' => $this->web, 'type' => 'auto', 'no_db' => '1']);
+
+        self::assertCount(1, glob($this->web . '/uploads/threadsafe-abc/data-*') ?: [], 'the state is in the workspace that was named');
+        self::assertSame([], glob($this->web . '/.threadsafe-backup/data-*') ?: [], 'and not next to the tool');
+        $profile = $named->profiles()->load(BackupWorkspace::PROFILE);
+        self::assertContains('/uploads/threadsafe-abc/', $profile->excludePaths, 'the data directory holds a password and the pairing secret: never in the archive');
+    }
+
     private function loggedIn(): ToolClient
     {
         $this->key();
