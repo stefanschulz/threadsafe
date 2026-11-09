@@ -48,7 +48,7 @@ final class RestoreBuilder
         foreach ([$this->root . '/src', $this->root . '/plugins'] as $directory) {
             foreach ($this->walk($directory) as $path) {
                 $relative = substr($path, strlen($this->root) + 1);
-                if (str_ends_with($path, '.php') && !str_starts_with($relative, 'src/Build/') && !str_starts_with($relative, 'src/Admin/') && !str_starts_with($relative, 'src/Auth/') && !str_contains($relative, '/resources/') && !in_array($relative, $this->leaveOut, true)) {
+                if (str_ends_with($path, '.php') && !str_starts_with($relative, 'src/Build/') && !str_starts_with($relative, 'src/Admin/') && !str_starts_with($relative, 'src/Auth/') && !str_starts_with($relative, 'src/Remote/') && !str_contains($relative, '/resources/') && !in_array($relative, $this->leaveOut, true)) {
                     $files[] = $path;
                 }
             }

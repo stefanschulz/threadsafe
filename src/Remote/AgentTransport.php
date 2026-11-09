@@ -1,0 +1,22 @@
+<?php
+
+declare(strict_types=1);
+
+namespace ThreadSafe\Remote;
+
+/**
+ * How a request gets to the agent and the answer back: curl, PHP streams, or (in tests) a function that calls the agent in the same process. It knows nothing of
+ * signatures or of the API; it does not follow a redirect (a POST that is redirected is another request) and it checks the certificate of an https host.
+ */
+interface AgentTransport
+{
+    /**
+     * @param array<string, string>                 $headers  header name => value
+     * @param (callable(int, string): void)|null    $sink     given each piece of the body of an answer with a status of 2xx, together with that status; the body is then not in the answer.
+     *                                                        Used for a part of a backup, which is large
+     * @param int                                   $timeout  seconds for a request that is not streamed; for a streamed one, seconds without a single byte
+     *
+     * @return AgentResponse an answer of any status; with an `error` and status 0 if the host could not be reached or the connection broke off
+     */
+    public function send(string $method, string $url, array $headers = [], string $body = '', ?callable $sink = null, int $timeout = 60): AgentResponse;
+}
