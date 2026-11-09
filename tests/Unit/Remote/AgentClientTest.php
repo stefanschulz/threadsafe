@@ -131,6 +131,24 @@ final class AgentClientTest extends TestCase
         self::assertSame(206, $last['status']);
     }
 
+    public function testATransferThatTheReceiverStopsKeepsWhatArrivedAndCanBeResumed(): void
+    {
+        $client = $this->host->client();
+        $backup = $this->host->backup();
+        $part = $client->backups()[0]['parts'][0];
+        $this->host->transport->chunk = 100;
+
+        $first = $client->fetch($backup, $part['file'], $this->work . '/part.zip', $part['size'], $part['sha256'], static fn (): bool => true);
+
+        self::assertFalse($first, 'stopped on request: not whole yet, and not an error');
+        self::assertSame(100, filesize($this->work . '/part.zip'), 'the piece that arrived before the stop is kept');
+
+        $second = $client->fetch($backup, $part['file'], $this->work . '/part.zip', $part['size'], $part['sha256']);
+
+        self::assertTrue($second);
+        self::assertSame($part['sha256'], hash_file('sha256', $this->work . '/part.zip'));
+    }
+
     public function testAPartThatIsAlreadyWholeIsOnlyChecked(): void
     {
         $client = $this->host->client();

@@ -27,6 +27,9 @@ final class LoopbackTransport implements AgentTransport
     /** @var (Closure(string): ?AgentResponse)|null called with the action of each request; an answer that it returns is used instead of the agent's */
     public ?Closure $intercept = null;
 
+    /** The size of the pieces that a download is handed to the sink in. */
+    public int $chunk = 65536;
+
     public function __construct(private readonly Agent $agent, private readonly bool $https = true, private readonly string $address = '203.0.113.5')
     {
     }
@@ -76,8 +79,10 @@ final class LoopbackTransport implements AgentTransport
 
                 return new AgentResponse(0, $received, error: 'connection reset by peer');
             }
-            foreach (str_split($content, 65536) as $chunk) {
-                $sink($response->status, $chunk);
+            foreach (str_split($content, max(1, $this->chunk)) as $chunk) {
+                if ($sink($response->status, $chunk) === false) {
+                    return new AgentResponse($response->status, $received, stopped: true);
+                }
             }
 
             return new AgentResponse($response->status, $received);

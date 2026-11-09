@@ -153,10 +153,13 @@ final class AgentClient
      *
      * @param int $size   the size the agent listed
      * @param string $sha256 the SHA-256 the agent listed
+     * @param (callable(): bool)|null $shouldStop asked after every piece that arrived: true ends the transfer there (the time of this tick is up); what arrived stays
+     *
+     * @return bool true: the part is whole and right; false: the transfer was stopped on request, the part is not whole yet (call again)
      *
      * @throws AgentException the transfer broke off (the file stays, the next call resumes), or the part is not the one that was listed (the file is deleted)
      */
-    public function fetch(string $backup, string $file, string $destination, int $size, string $sha256): void
+    public function fetch(string $backup, string $file, string $destination, int $size, string $sha256, ?callable $shouldStop = null): bool
     {
         $have = is_file($destination) ? (int) filesize($destination) : 0;
         if ($have > $size) {
@@ -165,7 +168,7 @@ final class AgentClient
         }
         if ($have < $size) {
             $handle = null;
-            $sink = static function (int $status, string $chunk) use (&$handle, $destination): void {
+            $sink = static function (int $status, string $chunk) use (&$handle, $destination, $shouldStop): ?bool {
                 if ($handle === null) {
                     // 206: the rest of the file, appended. 200: the whole file again (the agent did not honour the Range, or the file changed): from the start
                     $handle = fopen($destination, $status === 206 ? 'ab' : 'wb');
@@ -173,6 +176,8 @@ final class AgentClient
                 if (is_resource($handle)) {
                     fwrite($handle, $chunk);
                 }
+
+                return $shouldStop !== null && $shouldStop() ? false : null;
             };
             $headers = $have > 0 ? ['Range' => 'bytes=' . $have . '-', 'If-Range' => '"' . $sha256 . '"'] : [];
             try {
@@ -189,6 +194,9 @@ final class AgentClient
                 throw new AgentException(AgentException::MISMATCH, "The part \"$file\" on the site is shorter than what was fetched (it was changed): it is fetched again.", 416);
             }
             $this->check($response, partial: true);
+            if ($response->stopped) {
+                return false;
+            }
         }
         clearstatcache(true, $destination);
         $got = is_file($destination) ? (int) filesize($destination) : 0;
@@ -197,6 +205,8 @@ final class AgentClient
 
             throw new AgentException(AgentException::MISMATCH, "The part \"$file\" that arrived is not the one the agent listed (" . ($got !== $size ? "$got bytes instead of $size" : 'another SHA-256') . '); it is fetched again.');
         }
+
+        return true;
     }
 
     // ------------------------------------------------------------------------------------------------- the call
@@ -223,7 +233,7 @@ final class AgentClient
     /**
      * @param array<string, string> $query
      * @param array<string, string> $extra  more headers (`Range`)
-     * @param (callable(int, string): void)|null $sink
+     * @param (callable(int, string): (bool|null))|null $sink
      */
     private function call(string $method, array $query, string $body = '', array $extra = [], ?callable $sink = null): AgentResponse
     {

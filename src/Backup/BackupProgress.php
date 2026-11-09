@@ -38,6 +38,7 @@ final class BackupProgress
             BackupState::PACK => $packStart + (int) round((97 - $packStart) * self::packRatio($s)),
             BackupState::CLOSE, BackupState::SEAL => 97,
             BackupState::FINALE => 98,
+            BackupState::REMOTE => max(0, min(99, (int) ($s->remote['percent'] ?? 0))),
             default => 100,
         };
 

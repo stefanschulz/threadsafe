@@ -144,6 +144,12 @@ final class Budget
         return ($this->clock)() - $this->started;
     }
 
+    /** Seconds that are left of the time limit (not below 0); null if the budget has none (the command line). */
+    public function remaining(): ?float
+    {
+        return $this->seconds === null ? null : max(0.0, $this->seconds - $this->elapsed());
+    }
+
     public function exhausted(): bool
     {
         if ($this->seconds !== null && $this->elapsed() >= $this->seconds) {

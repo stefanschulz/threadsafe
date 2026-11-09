@@ -50,6 +50,7 @@ final class BackupService
      * @param Closure(): Budget|null $budgets the budget of a tick; default: a share of the request time limit
      * @param Closure(): int|null    $clock   the time in seconds (for tests)
      * @param int|null               $grace   seconds a web run counts as active after its last tick; default: from the time limit
+     * @param (Closure(\ThreadSafe\Profile\RemoteSettings): \ThreadSafe\Remote\AgentClient)|null $remoteClients how a remote profile reaches its agent (for tests; default: curl, or streams)
      */
     public function __construct(
         private readonly ProfileStore $profiles,
@@ -60,6 +61,7 @@ final class BackupService
         ?Closure $clock = null,
         ?int $grace = null,
         private readonly ?SpaceCheck $space = null,
+        private readonly ?Closure $remoteClients = null,
     ) {
         $this->clock = $clock ?? time(...);
         $this->grace = $grace ?? max(self::MINIMUM_GRACE, (int) ceil(3 * 0.6 * (float) ini_get('max_execution_time')));
@@ -67,7 +69,8 @@ final class BackupService
 
     public function task(): BackupRun
     {
-        return new BackupRun($this->profiles, $this->plugins, $this->dataDirectory, $this->clock, 500, $this->space);
+        // the task for a remote profile is made when there is one: the tools do not carry the class, and never ask for it
+        return new BackupRun($this->profiles, $this->plugins, $this->dataDirectory, $this->clock, 500, $this->space, fn (): \ThreadSafe\Remote\RemoteBackupRun => new \ThreadSafe\Remote\RemoteBackupRun($this->profiles, $this->remoteClients, $this->clock));
     }
 
     public function executor(): Executor

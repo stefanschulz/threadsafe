@@ -24,6 +24,7 @@ final class CurlTransport implements AgentTransport
         $received = [];
         $status = 0;
         $collected = '';
+        $stopped = false;
         /** @var array<int, mixed> $options */
         $options = [
             CURLOPT_CUSTOMREQUEST => $method,
@@ -42,9 +43,13 @@ final class CurlTransport implements AgentTransport
 
                 return strlen($line);
             },
-            CURLOPT_WRITEFUNCTION => static function ($handle, string $chunk) use (&$status, &$collected, $sink): int {
+            CURLOPT_WRITEFUNCTION => static function ($handle, string $chunk) use (&$status, &$collected, &$stopped, $sink): int {
                 if ($sink !== null && $status >= 200 && $status < 300) {
-                    $sink($status, $chunk);
+                    if ($sink($status, $chunk) === false) {
+                        $stopped = true;
+
+                        return 0;   // curl ends the transfer
+                    }
                 } else {
                     $collected .= $chunk;
                 }
@@ -63,9 +68,9 @@ final class CurlTransport implements AgentTransport
         }
         curl_setopt_array($handle, $options);
         $ok = curl_exec($handle);
-        $error = $ok === false ? curl_error($handle) : null;
+        $error = $ok === false && !$stopped ? curl_error($handle) : null;
         $status = $status !== 0 ? $status : (int) curl_getinfo($handle, CURLINFO_RESPONSE_CODE);
 
-        return new AgentResponse($error !== null ? 0 : $status, $received, $collected, $error !== null ? ($error !== '' ? $error : 'the connection failed') : null, microtime(true) - $started);
+        return new AgentResponse($error !== null ? 0 : $status, $received, $collected, $error !== null ? ($error !== '' ? $error : 'the connection failed') : null, microtime(true) - $started, $stopped);
     }
 }

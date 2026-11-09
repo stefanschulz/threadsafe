@@ -42,6 +42,7 @@ final class StreamTransport implements AgentTransport
         }
         $collected = '';
         $error = null;
+        $stopped = false;
         while (!feof($stream)) {
             $chunk = fread($stream, 1048576);
             if ($chunk === false || stream_get_meta_data($stream)['timed_out']) {
@@ -52,13 +53,17 @@ final class StreamTransport implements AgentTransport
                 continue;
             }
             if ($sink !== null && $status >= 200 && $status < 300) {
-                $sink($status, $chunk);
+                if ($sink($status, $chunk) === false) {
+                    $stopped = true;
+
+                    break;
+                }
             } else {
                 $collected .= $chunk;
             }
         }
         fclose($stream);
 
-        return new AgentResponse($error !== null ? 0 : $status, $received, $collected, $error, microtime(true) - $started);
+        return new AgentResponse($error !== null ? 0 : $status, $received, $collected, $error, microtime(true) - $started, $stopped);
     }
 }

@@ -55,6 +55,8 @@ final class BackupRun implements Task
     /**
      * @param Closure(): int|null $clock the current time as a Unix timestamp (for tests)
      * @param SpaceCheck|null     $space the free-space check (for tests)
+     * @param (Closure(): \ThreadSafe\Remote\RemoteBackupRun)|null $remote makes the task that backs up a remote profile (docs/PHASE13.md 3.3); asked for only when there is one, so that the tools
+     *                                                              that do not carry it never ask
      */
     public function __construct(
         private readonly ProfileStore $profiles,
@@ -63,6 +65,7 @@ final class BackupRun implements Task
         ?Closure $clock = null,
         private readonly int $scanBatch = 500,
         private readonly ?SpaceCheck $space = null,
+        private readonly ?Closure $remote = null,
     ) {
         $this->clock = $clock ?? time(...);
     }
@@ -100,6 +103,10 @@ final class BackupRun implements Task
         }
         $state->passphrase = $passphrase;
         $state->source = ($parameters['source'] ?? 'manual') === 'schedule' ? 'schedule' : 'manual';
+        if ($this->isRemote($profile)) {
+            $state->phase = BackupState::REMOTE;
+            $state->remote = \ThreadSafe\Remote\RemoteBackupRun::initial();
+        }
 
         return $state->toArray();
     }
@@ -107,6 +114,9 @@ final class BackupRun implements Task
     public function tick(array $state, Budget $budget): TickOutcome
     {
         $s = BackupState::fromArray($state);
+        if ($s->phase === BackupState::REMOTE) {
+            return $this->remoteRun()->tick($s, $budget);   // the site is not here: an agent on it makes the backup and this machine fetches it
+        }
         $context = $this->context($s);
 
         if ($s->phase === BackupState::INIT) {
@@ -151,6 +161,11 @@ final class BackupRun implements Task
     {
         try {
             $s = BackupState::fromArray($state);
+            if ($s->phase === BackupState::REMOTE) {
+                $this->remoteRun()->abandon($s);
+
+                return;
+            }
             $name = BackupName::parse($s->backup);
             if ($name !== null) {
                 (new LocalStorage($this->profiles->load($s->profileId)->storage))->removeBackup($name);
@@ -158,6 +173,28 @@ final class BackupRun implements Task
         } catch (\Throwable) {
             // nothing to clean up, or nothing that can be found any more
         }
+    }
+
+    private function isRemote(string $profileId): bool
+    {
+        try {
+            return $this->profiles->exists($profileId) && $this->profiles->load($profileId)->isRemote();
+        } catch (ProfileException) {
+            return false;   // a profile that cannot be read fails in the first tick, with its own message
+        }
+    }
+
+    private function remoteRun(): \ThreadSafe\Remote\RemoteBackupRun
+    {
+        if ($this->remote !== null) {
+            return ($this->remote)();
+        }
+        // the single-file tools do not carry the class (it is the app's): they have no remote profile, and a request for one stops here
+        if (!class_exists(\ThreadSafe\Remote\RemoteBackupRun::class)) {
+            throw new GuardFailed('This program cannot back up a remote site.');
+        }
+
+        return new \ThreadSafe\Remote\RemoteBackupRun($this->profiles);
     }
 
     // ------------------------------------------------------------------------------------------------ context

@@ -29,6 +29,9 @@ final class BackupState
 
     public const string DONE = 'done';
 
+    /** The profile is a remote one: an agent on the site makes the backup and this machine fetches it ({@see \ThreadSafe\Remote\RemoteBackupRun}). */
+    public const string REMOTE = 'remote';
+
     /** At most this many warnings are kept; the rest is only counted. */
     public const int MAX_WARNINGS = 200;
 
@@ -91,6 +94,9 @@ final class BackupState
     /** @var array<string, mixed>|null what the finished run reports */
     public ?array $result = null;
 
+    /** @var array<string, mixed>|null the state of a remote run: the step, the run and the backup on the site, the parts to fetch, the tries that failed */
+    public ?array $remote = null;
+
     public function __construct(
         public readonly string $profileId,
         public readonly bool $force,
@@ -150,6 +156,7 @@ final class BackupState
             'dump' => $this->dump,
             'pack' => $this->pack,
             'result' => $this->result,
+            'remote' => $this->remote,
         ];
     }
 
@@ -177,7 +184,7 @@ final class BackupState
 
         $state = new self($string('profileId'), $bool('force'), $bool('snapshot'), $maybeInt('partSize'), $maybeInt('compression'));
         $phase = $string('phase');
-        if (!in_array($phase, [self::INIT, self::SCAN, self::DUMP, self::PACK, self::CLOSE, self::SEAL, self::FINALE, self::DONE], true)) {
+        if (!in_array($phase, [self::INIT, self::SCAN, self::DUMP, self::PACK, self::CLOSE, self::SEAL, self::FINALE, self::DONE, self::REMOTE], true)) {
             throw $invalid('phase');
         }
         $state->web = (($data['web'] ?? false) === true);
@@ -209,6 +216,7 @@ final class BackupState
         $state->dump = $maybeArray('dump');
         $state->pack = $maybeArray('pack');
         $state->result = $maybeArray('result');
+        $state->remote = $maybeArray('remote');
 
         return $state;
     }
