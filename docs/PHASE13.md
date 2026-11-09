@@ -1,6 +1,6 @@
 # Phase 13 – the connector: a site that cannot run ThreadSafe is backed up, planned and kept by a ThreadSafe elsewhere
 
-**Status:** **planned, not built; to be done once the current version is stable, as the next minor with the "satellite" apps** (written down 2026-11-03 at the owner's request after a discussion; on 2026-11-05 the owner decided that it is built once the current version, 0.10.0-beta.x, is stable, as the next minor version; the decisions of section 7.2 are still for the owner, each with a recommendation, and are gone through before the first work package).
+**Status:** **planned, not built; the version is stable (1.0.0, 2026-11-05) and the owner asked on 2026-11-09 for the plan of the first satellite, the WordPress one: section 9 is that plan** (written down 2026-11-03 at the owner's request after a discussion; the decisions of section 7.2 are for the owner, each with a recommendation, and are confirmed before the first work package; the field test of `threadsafe-backup.php` that decision 11 waited for is done, [PHASE12.md](PHASE12.md) section 8).
 **Context:** [PHASE12.md](PHASE12.md) is `threadsafe-backup.php`, the one-off backup of a site without ThreadSafe (its wizard, its shell mode, its closed directories); [CONCEPT.md](CONCEPT.md) section 9 "A remote source" is the older idea of a profile that reads its site over SFTP, which this plan replaces with a better one for the case below; [SCHEDULE.md](SCHEDULE.md) is the trigger and the schedule that stay as they are; [BACKUP.md](BACKUP.md) section 11 describes the tool; [WORDPRESS.md](WORDPRESS.md) and [JOOMLA.md](JOOMLA.md) the website types.
 
 ## 1. Goal and scope
@@ -130,7 +130,7 @@ Packages 2 to 4 are the real work; 5 is a few hundred lines of PHP around them. 
 
 ### 7.1 Settled
 
-None yet: the plan is the result of a discussion on 2026-11-03; the owner has not decided to build it.
+The owner decided on 2026-11-05 that phase 13 is built once the version is stable, as the next minor (`1.1.0`), and asked on 2026-11-09 for the plan of the WordPress satellite first (section 9). Decision 11 below is thereby met: the field test of `threadsafe-backup.php` is done. The other decisions are **confirmed or changed by the owner before M1** (M0 may change decisions 5 and 7).
 
 ### 7.2 For the owner (each with a recommendation)
 
@@ -144,8 +144,64 @@ None yet: the plan is the result of a discussion on 2026-11-03; the owner has no
 8. **WordPress first, Joomla only on demand** (3.5). *Recommended.*
 9. **Distribution as a ZIP in the GitHub release, not in a directory** of the CMS (3.5). *Recommended.*
 10. **No SFTP and no WP-Cron** (section 1). *Recommended*; the owner's SFTP copy by hand stays possible.
-11. **Do it at all, and when?** The field test of `threadsafe-backup.php` on the owner's host (phase 12, work package 10) comes first: it shows whether PHP, the limits, the firewall and the transfer are what this plan assumes. *Recommended: after that test.*
+11. **Do it at all, and when?** The field test of `threadsafe-backup.php` on the owner's host (phase 12, work package 10) comes first: it shows whether PHP, the limits, the firewall and the transfer are what this plan assumes. *Recommended: after that test.* **Met** (2026-11-05, phase 12 is field-tested with PrestaShop, Joomla and WordPress sites); but the owner's WordPress host is the one that cannot run ThreadSafe, so M0 and M4 test it for the agent.
+12. **The pointer file in `wp-content`** (9.2, 4) that lets the entry find the workspace without loading WordPress. *Recommended.* The alternative, a fixed directory name, would make the workspace guessable.
+13. **A pre-release first** (9.4): `1.1.0-rc.N` for the field tests, `1.1.0` after them. *Recommended*: the agent is a resident door; a release candidate is cheap.
+14. **Field test A before the plugin** (9.3): M4 (the tool by hand on the owner's host) before M5 (the plugin). *Recommended.*
 
 ## 8. Findings of the spikes
 
-(Empty: nothing is built.)
+**By reading the code, 2026-11-09** (no spike has been run on the real host yet):
+
+- **Spike 2 (the pulled backup in the catalog):** `BackupCatalog` and `LocalStorage::names()` attribute a file to a profile by the profile id in its **name**, and the name of an encrypted backup cannot change; so the host makes its backups under the central profile's id (3.2) and nothing in the catalog has to change. To be proven in M2 with a real pulled backup.
+- **The stub blocks an agent without a key file** and **the workspace shares the directory of the program**: see 9.2, 1 and 2. Both are changes to the tool, not to the plan's idea.
+
+## 9. The plan for the first step: the WordPress satellite (2026-11-09)
+
+### 9.1 What the owner gets, and when it is done
+
+The owner's WordPress site on the host that can run nothing but itself (no second website, no cron, PHP 8.4 as `cgi-fcgi`) is **backed up by the schedule of the ThreadSafe on the owner's own server**, the encrypted backups arrive there by themselves, and retention, the catalog, the checks and the restore wizard treat them like any other backup. On the WordPress side it is **one plugin** (`threadsafe-connector`): upload the ZIP, activate, paste the public key, copy the pairing string into the central ThreadSafe. **Done** when the owner's site has been backed up by the schedule for a week without a person, and one of those backups has been restored with `threadsafe-restore.php` on another domain.
+
+The scope is sections 1 to 3 as written, WordPress only; the Joomla wrapper stays work package 8 of section 5.
+
+### 9.2 What reading the code showed (changes to sections 3.4 and 3.5)
+
+1. **The stub refuses the web without a key file.** `Build\ToolStub` (`{KEY}`) answers 403 "No access key yet" before anything else runs when `threadsafe-backup-key.php` is missing. The agent has no key file (the pairing replaces it), so the stub of the **backup tool** needs a parameter that lets an `?api=` request through to the entry (the stub stays one class; the restore tool and the installer are byte-identical as before, a test keeps that). The agent then checks the switch and the signature itself and answers like a stranger (the 403 page, no hint) if it is off, unpaired or wrong.
+2. **The program and the workspace share a directory today.** The stub unpacks the program into `.threadsafe-backup/` next to the tool, and `Web\BackupWorkspace` puts `data-<random>/` (profile, run records, throttle file, in the plan also the pairing secret) and `storage-<random>/` (the archives) into the same directory. A plugin update **replaces the whole plugin directory**: the program would unpack again (harmless, once), but the pairing, the records and every archive would be gone. So the **workspace moves out of the plugin directory** and the program stays: `BackupWorkspace::in()` takes a directory from the settings, the stub's own unpack directory is left where it is.
+3. **The entry file stays in the plugin directory, the workspace goes elsewhere.** The agent must be a PHP file that the web server executes: many hosts and security plugins forbid PHP in `wp-content/uploads` (and NinjaFirewall on the owner's host may). The plugin directory is meant to hold PHP. The workspace (no PHP in it) goes to `wp-content/uploads/threadsafe-<random>/`, or outside the web root if the host allows it (3.4).
+4. **A pointer file finds the workspace without loading WordPress.** The entry cannot read a WordPress option (loading WordPress per step is what this design avoids). The plugin writes `wp-content/threadsafe-agent.php` (`<?php return ['workspace' => '/absolute/path'];`, mode 0600, closed by `.htaccess`) when the directory is set; the file lies **in `wp-content`, which a plugin update does not touch**, and the entry reads it before it starts the tool. Without the pointer file the tool works as today (the one-off wizard).
+5. **The catalog goes by the profile id in the file name** (`BackupCatalog::find()`, `LocalStorage::names()`), and the file of an encrypted backup cannot be renamed. So the host must make the backup under the central profile's id: the pairing string carries it (3.2), `BackupTarget::profile()` takes it instead of `site`. Spike 2 is thereby answered by reading; milestone M2 proves it with a pulled backup.
+6. **An API version.** `status` names an integer version of the API, the pairing string carries the one it was made for; the central side refuses a host of another major version with a sentence that says which side to update. The plugin and the central ThreadSafe are updated separately (ZIP upload in WordPress; an `Update URI` header with the update from the GitHub release is possible later and not planned).
+
+### 9.3 Milestones (each ends with something that runs; the owner is needed where it says so)
+
+| M | What | Exit criterion | Owner needed | Size |
+|---|---|---|---|---|
+| M0 | **Spikes on the real host** (work package 1): the probe `tools/spikes/agent-probe.php` is uploaded to the host and called from the owner's server with `curl`: do `X-ThreadSafe-*` headers arrive, how long can a request run, what does NinjaFirewall do to a signed `POST` with a long path, does `Range` work, is PHP executed in `wp-content/uploads`, what is the clock difference. The headers' fallback and the size of the parts (spike 4) follow from it. | The findings are in section 8; decisions 5 and 7 are confirmed or changed by them. | **Yes**: upload one file, run one command, tell the result (about an hour) | S |
+| M1 | **The agent in the tool** (work package 2): `Web\Agent`, `Web\AgentSignature` (with the replay store), `Web\AgentConfig` (the switch, the secret, the allowlist, the settings, the pointer file), the stub parameter (9.2, 1), the setting for the workspace (9.2, 2 to 4), the **page "Agent" in the wizard** (pairing string, public key, directory, on/off: the same things as the plugin page, so that the tool can be paired by hand on a host without the plugin) and `agent` in the shell (`--pair --on --off --recipient --storage --workspace`). | Unit tests of section 4 green; a backup made through the API by a script (`curl`) against the tool served by PHP's built-in server. | No | L |
+| M2 | **The central side** (work package 3): the block `remote` of `SiteProfile`, `Remote\AgentClient`, `Remote\RemoteBackupRun`, its start by the existing schedule, the trigger and `backup <profile>`, `profile add|edit|test` and the form, retention and `verify` on the pulled backup. | Unit tests green against a fake client; a backup pulled from the agent of M1 is listed, verified and restored (command) on the dev machine. | No | L |
+| M3 | **The proof on the stack** (work package 4): the group `agent` as a phase of `run.sh` behind a real Apache with 5 s / 64 MB, a cut transfer that resumes, the replay and the wrong secret, the disaster-recovery tail with the restore wizard. | Green on MariaDB 10.11, MySQL 8.4 and MariaDB 11.8 (`matrix.sh`). | No | M |
+| M4 | **Field test A, by hand** (work package 7, first half): `threadsafe-backup.php` of the release candidate uploaded to the owner's host, paired with the wizard page "Agent", the first backup started from the central ThreadSafe by hand, then the schedule for a few days. This tests everything but the plugin, so that its findings are not mixed with the plugin's. | A week of scheduled backups without a person; one restored on another domain. | **Yes**: upload, pair, watch a week | (time) |
+| M5 | **The WordPress plugin** (work package 5): `threadsafe-connector/` (the main file with `Requires PHP: 8.4` and the early check, activation and deactivation as the switch, the page under *Tools* with the pairing string, the public key, the directory, the reach probe, free space, the last backup and the clock, uninstall; it writes the pointer file of 9.2, 4), `tools/build-release.php` builds `threadsafe-connector-X.Y.Z.zip` and `tools/test-release.php` tests it; the stack tests of section 4 with WP-CLI on `wordpress7` and `wordpress6`. The page is a view in the style of `docs/DESIGN.md`, looked at in a browser at both widths and both schemes (`tools/a11y-audit.js`). | The plugin tests green on all three servers; an update of the plugin directory keeps the archives and the pairing. | No | M |
+| M6 | **Field test B, with the plugin** (work package 7, second half): the plugin replaces the hand-made tool on the owner's host (the archives that exist are kept or moved, 3.4). | Another week by the schedule; an update of the plugin on the real host. | **Yes** | (time) |
+| M7 | **Documentation and the release** (work package 6): `CONNECTOR.md` (for the person who installs the plugin and pairs it, with the limits), `BACKUP.md`, `SCHEDULE.md`, `WEB.md`, `README.md`, `CHANGELOG.md`, `AGENTS.md`, the "As built" of this plan; the release **1.1.0** (a minor: new features, nothing removed). | `phing verify`, the workflow, the owner's update. | No | S |
+
+**Order.** M0 first, because it can change M1 (the headers). M1 and M2 can be built one after the other in either order, but M2 needs M1's API to test against; M3 needs both. **M4 before M5** on purpose: the plugin is a few hundred lines around what M1 to M3 built, and a field test of the engine without it shows whether the host's PHP, limits and firewall are what the plan assumes. M5 may be built while M4's week runs.
+
+### 9.4 The release path
+
+The agent is a **resident door** on a production site (3.6), so the code of M1 to M5 goes out first as a **pre-release** (`1.1.0-rc.1`: the workflow marks a version with a suffix as a pre-release, and the update from the System page orders it above 1.0.0), is field-tested in M4 and M6, and becomes **1.1.0** with M7. The agent is **off in every installation that has not paired it**, so 1.1.0 changes nothing for the people who do not use it.
+
+### 9.5 Tests that are new in this step (on top of section 4)
+
+- **The stub:** a request with `?api=` passes without a key file, any other web request still gets the 403; the stubs of the restore tool and the installer are byte-identical to before.
+- **The workspace:** the pointer file is read (a missing, damaged or world-readable one is refused), the plugin directory replaced as an update does leaves the archives, the pairing and the throttle file where they are, the workspace inside the plugin directory is refused.
+- **The plugin on an old PHP:** a PHP below 8.4 simulated (activation refused with the message, no fatal error in the admin).
+- **The API against the owner's firewall:** the probe of M0 stays as `tools/spikes/agent-probe.php` and its result in section 8.
+
+### 9.6 Risks of this step, besides section 6
+
+- **NinjaFirewall or the host strips the headers or blocks the signed request** (M0 finds out early): the fallback is the query string (decision 5); in the worst case there is no agent on that host and the manual wizard remains.
+- **The time of one request on the host** (30 s on the owner's other host): the step budget of the agent is read from `max_execution_time` at run time, as the wizard does; M0 measures it.
+- **A plugin that holds a secret** is a target for anyone who can read the files of the site: the secret lies in the workspace (0600, closed directory) and, by decision 2, cannot reconfigure anything; a person who can read it can start backups and fetch encrypted archives, not decrypt them.
+- **Two ThreadSafe versions** (the host's plugin and the central one) drift apart: the API version of 9.2, 6 and a line in the System page of the central side ("the satellite of profile X is of version Y").
