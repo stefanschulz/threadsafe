@@ -12,6 +12,7 @@ use ThreadSafe\Core\Plan;
 use ThreadSafe\Core\StepResult;
 use ThreadSafe\Generic\State;
 use ThreadSafe\Http\HttpClient;
+use ThreadSafe\Http\NameLookup;
 use ThreadSafe\Replace\Stats;
 
 /**
@@ -62,6 +63,10 @@ final class SelfTest implements AlwaysRuns
 
         $base = rtrim($request->selfTestUrl ?? "http://$host", '/');
         $result = ($this->client ?? new HttpClient($request->selfTestInsecure))->get($base . '/', $host, $request->selfTestUrl !== null);
+
+        if ($request->selfTestUrl === null && NameLookup::failed($result)) {
+            return new StepResult(0, [Notice::warning(NameLookup::warning($host))]);
+        }
 
         $problem = $result->problem ?? ($result->status !== 200 ? 'HTTP ' . $result->status : null);
         $matcher = $request->urlMatcher();

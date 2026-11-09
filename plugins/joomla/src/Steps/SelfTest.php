@@ -12,6 +12,7 @@ use ThreadSafe\Core\Plan;
 use ThreadSafe\Core\Step;
 use ThreadSafe\Core\StepResult;
 use ThreadSafe\Http\HttpClient;
+use ThreadSafe\Http\NameLookup;
 use ThreadSafe\Joomla\State;
 use ThreadSafe\Replace\Stats;
 
@@ -89,6 +90,9 @@ final class SelfTest implements Step, AlwaysRuns
         }
 
         $admin = $client->get($base . '/administrator/', $host, $pinned);
+        if (!$pinned && NameLookup::allFailed([$front, $admin])) {
+            return new StepResult(0, [Notice::warning(NameLookup::warning($host))]);
+        }
         $problem = $admin->problem ?? ($admin->status !== 200 ? 'HTTP ' . $admin->status : null);
         if ($problem !== null) {
             $failures[] = "administration (/administrator/): $problem";

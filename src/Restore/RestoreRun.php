@@ -366,8 +366,11 @@ final class RestoreRun implements Task
         $report = $runner->report($outcome->state);
         $state['adaptReport'] = $report->toArray();
         if (is_array($outcome->state['failure'])) {
+            $again = ($outcome->state['failure']['kind'] ?? '') === 'selftest'
+                ? ' Look at the site yourself; when the cause is removed, "Try the failed step again" (the same command on the command line) asks the self-test once more.'
+                : '';
             throw new RestoreException(
-                'The files and the database are restored, but the adaptation failed: ' . $outcome->state['failure']['message'] . ' The journal is ' . ($outcome->state['journal'] ?? 'not written') . '.',
+                'The files and the database are restored, but the adaptation failed: ' . $outcome->state['failure']['message'] . ' The journal is ' . ($outcome->state['journal'] ?? 'not written') . '.' . $again,
                 $runner->exitCode($outcome->state),
             );
         }

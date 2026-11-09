@@ -18,6 +18,7 @@ use ThreadSafe\Database\DatabaseError;
 use ThreadSafe\Engine\Budget;
 use ThreadSafe\Http\HttpClient;
 use ThreadSafe\Http\HttpResult;
+use ThreadSafe\Http\NameLookup;
 use ThreadSafe\Replace\Stats;
 use ThreadSafe\WordPress\State;
 
@@ -138,7 +139,10 @@ final class SelfTest implements ResumableStep, AlwaysRuns
                 continue;
             }
 
-            [$failures, $notices, $maintenance] = $this->probe($context);
+            [$failures, $notices, $maintenance, $offline] = $this->probe($context);
+            if ($offline) {                        // the name of the site cannot be looked up from here: nothing was seen, nothing is claimed
+                return new StepTick($state, true, new StepResult(0, [...$this->waitedNotices($state), Notice::warning(NameLookup::warning((string) $request->domains[0]->to))]));
+            }
             if ($failures === [] && !$maintenance) {
                 if (($state['sawMaintenance'] ?? false) === true) {
                     $state['waited'] = ($this->clock)() - (float) $state['started'];
@@ -270,8 +274,9 @@ final class SelfTest implements ResumableStep, AlwaysRuns
     /**
      * One round of the three checks.
      *
-     * @return array{0: list<string>, 1: list<Notice>, 2: bool} what is wrong (other than maintenance), the notices of what is right, and whether
-     *                                                          any page was the maintenance page of WordPress
+     * @return array{0: list<string>, 1: list<Notice>, 2: bool, 3: bool} what is wrong (other than maintenance), the notices of what is right, whether
+     *                                                                   any page was the maintenance page of WordPress, and whether no page could be
+     *                                                                   asked because this server cannot look up the name of the site ({@see NameLookup})
      */
     private function probe(Context $context): array
     {
@@ -285,9 +290,11 @@ final class SelfTest implements ResumableStep, AlwaysRuns
         $failures = [];
         $notices = [];
         $maintenance = false;
+        $results = [];
 
-        $check = function (string $label, string $path, callable $verify) use ($client, $base, $host, $pinned, $matcher, &$failures, &$notices, &$maintenance): void {
+        $check = function (string $label, string $path, callable $verify) use ($client, $base, $host, $pinned, $matcher, &$failures, &$notices, &$maintenance, &$results): void {
             $result = $client->get($base . $path, $host, $pinned);
+            $results[] = $result;
             if (self::isMaintenance($result)) {
                 $maintenance = true;
 
@@ -317,7 +324,7 @@ final class SelfTest implements ResumableStep, AlwaysRuns
             return is_array($data) && isset($data['home']) ? null : 'the answer is not the REST index of WordPress';
         });
 
-        return [$failures, $notices, $maintenance];
+        return [$failures, $notices, $maintenance, !$pinned && NameLookup::allFailed($results)];
     }
 
     /**

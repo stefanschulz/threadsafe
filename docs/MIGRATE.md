@@ -234,6 +234,11 @@ product, **a product image through its friendly URL** (it only works with a corr
 office login. Redirect loops, redirects to another host and any status but 200 fail the run with exit code 4; things the
 shop does not have (no product, no `.htaccess`) are skipped with a warning. Details: [PHASE1.md](PHASE1.md) 3.10.
 
+One reason for "no answer" is not a failure: when the server **cannot look up the name** of the site (no DNS record yet, no resolver of its
+own) for every request, nothing has been seen of the site, and the self-test ends with a warning instead of exit code 4. This holds for all
+website types and only without `--self-test-url`; a refused connection, a timeout, a certificate PHP does not trust, or one page that fails
+while others answer stay failures (`Http\NameLookup`).
+
 ## 8. Dev mode
 
 `--mode=dev` is for copies of a live shop that must not touch the live world. Rules (`mail`, `payment`, `accounts`,

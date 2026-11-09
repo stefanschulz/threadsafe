@@ -428,6 +428,45 @@ final class WordPressMigrationTest extends TestCase
         (new SelfTest(self::client(['/' => [200, '<a href="http://old.example/x">x</a>'], '/wp-login.php' => [200, self::LOGIN], '/?rest_route=/' => [200, self::REST]], $asked)))->apply($context, (new SelfTest())->plan($context));
     }
 
+    public function testAServerThatCannotLookUpTheNameOnlyWarns(): void
+    {
+        $context = $this->selfTestContext();
+        $asked = 0;
+        $client = new HttpClient(transport: static function () use (&$asked): string {
+            ++$asked;
+
+            return 'Failed to open stream: php_network_getaddresses: getaddrinfo for new.example failed: Temporary failure in name resolution';
+        });
+
+        $result = (new SelfTest($client))->apply($context, (new SelfTest())->plan($context));
+
+        self::assertSame(3, $asked, 'all three pages were tried');
+        self::assertCount(1, $result->notices);
+        self::assertSame(\ThreadSafe\Core\NoticeLevel::Warning, $result->notices[0]->level);
+        self::assertStringContainsString('cannot look up the name "new.example"', $result->notices[0]->message);
+    }
+
+    public function testOtherReasonsForNoAnswerStayFailures(): void
+    {
+        $context = $this->selfTestContext();
+        $client = new HttpClient(transport: static fn (): string => 'Failed to open stream: Connection refused');
+
+        $this->expectException(SelfTestFailed::class);
+        $this->expectExceptionMessage('no answer from');
+        (new SelfTest($client))->apply($context, (new SelfTest())->plan($context));
+    }
+
+    public function testALookupFailureOfOnePageOnlyIsStillAFailure(): void
+    {
+        $context = $this->selfTestContext();
+        $client = new HttpClient(transport: static function (string $url): array|string {
+            return str_contains($url, 'wp-login') ? 'getaddrinfo for new.example failed: Temporary failure in name resolution' : [200, ['content-type' => 'text/html'], self::FRONT];
+        });
+
+        $this->expectException(SelfTestFailed::class);
+        (new SelfTest($client))->apply($context, (new SelfTest())->plan($context));
+    }
+
     // ------------------------------------------------------------------------------------------------- maintenance mode
 
     private const string MAINTENANCE = '<!DOCTYPE html><html><body><p>Briefly unavailable for scheduled maintenance. Check back in a minute.</p></body></html>';

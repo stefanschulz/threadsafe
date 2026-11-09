@@ -13,6 +13,7 @@ use ThreadSafe\Core\StepResult;
 use ThreadSafe\Database\Connection;
 use ThreadSafe\Http\HttpClient;
 use ThreadSafe\Http\HttpResult;
+use ThreadSafe\Http\NameLookup;
 use ThreadSafe\PrestaShop9\ShopAddress;
 use ThreadSafe\PrestaShop9\State;
 use ThreadSafe\Replace\Stats;
@@ -69,6 +70,7 @@ final class SelfTest implements AlwaysRuns
         $target = $this->target($context);
         $notices = [];
         $failures = [];
+        $asked = false;
 
         foreach ($this->checks($context, $target) as $check) {
             if (isset($check['skip'])) {
@@ -77,6 +79,11 @@ final class SelfTest implements AlwaysRuns
             }
             $started = microtime(true);
             $result = $client->get($target['base'] . $target['prefix'] . $check['path'], $target['host'], $target['pinned']);
+            if (!$target['pinned'] && !$asked && NameLookup::failed($result)) {
+                // the first request could not even look up the name: the others cannot either, and each would wait for its timeout
+                return new StepResult(0, [...$notices, Notice::warning(NameLookup::warning($target['host']))]);
+            }
+            $asked = true;
             $problem = $this->judge($result, $check, $request->urlMatcher());
             $label = sprintf('%s (%s)', $check['name'], $check['path']);
             if ($problem === null) {

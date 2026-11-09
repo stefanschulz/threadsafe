@@ -297,6 +297,65 @@ final class RestoreRunTest extends TestCase
         self::assertSame($final->state['result']['report']['steps'][0]['status'], 'applied');
     }
 
+    /**
+     * Field test of a WordPress restore (2026-11-09): the self-test failed because the server could not look up the new name, the person fixed
+     * that and had no way to say "ask again". "Try the failed step again" is that way: the state is that of the last good tick, so the
+     * self-test runs again, and the restore ends as done.
+     */
+    public function testRetryAsksAFailedSelfTestAgain(): void
+    {
+        $archive = $this->archive();
+        $root = $this->base . '/restored';
+        $calls = 0;
+        $selfTest = new class (static function () use (&$calls): void {
+            if (++$calls === 1) {
+                throw new \ThreadSafe\Core\Exception\SelfTestFailed('The migrated site does not work (1 check(s) failed): front page (/): no answer');
+            }
+        }) implements Step, \ThreadSafe\Core\AlwaysRuns {
+            public function __construct(private readonly \Closure $work)
+            {
+            }
+
+            public function id(): string
+            {
+                return 'self-test';
+            }
+
+            public function title(): string
+            {
+                return 'Check that the migrated site answers';
+            }
+
+            public function plan(Context $context): Plan
+            {
+                return new Plan();
+            }
+
+            public function apply(Context $context, Plan $plan): StepResult
+            {
+                ($this->work)();
+
+                return new StepResult(0);
+            }
+        };
+        $executor = $this->executor(static fn (): array => [$selfTest]);
+        $run = $executor->start($this->parameters($archive, $root));
+
+        try {
+            $executor->execute($run->id);
+            self::fail('The self-test fails the first time.');
+        } catch (RestoreException $e) {
+            self::assertSame(ExitCode::SelfTestFailed, $e->exitCode);
+            self::assertStringContainsString('files and the database are restored', $e->getMessage());
+        }
+
+        $executor->retry($run->id);
+        $final = $executor->execute($run->id);
+
+        self::assertSame(RunStatus::Finished, $final->status);
+        self::assertSame(2, $calls, 'the self-test was asked again, not answered from the saved failure');
+    }
+
     public function testRetryNeedsAFailedRun(): void
     {
         $executor = $this->executor();

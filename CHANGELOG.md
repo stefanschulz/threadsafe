@@ -6,6 +6,11 @@ of the GitHub release (see "Making a release" in [AGENTS.md](AGENTS.md)).
 
 ## [Unreleased]
 
+### Fixed
+
+- **A restore ended as failed because the server could not look up the new name.** The self-test asks the restored site over HTTP, by its new domain, from the server itself. When the DNS record is not there yet (or a container has no resolver), every request fails on the lookup of the name and nothing is known about the site; the restore stopped with "the adaptation failed", although files, database and adaptation were done and the site worked. When **every** request of the self-test fails on the lookup of the name (and no `--self-test-url` names another address), the self-test now ends with a warning that says so and what to do, and the restore is done. Any other reason for no answer (connection refused, timeout, certificate), a page that answers wrongly and one page that fails while another answers are failures as before. Found in the field on a WordPress site; the same change is in the self-tests of PrestaShop, Joomla and the generic type.
+- **The message of a failed self-test said nothing about how to go on.** It tells now that "Try the failed step again" (on the command line the same command) asks the self-test once more. That way existed before (a failed run goes on from the state of its last good tick); a unit test proves it for the self-test.
+
 ## [1.0.0] - 2026-11-05
 
 The first stable release. The program is the one of 0.10.0-beta.4 (no code changed); what changed is the status: the owner field-tested it on real sites and servers and closed the beta phase.

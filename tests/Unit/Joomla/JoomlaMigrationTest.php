@@ -279,6 +279,18 @@ final class JoomlaMigrationTest extends TestCase
         (new SelfTest(self::client(['/' => [200, self::FRONT]], $asked)))->apply($context, (new SelfTest())->plan($context));
     }
 
+    public function testAServerThatCannotLookUpTheNameOnlyWarns(): void
+    {
+        $context = JoomlaSite::context($this->root(), [new DomainMapping('old.example', 'new.example')]);
+        $client = new HttpClient(transport: static fn (): string => 'getaddrinfo for new.example failed: Temporary failure in name resolution');
+
+        $result = (new SelfTest($client))->apply($context, (new SelfTest())->plan($context));
+
+        self::assertCount(1, $result->notices);
+        self::assertSame(\ThreadSafe\Core\NoticeLevel::Warning, $result->notices[0]->level);
+        self::assertStringContainsString('cannot look up the name "new.example"', $result->notices[0]->message);
+    }
+
     public function testWithoutANewDomainOrWhenSwitchedOffNothingIsAsked(): void
     {
         $asked = [];

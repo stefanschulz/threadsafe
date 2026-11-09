@@ -17,7 +17,7 @@ final class HttpClient
 {
     private const array REDIRECTS = [301, 302, 303, 307, 308];
 
-    /** @var Closure(string, string): (array{int, array<string, string>, string}|null) */
+    /** @var Closure(string, string): (array{int, array<string, string>, string}|string|null) */
     private readonly Closure $transport;
 
     /** Why the last request of the stream transport got no answer (PHP's message), for the problem text. */
@@ -25,7 +25,8 @@ final class HttpClient
 
     /**
      * @param bool         $insecure  do not verify TLS certificates (dev copies with a self-signed certificate)
-     * @param Closure|null $transport for tests: fn (string $url, string $hostHeader): ?array{int, array<string, string>, string}
+     * @param Closure|null $transport for tests: fn (string $url, string $hostHeader): array{int, array<string, string>, string}|string|null
+     *                                (null: no answer; a string: no answer, and the reason)
      */
     public function __construct(
         private readonly bool $insecure = false,
@@ -57,6 +58,10 @@ final class HttpClient
             $visited[] = $current;
 
             $response = ($this->transport)($current, $host);
+            if (is_string($response)) {       // a transport may name the reason it got no answer
+                $this->failure = $response;
+                $response = null;
+            }
             if ($response === null) {
                 return new HttpResult(0, [], '', $current, array_slice($visited, 0, -1), "no answer from $current" . ($this->failure !== null ? " ({$this->failure})" : ''));
             }
