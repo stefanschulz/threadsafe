@@ -107,6 +107,10 @@ final class BackupBuilderTest extends TestCase
         self::assertStringNotContainsString('BackupTarget', $bundleOfRestore);
         self::assertStringNotContainsString('ToolBackupCommand', $bundleOfRestore);
         self::assertStringContainsString('ToolBackupCommand', $bundleOfBackup);
+        self::assertStringContainsString('final class AgentSignature', $bundleOfBackup, 'the agent is in the backup tool');
+        self::assertStringContainsString('final class AgentConfig', $bundleOfBackup);
+        self::assertStringNotContainsString('AgentSignature', $bundleOfRestore, 'and not in the restore tool');
+        self::assertStringNotContainsString('AgentConfig', $bundleOfRestore);
         self::assertStringNotContainsString('final class RestoreCommand', $bundleOfBackup, 'the restore command is the restore tool\'s');
     }
 

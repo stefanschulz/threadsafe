@@ -15,6 +15,8 @@ final readonly class Request
      * @param array<string, string> $cookies
      * @param array<string, string> $headers the request headers, names in lower case ("x-csrf-token")
      * @param array<string, array{name: string, tmp_name: string, size: int, error: int}> $files the files of a multipart form, one per field
+     * @param string                $uri     the path and the query as the client sent them (what a signature covers)
+     * @param string                $body    the raw body of a request that is not a multipart form (at most {@see MAX_BODY} bytes; empty otherwise)
      */
     public function __construct(
         public string $method = 'GET',
@@ -26,8 +28,13 @@ final readonly class Request
         public string $path = '',
         public array $headers = [],
         public array $files = [],
+        public string $uri = '',
+        public string $body = '',
     ) {
     }
+
+    /** The most of a raw body that is read: the wizards send small forms, the agent small JSON. */
+    public const int MAX_BODY = 1048576;
 
     public static function fromGlobals(): self
     {
@@ -53,7 +60,30 @@ final readonly class Request
             (string) (parse_url((string) ($server['REQUEST_URI'] ?? ''), PHP_URL_PATH) ?? ''),
             $headers,
             self::uploads($_FILES),
+            (string) ($server['REQUEST_URI'] ?? ''),
+            self::rawBody($server),
         );
+    }
+
+    /**
+     * The raw body of a request, if it has one worth reading: not a multipart form (php://input is empty for it anyway, and a restore may upload a
+     * large part), and not more than {@see MAX_BODY}.
+     *
+     * @param array<mixed> $server
+     */
+    private static function rawBody(array $server): string
+    {
+        if (strtoupper((string) ($server['REQUEST_METHOD'] ?? 'GET')) !== 'POST') {
+            return '';
+        }
+        $type = strtolower((string) ($server['CONTENT_TYPE'] ?? ''));
+        $length = (int) ($server['CONTENT_LENGTH'] ?? 0);
+        if (str_starts_with($type, 'multipart/') || $length > self::MAX_BODY) {
+            return '';
+        }
+        $body = @file_get_contents('php://input', false, null, 0, self::MAX_BODY);
+
+        return $body === false ? '' : $body;
     }
 
     /**
