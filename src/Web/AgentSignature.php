@@ -80,7 +80,8 @@ final class AgentSignature
     /**
      * Whether a request is signed with the secret, within the window, and new.
      *
-     * @return string|null null if it is good, otherwise why not: "headers" (missing or not of the shape), "time", "signature" or "replay" (for the log of the host, never for the sender)
+     * @return string|null null if it is good, otherwise why not: "headers" (missing or not of the shape), "signature" (a stranger: nothing is said to
+     *                     the sender), "time" (signed, but the clocks differ by more than the window: the sender may be told) or "replay" (signed, and seen before)
      */
     public function verify(string $secret, Request $request): ?string
     {
@@ -91,13 +92,14 @@ final class AgentSignature
             || preg_match('/^\d{1,12}$/D', $time) !== 1 || preg_match('/^[A-Za-z0-9_-]{16,64}$/D', $nonce) !== 1 || preg_match('/^[A-Za-z0-9_-]{43}$/D', $signature) !== 1) {
             return 'headers';
         }
-        $now = ($this->clock)();
-        if (abs($now - (int) $time) > self::WINDOW) {
-            return 'time';
-        }
+        // the signature first: only a sender who holds the secret is told that its clock is wrong (a stranger learns nothing from the window)
         $expected = self::sign($secret, $request->method, $request->uri, (int) $time, $nonce, $request->body);
         if (!hash_equals($expected, $signature)) {
             return 'signature';
+        }
+        $now = ($this->clock)();
+        if (abs($now - (int) $time) > self::WINDOW) {
+            return 'time';
         }
 
         // only a request that is signed is remembered: a stranger cannot fill the store with nonces

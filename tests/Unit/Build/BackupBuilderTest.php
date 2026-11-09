@@ -109,8 +109,10 @@ final class BackupBuilderTest extends TestCase
         self::assertStringContainsString('ToolBackupCommand', $bundleOfBackup);
         self::assertStringContainsString('final class AgentSignature', $bundleOfBackup, 'the agent is in the backup tool');
         self::assertStringContainsString('final class AgentConfig', $bundleOfBackup);
+        self::assertMatchesRegularExpression('/final class Agent\R/', $bundleOfBackup, 'the agent itself');
         self::assertStringNotContainsString('AgentSignature', $bundleOfRestore, 'and not in the restore tool');
         self::assertStringNotContainsString('AgentConfig', $bundleOfRestore);
+        self::assertDoesNotMatchRegularExpression('/final class Agent\R/', $bundleOfRestore);
         self::assertStringNotContainsString('final class RestoreCommand', $bundleOfBackup, 'the restore command is the restore tool\'s');
     }
 

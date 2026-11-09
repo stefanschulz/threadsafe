@@ -118,6 +118,19 @@ final class AgentSignatureTest extends TestCase
         self::assertSame('time', $signature->verify(self::SECRET, $this->request(time: self::NOW + 121, nonce: 'nonce-d-0123456789')));
     }
 
+    public function testAStrangerWithABadTimeIsToldNothingAboutTheClock(): void
+    {
+        $signature = $this->signature();
+        $stranger = new Request('POST', headers: [
+            'x-threadsafe-time' => (string) (self::NOW - 5000),
+            'x-threadsafe-nonce' => 'a-nonce-of-a-stranger-1',
+            'x-threadsafe-signature' => str_repeat('A', 43),
+        ], uri: '/x', body: '');
+
+        self::assertSame('signature', $signature->verify(self::SECRET, $stranger), 'not "time": only a sender who holds the secret learns that its clock is wrong');
+        self::assertSame('time', $signature->verify(self::SECRET, $this->request(time: self::NOW - 5000, nonce: 'a-nonce-of-the-owner-2')));
+    }
+
     public function testARepeatIsRefused(): void
     {
         $signature = $this->signature();

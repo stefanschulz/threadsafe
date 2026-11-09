@@ -45,6 +45,12 @@ final class BackupEntry
 
             return 1;
         }
+        if (isset($_GET['api']) && is_string($_GET['api'])) {
+            // a program, not a person: the agent (docs/PHASE13.md 3.1), which answers a stranger like a file that is not there
+            (new Agent($workspace ?? BackupWorkspace::in(dirname($script))))->handle(Request::fromGlobals())->send();
+
+            return 0;
+        }
         (new BackupWizard(dirname($script), null, basename($script), null, null, $workspace))->handle(Request::fromGlobals())->send();
 
         return 0;
