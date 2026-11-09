@@ -7,6 +7,7 @@ namespace ThreadSafe\Web;
 use ThreadSafe\Cli\Application;
 use ThreadSafe\Cli\CommandLine;
 use ThreadSafe\Cli\StreamOutput;
+use ThreadSafe\Cli\ToolAgentCommand;
 use ThreadSafe\Cli\ToolBackupCommand;
 use ThreadSafe\Engine\Budget;
 
@@ -32,7 +33,7 @@ final class BackupEntry
             // no $_SERVER['argv'] if register_argc_argv is off (the CGI binary with php.ini-production): the process knows its command line
             $arguments = CommandLine::arguments($_SERVER['argv'] ?? null, $script) ?? [$script];
 
-            return (new Application([new ToolBackupCommand(dirname($script), basename($script))]))->run($arguments, StreamOutput::standard());
+            return (new Application([new ToolBackupCommand(dirname($script), basename($script)), new ToolAgentCommand(dirname($script), basename($script))]))->run($arguments, StreamOutput::standard());
         }
 
         // a warning of PHP (a path that open_basedir does not allow, say) must never reach the page: it would end the headers

@@ -25,7 +25,7 @@ final class RestoreBuilder
     public const array ONLY_RESTORE = ['src/Web/Wizard.php', 'src/Web/Entry.php', 'src/Cli/RestoreCommand.php'];
 
     /** What only the backup tool needs ({@see BackupBuilder}). The restore tool leaves these out. */
-    public const array ONLY_BACKUP = ['src/Web/BackupEntry.php', 'src/Web/BackupWizard.php', 'src/Web/BackupWorkspace.php', 'src/Web/BackupTarget.php', 'src/Cli/ToolBackupCommand.php', 'src/Web/Agent.php', 'src/Web/AgentConfig.php', 'src/Web/AgentPairing.php', 'src/Web/AgentReplayStore.php', 'src/Web/AgentSignature.php'];
+    public const array ONLY_BACKUP = ['src/Web/BackupEntry.php', 'src/Web/BackupWizard.php', 'src/Web/BackupWorkspace.php', 'src/Web/BackupTarget.php', 'src/Cli/ToolBackupCommand.php', 'src/Cli/ToolAgentCommand.php', 'src/Cli/ToolProfileOptions.php', 'src/Web/Agent.php', 'src/Web/AgentConfig.php', 'src/Web/AgentPage.php', 'src/Web/AgentPairing.php', 'src/Web/AgentSetup.php', 'src/Web/AgentReplayStore.php', 'src/Web/AgentSignature.php'];
 
     private readonly string $root;
 

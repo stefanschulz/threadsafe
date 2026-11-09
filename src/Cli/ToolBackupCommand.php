@@ -4,15 +4,10 @@ declare(strict_types=1);
 
 namespace ThreadSafe\Cli;
 
-use ThreadSafe\App\ProfileService;
 use ThreadSafe\Core\Exception\GuardFailed;
 use ThreadSafe\Core\ExitCode;
 use ThreadSafe\Crypto\Passphrases;
-use ThreadSafe\Database\DatabaseSettings;
-use ThreadSafe\Engine\Budget;
 use ThreadSafe\Plugin\PluginRegistry;
-use ThreadSafe\Profile\EncryptionSettings;
-use ThreadSafe\Profile\ProfileException;
 use ThreadSafe\Profile\ProfileStore;
 use ThreadSafe\Web\BackupTarget;
 use ThreadSafe\Web\BackupWizard;
@@ -91,14 +86,15 @@ final class ToolBackupCommand implements Command
         $plugins = $this->plugins ?? PluginRegistry::load();
         $target = new BackupTarget($this->baseDirectory, $this->script, BackupWizard::KEY_FILE);
         $recipients = $this->encryption($input);
-        $partSize = $this->partSize($input);
+        $shared = $this->shared();
+        $partSize = $shared->partSize($input);
 
         $data = rtrim($this->temporary ?? sys_get_temp_dir(), '/\\') . '/threadsafe-backup-' . bin2hex(random_bytes(8));
         if (!@mkdir($data . '/profiles', 0700, true) && !is_dir($data . '/profiles')) {
             throw new GuardFailed("Cannot make the temporary directory \"$data\".");
         }
         try {
-            [$profile, $storage] = $this->profile($input, $target, $plugins, $data, $recipients, $partSize);
+            [$profile, $storage] = $shared->profile($input, $target, $plugins, $data, $recipients, $partSize);
             (new ProfileStore($data . '/profiles'))->save($profile);
             $output->writeln('Site: ' . $profile->path . ' (' . $profile->type . '); archive in ' . $storage);
 
@@ -137,11 +133,7 @@ final class ToolBackupCommand implements Command
         if ($chosen > 1) {
             throw new UsageError('Give one of --recipient, --passphrase-file (THREADSAFE_PASSPHRASE counts) and --no-encryption.');
         }
-        foreach ($recipients as $recipient) {
-            if (!EncryptionSettings::isRecipient($recipient)) {
-                throw new UsageError('"' . $recipient . '" is not a public key of the age format (age1 and 58 more characters).');
-            }
-        }
+        $this->shared()->recipients($input);   // the form of every key
         if ($passphrase !== null && ($weak = Passphrases::weakness($passphrase)) !== null) {
             throw new UsageError($weak);
         }
@@ -149,124 +141,8 @@ final class ToolBackupCommand implements Command
         return $recipients;
     }
 
-    private function partSize(Input $input): ?int
+    private function shared(): ToolProfileOptions
     {
-        if (!$input->has('part-size')) {
-            return null;
-        }
-        $size = Budget::parseBytes((string) $input->value('part-size'));
-        if ($size === null || $size < 1048576) {
-            throw new UsageError('--part-size is a size such as 500M or 2G, at least 1M.');
-        }
-
-        return $size;
-    }
-
-    /**
-     * @param list<string> $recipients
-     *
-     * @return array{\ThreadSafe\Profile\SiteProfile, string} the profile and the directory of the archive
-     *
-     * @throws UsageError
-     */
-    private function profile(Input $input, BackupTarget $target, PluginRegistry $plugins, string $data, array $recipients, ?int $partSize): array
-    {
-        try {
-            $root = $target->resolve($input->value('root') ?? $target->defaultRoot());
-            $service = new ProfileService(new ProfileStore($data . '/profiles'), $plugins, $data);
-            $type = $input->value('type') ?? 'auto';
-            [$type, $detection] = $type === 'auto' ? $service->autodetect($root) : [$type, $service->detect($type, $root)];
-            $database = $detection->database === null ? $this->database($input) : null;
-            $storage = $this->storage($input);
-
-            return [
-                $target->profile(
-                    $root,
-                    $type,
-                    $storage,
-                    $database,
-                    $input->values('exclude'),
-                    $partSize,
-                    $recipients === [] ? null : $this->recipients($recipients),
-                ),
-                $storage,
-            ];
-        } catch (ProfileException $e) {
-            throw new UsageError($e->getMessage(), 0, $e);
-        }
-    }
-
-    /**
-     * @param list<string> $recipients
-     *
-     * @throws ProfileException
-     */
-    private function recipients(array $recipients): EncryptionSettings
-    {
-        return EncryptionSettings::fromArray(['recipients' => $recipients]) ?? throw new ProfileException('No public key was given.');
-    }
-
-    /**
-     * @throws ProfileException
-     */
-    private function storage(Input $input): string
-    {
-        $named = $input->value('storage');
-        if ($named === null) {
-            return BackupWorkspace::in($this->baseDirectory)->storage();
-        }
-        $normal = str_replace('\\', '/', $named);
-        if (!str_starts_with($normal, '/') && preg_match('#^[A-Za-z]:/#', $normal) !== 1) {
-            throw new ProfileException('--storage must be an absolute path.');
-        }
-
-        return rtrim($named, '/\\');
-    }
-
-    /**
-     * The database of a website of no known kind, from the options; the password from a file or THREADSAFE_DB_PASSWORD, never from an option.
-     *
-     * @throws UsageError something is missing or wrong
-     */
-    private function database(Input $input): ?DatabaseSettings
-    {
-        $given = ['db-host', 'db-port', 'db-name', 'db-user', 'db-prefix', 'db-password-file'];
-        if ($input->has('no-db')) {
-            foreach ($given as $name) {
-                if ($input->has($name)) {
-                    throw new UsageError("--no-db and --$name do not go together.");
-                }
-            }
-
-            return null;
-        }
-        if (!$input->has('db-name') || !$input->has('db-user')) {
-            throw new UsageError('This site keeps its database access nowhere this tool can read it. Give --db-name and --db-user (and the password in a file: --db-password-file, or THREADSAFE_DB_PASSWORD), or --no-db if it has no database.');
-        }
-        $port = $input->value('db-port') ?? '3306';
-        if (preg_match('/^\d{1,5}$/', $port) !== 1 || (int) $port < 1 || (int) $port > 65535) {
-            throw new UsageError('--db-port is a number from 1 to 65535.');
-        }
-
-        return new DatabaseSettings($input->value('db-host') ?? 'localhost', (int) $port, (string) $input->value('db-name'), (string) $input->value('db-user'), $this->databasePassword($input), $input->value('db-prefix') ?? '');
-    }
-
-    /**
-     * @throws UsageError a file cannot be read
-     */
-    private function databasePassword(Input $input): string
-    {
-        if ($input->has('db-password-file')) {
-            $file = (string) $input->value('db-password-file');
-            $content = is_file($file) ? @file_get_contents($file) : false;
-            if ($content === false) {
-                throw new UsageError("Cannot read \"$file\".");
-            }
-
-            return rtrim($content, "\r\n");
-        }
-        $fromEnvironment = getenv('THREADSAFE_DB_PASSWORD');
-
-        return is_string($fromEnvironment) ? $fromEnvironment : '';
+        return new ToolProfileOptions(BackupWorkspace::in($this->baseDirectory));
     }
 }

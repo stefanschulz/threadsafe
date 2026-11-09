@@ -166,6 +166,7 @@ final class BackupWizard
             'again' => $this->again($session),
             'delete-archive' => $this->deleteArchive($request, $session),
             'cleanup' => $this->cleanup($request, $session),
+            'agent-pair', 'agent-save', 'agent-on', 'agent-off', 'agent-sync', 'agent-unpair' => ($session['optionsDone'] ?? false) === true ? $this->agentPage($request, $session, (new AgentPage($this->workspace))->handle($action, $request, self::hostOf($request))) : Response::redirect('?step=site'),
             default => $this->show($request, $request->query('step') ?? 'site', $session),
         };
     }
@@ -260,6 +261,8 @@ final class BackupWizard
             $step === 'file' => $this->file($request, $session),
             $step === 'options' && ($session['siteDone'] ?? false) === true => $this->optionsPage($session),
             $step === 'summary' && ($session['optionsDone'] ?? false) === true => $this->summaryPage($session),
+            $step === 'agent' && ($session['optionsDone'] ?? false) === true => $this->agentPage($request, $session, ['notice' => '', 'error' => '', 'pairing' => '']),
+            $step === 'agent' => Response::redirect('?step=' . (($session['siteDone'] ?? false) === true ? 'options' : 'site')),
             $step === 'options', $step === 'summary' => Response::redirect('?step=' . (($session['siteDone'] ?? false) === true ? 'options' : 'site')),
             default => $this->sitePage($session),
         };
@@ -792,7 +795,8 @@ final class BackupWizard
                 . '<p class="help">Nothing has been written yet except the small test file.</p>'
                 . '<p><button name="action" value="start" id="start"' . ($result === 'reachable' ? ' disabled' : '') . '>Back up now</button> <a class="button secondary" href="?step=options">Back</a></p>',
                 (string) $session['csrf'],
-            );
+            )
+            . '<p class="help">Do you want a central ThreadSafe to make and fetch backups of this site by itself? <a href="?step=agent">Set up the agent</a>.</p>';
 
         $texts = ['closed' => $this->probeText('closed'), 'reachable' => $this->probeText('reachable'), 'unknown' => $this->probeText('unknown')];
 
@@ -818,6 +822,27 @@ final class BackupWizard
     private function probeDirectories(string $storage): array
     {
         return array_values(array_unique([$this->workspace->directory(), $storage]));
+    }
+
+    /** The host name (with a port) that the request was made for, if it is one; else an empty text. */
+    private static function hostOf(Request $request): string
+    {
+        $host = strtolower(trim((string) $request->header('host')));
+
+        return preg_match('~^[a-z0-9.-]+(:\d{1,5})?$~D', $host) === 1 ? $host : '';
+    }
+
+    /**
+     * The page "The agent" (docs/PHASE13.md 9.3, M1): pair this tool with a central ThreadSafe, switch the agent on and off, say who may ask.
+     *
+     * @param array<string, mixed>                                  $session
+     * @param array{notice: string, error: string, pairing: string} $result  what the form that was posted did
+     */
+    private function agentPage(Request $request, array $session, array $result): Response
+    {
+        $address = AgentSetup::addressOf($request, self::hostOf($request)) ?? '';
+
+        return $this->page('The agent', (new AgentPage($this->workspace))->body((string) $session['csrf'], $address, $result));
     }
 
     /**

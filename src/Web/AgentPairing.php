@@ -85,14 +85,24 @@ final class AgentPairing
     }
 
     /**
+     * Whether `$url` is a web address that a pairing string may carry: a person is told before anything is written.
+     *
      * @throws InvalidArgumentException
      */
-    private static function check(string $url, string $secret, string $profile): void
+    public static function checkAddress(string $url): void
     {
         $parts = parse_url($url);
         if ($parts === false || !in_array($parts['scheme'] ?? '', ['https', 'http'], true) || ($parts['host'] ?? '') === '' || isset($parts['user']) || isset($parts['pass']) || isset($parts['fragment'])) {
             throw new InvalidArgumentException('The address in the pairing string is not a web address (https://host/path).');
         }
+    }
+
+    /**
+     * @throws InvalidArgumentException
+     */
+    private static function check(string $url, string $secret, string $profile): void
+    {
+        self::checkAddress($url);
         if (preg_match(self::SECRET_PATTERN, $secret) !== 1) {
             throw new InvalidArgumentException('The secret in the pairing string is not 64 hexadecimal digits.');
         }
