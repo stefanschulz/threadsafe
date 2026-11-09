@@ -28,6 +28,7 @@ final class ProfileService
         private readonly ProfileStore $store,
         private readonly PluginRegistry $plugins,
         private readonly ?string $dataDirectory = null,
+        private readonly ?\Closure $remoteClients = null,
     ) {
     }
 
@@ -138,7 +139,7 @@ final class ProfileService
 
     public function test(SiteProfile $profile): TestReport
     {
-        return (new ConnectionTest($this->plugins, $this->dataDirectory))->run($profile);
+        return (new ConnectionTest($this->plugins, $this->dataDirectory, $this->remoteClients))->run($profile);
     }
 
     /**

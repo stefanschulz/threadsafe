@@ -128,28 +128,7 @@ final class ProfileForm
             $data['schedule'] = $schedule['settings']?->toArray();
         }
         if (array_key_exists('keep', $values) || array_key_exists('max_age_days', $values) || array_key_exists('max_size', $values)) {
-            $retention = [];
-            foreach (['keep' => ['keep', 'Keep'], 'max_age_days' => ['maxAgeDays', 'Delete after days']] as $field => [$key, $label]) {
-                $text = trim($values[$field] ?? '');
-                if ($text === '') {
-                    continue;
-                }
-                if (preg_match('/^\d{1,6}$/', $text) !== 1) {
-                    $errors[] = "$label is a whole number; leave it empty for no such rule.";
-                } else {
-                    $retention[$key] = (int) $text;
-                }
-            }
-            $size = trim($values['max_size'] ?? '');
-            if ($size !== '') {
-                $bytes = Budget::parseBytes($size);
-                if ($bytes === null) {
-                    $errors[] = 'The size limit is a size such as 500M or 20G; leave it empty for no such rule.';
-                } else {
-                    $retention['maxBytes'] = $bytes;
-                }
-            }
-            $data['retention'] = $retention === [] ? null : $retention;
+            $data['retention'] = self::retention($values, $errors);
         }
         if (array_key_exists('recipients', $values)) {
             $keys = self::lines($values['recipients']);
@@ -205,6 +184,58 @@ final class ProfileForm
         }
 
         return ['data' => $data, 'errors' => $errors];
+    }
+
+    /**
+     * What the schedule and the retention of the form say, in a few words (the closed section of the form shows it).
+     *
+     * @param array<string, string> $values
+     */
+    public static function automationSummary(array $values): string
+    {
+        $keeps = array_filter([
+            trim($values['keep'] ?? '') === '' ? null : 'keeps the last ' . trim($values['keep']),
+            trim($values['max_age_days'] ?? '') === '' ? null : 'up to ' . trim($values['max_age_days']) . ' days',
+            trim($values['max_size'] ?? '') === '' ? null : 'up to ' . trim($values['max_size']),
+        ]);
+        $schedule = ScheduleFields::read($values)['settings'];
+
+        return ($schedule === null ? 'no schedule' : lcfirst($schedule->describe()) . ($schedule->paused ? ' (paused)' : '')) . ', ' . ($keeps === [] ? 'keeps everything' : implode(', ', $keeps));
+    }
+
+    /**
+     * The retention rules of the form (empty: none), and what is wrong with them.
+     *
+     * @param array<string, string> $values
+     * @param list<string>          $errors added to
+     *
+     * @return array<string, int>|null
+     */
+    public static function retention(array $values, array &$errors): ?array
+    {
+        $retention = [];
+        foreach (['keep' => ['keep', 'Keep'], 'max_age_days' => ['maxAgeDays', 'Delete after days']] as $field => [$key, $label]) {
+            $text = trim($values[$field] ?? '');
+            if ($text === '') {
+                continue;
+            }
+            if (preg_match('/^\d{1,6}$/', $text) !== 1) {
+                $errors[] = "$label is a whole number; leave it empty for no such rule.";
+            } else {
+                $retention[$key] = (int) $text;
+            }
+        }
+        $size = trim($values['max_size'] ?? '');
+        if ($size !== '') {
+            $bytes = Budget::parseBytes($size);
+            if ($bytes === null) {
+                $errors[] = 'The size limit is a size such as 500M or 20G; leave it empty for no such rule.';
+            } else {
+                $retention['maxBytes'] = $bytes;
+            }
+        }
+
+        return $retention === [] ? null : $retention;
     }
 
     /**

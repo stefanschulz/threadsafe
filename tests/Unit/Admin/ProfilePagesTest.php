@@ -70,7 +70,7 @@ final class ProfilePagesTest extends TestCase
         self::assertSame(200, $page->status);
         self::assertStringContainsString('There are no site profiles yet', $page->body);
         self::assertStringContainsString('<a class="card new" href="/new-profile">', $page->body, 'the empty tile of the dashboard');
-        self::assertStringContainsString('<div class="page-actions"><a class="button" href="/new-profile">New profile</a></div>', $page->body, 'the button stands at the right of the title');
+        self::assertStringContainsString('<div class="page-actions"><a class="button" href="/new-profile">New profile</a> <a class="button secondary" href="/new-remote-profile">New site with an agent</a></div>', $page->body, 'the buttons stand at the right of the title');
         self::assertStringContainsString('title="Profiles" aria-current="page"', $page->body, 'the navigation marks the page');
     }
 

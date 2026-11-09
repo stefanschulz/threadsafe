@@ -72,13 +72,13 @@ final class ProfileController
         $body = '';
         if ($profiles === [] && $damaged === []) {
             $body .= '<p class="hint">There are no site profiles yet. A profile says which site to back up and where its backups go.</p>'
-                . '<div class="cards"><a class="card new" href="' . Html::e($context->urls->to('/new-profile')) . '">' . Icons::svg('plus') . '<span>New profile</span></a></div>';
+                . '<div class="cards"><a class="card new" href="' . Html::e($context->urls->to('/new-profile')) . '">' . Icons::svg('plus') . '<span>New profile</span></a><a class="card new" href="' . Html::e($context->urls->to('/new-remote-profile')) . '">' . Icons::svg('plus') . '<span>New site with an agent</span></a></div>';
         } else {
             $body .= ($profiles === [] ? '' : TypeFilter::render($context, '/profiles', $byType, count($profiles), $selected))
                 . '<div class="profile-list">' . $cards . '</div>';
         }
 
-        return View::page($context, 'Profiles', $body, '/profiles', 200, '<a class="button" href="' . Html::e($context->urls->to('/new-profile')) . '">New profile</a>');
+        return View::page($context, 'Profiles', $body, '/profiles', 200, '<a class="button" href="' . Html::e($context->urls->to('/new-profile')) . '">New profile</a> <a class="button secondary" href="' . Html::e($context->urls->to('/new-remote-profile')) . '">New site with an agent</a>');
     }
 
     /** A path as HTML that may break after a slash, so that a long one wraps between its parts and not in the middle of a name. */
@@ -96,7 +96,7 @@ final class ProfileController
         // a paths with its label, an option with its icon (a tooltip and a hidden text name it); label or icon and value stand in one line
         $option = static fn (string $icon, string $label, string $value): string => '<div class="fact option"><dt title="' . Html::e($label) . '">' . Icons::svg($icon) . '<span class="visually-hidden">' . Html::e($label) . '</span></dt><dd>' . $value . '</dd></div>';
 
-        $facts = self::fact('Site', '<code class="path">' . self::breakable($profile->path) . '</code>')
+        $facts = self::siteFact($profile)
             . self::fact('Backups', '<code class="path">' . self::breakable($profile->storage) . '</code>');
         if ($profile->schedule !== null) {
             $facts .= $option('clock', 'Schedule', Html::e($profile->schedule->describe()) . ($profile->schedule->paused ? ' (paused)' : ''));
@@ -131,7 +131,11 @@ final class ProfileController
         $database = $profile->database === null
             ? 'read from the site\'s own configuration (or none)'
             : sprintf('%s@%s:%d/%s, prefix "%s", PHP interface %s, password hidden', $profile->database->user, $profile->database->host, $profile->database->port, $profile->database->name, $profile->database->prefix, $profile->database->driver);
-        $rows = [
+        $rows = $profile->remote !== null ? [
+            'Agent' => $profile->remote->url . ', fingerprint of the secret ' . implode('-', str_split($profile->remote->fingerprint(), 4)) . ($profile->remote->plainHttp ? ', plain http accepted' : ''),
+            'On the site' => 'what is backed up, the database, what is left out and the keys are set there (the page "The agent" of the tool)',
+            'Note' => $profile->note === '' ? '-' : $profile->note,
+        ] : [
             'Database' => $database,
             'Filters' => ($profile->useDefaultFilters ? 'the defaults of the type' : 'no defaults')
                 . ($profile->excludePaths === [] ? '' : ', also leaving out ' . implode(', ', $profile->excludePaths)),
@@ -155,7 +159,7 @@ final class ProfileController
         }
         $summary = '<section class="card profile-summary ' . Html::e($level) . '"><div class="badges"><span class="badge">' . Html::e(TypeFilter::title(PluginRegistry::load(), $profile->type)) . '</span>'
             . '<span class="badge ' . Html::e($level) . '">' . Html::e(Overview::label($level)) . '</span></div>'
-            . '<dl class="facts">' . self::fact('Site', '<code class="path">' . self::breakable($profile->path) . '</code>') . self::fact('Backups', '<code class="path">' . self::breakable($profile->storage) . '</code>') . '</dl>'
+            . '<dl class="facts">' . self::siteFact($profile) . self::fact('Backups', '<code class="path">' . self::breakable($profile->storage) . '</code>') . '</dl>'
             . $warnings . '</section>';
 
         // the one main action: back up now, or follow the run that is going
@@ -180,7 +184,7 @@ final class ProfileController
             $content = '<h2>Settings</h2><dl class="facts roomy">' . $facts . '</dl>'
                 . '<div class="actions"><a class="button secondary" href="' . Html::e($context->urls->to("/profiles/$id/edit")) . '">Edit</a> '
                 . View::form($context, "/profiles/$id/test", '<button type="submit" class="secondary">Test the connection</button>', 'inline')
-                . ' <a class="button secondary" href="' . Html::e($context->urls->to("/profiles/$id/keys")) . '">Keys</a></div>'
+                . ($profile->remote === null ? ' <a class="button secondary" href="' . Html::e($context->urls->to("/profiles/$id/keys")) . '">Keys</a>' : '') . '</div>'
                 . '<h2>Remove</h2><p class="hint">Takes the profile out of ThreadSafe; its backups stay on disk (the next page asks what to do with them).</p>'
                 . '<p><a class="button danger" href="' . Html::e($context->urls->to("/profiles/$id/delete")) . '">Remove the profile</a></p>';
         } else {
@@ -190,6 +194,14 @@ final class ProfileController
         }
 
         return View::page($context, $profile->name, $summary . Tabs::render($context, "/profiles/$id", self::TABS, $tab, 'Sections of the profile') . $content, '/profiles', 200, $backUp, $pencil);
+    }
+
+    /** Where the site is: its directory, or, for a site that an agent backs up, the address of the agent. */
+    private static function siteFact(SiteProfile $profile): string
+    {
+        return $profile->remote === null
+            ? self::fact('Site', '<code class="path">' . self::breakable($profile->path) . '</code>')
+            : self::fact('Agent', '<code class="path">' . self::breakable($profile->remote->url) . '</code>');
     }
 
     /** A label and its value in one line (the facts of a card and of the head of a profile). */
@@ -231,6 +243,9 @@ final class ProfileController
     public function editForm(Context $context, array $params): Response
     {
         $profile = $this->find($params['id'] ?? '');
+        if ($profile?->isRemote()) {
+            return (new RemoteProfileController($this->services, $this->profiles))->edit($context, $profile);
+        }
 
         return $profile === null ? $this->missing($context) : $this->form($context, $profile, ProfileForm::fromProfile($profile));
     }
@@ -241,6 +256,9 @@ final class ProfileController
     public function update(Context $context, array $params): Response
     {
         $profile = $this->find($params['id'] ?? '');
+        if ($profile?->isRemote()) {
+            return (new RemoteProfileController($this->services, $this->profiles))->update($context, $profile);
+        }
 
         return $profile === null ? $this->missing($context) : $this->submit($context, $profile);
     }
@@ -287,7 +305,7 @@ final class ProfileController
                 . '<p class="hint">This cannot be undone. Without the tick the backups stay where they are.</p></div>';
 
         $body = '<p>Remove the profile <strong>' . Html::e($profile->name) . '</strong>?</p>'
-            . '<p>The site <code>' . Html::e($profile->path) . '</code> is not touched. ' . match (true) {
+            . '<p>' . ($profile->remote === null ? 'The site <code>' . Html::e($profile->path) . '</code>' : 'The site and its agent') . ' is not touched. ' . match (true) {
                 $entries !== [] => 'Its backups in <code>' . Html::e($profile->storage) . '</code> stay where they are unless you tick <em>Also delete its ' . count($entries) . ' backup' . (count($entries) === 1 ? '' : 's') . '</em> below.',
                 $unreadable => 'The storage <code>' . Html::e($profile->storage) . '</code> cannot be read from here, so there is nothing to choose: whatever is in it stays where it is.',
                 default => 'ThreadSafe finds no backups of this profile in <code>' . Html::e($profile->storage) . '</code>, so there is no box to tick; a file that is in it anyway stays where it is.',
@@ -519,13 +537,7 @@ final class ProfileController
             $filters[] = $lines($values['structure_only']) . ' tables structure only';
         }
 
-        $keeps = array_filter([
-            trim($values['keep'] ?? '') === '' ? null : 'keeps the last ' . trim($values['keep']),
-            trim($values['max_age_days'] ?? '') === '' ? null : 'up to ' . trim($values['max_age_days']) . ' days',
-            trim($values['max_size'] ?? '') === '' ? null : 'up to ' . trim($values['max_size']),
-        ]);
-        $schedule = ScheduleFields::read($values)['settings'];
-        $automation = ($schedule === null ? 'no schedule' : lcfirst($schedule->describe()) . ($schedule->paused ? ' (paused)' : '')) . ', ' . ($keeps === [] ? 'keeps everything' : implode(', ', $keeps));
+        $automation = ProfileForm::automationSummary($values);
 
         $keys = $lines($values['recipients'] ?? '');
 

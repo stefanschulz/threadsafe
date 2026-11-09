@@ -167,6 +167,9 @@ final class Kernel
         $router->add('GET', '/profiles', $profiles->index(...));
         $router->add('POST', '/profiles', $profiles->create(...));
         $router->add('GET', '/new-profile', $profiles->newForm(...));
+        $remoteProfiles = new RemoteProfileController($services);
+        $router->add('GET', '/new-remote-profile', $remoteProfiles->newForm(...));
+        $router->add('POST', '/remote-profiles', $remoteProfiles->create(...));
         $router->add('GET', '/profiles/{id}', $profiles->show(...));
         $router->add('POST', '/profiles/{id}', $profiles->update(...));
         $router->add('GET', '/profiles/{id}/edit', $profiles->editForm(...));

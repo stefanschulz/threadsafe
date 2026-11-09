@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace ThreadSafe\Profile;
 
+use Closure;
 use ThreadSafe\Backup\SchemaReader;
 use ThreadSafe\Core\OpenBasedir;
 use ThreadSafe\Core\PhpBinary;
@@ -25,12 +26,19 @@ final class ConnectionTest
 
     private const array NEEDED_PRIVILEGES = ['SELECT', 'SHOW VIEW', 'TRIGGER'];
 
-    public function __construct(private readonly PluginRegistry $plugins, private readonly ?string $dataDirectory = null)
+    /**
+     * @param (Closure(RemoteSettings): \ThreadSafe\Remote\AgentClient)|null $remoteClients how a remote profile reaches its agent (for tests; default: curl, or streams)
+     */
+    public function __construct(private readonly PluginRegistry $plugins, private readonly ?string $dataDirectory = null, private readonly ?Closure $remoteClients = null)
     {
     }
 
     public function run(SiteProfile $profile): TestReport
     {
+        if ($profile->isRemote()) {
+            // the app's own class (src/Remote): the single-file tools have no remote profile and do not carry it
+            return (new \ThreadSafe\Remote\RemoteConnectionTest($this, $this->remoteClients))->run($profile);
+        }
         $checks = [];
         $resolved = null;
         try {

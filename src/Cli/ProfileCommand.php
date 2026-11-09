@@ -22,6 +22,8 @@ use ThreadSafe\Profile\ScheduleSettings;
 use ThreadSafe\Profile\SiteProfile;
 use ThreadSafe\Profile\TestReport;
 use ThreadSafe\Schedule\ScheduleException;
+use ThreadSafe\Web\AgentPairing;
+use InvalidArgumentException;
 
 /**
  * `threadsafe profile add|edit|show|list|test|remove`: manages the site profiles in `data/profiles/`. A profile says which
@@ -34,8 +36,9 @@ final class ProfileCommand implements Command
     /**
      * @param string|null         $dataDirectory where profiles live; default: the data directory of the program
      * @param PluginRegistry|null $plugins       the website types; default: the plugins of the program
+     * @param \Closure|null       $remoteClients how a profile with an agent reaches it (for tests; default: curl, or streams)
      */
-    public function __construct(private readonly ?string $dataDirectory = null, ?PluginRegistry $plugins = null)
+    public function __construct(private readonly ?string $dataDirectory = null, ?PluginRegistry $plugins = null, private readonly ?\Closure $remoteClients = null)
     {
         $this->plugins = $plugins;
     }
@@ -52,7 +55,7 @@ final class ProfileCommand implements Command
 
     public function usage(): string
     {
-        return 'profile add <id> --type=TYPE --path=DIR --storage=DIR [options] | edit <id> [options] | show <id> | list | test <id> | remove <id> --yes';
+        return 'profile add <id> --type=TYPE --path=DIR --storage=DIR [options] | add <id> --pairing-file=FILE --storage=DIR [options] (a site with an agent) | edit <id> [options] | show <id> | list | test <id> | remove <id> --yes';
     }
 
     public function options(): array
@@ -88,6 +91,9 @@ final class ProfileCommand implements Command
             new OptionSpec('no-retention', 'edit: no retention rules any more'),
             new OptionSpec('recipient', 'Encrypt backups for this public key (age1..., repeatable; edit replaces the list)', takesValue: true, valueName: 'KEY', repeatable: true),
             new OptionSpec('no-encryption', 'edit: do not encrypt new backups'),
+            new OptionSpec('pairing-file', 'add, edit: a site that an agent backs up: the file with the pairing string that the agent showed (it holds the secret: never give it on the command line). The profile id must be the one in the string', takesValue: true, valueName: 'FILE'),
+            new OptionSpec('plain-http', 'add, edit (remote): accept that the agent is reached over plain http (the default is https only)'),
+            new OptionSpec('no-plain-http', 'edit (remote): require https again'),
             new OptionSpec('no-test', 'add, edit: store the profile without testing it first'),
             new OptionSpec('json', 'show, list, test: output as JSON'),
             new OptionSpec('yes', 'remove: really remove the profile (its backups stay)'),
@@ -117,7 +123,7 @@ final class ProfileCommand implements Command
 
     private function service(ProfileStore $store): ProfileService
     {
-        return new ProfileService($store, $this->registry(), $this->dataDirectory);
+        return new ProfileService($store, $this->registry(), $this->dataDirectory, $this->remoteClients);
     }
 
     private function forProfile(string $action, string $id, ProfileStore $store, Input $input, Output $output): ExitCode
@@ -149,6 +155,19 @@ final class ProfileCommand implements Command
         if ($store->exists($id)) {
             throw new UsageError("The profile \"$id\" exists already; use \"profile edit $id\".");
         }
+        if ($input->has('pairing-file')) {
+            $this->refuseLocalOptions($input);
+            if (!$input->has('storage')) {
+                throw new UsageError('profile add needs --storage: the directory on this machine where the backups that are fetched go.');
+            }
+            $pairing = $this->pairing($input, $id);
+            $data = ['id' => $id, 'remote' => ['url' => $pairing['url'], 'secret' => $pairing['secret'], 'plainHttp' => $input->has('plain-http')], ...$this->fields($input, null)];
+
+            return $this->store($store, $data, $input, $output, 'added');
+        }
+        if ($input->has('plain-http') || $input->has('no-plain-http')) {
+            throw new UsageError('--plain-http only makes sense for a site with an agent (--pairing-file).');
+        }
         foreach (['type', 'path', 'storage'] as $required) {
             if (!$input->has($required)) {
                 throw new UsageError("profile add needs --$required.");
@@ -162,12 +181,73 @@ final class ProfileCommand implements Command
     private function edit(string $id, ProfileStore $store, Input $input, Output $output): ExitCode
     {
         $current = $this->load($store, $id);
+        if ($current->isRemote()) {
+            $this->refuseLocalOptions($input);
+        } elseif ($input->has('pairing-file') || $input->has('plain-http') || $input->has('no-plain-http')) {
+            throw new UsageError("The profile \"$id\" is not a site with an agent: --pairing-file and --plain-http do not apply. Remove it and add it again with --pairing-file to change that.");
+        }
         $changes = $this->fields($input, $current);
+        if ($current->isRemote()) {
+            $remote = $current->remote?->toArray() ?? [];
+            if ($input->has('pairing-file')) {
+                $pairing = $this->pairing($input, $id);
+                $remote = ['url' => $pairing['url'], 'secret' => $pairing['secret'], 'plainHttp' => $remote['plainHttp'] ?? false];
+            }
+            if ($input->has('plain-http') && $input->has('no-plain-http')) {
+                throw new UsageError('--plain-http and --no-plain-http contradict each other.');
+            }
+            if ($input->has('plain-http') || $input->has('no-plain-http')) {
+                $remote['plainHttp'] = $input->has('plain-http');
+            }
+            if ($remote !== ($current->remote?->toArray() ?? [])) {
+                $changes['remote'] = $remote;
+            }
+        }
         if ($changes === []) {
             throw new UsageError('Nothing to change: give at least one option.');
         }
 
         return $this->store($store, [...$current->toArray(), ...$changes], $input, $output, 'changed');
+    }
+
+    /**
+     * The pairing string of the file given with --pairing-file, for the profile `$id`.
+     *
+     * @return array{url: string, secret: string, profile: string, fingerprint: string}
+     *
+     * @throws UsageError the file cannot be read, is not a pairing string, or is for another profile
+     */
+    private function pairing(Input $input, string $id): array
+    {
+        $file = (string) $input->value('pairing-file');
+        $text = is_file($file) ? @file_get_contents($file) : false;
+        if ($text === false) {
+            throw new UsageError("Cannot read \"$file\".");
+        }
+        try {
+            $pairing = AgentPairing::decode($text);
+        } catch (InvalidArgumentException $e) {
+            throw new UsageError($e->getMessage(), 0, $e);
+        }
+        if ($pairing['profile'] !== $id) {
+            throw new UsageError('The pairing string is for the profile "' . $pairing['profile'] . '", and this profile is "' . $id . '": the agent makes its backups under that id and the catalog finds a backup by it. Use the same id, or pair again on the site with the id "' . $id . '".');
+        }
+
+        return $pairing;
+    }
+
+    /**
+     * What is set on the site, not here, for a site that an agent backs up.
+     *
+     * @throws UsageError an option of a profile with a site of its own was given
+     */
+    private function refuseLocalOptions(Input $input): void
+    {
+        foreach (['path', 'db-host', 'db-port', 'db-name', 'db-user', 'db-password-file', 'db-driver', 'prefix', 'no-database', 'exclude', 'structure-only', 'no-default-filters', 'default-filters', 'compression', 'part-size', 'no-part-size', 'recipient', 'no-encryption'] as $option) {
+            if ($input->has($option)) {
+                throw new UsageError("--$option does not apply to a site that an agent backs up: it is set on the site (the page \"The agent\" of the tool, or the plugin), where the backup is made, and the backups are encrypted there.");
+            }
+        }
     }
 
     /**
@@ -388,6 +468,17 @@ final class ProfileCommand implements Command
         }
         $output->writeln("Profile {$profile->id}" . ($profile->name !== $profile->id ? " ({$profile->name})" : ''));
         $output->writeln("  type:       {$profile->type}");
+        if ($profile->remote !== null) {
+            $output->writeln('  site:       on another machine; agent at ' . $profile->remote->url . ' (fingerprint of the secret ' . implode('-', str_split($profile->remote->fingerprint(), 4)) . ($profile->remote->plainHttp ? ', plain http accepted' : '') . ')');
+            $output->writeln("  storage:    {$profile->storage}");
+            $output->writeln('  made on the site: what is backed up, the database, what is left out and the keys are set there');
+            $this->showScheduling($profile, $output);
+            if ($profile->note !== '') {
+                $output->writeln("  note:       {$profile->note}");
+            }
+
+            return ExitCode::Ok;
+        }
         $output->writeln("  site:       {$profile->path}");
         $output->writeln("  storage:    {$profile->storage}");
         $output->writeln('  database:   ' . ($profile->database === null ? "from the site's configuration, or none" : sprintf('%s@%s:%d/%s (prefix "%s", password hidden)', $profile->database->user, $profile->database->host, $profile->database->port, $profile->database->name, $profile->database->prefix)));
@@ -446,7 +537,7 @@ final class ProfileCommand implements Command
         }
         $width = max(array_map(static fn (SiteProfile $p): int => strlen($p->id), $profiles) ?: [2]);
         foreach ($profiles as $profile) {
-            $output->writeln(sprintf('%s  %s  %s', str_pad($profile->id, $width), str_pad($profile->type, 12), $profile->path));
+            $output->writeln(sprintf('%s  %s  %s', str_pad($profile->id, $width), str_pad($profile->type, 12), $profile->remote !== null ? 'agent at ' . $profile->remote->url : $profile->path));
         }
         foreach ($broken as $id) {
             $output->error("Profile \"$id\" is damaged: run \"profile show $id\" to see why.");
