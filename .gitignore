@@ -33,3 +33,5 @@
 
 # Real backups of the owner (field tests): never enter the repository
 /resources/
+
+.claude/handoff/
