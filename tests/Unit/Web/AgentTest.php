@@ -166,18 +166,38 @@ final class AgentTest extends TestCase
         self::assertSame(200, $this->call('GET', ['api' => 'status'], https: false)->status);
     }
 
-    public function testWrongSignaturesAreCountedAndLoggedAndHoldTheNextRequestBack(): void
+    public function testWrongSignaturesNeverHoldASignedRequestBack(): void
     {
         $this->pairedAndOn();
-        for ($i = 0; $i < 3; ++$i) {
+        // anybody who knows the address can send these; if they closed the door, anybody could stop the backups of the site
+        for ($i = 0; $i < 50; ++$i) {
             self::assertSame(404, $this->call('GET', ['api' => 'status'], secret: str_repeat('1', 64))->status);
+            self::assertSame(404, $this->call('GET', ['api' => 'status'], sign: false)->status);
         }
 
-        self::assertSame(404, $this->call('GET', ['api' => 'status'])->status, 'a good request right after three wrong ones waits, like a right key after three wrong keys');
-        self::assertStringContainsString('wrong signature from ' . self::ADDRESS, (string) file_get_contents($this->workspace->directory() . '/agent.log'));
+        self::assertSame(200, $this->call('GET', ['api' => 'status'])->status, 'a signed request right after a hundred wrong ones is answered');
+        self::assertSame(404, $this->call('GET', ['api' => 'status'], secret: str_repeat('1', 64))->status, 'and a wrong one after it still gets nothing');
+        self::assertSame(200, $this->call('POST', ['api' => 'start'])->status, 'the work goes on between them');
+    }
 
-        $this->now += 10;
-        self::assertSame(200, $this->call('GET', ['api' => 'status'])->status, 'after the wait the owner gets in');
+    public function testWrongSignaturesAreLoggedButAFloodDoesNotFillTheLog(): void
+    {
+        $this->pairedAndOn();
+        $log = $this->workspace->directory() . '/agent.log';
+        for ($i = 0; $i < 200; ++$i) {
+            $this->call('GET', ['api' => 'status'], secret: str_repeat('1', 64));
+        }
+
+        $lines = file($log, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: [];
+        self::assertStringContainsString('wrong signature from ' . self::ADDRESS, $lines[0] ?? '');
+        self::assertCount(3, $lines, 'the first three of a quarter of an hour are noted, the rest of a flood at the same moment is not');
+
+        $this->now += 6;   // the first wait (5 s) is over: one more is noted, and the next wait is longer
+        $this->call('GET', ['api' => 'status'], sign: false);
+        $this->call('GET', ['api' => 'status'], sign: false);
+        $lines = file($log, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: [];
+        self::assertCount(4, $lines);
+        self::assertStringContainsString('no signature from ' . self::ADDRESS, $lines[3]);
     }
 
     public function testASignedRequestThatIsLateOrSeenBeforeIsToldSo(): void

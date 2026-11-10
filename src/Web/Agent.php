@@ -36,8 +36,9 @@ use ThreadSafe\Storage\StorageException;
  * | `abort`  | POST   | gives a run up and cleans up (`run=<id>`)                                                                      |
  *
  * **A stranger gets nothing.** The agent answers only if it is switched on and paired, the request comes over https (unless the person on the site
- * allowed plain http) from an address on the list (if there is one), is not held back by the {@see Throttle} and carries a good signature
- * ({@see AgentSignature}); in every other case the answer is the same plain "Not found" that a file that is not there gives. A request that is signed
+ * allowed plain http) from an address on the list (if there is one) and carries a good signature ({@see AgentSignature}); in every other case the
+ * answer is the same plain "Not found" that a file that is not there gives. Wrong signatures never hold a signed request back (the {@see Throttle}
+ * only keeps them from filling the log: the first few of a quarter of an hour are noted, then one after each growing wait). A request that is signed
  * and only late or repeated is told so (the sender has proved that it holds the secret). **The API never configures** (decision 2): the recipients, the
  * directory, the exclusions and the database access are set on the site by a person.
  */
@@ -89,18 +90,19 @@ final class Agent
             return $this->stranger();
         }
 
-        $throttle = new Throttle($this->workspace->directory() . '/agent-attempts.json', $this->workspace->directory() . '/agent.log', $this->clock);
-        if ($throttle->begin() > 0) {
-            return $this->stranger();
-        }
+        // The signature is checked for every request, and nothing a stranger sends holds a signed request back: the secret has 256 random bits, so
+        // there is nothing to slow down, and a count of wrong attempts that closed the door (as it does for a key that a person chose) would let
+        // anybody who knows the address stop the backups of the site. What is slowed down is the log, so that a flood cannot fill the disk.
         $signature = new AgentSignature(new AgentReplayStore($data . '/agent-nonces'), $this->clock);
         $verdict = $signature->verify($config->secret(), $request);
         if ($verdict === 'headers' || $verdict === 'signature') {
-            $throttle->failed($request->remoteAddress, 'agent: ' . ($verdict === 'headers' ? 'no signature' : 'wrong signature'));
+            $throttle = new Throttle($this->workspace->directory() . '/agent-attempts.json', $this->workspace->directory() . '/agent.log', $this->clock);
+            if ($throttle->begin() === 0) {
+                $throttle->failed($request->remoteAddress, 'agent: ' . ($verdict === 'headers' ? 'no signature' : 'wrong signature'));
+            }
 
             return $this->stranger();
         }
-        $throttle->reset();
         if ($verdict === 'time') {
             return $this->json(['error' => 'clock', 'message' => 'The clocks of the two sides differ by more than ' . AgentSignature::WINDOW . ' seconds.', 'hostTime' => ($this->clock)(), 'window' => AgentSignature::WINDOW], 403);
         }

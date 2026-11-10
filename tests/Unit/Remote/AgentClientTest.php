@@ -201,6 +201,76 @@ final class AgentClientTest extends TestCase
         self::assertFileDoesNotExist($this->work . '/part.zip');
     }
 
+    public function testASiteThatSendsMoreThanItListedIsCutAtTheListedSize(): void
+    {
+        // a site that was taken over answers a request for a part with a stream that does not end: the disk of this machine is not its to fill
+        $endless = new class() implements AgentTransport {
+            public int $accepted = 0;
+
+            public function send(string $method, string $url, array $headers = [], string $body = '', ?callable $sink = null, int $timeout = 60): AgentResponse
+            {
+                if ($sink === null) {
+                    return new AgentResponse(500);
+                }
+                for ($i = 0; $i < 1000; ++$i) {
+                    if ($sink(200, str_repeat('x', 100)) === false) {
+                        return new AgentResponse(200, stopped: true);
+                    }
+                    ++$this->accepted;
+                }
+
+                return new AgentResponse(200);
+            }
+        };
+        $client = new AgentClient($this->host->settings(), $endless);
+
+        try {
+            $client->fetch('shop_20260101-000000_abcdef12', 'shop_20260101-000000_abcdef12.zip', $this->work . '/part.zip', 250, str_repeat('0', 64));
+            self::fail('more than the listed size must be refused');
+        } catch (AgentException $e) {
+            self::assertSame(AgentException::MISMATCH, $e->kind);
+            self::assertStringContainsString('more than the 250 bytes', $e->getMessage());
+        }
+        self::assertSame(2, $endless->accepted, 'the transfer was stopped at the piece that went beyond the size');
+        self::assertFileDoesNotExist($this->work . '/part.zip', 'and what arrived is deleted');
+    }
+
+    public function testTheRestOfAPartThatIsLongerThanWhatIsMissingIsCutToo(): void
+    {
+        $client = $this->host->client();
+        $backup = $this->host->backup();
+        $part = $client->backups()[0]['parts'][0];
+        $client->fetch($backup, $part['file'], $this->work . '/whole.zip', $part['size'], $part['sha256']);
+        $whole = (string) file_get_contents($this->work . '/whole.zip');
+        file_put_contents($this->work . '/part.zip', substr($whole, 0, 700));
+        // the answer to the Range is the rest and then more
+        $long = new class(substr($whole, 700) . 'and more') implements AgentTransport {
+            public function __construct(private readonly string $rest)
+            {
+            }
+
+            public function send(string $method, string $url, array $headers = [], string $body = '', ?callable $sink = null, int $timeout = 60): AgentResponse
+            {
+                foreach (str_split($this->rest, 64) as $chunk) {
+                    if ($sink !== null && $sink(206, $chunk) === false) {
+                        return new AgentResponse(206, stopped: true);
+                    }
+                }
+
+                return new AgentResponse(206);
+            }
+        };
+
+        try {
+            (new AgentClient($this->host->settings(), $long))->fetch($backup, $part['file'], $this->work . '/part.zip', $part['size'], $part['sha256']);
+            self::fail('more than what was missing must be refused');
+        } catch (AgentException $e) {
+            self::assertSame(AgentException::MISMATCH, $e->kind);
+            self::assertStringContainsString('more than the ' . $part['size'] . ' bytes', $e->getMessage(), 'cut while it arrived, not found by the size afterwards');
+        }
+        self::assertFileDoesNotExist($this->work . '/part.zip');
+    }
+
     public function testAnAgentThatIsOffOrNotPairedOrWithAWrongSecretIsReportedAsRefusing(): void
     {
         $this->host->config->enable(false);
@@ -251,6 +321,7 @@ final class AgentClientTest extends TestCase
             'a page of the host' => [new AgentResponse(200, body: '<html><body>Welcome to your host</body></html>'), AgentException::BAD_ANSWER, false],
             'a firewall page' => [new AgentResponse(403, body: '<html><h1>Blocked by the firewall</h1></html>'), AgentException::BAD_ANSWER, false],
             'the plain not found' => [new AgentResponse(404, body: "Not found.\n"), AgentException::REFUSED, false],
+            'an answer that is longer than an agent\'s and was cut' => [new AgentResponse(200, body: '{"api":1,"padding":"' . str_repeat('x', 500), oversize: true), AgentException::BAD_ANSWER, false],
             'an error of the agent that the host turned into 500' => [new AgentResponse(500, body: '{"error":"failed","message":"The agent could not do what was asked."}'), AgentException::API, true],
         ];
     }

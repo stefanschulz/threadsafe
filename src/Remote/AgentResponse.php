@@ -14,6 +14,7 @@ final readonly class AgentResponse
      * @param array<string, string> $headers
      * @param string|null           $error   set when nothing was answered: the connection failed, timed out or broke off (status 0)
      * @param bool                  $stopped the receiver of the body stopped the transfer on purpose (its time was up): what arrived is good, the rest is not there
+     * @param bool                  $oversize the body that was not streamed is longer than {@see AgentTransport::MAX_BODY}: the transfer was cut there and the body is not whole
      */
     public function __construct(
         public int $status,
@@ -22,6 +23,7 @@ final readonly class AgentResponse
         public ?string $error = null,
         public float $seconds = 0.0,
         public bool $stopped = false,
+        public bool $oversize = false,
     ) {
     }
 

@@ -157,7 +157,8 @@ final class AgentClient
      *
      * @return bool true: the part is whole and right; false: the transfer was stopped on request, the part is not whole yet (call again)
      *
-     * @throws AgentException the transfer broke off (the file stays, the next call resumes), or the part is not the one that was listed (the file is deleted)
+     * @throws AgentException the transfer broke off (the file stays, the next call resumes), or the part is not the one that was listed (the file is deleted);
+     *                        a site that sends more than the size it listed is cut at that size
      */
     public function fetch(string $backup, string $file, string $destination, int $size, string $sha256, ?callable $shouldStop = null): bool
     {
@@ -168,11 +169,23 @@ final class AgentClient
         }
         if ($have < $size) {
             $handle = null;
-            $sink = static function (int $status, string $chunk) use (&$handle, $destination, $shouldStop): ?bool {
+            $room = $size - $have;   // the bytes that the part still lacks
+            $tooLong = false;
+            $sink = static function (int $status, string $chunk) use (&$handle, &$room, &$tooLong, $destination, $size, $shouldStop): ?bool {
                 if ($handle === null) {
                     // 206: the rest of the file, appended. 200: the whole file again (the agent did not honour the Range, or the file changed): from the start
                     $handle = fopen($destination, $status === 206 ? 'ab' : 'wb');
+                    if ($status !== 206) {
+                        $room = $size;
+                    }
                 }
+                if (strlen($chunk) > $room) {
+                    // more than the site listed: it is not the part, and a site is not trusted with the disk of this machine. Nothing more is written
+                    $tooLong = true;
+
+                    return false;
+                }
+                $room -= strlen($chunk);
                 if (is_resource($handle)) {
                     fwrite($handle, $chunk);
                 }
@@ -186,6 +199,11 @@ final class AgentClient
                 if (is_resource($handle)) {
                     fclose($handle);
                 }
+            }
+            if ($tooLong) {
+                $this->discard($destination);
+
+                throw new AgentException(AgentException::MISMATCH, "The site sent more than the $size bytes it listed for the part \"$file\": the transfer was cut there, and the part is fetched again.");
             }
             if ($response->status === 416) {
                 // the file on the site is shorter than what is here: it is not the one that was started
@@ -262,6 +280,9 @@ final class AgentClient
     {
         if ($response->status === 0) {
             throw new AgentException(AgentException::UNREACHABLE, 'The agent could not be reached: ' . ($response->error ?? 'no answer') . '.');
+        }
+        if ($response->oversize) {
+            throw new AgentException(AgentException::BAD_ANSWER, 'The site answered HTTP ' . $response->status . ' with more than ' . intdiv(AgentTransport::MAX_BODY, 1048576) . ' MB, where an agent says a few lines (' . $this->words(substr($response->body, 0, 4096)) . '): it was not read to the end.', $response->status);
         }
         if ($response->status >= 200 && $response->status < 300 && ($response->status !== 206 || $partial)) {
             return;

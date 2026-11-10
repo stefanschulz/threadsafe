@@ -19,6 +19,7 @@ use ThreadSafe\Profile\RemoteSettings;
 use ThreadSafe\Profile\SiteProfile;
 use ThreadSafe\Remote\AgentClient;
 use ThreadSafe\Remote\AgentResponse;
+use ThreadSafe\Remote\RemoteBackupRun;
 use ThreadSafe\Tests\Support\AgentHost;
 use ThreadSafe\Tests\Support\TempDirectory;
 
@@ -371,6 +372,24 @@ final class RemoteBackupRunTest extends TestCase
         }
         self::assertFileDoesNotExist($this->central . '/evil.zip');
         self::assertFileDoesNotExist(dirname($this->storage) . '/evil.zip');
+    }
+
+    public function testASidecarFileAsLargeAsAnArchiveIsNotFetched(): void
+    {
+        $name = $this->host->backup();
+        $real = $this->host->client()->backups()[0];
+        self::assertNotNull($real['sidecar']);
+        $large = ['backups' => [[...$real, 'sidecar' => [...$real['sidecar'], 'size' => RemoteBackupRun::MAX_SIDECAR + 1]]]];
+        $this->host->transport->intercept = static fn (string $action): ?AgentResponse => $action === 'list' ? new AgentResponse(200, body: (string) json_encode($large)) : null;
+        $service = $this->service();
+
+        try {
+            $this->runToTheEnd($service, $service->startWeb('shop'));
+            self::fail('a sidecar file of that size must be refused');
+        } catch (GuardFailed $e) {
+            self::assertStringContainsString('sidecar file of', $e->getMessage());
+        }
+        self::assertSame([], $this->backupFiles(), 'nothing of ' . $name . ' was fetched');
     }
 
     // ------------------------------------------------------------------------------------------------- giving up

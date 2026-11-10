@@ -56,10 +56,96 @@ final class AgentReplayStoreTest extends TestCase
         self::assertFalse((new AgentReplayStore($directory . '/replays'))->remember('nonce-one', 1000), 'an agent that cannot tell a repeat from a new request must not answer');
     }
 
+    public function testANonceThatCannotBeWrittenIsNotAccepted(): void
+    {
+        // a full disk: the file opens and locks, and nothing can be written to it
+        stream_wrapper_register('fulldisk', FullDiskStream::class);
+        try {
+            $store = new AgentReplayStore('fulldisk://data/replays');
+
+            self::assertFalse($store->remember('nonce-one', 1000), 'a nonce that is not remembered could be sent again: the request is refused');
+            self::assertFalse($store->remember('nonce-one', 1001));
+        } finally {
+            stream_wrapper_unregister('fulldisk');
+        }
+    }
+
     public function testTheDirectoryIsMadeWhenItIsMissing(): void
     {
         $store = new AgentReplayStore($this->tempDirectory() . '/data/nested/replays');
 
         self::assertTrue($store->remember('nonce-one', 1000));
+    }
+}
+
+/**
+ * A file on a disk that is full, as a stream wrapper: it can be opened, locked, read (it is empty) and cut, and every write stores nothing.
+ */
+final class FullDiskStream
+{
+    /** @var resource|null */
+    public $context;
+
+    public function stream_open(string $path, string $mode, int $options, ?string &$opened): bool
+    {
+        return true;
+    }
+
+    public function stream_lock(int $operation): bool
+    {
+        return true;
+    }
+
+    public function stream_read(int $count): string
+    {
+        return '';
+    }
+
+    public function stream_eof(): bool
+    {
+        return true;
+    }
+
+    public function stream_seek(int $offset, int $whence = SEEK_SET): bool
+    {
+        return $offset === 0;
+    }
+
+    public function stream_tell(): int
+    {
+        return 0;
+    }
+
+    public function stream_truncate(int $size): bool
+    {
+        return true;
+    }
+
+    public function stream_write(string $data): int
+    {
+        return 0;
+    }
+
+    public function stream_flush(): bool
+    {
+        return true;
+    }
+
+    public function stream_close(): void
+    {
+    }
+
+    public function stream_metadata(string $path, int $option, mixed $value): bool
+    {
+        return true;
+    }
+
+    /**
+     * @return array<string, int>|false
+     */
+    public function url_stat(string $path, int $flags): array|false
+    {
+        // the directory is there, the file is not yet
+        return str_ends_with($path, '/replays') ? false : ['mode' => 040700, 'size' => 0];
     }
 }

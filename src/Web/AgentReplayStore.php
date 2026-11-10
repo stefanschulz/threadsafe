@@ -24,8 +24,8 @@ final class AgentReplayStore
     /**
      * Notes a nonce.
      *
-     * @return bool true if it is new (the request may go on), false if it was seen already, or if the file cannot be used (then nothing is accepted:
-     *              an agent that cannot tell a repeat from a new request must not answer)
+     * @return bool true if it is new (the request may go on), false if it was seen already, or if the file cannot be used or written (then nothing is
+     *              accepted: an agent that cannot tell a repeat from a new request must not answer)
      */
     public function remember(string $nonce, int $now): bool
     {
@@ -60,13 +60,12 @@ final class AgentReplayStore
             if (count($kept) > self::MAX) {
                 $kept = array_slice($kept, -self::MAX);
             }
-            rewind($handle);
-            ftruncate($handle, 0);
-            fwrite($handle, implode("\n", $kept) . "\n");
-            fflush($handle);
+            // a nonce that could not be written (a full disk) is a nonce that is not remembered: the request is not accepted
+            $text = implode("\n", $kept) . "\n";
+            $written = rewind($handle) && ftruncate($handle, 0) && @fwrite($handle, $text) === strlen($text) && fflush($handle);
             flock($handle, LOCK_UN);
 
-            return !$seen;
+            return $written && !$seen;
         } finally {
             fclose($handle);
         }

@@ -42,6 +42,9 @@ final class RemoteBackupRun
     /** A backup that an earlier transfer left on the site is taken up (instead of making a new one) if it is not older than this many seconds. */
     public const int CATCH_UP_SECONDS = 86400;
 
+    /** The largest sidecar file that is fetched (one of an encrypted backup has 3 KB; it is kept in memory whenever the catalog lists the backup). */
+    public const int MAX_SIDECAR = 4194304;
+
     private readonly Closure $clock;
 
     /** @var Closure(int): void */
@@ -261,6 +264,10 @@ final class RemoteBackupRun
         $sidecar = $found['sidecar'];
         if ($sidecar['file'] !== $name->sidecarFile() || preg_match('/^[0-9a-f]{64}$/D', $sidecar['sha256']) !== 1) {
             throw new GuardFailed('The site names a sidecar file that does not belong to the backup "' . $name->base() . '".');
+        }
+        // the catalog reads a sidecar file whole, for every listing: a site must not hand it one that is as large as an archive
+        if ($sidecar['size'] < 0 || $sidecar['size'] > self::MAX_SIDECAR) {
+            throw new GuardFailed('The site names a sidecar file of ' . $this->bytes($sidecar['size']) . ' for the backup "' . $name->base() . '"; a sidecar file is a few KB, and one above ' . $this->bytes(self::MAX_SIDECAR) . ' is not fetched.');
         }
         $total = array_sum(array_column($files, 'size')) + $sidecar['size'];
         $storage = new LocalStorage($profile->storage);

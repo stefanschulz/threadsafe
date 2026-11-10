@@ -6,7 +6,8 @@ namespace ThreadSafe\Remote;
 
 /**
  * {@see AgentTransport} over the curl extension: the certificate of an https host is checked, a redirect is not followed, a body that goes to a sink is
- * not collected in memory, and a transfer that stalls (no byte for `$timeout` seconds) is cut, but one that is only large is not.
+ * not collected in memory, a body that is collected is cut at {@see AgentTransport::MAX_BODY}, and a transfer that stalls (no byte for `$timeout`
+ * seconds) is cut, but one that is only large is not.
  */
 final class CurlTransport implements AgentTransport
 {
@@ -25,6 +26,7 @@ final class CurlTransport implements AgentTransport
         $status = 0;
         $collected = '';
         $stopped = false;
+        $oversize = false;
         /** @var array<int, mixed> $options */
         $options = [
             CURLOPT_CUSTOMREQUEST => $method,
@@ -43,13 +45,17 @@ final class CurlTransport implements AgentTransport
 
                 return strlen($line);
             },
-            CURLOPT_WRITEFUNCTION => static function ($handle, string $chunk) use (&$status, &$collected, &$stopped, $sink): int {
+            CURLOPT_WRITEFUNCTION => static function ($handle, string $chunk) use (&$status, &$collected, &$stopped, &$oversize, $sink): int {
                 if ($sink !== null && $status >= 200 && $status < 300) {
                     if ($sink($status, $chunk) === false) {
                         $stopped = true;
 
                         return 0;   // curl ends the transfer
                     }
+                } elseif (strlen($collected) + strlen($chunk) > self::MAX_BODY) {
+                    $oversize = true;   // a site is not trusted with the memory of this machine
+
+                    return 0;
                 } else {
                     $collected .= $chunk;
                 }
@@ -68,9 +74,9 @@ final class CurlTransport implements AgentTransport
         }
         curl_setopt_array($handle, $options);
         $ok = curl_exec($handle);
-        $error = $ok === false && !$stopped ? curl_error($handle) : null;
+        $error = $ok === false && !$stopped && !$oversize ? curl_error($handle) : null;
         $status = $status !== 0 ? $status : (int) curl_getinfo($handle, CURLINFO_RESPONSE_CODE);
 
-        return new AgentResponse($error !== null ? 0 : $status, $received, $collected, $error !== null ? ($error !== '' ? $error : 'the connection failed') : null, microtime(true) - $started, $stopped);
+        return new AgentResponse($error !== null ? 0 : $status, $received, $collected, $error !== null ? ($error !== '' ? $error : 'the connection failed') : null, microtime(true) - $started, $stopped, $oversize);
     }
 }

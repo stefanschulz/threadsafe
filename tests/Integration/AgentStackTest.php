@@ -267,7 +267,7 @@ final class AgentStackTest extends IntegrationTestCase
         [$status, $body] = self::signed('GET', 'api=status', secret: str_repeat('0', 64));
         self::assertSame([404, "Not found.\n"], [$status, $body], 'a wrong secret');
         [$status] = self::signed('GET', 'api=nothing');
-        self::assertSame(200, self::signed('GET', 'api=status')[0], 'the owner gets in, and the wrong attempts are forgotten');
+        self::assertSame(200, self::signed('GET', 'api=status')[0], 'the owner gets in, whatever a stranger sent before');
 
         // a replay: the same request twice
         $uri = self::PATH . '?api=status';

@@ -6,6 +6,12 @@ of the GitHub release (see "Making a release" in [AGENTS.md](AGENTS.md)).
 
 ## [Unreleased]
 
+### Fixed
+
+- **A site that was taken over could fill the disk and the memory of the central ThreadSafe.** A part of a backup was written for as long as the site sent, whatever size it had listed, and an answer of the agent was collected in memory without an end. A transfer is now cut at the size that was listed, an answer at 4 MB, and a sidecar file above 4 MB is not fetched.
+- **Anybody who knew the address of an agent could stop the backups of the site.** Requests without a good signature were counted for all senders together, and while the count made the next attempt wait, the signed request of the central ThreadSafe was turned away too, which ended its run. The signature of every request is checked now (a secret of 256 random bits needs no protection against guessing); wrong ones are still logged in `agent.log`, and only the log is slowed down, so that a flood cannot fill the disk. The list of addresses that may ask closes the agent to everybody else and is still the advice.
+- **The agent accepted a request whose nonce it could not write down** (a full disk), so that the request could have been sent a second time within the time window. It is refused now.
+
 ## [1.1.0-rc.1] - 2026-11-10
 
 The first release candidate of 1.1.0: the **connector**, first cut (phase 13). A site that cannot run ThreadSafe itself (no second website, no cron) is backed up by `threadsafe-backup.php` working as an **agent**, and a ThreadSafe elsewhere plans, pulls and keeps the backups. It is a pre-release for a field test of a week by schedule; the WordPress plugin that installs and pairs the agent is not part of it yet, and the user documentation follows with 1.1.0 (the plan and what is built: [docs/PHASE13.md](docs/PHASE13.md) section 9). **Nothing changes for an installation that does not use it:** the agent is off in every tool that has not been paired, and a stranger who asks it gets the same answer as for a file that is not there. An installation of 1.0.0 can be updated to this version from the System page (or with `threadsafe update`); the format of the files in `data/` has not changed.

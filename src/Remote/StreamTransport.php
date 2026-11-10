@@ -6,7 +6,8 @@ namespace ThreadSafe\Remote;
 
 /**
  * {@see AgentTransport} over PHP streams (`allow_url_fopen`), for a machine without the curl extension. The certificate of an https host is checked
- * (the host's certificate authorities, `openssl.cafile`), a redirect is not followed, a body that goes to a sink is read in blocks of 1 MB.
+ * (the host's certificate authorities, `openssl.cafile`), a redirect is not followed, a body that goes to a sink is read in blocks of 1 MB, and a
+ * body that is collected is cut at {@see AgentTransport::MAX_BODY}.
  */
 final class StreamTransport implements AgentTransport
 {
@@ -43,6 +44,7 @@ final class StreamTransport implements AgentTransport
         $collected = '';
         $error = null;
         $stopped = false;
+        $oversize = false;
         while (!feof($stream)) {
             $chunk = fread($stream, 1048576);
             if ($chunk === false || stream_get_meta_data($stream)['timed_out']) {
@@ -58,12 +60,16 @@ final class StreamTransport implements AgentTransport
 
                     break;
                 }
+            } elseif (strlen($collected) + strlen($chunk) > self::MAX_BODY) {
+                $oversize = true;   // a site is not trusted with the memory of this machine
+
+                break;
             } else {
                 $collected .= $chunk;
             }
         }
         fclose($stream);
 
-        return new AgentResponse($error !== null ? 0 : $status, $received, $collected, $error, microtime(true) - $started, $stopped);
+        return new AgentResponse($error !== null ? 0 : $status, $received, $collected, $error, microtime(true) - $started, $stopped, $oversize);
     }
 }
