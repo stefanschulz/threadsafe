@@ -6,6 +6,24 @@ of the GitHub release (see "Making a release" in [AGENTS.md](AGENTS.md)).
 
 ## [Unreleased]
 
+## [1.1.0-rc.1] - 2026-11-10
+
+The first release candidate of 1.1.0: the **connector**, first cut (phase 13). A site that cannot run ThreadSafe itself (no second website, no cron) is backed up by `threadsafe-backup.php` working as an **agent**, and a ThreadSafe elsewhere plans, pulls and keeps the backups. It is a pre-release for a field test of a week by schedule; the WordPress plugin that installs and pairs the agent is not part of it yet, and the user documentation follows with 1.1.0 (the plan and what is built: [docs/PHASE13.md](docs/PHASE13.md) section 9). **Nothing changes for an installation that does not use it:** the agent is off in every tool that has not been paired, and a stranger who asks it gets the same answer as for a file that is not there. An installation of 1.0.0 can be updated to this version from the System page (or with `threadsafe update`); the format of the files in `data/` has not changed.
+
+### Added
+
+- **The agent in `threadsafe-backup.php`.** A signed API (status, start, tick, list, part, done, abort): every request carries a time, a nonce and a signature over method, path, body and time, made with a secret that only the pairing holds; the time window is 120 s and a nonce is accepted once. It makes **encrypted backups only** (the host never holds the secret key), keeps the newest backups after one is safe elsewhere (`keepOnHost`), and never removes one that has not been fetched. Set it up on the new page *The agent* of the wizard (pair, switch on and off, who may ask, plain http only on request) or in a shell with `php threadsafe-backup.php agent --setup ...`. The workspace (settings, run records, archives) can lie outside the directory of the tool, so that a replaced tool keeps the pairing and the archives (`THREADSAFE_WORKSPACE`, `--workspace`).
+- **A site with an agent as a profile** on the central ThreadSafe: `threadsafe profile add <id> --pairing-file=FILE --storage=DIR`, or the form *New remote profile* in the web interface. The backup, the schedule, the retention, the catalog, `verify` and the restore treat it like any other profile. The central side starts the backup on the site step by step, brings the parts over with resume (`Range`, checked by SHA-256) and tries again after a failure that may pass. `profile test` asks the agent and reports its version, the clock, the limits and the free space of the site.
+
+### Known limits of this candidate
+
+- The tool has no button to remove itself when it was used only as an agent: switch the agent off, forget the pairing, delete the files.
+- `profile test` of a site with an agent says "a backup is running there now" for the last run on the site, whatever its state.
+- A run that the central side gives up leaves the run on the site marked as running for up to 3 x 0.6 x `max_execution_time` seconds (7 minutes at 240 s); a new backup started within that time takes that run up instead of making another.
+- `backup` and `restore` on the command line print nothing between their first and their last line.
+- Not tried: a full disk on the site (the free space the agent reports is that of the volume, not of the quota), two requests at once, a restore of an agent's backup with the wizard.
+- Tried in the field so far: one WordPress site on a host with PHP 8.4 as `cgi-fcgi` and a firewall plugin (backups of 10.5 GB and 1.8 GB, `verify` with the key, a restore on a new domain). A week by schedule is what this candidate is for.
+
 ### Fixed
 
 - **A restore ended as failed because the server could not look up the new name.** The self-test asks the restored site over HTTP, by its new domain, from the server itself. When the DNS record is not there yet (or a container has no resolver), every request fails on the lookup of the name and nothing is known about the site; the restore stopped with "the adaptation failed", although files, database and adaptation were done and the site worked. When **every** request of the self-test fails on the lookup of the name (and no `--self-test-url` names another address), the self-test now ends with a warning that says so and what to do, and the restore is done. Any other reason for no answer (connection refused, timeout, certificate), a page that answers wrongly and one page that fails while another answers are failures as before. Found in the field on a WordPress site; the same change is in the self-tests of PrestaShop, Joomla and the generic type.
