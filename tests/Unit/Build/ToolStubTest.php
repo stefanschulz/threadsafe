@@ -79,7 +79,7 @@ final class ToolStubTest extends TestCase
 
     public function testOnlyTheBackupToolLetsARequestForItsAgentPassWithoutAKeyFile(): void
     {
-        $gate = " && !(isset(\$_GET['api']) && (defined('THREADSAFE_WORKSPACE') || ((\$threadsafeAgent = glob(\$threadsafeBase . '/.threadsafe-backup/data-*/agent.json')) && count(\$threadsafeAgent) > 0)))";
+        $gate = " && !defined('THREADSAFE_LIBRARY') && !(isset(\$_GET['api']) && (defined('THREADSAFE_WORKSPACE') || ((\$threadsafeAgent = glob(\$threadsafeBase . '/.threadsafe-backup/data-*/agent.json')) && count(\$threadsafeAgent) > 0)))";
 
         self::assertStringContainsString("is_file(\$threadsafeBase . '/threadsafe-backup-key.php')$gate) {", ToolStub::backup('test'), 'only a tool that was set up for an agent: a plugin defined the workspace, or an agent has its settings');
         self::assertStringNotContainsString('THREADSAFE_WORKSPACE', ToolStub::restore('test'));
@@ -87,9 +87,19 @@ final class ToolStubTest extends TestCase
         self::assertStringNotContainsString("\$_GET['api']", ToolStub::installer('test'));
     }
 
+    public function testOnlyTheBackupToolCanBeLoadedAsALibraryByAPlugin(): void
+    {
+        $library = "if (defined('THREADSAFE_LIBRARY')) {\n    return;\n}\n";
+
+        self::assertStringContainsString("require \$threadsafeBundle;\n{$library}exit((int) call_user_func('ThreadSafe\\Web\\BackupEntry::run', __FILE__));", ToolStub::backup('test'), 'the classes are loaded, the entry does not run');
+        self::assertStringNotContainsString('THREADSAFE_LIBRARY', ToolStub::restore('test'));
+        self::assertStringNotContainsString('THREADSAFE_LIBRARY', ToolStub::installer('test'));
+    }
+
     public function testTheBackupStubIsTheRestoreStubWithOtherNames(): void
     {
-        $withoutTheAgent = str_replace(" && !(isset(\$_GET['api']) && (defined('THREADSAFE_WORKSPACE') || ((\$threadsafeAgent = glob(\$threadsafeBase . '/.threadsafe-backup/data-*/agent.json')) && count(\$threadsafeAgent) > 0)))", '', ToolStub::backup('test'));
+        $library = "if (defined('THREADSAFE_LIBRARY')) {\n    return;\n}\n";
+        $withoutTheAgent = str_replace($library, '', str_replace(" && !defined('THREADSAFE_LIBRARY') && !(isset(\$_GET['api']) && (defined('THREADSAFE_WORKSPACE') || ((\$threadsafeAgent = glob(\$threadsafeBase . '/.threadsafe-backup/data-*/agent.json')) && count(\$threadsafeAgent) > 0)))", '', ToolStub::backup('test')));
         $asRestore = strtr($withoutTheAgent, [
             'backup tool' => 'restore tool', 'threadsafe-backup-key.php' => 'threadsafe-restore-key.php', '.threadsafe-backup' => '.threadsafe-restore',
             'tools/build-backup.php' => 'tools/build-restore.php', 'ThreadSafe\\Web\\BackupEntry::run' => 'ThreadSafe\\Web\\Entry::run', 'ThreadSafe backup' => 'ThreadSafe restore',

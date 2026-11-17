@@ -68,6 +68,32 @@ final class BackupBuilderTest extends TestCase
         return [$output, $errors, proc_close($process)];
     }
 
+    public function testAPluginCanLoadTheBuiltToolAsALibraryWithoutAKeyFileAndWithoutRunningIt(): void
+    {
+        $file = $this->directory . '/threadsafe-backup.php';
+        (new BackupBuilder(dirname(__DIR__, 3), '0.1.0'))->build($file);
+        $code = '$_SERVER["REQUEST_METHOD"] = "GET"; define("THREADSAFE_LIBRARY", true);'
+            . '$r = require ' . var_export($file, true) . ';'
+            . 'echo "loaded:", class_exists("ThreadSafe\Web\AgentPlugin", false) ? "yes" : "no", ",", class_exists("ThreadSafe\Web\AgentPage", false) ? "yes" : "no", ",after-the-stub";';
+
+        [$output, , $status] = $this->php($code);
+
+        self::assertSame('loaded:yes,yes,after-the-stub', $output, 'on the web and without a key file: the classes are there, the wizard did not run, the request goes on');
+        self::assertSame(0, $status);
+        self::assertDirectoryExists($this->directory . '/.threadsafe-backup', 'the tool unpacked itself as usual');
+    }
+
+    public function testWithoutTheLibraryConstantAWebRequestStillNeedsTheKeyFile(): void
+    {
+        $file = $this->directory . '/threadsafe-backup.php';
+        (new BackupBuilder(dirname(__DIR__, 3), '0.1.0'))->build($file);
+
+        [$output] = $this->php('$_SERVER["REQUEST_METHOD"] = "GET"; require ' . var_export($file, true) . ';');
+
+        self::assertStringContainsString('No access key yet', $output);
+        self::assertDirectoryDoesNotExist($this->directory . '/.threadsafe-backup', 'nothing is written until a person has put a key file there');
+    }
+
     public function testTheFileLeadsWithTheStubOfTheBackupTool(): void
     {
         $file = $this->directory . '/threadsafe-backup.php';

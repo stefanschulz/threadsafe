@@ -40,7 +40,7 @@
         "optimize-autoloader": true
     },
     "scripts": {
-        "lint": "parallel-lint --colors src plugins tests tools public",
+        "lint": "parallel-lint --colors src plugins satellites tests tools public",
         "stan": "phpstan analyse --memory-limit=512M",
         "test": "phpunit --testsuite unit",
         "test:integration": "phpunit --testsuite integration",

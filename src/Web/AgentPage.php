@@ -97,7 +97,7 @@ final class AgentPage
     {
         $profiles = $this->workspace->profiles();
         if (!$profiles->exists(BackupWorkspace::PROFILE)) {
-            throw new ProfileException('Set up the site and the options first (the first pages of this tool): the agent makes the backups that you set up there.');
+            throw new ProfileException('Set up the site and the options first: the agent makes the backups that you set up there.');
         }
 
         return $profiles->load(BackupWorkspace::PROFILE);
@@ -107,8 +107,10 @@ final class AgentPage
      * @param array{notice: string, error: string, pairing: string} $result
      * @param string                                                $address the address of the tool as the request saw it, to start the form with
      */
-    public function body(string $csrf, string $address, array $result): string
+    public function body(string $csrf, string $address, array $result, bool $embedded = false): string
     {
+        // inside the page of a plugin there are no earlier pages of the tool to go back to
+        $back = static fn (string $step): string => $embedded ? '' : ' <a class="button secondary" href="?step=' . $step . '">Back</a>';
         $e = Html::e(...);
         $config = $this->setup->config();
         $problem = null;
@@ -135,7 +137,7 @@ final class AgentPage
         }
 
         if ($problem !== null) {
-            return $html . '<p class="fail">' . $e($problem) . '</p><p><a class="button secondary" href="?step=options">Back to the options</a></p>';
+            return $html . '<p class="fail">' . $e($problem) . '</p>' . ($embedded ? '' : '<p><a class="button secondary" href="?step=options">Back to the options</a></p>');
         }
 
         $allow = implode("\n", $config->allow());
@@ -151,7 +153,7 @@ final class AgentPage
                 '<label for="agent_id">Id of the profile on the central ThreadSafe</label><input id="agent_id" type="text" name="agent_id" value="' . $e(BackupWorkspace::PROFILE) . '">'
                 . '<span class="help">The backups are made under this id, so that the central ThreadSafe finds them: lower-case letters, digits, - and _.</span>'
                 . '<label for="agent_url">Address of this tool, as the central ThreadSafe reaches it</label><input id="agent_url" type="text" name="agent_url" value="' . $e($address) . '">'
-                . $settings . '<p><button name="action" value="agent-pair">Pair</button> <a class="button secondary" href="?step=summary">Back</a></p>',
+                . $settings . '<p><button name="action" value="agent-pair">Pair</button>' . $back('summary') . '</p>',
                 $csrf,
             );
         }
@@ -173,7 +175,7 @@ final class AgentPage
                 . '<p><button class="secondary" name="action" value="agent-pair">Pair again</button> <button class="secondary" name="action" value="agent-unpair">Forget the pairing</button></p>',
                 $csrf,
             )
-            . '<p><a class="button secondary" href="?step=summary">Back</a></p>';
+            . ($embedded ? '' : '<p><a class="button secondary" href="?step=summary">Back</a></p>');
 
         return $html;
     }
