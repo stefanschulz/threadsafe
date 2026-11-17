@@ -293,6 +293,62 @@ final class AgentPlugin
     // ------------------------------------------------------------------------------------------------- what the page shows
 
     /**
+     * Where the usual backup plugins keep their archives, below `wp-content` (a name may have a `*`). They are large and are a backup already: a backup of
+     * them each night would carry ten gigabytes of archives (docs/PHASE13.md 9.10, finding 1).
+     */
+    private const array OTHER_BACKUPS = ['backups', 'updraft', 'ai1wm-backups', 'backup-db', 'backupwordpress-*', 'uploads/backwpup-*', 'uploads/wpvividbackups', 'uploads/backupbuddy_backups'];
+
+    /**
+     * The directories of other backup plugins that this site has and that are not left out yet, as patterns for the list of what to leave out. Nothing is
+     * left out unasked: the page shows them and the person decides.
+     *
+     * @return list<string>
+     */
+    public function otherBackups(BackupWorkspace $workspace): array
+    {
+        $root = realpath($this->siteRoot);
+        if ($root === false) {
+            return [];
+        }
+        $left = $this->settings($workspace)['exclude'];
+        $found = [];
+        foreach (self::OTHER_BACKUPS as $candidate) {
+            foreach (glob(rtrim($this->contentDirectory, '/\\') . '/' . $candidate, GLOB_ONLYDIR) ?: [] as $directory) {
+                $relative = ProfileResolver::relativeInside($root, $directory);
+                $pattern = $relative === null ? null : '/' . strtr($relative, ['*' => '?', '?' => '?', '\\' => '?']) . '/';
+                if ($pattern !== null && !in_array($pattern, $left, true) && Filters::problem($pattern) === null) {
+                    $found[] = $pattern;
+                }
+            }
+        }
+        sort($found, SORT_STRING);
+
+        return array_values(array_unique($found));
+    }
+
+    /**
+     * Adds the directories that {@see otherBackups()} found to what is left out, and keeps everything else as it was saved.
+     *
+     * @return int how many were added
+     *
+     * @throws InvalidArgumentException nothing is saved yet (the key comes first)
+     * @throws ProfileException
+     * @throws RuntimeException
+     */
+    public function leaveOutOtherBackups(BackupWorkspace $workspace): int
+    {
+        $settings = $this->settings($workspace);
+        if ($settings['recipients'] === []) {
+            throw new InvalidArgumentException('Save the settings with a public key first.');
+        }
+        $found = $this->otherBackups($workspace);
+        $size = $settings['partSize'] === null ? '' : (int) ($settings['partSize'] / 1048576) . 'M';
+        $this->save($workspace, implode("\n", $settings['recipients']), implode("\n", [...$settings['exclude'], ...$found]), $size);
+
+        return count($found);
+    }
+
+    /**
      * The state of the workspace, for the page.
      *
      * @return array{directory: string, free: float|null, backups: int, newest: int|null}

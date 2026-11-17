@@ -199,6 +199,37 @@ final class AgentPluginTest extends TestCase
         $plugin->save($workspace, self::key(), '', '');
     }
 
+    public function testTheArchivesOfOtherBackupPluginsAreFoundAndLeftOutOnlyWhenAsked(): void
+    {
+        $workspace = $this->plugin()->activate($this->uploads);
+        self::assertSame([], $this->plugin()->otherBackups($workspace), 'a site without them has nothing to suggest');
+        foreach (['backups', 'updraft', 'backupwordpress-1a2b3c', 'uploads/backwpup-9f8e7d-backups', 'cache'] as $directory) {
+            mkdir($this->site . '/wp-content/' . $directory, 0777, true);
+        }
+
+        $found = $this->plugin()->otherBackups($workspace);
+
+        self::assertSame(['/wp-content/backups/', '/wp-content/backupwordpress-1a2b3c/', '/wp-content/updraft/', '/wp-content/uploads/backwpup-9f8e7d-backups/'], $found, 'cache is not a backup plugin');
+        self::assertSame([], $this->plugin()->settings($workspace)['exclude'], 'finding them leaves nothing out');
+        try {
+            $this->plugin()->leaveOutOtherBackups($workspace);
+            self::fail('without a saved key there is nothing to add them to');
+        } catch (InvalidArgumentException $e) {
+            self::assertStringContainsString('public key first', $e->getMessage());
+        }
+
+        $this->plugin()->save($workspace, self::key(), '/wp-content/cache/', '250M');
+        self::assertSame(4, $this->plugin()->leaveOutOtherBackups($workspace));
+
+        $settings = $this->plugin()->settings($workspace);
+        self::assertSame(['/wp-content/cache/', ...$found], $settings['exclude'], 'what was saved stays, the found ones are added');
+        self::assertSame(262144000, $settings['partSize'], 'the size of a part is kept');
+        $profile = $workspace->profiles()->load(BackupWorkspace::PROFILE);
+        self::assertContains('/wp-content/updraft/', $profile->excludePaths);
+        self::assertSame([], $this->plugin()->otherBackups($workspace), 'nothing is suggested twice');
+        self::assertSame(0, $this->plugin()->leaveOutOtherBackups($workspace));
+    }
+
     public function testTheStateCountsTheBackupsOnTheHost(): void
     {
         $workspace = $this->plugin()->activate($this->uploads);

@@ -218,6 +218,18 @@ final class RemoteProfileCommandTest extends TestCase
         self::assertStringContainsString('"subject": "Clock"', $good);
     }
 
+    public function testOnlyARunThatIsStillGoingOnIsReportedAsRunning(): void
+    {
+        $this->cli($this->add('--no-test'));
+        foreach (['finished' => false, 'failed' => false, 'running' => true] as $status => $running) {
+            $this->host->transport->intercept = static fn (string $action): ?AgentResponse => $action === 'status' ? new AgentResponse(200, body: '{"api":1,"profile":{"id":"shop","ready":true},"backups":1,"keepOnHost":1,"run":{"id":"r1","status":"' . $status . '"}}') : null;
+
+            [, $out] = $this->cli(['test', 'shop']);
+
+            self::assertSame($running, str_contains($out, 'a backup is running there now'), 'the latest run of the site is "' . $status . '"');
+        }
+    }
+
     public function testEditChangesTheNoteAndTheSecretAndKeepsTheRest(): void
     {
         $this->cli($this->add());

@@ -80,7 +80,7 @@ final class RemoteConnectionTest
         if (is_int($space['free'] ?? null) || is_float($space['free'] ?? null)) {
             $checks[] = Check::info('Site', 'free space of the volume of the site: ' . self::megabytes((int) $space['free']) . ' (the quota of the account may be smaller: a full disk ends the backup on the site with a message)');
         }
-        $checks[] = Check::info('Site', sprintf('%s backup(s) on the site; it keeps %s after one is safe here%s', is_int($status['backups'] ?? null) ? (string) $status['backups'] : '?', (string) ($status['keepOnHost'] ?? '?'), is_array($status['run'] ?? null) ? '; a backup is running there now' : ''));
+        $checks[] = Check::info('Site', sprintf('%s backup(s) on the site; it keeps %s after one is safe here%s', is_int($status['backups'] ?? null) ? (string) $status['backups'] : '?', (string) ($status['keepOnHost'] ?? '?'), is_array($status['run'] ?? null) && ($status['run']['status'] ?? null) === 'running' ? '; a backup is running there now' : ''));   // the latest run is reported whatever its status
 
         array_push($checks, ...$this->base->storage($profile, null), ...$this->base->environment(false));
 

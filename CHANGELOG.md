@@ -6,7 +6,18 @@ of the GitHub release (see "Making a release" in [AGENTS.md](AGENTS.md)).
 
 ## [Unreleased]
 
+## [1.1.0-rc.2] - 2026-11-17
+
+The second release candidate of 1.1.0: the **WordPress plugin** of the connector (phase 13, milestone 5) and the fixes of the review of rc.1. It is a pre-release for the field test with the plugin on a real host. The week of rc.1 with the tool set up by hand ran seven nights out of seven without a problem.
+
+### Added
+
+- **The WordPress plugin `threadsafe-connector`** (`threadsafe-connector-X.Y.Z.zip` in the release). Upload it in the admin area and activate it: the page under *Tools > ThreadSafe* takes your public key, what to leave out and the size of a part, pairs the site with a central ThreadSafe (the pairing string is shown once) and switches the agent on and off. The plugin carries no logic of its own: it holds `threadsafe-backup.php`, and a plugin update keeps the pairing and the backups, because they live in `wp-content/uploads/threadsafe-<random>/`, outside the plugin directory. Deactivating the plugin closes the agent; deleting it removes the pairing and leaves the backups unless the box says otherwise. It needs PHP 8.4 and says so instead of failing on an older PHP.
+- **The page of the plugin points out the archives of other backup plugins** (UpdraftPlus, All-in-One WP Migration, BackWPup, BackUpWordPress and others) that lie on the site, and leaves them out with one click. They are backups already and can be many gigabytes; nothing is left out unasked.
+
 ### Fixed
+
+- **`profile test` said "a backup is running there now"** for the latest run of a site with an agent, whatever its status. It says so only while the run is going on.
 
 - **A site that was taken over could fill the disk and the memory of the central ThreadSafe.** A part of a backup was written for as long as the site sent, whatever size it had listed, and an answer of the agent was collected in memory without an end. A transfer is now cut at the size that was listed, an answer at 4 MB, and a sidecar file above 4 MB is not fetched.
 - **Anybody who knew the address of an agent could stop the backups of the site.** Requests without a good signature were counted for all senders together, and while the count made the next attempt wait, the signed request of the central ThreadSafe was turned away too, which ended its run. The signature of every request is checked now (a secret of 256 random bits needs no protection against guessing); wrong ones are still logged in `agent.log`, and only the log is slowed down, so that a flood cannot fill the disk. The list of addresses that may ask closes the agent to everybody else and is still the advice.

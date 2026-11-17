@@ -193,6 +193,13 @@ function render_page(): void
                 $plugin->activate(uploads()['basedir']);
                 remember_failure(null);
                 $notice = 'Set up.';
+            } elseif ($action === 'connector-leave-out' && ($workspace = $plugin->workspace()) !== null) {
+                try {
+                    $count = $plugin->leaveOutOtherBackups($workspace);
+                    $notice = $count === 0 ? 'Nothing to add.' : 'Saved: ' . $count . ' folder(s) of other backup plugins are left out now.';
+                } catch (\InvalidArgumentException | \ThreadSafe\Profile\ProfileException | \RuntimeException $e) {
+                    $error = $e->getMessage();
+                }
             } elseif ($action === 'connector-save' && ($workspace = $plugin->workspace()) !== null) {
                 try {
                     $plugin->save($workspace, $post['recipients'] ?? '', $post['exclude'] ?? '', $post['part_size'] ?? '');
@@ -257,7 +264,21 @@ function main_body(AgentPlugin $plugin, BackupWorkspace $workspace, array $agent
         . '<dt>PHP</dt><dd>' . $e(PHP_VERSION) . ', <code>max_execution_time</code> ' . $e((string) ini_get('max_execution_time')) . ' s, <code>memory_limit</code> ' . $e((string) ini_get('memory_limit')) . '</dd>'
         . '</dl>' . probe_block($plugin, $workspace) . '</div>';
 
-    $html .= '<h2>What to back up</h2>' . form(
+    $others = $plugin->otherBackups($workspace);
+    $html .= '<h2>What to back up</h2>';
+    if ($others !== []) {
+        $list = '';
+        foreach ($others as $pattern) {
+            $list .= '<li><code>' . $e($pattern) . '</code></li>';
+        }
+        $html .= '<div class="tsc-box"><p><strong>Archives of other backup plugins found on this site.</strong> They are backups already and can be many gigabytes: '
+            . 'a backup of them every night makes yours large and slow. Nothing is left out unless you say so:</p><ul class="tsc-steps">' . $list . '</ul>'
+            . ($settings['recipients'] === []
+                ? '<p class="tsc-help">Save the settings below with a public key first; then you can leave these out with one click.</p>'
+                : form('<p><button name="action" value="connector-leave-out">Leave these out</button></p>'))
+            . '</div>';
+    }
+    $html .= form(
         '<label for="tsc-recipients">Public keys</label><textarea id="tsc-recipients" name="recipients" rows="3" spellcheck="false">' . $e(implode("\n", $settings['recipients'])) . '</textarea>'
         . '<span class="tsc-help">One per line, like <code>age1...</code> (58 characters after age1). Make a key pair with ThreadSafe (<code>threadsafe keys generate</code>, or the page Keys of its web interface) and paste only the public half here.</span>'
         . '<label for="tsc-exclude">Leave out besides the files of this plugin</label><textarea id="tsc-exclude" name="exclude" rows="4" spellcheck="false">' . $e(implode("\n", $settings['exclude'])) . '</textarea>'
