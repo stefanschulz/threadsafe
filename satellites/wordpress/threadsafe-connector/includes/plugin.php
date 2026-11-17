@@ -12,6 +12,7 @@ namespace ThreadSafeConnector;
 
 use ThreadSafe\Web\AgentPage;
 use ThreadSafe\Web\AgentPlugin;
+use ThreadSafe\Web\AgentSetup;
 use ThreadSafe\Web\BackupWorkspace;
 use ThreadSafe\Web\Request;
 
@@ -179,6 +180,7 @@ function render_page(): void
     $notice = '';
     $error = '';
     $agent = ['notice' => '', 'error' => '', 'pairing' => ''];
+    $touched = '';   // the section a form was just posted in stays open
     try {
         $plugin = agent_plugin();
         $post = posted();
@@ -193,14 +195,14 @@ function render_page(): void
                 $plugin->activate(uploads()['basedir']);
                 remember_failure(null);
                 $notice = 'Set up.';
-            } elseif ($action === 'connector-leave-out' && ($workspace = $plugin->workspace()) !== null) {
+            } elseif ($action === 'connector-leave-out' && ($touched = 'settings') !== '' && ($workspace = $plugin->workspace()) !== null) {
                 try {
                     $count = $plugin->leaveOutOtherBackups($workspace);
                     $notice = $count === 0 ? 'Nothing to add.' : 'Saved: ' . $count . ' folder(s) of other backup plugins are left out now.';
                 } catch (\InvalidArgumentException | \ThreadSafe\Profile\ProfileException | \RuntimeException $e) {
                     $error = $e->getMessage();
                 }
-            } elseif ($action === 'connector-save' && ($workspace = $plugin->workspace()) !== null) {
+            } elseif ($action === 'connector-save' && ($touched = 'settings') !== '' && ($workspace = $plugin->workspace()) !== null) {
                 try {
                     $plugin->save($workspace, $post['recipients'] ?? '', $post['exclude'] ?? '', $post['part_size'] ?? '');
                     update_option('threadsafe_connector_delete_archives', ($post['delete_archives'] ?? '') === '1' ? '1' : '0', false);
@@ -213,7 +215,7 @@ function render_page(): void
             }
         }
         $workspace = $plugin->workspace();
-        $body = $workspace === null ? setup_body($plugin) : main_body($plugin, $workspace, $agent);
+        $body = $workspace === null ? setup_body($plugin) : main_body($plugin, $workspace, $agent, $touched);
     } catch (\Throwable $e) {
         $body = '<p class="tsc-fail">' . esc_html($e->getMessage()) . '</p>';
     }
@@ -243,42 +245,57 @@ function setup_body(AgentPlugin $plugin): string
 /**
  * @param array{notice: string, error: string, pairing: string} $agent what a posted form of the agent did
  */
-function main_body(AgentPlugin $plugin, BackupWorkspace $workspace, array $agent): string
+/**
+ * A section that folds: the one that is next (or that a form was just posted in) is open, the ones that are done are closed and say in one line what they hold.
+ */
+function section(string $title, string $summary, bool $open, string $inner): string
+{
+    return '<details class="tsc-section"' . ($open ? ' open' : '') . '><summary><span class="tsc-title">' . esc_html($title) . '</span>'
+        . ($summary === '' ? '' : '<span class="tsc-sum">' . esc_html($summary) . '</span>') . '</summary><div class="tsc-inner">' . $inner . '</div></details>';
+}
+
+/**
+ * @param array{notice: string, error: string, pairing: string} $agent   what a posted form of the agent did
+ * @param string                                                $touched 'settings' if the form of the settings was just posted
+ */
+function main_body(AgentPlugin $plugin, BackupWorkspace $workspace, array $agent, string $touched = ''): string
 {
     $state = $plugin->state($workspace);
     $settings = $plugin->settings($workspace);
     $csrf = wp_create_nonce(NONCE);
     $e = static fn (string $text): string => esc_html($text);
+    $config = (new AgentSetup($workspace))->config();
+    $done = $settings['recipients'] !== [] && $config->isPaired() && $config->isOn();
 
     $html = '<p class="tsc-lead">Lets a central ThreadSafe back this site up by itself. The backups are <strong>encrypted</strong> on this site for your public key; this site never holds the secret key.</p>'
-        . '<ol class="tsc-steps"><li>Paste your <strong>public key</strong> below and press <strong>Save</strong>.</li>'
+        . ($done ? '' : '<ol class="tsc-steps"><li>Paste your <strong>public key</strong> below and press <strong>Save</strong>.</li>'
         . '<li>In the section <strong>The agent</strong>, press <strong>Pair</strong>. You get a <strong>pairing string</strong> once: copy it.</li>'
         . '<li>Give the string to your central ThreadSafe (<code>threadsafe profile add ... --pairing-file=FILE</code>).</li>'
-        . '<li>Come back here and press <strong>Switch it on</strong>. Until then the agent answers nobody.</li></ol>';
+        . '<li>Come back here and press <strong>Switch it on</strong>. Until then the agent answers nobody.</li></ol>');
 
-    $html .= '<h2>State</h2><div class="tsc-box"><dl class="tsc-state">'
+    $html .= section('State', $state['backups'] . ' backup(s) on this site', true, '<div class="tsc-box"><dl class="tsc-state">'
         . '<dt>Backups on this site</dt><dd>' . $state['backups'] . ($state['newest'] !== null ? ', the newest from ' . $e(gmdate('Y-m-d H:i', $state['newest'])) . ' UTC' : '') . '</dd>'
         . '<dt>Free space</dt><dd>' . $e(size($state['free'])) . ' <span class="tsc-help">(of the volume, not of the quota of your account)</span></dd>'
         . '<dt>Directory of the backups</dt><dd><code>' . $e($state['directory']) . '</code></dd>'
         . '<dt>Server time</dt><dd>' . $e(gmdate('Y-m-d H:i:s')) . ' UTC <span class="tsc-help">(the central ThreadSafe tells you how far its clock is from this one)</span></dd>'
         . '<dt>PHP</dt><dd>' . $e(PHP_VERSION) . ', <code>max_execution_time</code> ' . $e((string) ini_get('max_execution_time')) . ' s, <code>memory_limit</code> ' . $e((string) ini_get('memory_limit')) . '</dd>'
-        . '</dl>' . probe_block($plugin, $workspace) . '</div>';
+        . '</dl>' . probe_block($plugin, $workspace) . '</div>');
 
     $others = $plugin->otherBackups($workspace);
-    $html .= '<h2>What to back up</h2>';
+    $inner = '';
     if ($others !== []) {
         $list = '';
         foreach ($others as $pattern) {
             $list .= '<li><code>' . $e($pattern) . '</code></li>';
         }
-        $html .= '<div class="tsc-box"><p><strong>Archives of other backup plugins found on this site.</strong> They are backups already and can be many gigabytes: '
+        $inner .= '<div class="tsc-box"><p><strong>Archives of other backup plugins found on this site.</strong> They are backups already and can be many gigabytes: '
             . 'a backup of them every night makes yours large and slow. Nothing is left out unless you say so:</p><ul class="tsc-steps">' . $list . '</ul>'
             . ($settings['recipients'] === []
                 ? '<p class="tsc-help">Save the settings below with a public key first; then you can leave these out with one click.</p>'
                 : form('<p><button name="action" value="connector-leave-out">Leave these out</button></p>'))
             . '</div>';
     }
-    $html .= form(
+    $inner .= form(
         '<label for="tsc-recipients">Public keys</label><textarea id="tsc-recipients" name="recipients" rows="3" spellcheck="false">' . $e(implode("\n", $settings['recipients'])) . '</textarea>'
         . '<span class="tsc-help">One per line, like <code>age1...</code> (58 characters after age1). Make a key pair with ThreadSafe (<code>threadsafe keys generate</code>, or the page Keys of its web interface) and paste only the public half here.</span>'
         . '<label for="tsc-exclude">Leave out besides the files of this plugin</label><textarea id="tsc-exclude" name="exclude" rows="4" spellcheck="false">' . $e(implode("\n", $settings['exclude'])) . '</textarea>'
@@ -290,7 +307,13 @@ function main_body(AgentPlugin $plugin, BackupWorkspace $workspace, array $agent
         . '<p><button name="action" value="connector-save">Save</button></p>',
     );
 
-    $html .= '<h2>The agent</h2>' . (new AgentPage($workspace))->body($csrf, plugins_url('agent.php', THREADSAFE_CONNECTOR_FILE), $agent, true);
+    $keys = count($settings['recipients']);
+    $summary = $keys === 0 ? 'Nothing saved yet' : $keys . ' public key(s), ' . count($settings['exclude']) . ' pattern(s) left out, part size ' . ($settings['partSize'] === null ? 'default' : (int) ($settings['partSize'] / 1048576) . ' MB');
+    $html .= section('What to back up', $summary . ($others !== [] ? ', other backup plugins found' : ''), $keys === 0 || $others !== [] || $touched === 'settings', $inner);
+
+    $agentSummary = !$config->isPaired() ? 'Not paired yet' : 'Paired with the profile ' . $config->profile() . ', the agent is ' . ($config->isOn() ? 'on' : 'off');
+    $agentOpen = !$config->isPaired() || !$config->isOn() || $agent['pairing'] !== '' || $agent['notice'] !== '' || $agent['error'] !== '';
+    $html .= section('The agent', $agentSummary, $agentOpen, (new AgentPage($workspace))->body($csrf, plugins_url('agent.php', THREADSAFE_CONNECTOR_FILE), $agent, true));
 
     return $html;
 }
@@ -318,7 +341,7 @@ function styles(): string
 {
     return '<style>'
         . '.tsc{--text:#14191f;--soft:#434e58;--panel:#fff;--panel2:#f6f7f8;--recess:#e5e8eb;--border:#cdd3d9;--strong:#7f8a95;--brass:#8a5a08;--fill:#e0a13d;--edge:#a8740f;--ok:#1a7339;--error:#b3382c;max-width:56rem;color:var(--text)}'
-        . '.tsc h2{margin:1.6rem 0 .6rem;font-size:1.15rem}.tsc h3{margin:1.4rem 0 .4rem}.tsc-steps{margin:.2rem 0 .6rem 1.2rem;color:var(--soft)}.tsc-steps li{margin:.25rem 0}.tsc-lead{color:var(--soft);font-size:1rem}'
+        . '.tsc h2{margin:1.6rem 0 .6rem;font-size:1.15rem}.tsc h3{margin:1.4rem 0 .4rem}.tsc-steps{margin:.2rem 0 .6rem 1.2rem;color:var(--soft)}.tsc-steps li{margin:.25rem 0}.tsc-section{background:var(--panel);border:1px solid var(--border);border-radius:6px;margin:.8rem 0}.tsc-section>summary{cursor:pointer;padding:.7rem 1rem;display:flex;flex-wrap:wrap;gap:.2rem 1rem;align-items:baseline;list-style:none}.tsc-section>summary::-webkit-details-marker{display:none}.tsc-section>summary::before{content:"\25B8";color:var(--soft)}.tsc-section[open]>summary::before{content:"\25BE"}.tsc-section>summary:focus-visible{outline:2px solid var(--brass);outline-offset:2px}.tsc-title{font-size:1.1rem;font-weight:600}.tsc-sum{color:var(--soft);font-size:.9rem}.tsc-inner{padding:0 1rem 1rem;border-top:1px solid var(--border)}.tsc-inner .tsc-box{margin-top:.8rem}.tsc-inner h3:first-child{margin-top:1rem}.tsc-lead{color:var(--soft);font-size:1rem}'
         . '.tsc-box,.tsc .box{background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:.9rem 1.1rem;margin:.6rem 0}'
         . '.tsc-state{display:grid;grid-template-columns:max-content 1fr;gap:.35rem 1.2rem;margin:0}.tsc-state dt{color:var(--soft)}.tsc-state dd{margin:0;overflow-wrap:anywhere}'
         . '.tsc-help,.tsc .help{display:block;color:var(--soft);font-size:.9rem;margin:.2rem 0 .8rem}'

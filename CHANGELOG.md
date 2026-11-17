@@ -15,6 +15,10 @@ The second release candidate of 1.1.0: the **WordPress plugin** of the connector
 - **The WordPress plugin `threadsafe-connector`** (`threadsafe-connector-X.Y.Z.zip` in the release). Upload it in the admin area and activate it: the page under *Tools > ThreadSafe* takes your public key, what to leave out and the size of a part, pairs the site with a central ThreadSafe (the pairing string is shown once) and switches the agent on and off. The plugin carries no logic of its own: it holds `threadsafe-backup.php`, and a plugin update keeps the pairing and the backups, because they live in `wp-content/uploads/threadsafe-<random>/`, outside the plugin directory. Deactivating the plugin closes the agent; deleting it removes the pairing and leaves the backups unless the box says otherwise. It needs PHP 8.4 and says so instead of failing on an older PHP.
 - **The page of the plugin points out the archives of other backup plugins** (UpdraftPlus, All-in-One WP Migration, BackWPup, BackUpWordPress and others) that lie on the site, and leaves them out with one click. They are backups already and can be many gigabytes; nothing is left out unasked.
 
+### Changed
+
+- **The page of the WordPress plugin folds.** State, What to back up and The agent are sections that open and close; the one that is next (or that a form was just posted in) is open, the ones that are done are closed and say in one line what they hold ("1 public key, 2 patterns left out", "Paired with the profile site, the agent is on"). The four steps are shown only until the agent is paired and on.
+
 ### Fixed
 
 - **`profile test` said "a backup is running there now"** for the latest run of a site with an agent, whatever its status. It says so only while the run is going on.
