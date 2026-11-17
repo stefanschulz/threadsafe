@@ -243,7 +243,11 @@ function main_body(AgentPlugin $plugin, BackupWorkspace $workspace, array $agent
     $csrf = wp_create_nonce(NONCE);
     $e = static fn (string $text): string => esc_html($text);
 
-    $html = '<p class="tsc-lead">Lets a central ThreadSafe back this site up by itself. The backups are <strong>encrypted</strong> on this site for your public key; this site never holds the secret key.</p>';
+    $html = '<p class="tsc-lead">Lets a central ThreadSafe back this site up by itself. The backups are <strong>encrypted</strong> on this site for your public key; this site never holds the secret key.</p>'
+        . '<ol class="tsc-steps"><li>Paste your <strong>public key</strong> below and press <strong>Save</strong>.</li>'
+        . '<li>In the section <strong>The agent</strong>, press <strong>Pair</strong>. You get a <strong>pairing string</strong> once: copy it.</li>'
+        . '<li>Give the string to your central ThreadSafe (<code>threadsafe profile add ... --pairing-file=FILE</code>).</li>'
+        . '<li>Come back here and press <strong>Switch it on</strong>. Until then the agent answers nobody.</li></ol>';
 
     $html .= '<h2>State</h2><div class="tsc-box"><dl class="tsc-state">'
         . '<dt>Backups on this site</dt><dd>' . $state['backups'] . ($state['newest'] !== null ? ', the newest from ' . $e(gmdate('Y-m-d H:i', $state['newest'])) . ' UTC' : '') . '</dd>'
@@ -293,7 +297,7 @@ function styles(): string
 {
     return '<style>'
         . '.tsc{--text:#14191f;--soft:#434e58;--panel:#fff;--panel2:#f6f7f8;--recess:#e5e8eb;--border:#cdd3d9;--strong:#7f8a95;--brass:#8a5a08;--fill:#e0a13d;--edge:#a8740f;--ok:#1a7339;--error:#b3382c;max-width:56rem;color:var(--text)}'
-        . '.tsc h2{margin:1.6rem 0 .6rem;font-size:1.15rem}.tsc h3{margin:1.4rem 0 .4rem}.tsc-lead{color:var(--soft);font-size:1rem}'
+        . '.tsc h2{margin:1.6rem 0 .6rem;font-size:1.15rem}.tsc h3{margin:1.4rem 0 .4rem}.tsc-steps{margin:.2rem 0 .6rem 1.2rem;color:var(--soft)}.tsc-steps li{margin:.25rem 0}.tsc-lead{color:var(--soft);font-size:1rem}'
         . '.tsc-box,.tsc .box{background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:.9rem 1.1rem;margin:.6rem 0}'
         . '.tsc-state{display:grid;grid-template-columns:max-content 1fr;gap:.35rem 1.2rem;margin:0}.tsc-state dt{color:var(--soft)}.tsc-state dd{margin:0;overflow-wrap:anywhere}'
         . '.tsc-help,.tsc .help{display:block;color:var(--soft);font-size:.9rem;margin:.2rem 0 .8rem}'

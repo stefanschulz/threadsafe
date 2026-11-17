@@ -137,6 +137,12 @@ final class AgentPage
         }
 
         if ($problem !== null) {
+            if ($embedded && !$this->workspace->profiles()->exists(BackupWorkspace::PROFILE)) {
+                // not an error: the person has not saved the settings above yet, and the pairing needs them
+                return $html . '<div class="box"><p><strong>Save the settings above first.</strong> The agent makes the backups that you set up there, so it needs at least one public key. '
+                    . 'Once they are saved, the form to pair this site with your central ThreadSafe appears here.</p></div>';
+            }
+
             return $html . '<p class="fail">' . $e($problem) . '</p>' . ($embedded ? '' : '<p><a class="button secondary" href="?step=options">Back to the options</a></p>');
         }
 
