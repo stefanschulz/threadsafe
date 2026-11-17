@@ -60,6 +60,7 @@ jobs:
             dist/release/threadsafe-install.php
             dist/release/threadsafe-restore.php
             dist/release/threadsafe-backup.php
+            dist/release/threadsafe-connector-*.zip
             dist/release/SHA256SUMS
             release-notes.md
           if-no-files-found: error
@@ -115,5 +116,6 @@ jobs:
             release/dist/release/threadsafe-install.php \
             release/dist/release/threadsafe-restore.php \
             release/dist/release/threadsafe-backup.php \
+            release/dist/release/threadsafe-connector-"$VERSION".zip \
             release/dist/release/SHA256SUMS \
             --repo "$GITHUB_REPOSITORY" --title "ThreadSafe $VERSION" --notes-file release/release-notes.md --verify-tag $PRE

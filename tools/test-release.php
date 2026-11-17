@@ -57,11 +57,12 @@ $remove = static function (string $path) use (&$remove): void {
 };
 $php = escapeshellarg(PHP_BINARY);
 $package = "threadsafe-$version.zip";
+$connector = "threadsafe-connector-$version.zip";
 
 echo "PHP " . PHP_VERSION . ", release files in $dir, version $version\n\n";
 
 // ---------------------------------------------------------------------------------------------------- the files and their checksums
-foreach ([$package, 'threadsafe-install.php', 'threadsafe-restore.php', 'threadsafe-backup.php', 'SHA256SUMS'] as $name) {
+foreach ([$package, 'threadsafe-install.php', 'threadsafe-restore.php', 'threadsafe-backup.php', $connector, 'SHA256SUMS'] as $name) {
     $check("$name is there", is_file("$dir/$name"));
 }
 if ($failures !== []) {
@@ -73,14 +74,14 @@ foreach (file("$dir/SHA256SUMS", FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) 
         $listed[$m[2]] = $m[1];
     }
 }
-foreach ([$package, 'threadsafe-install.php', 'threadsafe-restore.php', 'threadsafe-backup.php'] as $name) {
+foreach ([$package, 'threadsafe-install.php', 'threadsafe-restore.php', 'threadsafe-backup.php', $connector] as $name) {
     $check("SHA256SUMS lists $name with its checksum", ($listed[$name] ?? '') === hash_file('sha256', "$dir/$name"));
 }
 
 // ---------------------------------------------------------------------------------------------------- unzip opens the package and the installer
 $haveUnzip = $run('command -v unzip')[1] !== '';
 if ($haveUnzip) {
-    foreach ([$package, 'threadsafe-install.php'] as $name) {
+    foreach ([$package, 'threadsafe-install.php', $connector] as $name) {
         [$code, $out] = $run('unzip -tq ' . escapeshellarg("$dir/$name"));
         $check("unzip -t $name", $code === 0, trim($out));
     }
@@ -197,6 +198,34 @@ if ($archives !== [] && $haveUnzip) {
         $listing .= $run('unzip -Z1 ' . escapeshellarg($archive))[1];
     }
     $check('the archive holds the site and none of the tool', str_contains($listing, 'files/index.php') && !str_contains($listing, 'threadsafe-backup'), trim(substr($listing, 0, 200)));
+}
+
+// ---------------------------------------------------------------------------------------------------- threadsafe-connector-X.Y.Z.zip (the WordPress plugin)
+$plugin = "$work/plugin";
+mkdir($plugin, 0777, true);
+$opened = $haveUnzip && $run('unzip -q -o -d ' . escapeshellarg($plugin) . ' ' . escapeshellarg("$dir/$connector"))[0] === 0;
+$check("$connector unpacks with unzip", $opened);
+if ($opened) {
+    $names = array_filter(explode("\n", $run('unzip -Z1 ' . escapeshellarg("$dir/$connector"))[1]));
+    $base = "$plugin/threadsafe-connector";
+    $check('the plugin unpacks into one directory named threadsafe-connector', count(array_filter($names, static fn (string $n): bool => !str_starts_with($n, 'threadsafe-connector/'))) === 0);
+    foreach (['threadsafe-connector.php', 'agent.php', 'uninstall.php', 'includes/plugin.php', 'includes/boot.php', 'threadsafe-backup.php'] as $file) {
+        $check("the plugin holds $file", is_file("$base/$file"));
+    }
+    $header = (string) file_get_contents("$base/threadsafe-connector.php", false, null, 0, 600);
+    $check('the plugin carries the version in its header', preg_match('/^ \* Version:\s+' . preg_quote($version, '/') . '\s*$/m', $header) === 1, trim(substr($header, 0, 200)));
+    $check('the tool in the plugin is the tool of the release', is_file("$base/threadsafe-backup.php") && hash_file('sha256', "$base/threadsafe-backup.php") === hash_file('sha256', "$dir/threadsafe-backup.php"));
+    foreach (['threadsafe-connector.php', 'agent.php', 'uninstall.php', 'includes/plugin.php', 'includes/boot.php'] as $file) {
+        [$code, $out] = $run("$php -l " . escapeshellarg("$base/$file"));
+        $check("php -l $file", $code === 0, trim($out));
+    }
+    // the door, as a process: with no pointer it answers like a file that is not there
+    $content = "$plugin/wp-content";
+    mkdir("$content/plugins", 0777, true);
+    rename($base, "$content/plugins/threadsafe-connector");
+    $door = escapeshellarg('$_GET = ["api" => "status"]; require ' . var_export("$content/plugins/threadsafe-connector/agent.php", true) . ';');
+    [$code, $out] = $run("$php -r $door");
+    $check('the door of the plugin answers "Not found." while the plugin is not switched on', trim($out) === 'Not found.', trim($out));
 }
 
 $remove($work);

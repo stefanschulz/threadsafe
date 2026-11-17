@@ -41,6 +41,8 @@
 #      switches to the next one through the System page with a real health check, a version that cannot start is taken back, and what is not
 #      right (checksum, file, host, a backup running) is refused. It needs no stack of the other phases and leaves them alone.
 #
+#  9b. phase 4g: the WordPress plugin threadsafe-connector (group "connector", docs/PHASE13.md 9.12) on the same seeded WordPress 7: WP-CLI installs and activates the ZIP, its page pairs the agent, the central side makes a backup,
+#      the door is switched off by deactivating, an update keeps the pairing and the archives, an uninstall leaves the archives; the WordPress 6.0 service (PHP 8.1) is asked at the door.
 #  10. phase eight: WordPress (group "wordpress", the services wordpress7, wordpress6 and wordpress60, seeded by seed-wordpress.sh with WP-CLI before phase 4b, because the web
 #      interface backs up one of them there): the seeded sites are backed up
 #      through their profiles; the backups are restored by one command on another domain with another table prefix, by one command into a
@@ -102,6 +104,9 @@ log "Integration tests, phase 4f: the agent of the backup tool on WordPress 7 (A
 dc up -d wordpress7 >/dev/null
 wait_http "http://localhost:${WORDPRESS7_PORT:-8197}/" "localhost:${WORDPRESS7_PORT:-8197}" 120
 phpunit --group agent "$@"
+
+log "Integration tests, phase 4g: the WordPress plugin threadsafe-connector on WordPress 7 (Apache, 5 s / 64 MB): installed and activated with WP-CLI, set up and paired on its page, a backup through it, off and on, an update, an uninstall, and a door on PHP 8.1"
+phpunit --group connector "$@"
 
 log "Integration tests, phase 5: disaster recovery"
 phpunit --group disaster-prepare "$@"

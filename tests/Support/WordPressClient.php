@@ -45,6 +45,16 @@ final class WordPressClient
         return $this->send('GET', $this->path . $path, null);
     }
 
+    /**
+     * @param array<string, string> $fields
+     *
+     * @return array{status: int, headers: array<string, string>, body: string}
+     */
+    public function post(string $path, array $fields): array
+    {
+        return $this->send('POST', $this->path . $path, http_build_query($fields));
+    }
+
     /** @return array{status: int, headers: array<string, string>, body: string} */
     private function send(string $method, string $path, ?string $body): array
     {

@@ -20,6 +20,7 @@ declare(strict_types=1);
 
 use ThreadSafe\Archive\ZipReader;
 use ThreadSafe\Build\BackupBuilder;
+use ThreadSafe\Build\ConnectorBuilder;
 use ThreadSafe\Build\InstallBuilder;
 use ThreadSafe\Build\ReleaseBuilder;
 use ThreadSafe\Build\ReleaseManifest;
@@ -116,7 +117,11 @@ try {
     $backupPath = rtrim($output, '/') . '/threadsafe-backup.php';
     (new BackupBuilder($stage, $version))->build($backupPath);
 
-    $sums = ReleaseBuilder::checksums([ReleaseBuilder::packageName($version) => $zipPath, 'threadsafe-install.php' => $installPath, 'threadsafe-restore.php' => $restorePath, 'threadsafe-backup.php' => $backupPath]);
+    // the WordPress plugin: its files and this very backup tool, in a ZIP that WordPress unpacks into wp-content/plugins (docs/PHASE13.md 9.12)
+    $connectorPath = rtrim($output, '/') . '/' . ConnectorBuilder::packageName($version);
+    (new ConnectorBuilder($root))->write($connectorPath, $backupPath, $version, $epoch);
+
+    $sums = ReleaseBuilder::checksums([ReleaseBuilder::packageName($version) => $zipPath, 'threadsafe-install.php' => $installPath, 'threadsafe-restore.php' => $restorePath, 'threadsafe-backup.php' => $backupPath, ConnectorBuilder::packageName($version) => $connectorPath]);
     file_put_contents(rtrim($output, '/') . '/SHA256SUMS', $sums);
 } catch (RuntimeException $e) {
     fwrite(STDERR, 'error: ' . $e->getMessage() . "\n");
@@ -132,5 +137,6 @@ if ($options['keep']) {
     $remove($stage);
 }
 @chmod($zipPath, 0644);
+@chmod($connectorPath, 0644);
 printf("%s: %d files, %.2f MB; threadsafe-install.php: %.2f MB; threadsafe-restore.php: %d KB; threadsafe-backup.php: %d KB (built %s)\n", ReleaseBuilder::packageName($version), count($manifest->files) + 1, filesize($zipPath) / 1048576, filesize($installPath) / 1048576, filesize($restorePath) / 1024, filesize($backupPath) / 1024, gmdate('Y-m-d H:i:s', $epoch) . ' UTC');
 echo $sums;

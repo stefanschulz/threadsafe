@@ -122,7 +122,7 @@ final class AgentPage
 
         $html = '<p>The agent lets <strong>a central ThreadSafe</strong> start, watch and fetch backups of this site by itself, so that nobody has to click through this tool each time. '
             . 'It answers only requests that are signed with the secret of the pairing, and nobody else: to a stranger it looks like a file that is not there. '
-            . 'It makes <strong>encrypted</strong> backups of the site as you set it up on the earlier pages; this host never holds the secret key.</p>';
+            . 'It makes <strong>encrypted</strong> backups of the site as you set it up ' . ($embedded ? 'above' : 'on the earlier pages') . '; this host never holds the secret key.</p>';
         if ($result['error'] !== '') {
             $html .= '<p class="fail">' . $e($result['error']) . '</p>';
         }
