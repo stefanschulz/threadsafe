@@ -47,7 +47,7 @@ Three facts shape the design:
 
 **The attestation statement is not checked** (`attestation: none` asks the browser to leave it empty or "none"). Checking it would prove which device made the key, which a single administrator does not need; it would also need certificate chains and the FIDO metadata. The decision is written down so that nobody adds half of it later.
 
-**Login** (`navigator.credentials.get`, no `allowCredentials`: the passkey is *discoverable*, so the browser offers the keys of this site): a fresh challenge; the answer is checked: `clientDataJSON` (`webauthn.get`, challenge, origin), `rpIdHash`, *user present* and *user verified*, the credential id is one of ours, the user handle (if the device sends one) is ours, and the **signature** over `authenticatorData || SHA-256(clientDataJSON)` with the stored key (`openssl_verify` for ES256 and RS256, `sodium_crypto_sign_verify_detached` for EdDSA). The sign counter: if both the stored and the new value are not zero, the new one must be larger; a smaller value is a cloned key, the login is refused and an audit event `login.passkey.clone` is written. Synced passkeys always say 0, and that is allowed.
+**Login** (`navigator.credentials.get`, no `allowCredentials`: the passkey is *discoverable*, so the browser offers the keys of this site): a fresh challenge; the answer is checked: `clientDataJSON` (`webauthn.get`, challenge, origin), `rpIdHash`, *user present* and *user verified*, the credential id is one of ours, the user handle (if the device sends one) is ours, and the **signature** over `authenticatorData || SHA-256(clientDataJSON)` with the stored key (`openssl_verify` for ES256 and RS256, `sodium_crypto_sign_verify_detached` for EdDSA). The sign counter follows WebAuthn level 3 (7.2, step 21): if the new or the stored value is not zero, the new one must be larger; otherwise (a smaller or equal value, or a fall back to 0 after a counter was running) the key may be cloned, the login is refused and an audit event `login.passkey.clone` is written. Both 0, as synced passkeys always say, is allowed.
 
 **The CBOR reader** is written for this one job and nothing else: definite lengths only, the types that WebAuthn uses (unsigned and negative integers, byte and text strings, arrays, maps; `true`, `false`, `null`), a depth limit, a limit on the size of the whole input (64 KiB), no duplicate map keys, and no byte left over after the last item. Any other input is an error with a message that names the position. It has no dependency (the project has none for this kind of job: Base32, Totp and the QR code of phase 11 were written the same way).
 
@@ -196,6 +196,24 @@ What this means for the design:
 
 Still open from (d): the assertion with Windows Hello (its counter), and a phone and a hardware key if the owner uses them. Neither can change the design; they are looked at in the field test (package 9). The file `webauthn-device.php` can be deleted from the host, and the two `threadsafe-spike` passkeys removed from the devices.
 
-### 8.2 The other work packages
+### 8.2 Work package 1, the CBOR reader and the COSE key (2026-11-18)
+
+`Auth\Cbor` (strict reader: integers as far as PHP holds them, strings, arrays, maps, false, true, null; no indefinite lengths, tags, floats, undefined; no map key twice, and a text key that PHP turns into a number counts as the same key; 64 KiB, depth 8, 4096 items; a length that claims more than the input holds is refused before anything is allocated), `Auth\CoseKey` (ES256, EdDSA, RS256 from 2048 bits; keeps the key's bytes; `verify()` returns false for any signature that is wrong, short or odd; OpenSSL refuses a point off the curve), `Auth\PasskeyException`. Tests: the examples of RFC 8949, every refusal, 3000 damaged inputs, and the answers of Chrome in `tests/fixtures/webauthn/chrome-virtual.json`. The full unit suite and PHPStan were green after it (4273 tests).
+
+### 8.3 Work package 2, the checks (2026-11-18)
+
+`Auth\Base64Url` (strict: no padding, no stray bits), `Auth\AuthenticatorData` (flags, counter, the data of a new credential, extensions; nothing may be left over), `Auth\ClientData` (read as JSON; unknown members are ignored, never compared with a template), `Auth\PasskeyCredential` (public data of a registered passkey: id, key, counter, the flags for a synced key, AAGUID, transports), `Auth\Passkeys` (the relying party: the options for both ceremonies, `verifyRegistration()`, `verifyAssertion()`; it keeps no state), `Auth\PasskeyClonedException` (a counter that does not go up). The software device for the tests is `tests/Support/SoftwareAuthenticator.php`; it builds answers and can spoil each one in one place.
+
+What differs from the plan or is worth knowing:
+1. **The counter rule is the specification's** (3.2 is corrected above): a counter that falls back to 0 after it was running is also a clone, not only a smaller non-zero value.
+2. **The attestation object is read for its shape only** (a text `fmt`, a map `attStmt`, the bytes `authData`) and any `fmt` is accepted, because a statement that is not checked can neither help nor hurt; the browser is asked for "none" and sends it.
+3. **A device that changes its eligibility for sync** between registration and login (the flag BE) is refused; the state of the backup (BS) may change and is stored with the new counter.
+4. **The user handle is checked when the device sends it**; a device that leaves it out is found by the credential id alone.
+5. **The transports are a hint**: only the six names of the specification are kept, each once.
+6. A flake in the tests was found and fixed on the way: OpenSSL gives the coordinates of a key without the leading zero in about 1 of 128 keys, and the test device must pad them to 32 bytes (the product code reads what a device sends, which has them padded).
+
+Tests: 84 for the checks (every refusal of 3.2 has one, three algorithms, a synced device, the extra member of the client data, a counter of 0, a clone, the answers of the real browser for all three algorithms) and the small readers; `composer stan` is clean. Not done yet: the store and the command line (package 3), and everything that talks to a browser (packages 4 and 5).
+
+### 8.4 The other work packages
 
 Not started.
