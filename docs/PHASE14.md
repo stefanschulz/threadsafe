@@ -227,6 +227,22 @@ What differs from the plan or is worth knowing:
 
 Tests: `PasskeyStoreTest` (what is stored and read back, privacy of the file, the host name and handle that stay, the limit, the names, a login's counter, rename and remove, a damaged file never reads as "no passkeys", a key that does not parse, two stores writing in turn) and four tests of `AdminCommandTest`. Lint and PHPStan are clean.
 
-### 8.5 The other work packages
+### 8.5 Work package 4, the page *Security* (2026-11-18)
+
+`Admin\PasskeyHost` (the host name and origin of the request, with the reason when passkeys cannot be bound there), `Admin\SecurityController` (four routes: `POST /security/passkey/options`, `/register`, `/rename`, `/remove`; the section *Passkeys* on the page), `Admin\Services::$passkeys`, the script in `public/app.js`, three small rules in `public/app.css` (`.needs-js`, `.no-js-only`).
+
+How it works: the form asks for a name and the password again; the script posts them to `passkey/options` (the password is checked in the throttle of the login; the challenge, the user handle and the name wait in the session for 5 minutes and are used once), lets the browser make the passkey with the options, and posts the answer as JSON to `passkey/register` (the token of the session in the header, as the tick loop does). A good answer is stored, the other sessions end, the audit gets `passkey.added`; a bad one gets `passkey.register.failed` with the name of the failed check and no data of the answer, and the person sees one general text. Without JavaScript the form is hidden and the page says so (a form that posted the password in the address would be worse than none).
+
+What differs from the plan or is worth knowing:
+1. **Where passkeys are offered** (3.1, made concrete): the host name that the browser asked for must be a name (not an IP address, not IPv6), and the page must be `https` or `localhost`/`*.localhost`; the scheme comes from `$request->https` and the port from the `Host` header, **never from `X-Forwarded-*`**. Otherwise the page says why and offers no form. The setting `web.passkeyOrigin` for a proxy that ends TLS is work package 6.
+2. **The host name is fixed by the first passkey**: another name shows the host that the passkeys are bound to and offers no form (and `options` answers 409).
+3. **The field names of the form are `passkey_name` and `passkey_password`**: the first version used `password`, which made a second `id="f-password"` next to the form of the second factor; the audit of the page found it.
+4. **A damaged file of the passkeys** shows its message and the way back on the page and nothing else changes: the rest of the interface and the password login work.
+5. **What the page promises is ahead of the program**: it says that a passkey logs in, which package 5 makes true. The branch is not released; the wording stays.
+6. **`requireTwoFactor`** does not yet count a passkey and does not yet let the routes of the passkeys through while a second factor is required but missing (work package 6).
+
+Proof: `SecurityPasskeysTest` (29 tests with the software device: the form only where it can work, the password asked again and throttled, the challenge used once and valid 5 minutes, every check of 3.2 refused with a general answer and an audit line, three algorithms, the host name that stays, ten at most, rename and remove with the password, the other logins ended, the token of the session needed, a damaged file) and `tools/spikes/passkey-page.mjs`, **a first cut of the proof of package 7**: a real Chrome with a virtual authenticator logs in to the real page (PHP's built-in server on `localhost`), adds a passkey through the script of `app.js`, sees it listed, is refused a wrong password and a second registration of the same device, and runs `tools/a11y-audit.js` on the page in both schemes (no contrast or structure problem; 48 texts). Lint and PHPStan are clean.
+
+### 8.6 The other work packages
 
 Not started.

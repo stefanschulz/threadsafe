@@ -105,6 +105,9 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
 
 .js-only { display: none !important; }
 html.js .js-only { display: flex !important; }
+.needs-js { display: none; }
+html.js .needs-js { display: block; }
+html.js .no-js-only { display: none; }
 .icon { flex: none; width: 1.25rem; height: 1.25rem; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 
 /* the page: the menu on the left, the content beside it */

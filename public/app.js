@@ -302,6 +302,81 @@
     });
   });
 
+  // Passkeys (docs/PHASE14.md 3.2): <form id="passkey-add"> asks the server for the options (the password again), lets the browser make
+  // the passkey with them and sends the answer back. The binary values travel as base64url. Nothing is kept in the page.
+  var passkeyForm = document.getElementById('passkey-add');
+  if (passkeyForm) {
+    var pkToken = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
+    var pkMessage = document.getElementById('passkey-message');
+    var pkSay = function (text, kind) {
+      pkMessage.textContent = text;
+      pkMessage.className = 'flash' + (kind ? ' ' + kind : '');
+      pkMessage.hidden = !text;
+    };
+    var toBytes = function (text) {
+      var b64 = text.replace(/-/g, '+').replace(/_/g, '/');
+      while (b64.length % 4) { b64 += '='; }
+      var raw = atob(b64);
+      var out = new Uint8Array(raw.length);
+      for (var i = 0; i < raw.length; i++) { out[i] = raw.charCodeAt(i); }
+      return out.buffer;
+    };
+    var toText = function (buffer) {
+      var bytes = new Uint8Array(buffer);
+      var raw = '';
+      for (var i = 0; i < bytes.length; i++) { raw += String.fromCharCode(bytes[i]); }
+      return btoa(raw).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    };
+    var pkJson = function (response) {
+      return response.json().catch(function () { return {}; }).then(function (data) { return { ok: response.ok, data: data }; });
+    };
+    passkeyForm.addEventListener('submit', function (event) {
+      event.preventDefault();
+      if (!window.PublicKeyCredential || !navigator.credentials || !navigator.credentials.create) {
+        pkSay('This browser cannot make passkeys.', 'error');
+        return;
+      }
+      var button = passkeyForm.querySelector('button[type="submit"]');
+      var password = passkeyForm.querySelector('input[name="passkey_password"]');
+      button.disabled = true;
+      pkSay('Asking the server ...', '');
+      fetch(passkeyForm.getAttribute('data-options-url'), {
+        method: 'POST', credentials: 'same-origin', headers: { 'X-CSRF-Token': pkToken, 'Accept': 'application/json' },
+        body: new URLSearchParams(new FormData(passkeyForm))
+      }).then(pkJson).then(function (result) {
+        if (!result.ok || !result.data.options) { throw { shown: result.data.error || 'The server refused.' }; }
+        var o = result.data.options;
+        o.challenge = toBytes(o.challenge);
+        o.user.id = toBytes(o.user.id);
+        (o.excludeCredentials || []).forEach(function (c) { c.id = toBytes(c.id); });
+        pkSay('Confirm on your device ...', '');
+        return navigator.credentials.create({ publicKey: o });
+      }).then(function (credential) {
+        var response = credential.response;
+        return fetch(passkeyForm.getAttribute('data-register-url'), {
+          method: 'POST', credentials: 'same-origin', headers: { 'X-CSRF-Token': pkToken, 'Accept': 'application/json', 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            clientDataJSON: toText(response.clientDataJSON),
+            attestationObject: toText(response.attestationObject),
+            transports: response.getTransports ? response.getTransports() : []
+          })
+        });
+      }).then(pkJson).then(function (result) {
+        if (!result.ok || !result.data.ok) { throw { shown: result.data.error || 'The server refused the passkey.' }; }
+        window.location.href = result.data.redirect;
+      }).catch(function (error) {
+        var text = error && error.shown ? error.shown
+          : error && error.name === 'NotAllowedError' ? 'The request was cancelled or ran out of time.'
+          : error && error.name === 'InvalidStateError' ? 'This device has a passkey for this site already.'
+          : error && error.name === 'NotSupportedError' ? 'This device cannot make a passkey of the kind that is asked for.'
+          : 'The browser could not make the passkey' + (error && error.name ? ' (' + error.name + ')' : '') + '.';
+        pkSay(text, 'error');
+        button.disabled = false;
+        password.value = '';
+      });
+    });
+  }
+
   // <form data-confirm="Delete this backup?"> asks first
   document.addEventListener('submit', function (event) {
     var form = event.target;

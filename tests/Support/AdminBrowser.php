@@ -33,6 +33,11 @@ final class AdminBrowser
 
     public string $csrf = '';
 
+    /** The host name that the browser asked for, and whether it used https (passkeys need a secure page and a name). */
+    public string $host = 'ts.example';
+
+    public bool $https = false;
+
     /**
      * @param (\Closure(): \ThreadSafe\Engine\Budget)|null $budgets the budget of a tick (default: the share of the request time limit, which is none in a test)
      */
@@ -92,10 +97,25 @@ final class AdminBrowser
     }
 
     /**
+     * A POST of a script: JSON in the body and the token of the session in the header, as the page sends it.
+     *
+     * @param array<string, mixed> $data
+     * @param array<string, string> $headers
+     */
+    public function postJson(string $route, array $data, array $headers = ['x-csrf-token' => '']): Response
+    {
+        if (($headers['x-csrf-token'] ?? null) === '') {
+            $headers['x-csrf-token'] = $this->csrf;
+        }
+
+        return $this->send('POST', $route, [], $headers + ['content-type' => 'application/json'], '127.0.0.1', json_encode($data, JSON_THROW_ON_ERROR));
+    }
+
+    /**
      * @param array<string, string> $fields
      * @param array<string, string> $headers
      */
-    public function send(string $method, string $route, array $fields = [], array $headers = [], string $address = '127.0.0.1'): Response
+    public function send(string $method, string $route, array $fields = [], array $headers = [], string $address = '127.0.0.1', string $body = ''): Response
     {
         // a route may carry a query string (`/?type=generic`): it goes into the query of the request, not into the path
         [$route, $queryString] = explode('?', $route, 2) + [1 => ''];
@@ -106,7 +126,7 @@ final class AdminBrowser
                 $query[(string) $name] = $value;
             }
         }
-        $request = new Request($method, $query, $fields, ($this->cookie === '' ? [] : ['threadsafe_session' => $this->cookie]) + $this->cookies, false, $address, $this->base . $route, $headers + ['host' => 'ts.example']);
+        $request = new Request($method, $query, $fields, ($this->cookie === '' ? [] : ['threadsafe_session' => $this->cookie]) + $this->cookies, $this->https, $address, $this->base . $route, $headers + ['host' => $this->host], [], '', $body);
         $response = (new Kernel($this->data, $this->base, fn (): int => $this->now, $this->budgets))->handle($request);
 
         foreach ($response->headers('Set-Cookie') as $line) {

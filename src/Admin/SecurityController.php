@@ -5,8 +5,15 @@ declare(strict_types=1);
 namespace ThreadSafe\Admin;
 
 use InvalidArgumentException;
+use ThreadSafe\Auth\Base64Url;
+use ThreadSafe\Auth\CoseKey;
+use ThreadSafe\Auth\PasskeyException;
+use ThreadSafe\Auth\PasskeyStore;
+use ThreadSafe\Auth\PasskeyStoreException;
+use ThreadSafe\Auth\Passkeys;
 use ThreadSafe\Auth\QrCode;
 use ThreadSafe\Auth\RecoveryCodes;
+use ThreadSafe\Auth\StoredPasskey;
 use ThreadSafe\Auth\Totp;
 use ThreadSafe\Auth\TwoFactorException;
 use ThreadSafe\Web\Html;
@@ -20,11 +27,18 @@ use ThreadSafe\Web\Throttle;
  * keeps nothing of them. A new secret waits in the session, not in the file, until a code from the app has proved it.
  *
  * Wrong passwords on this page count in the throttle of the login, wrong codes in the throttle of the codes.
+ *
+ * Passkeys (docs/PHASE14.md 3.4): the section *Passkeys* lists them and adds, renames and removes them. Adding is a ceremony in two requests
+ * that only the script of the page can do: `passkey/options` (the password again; makes a challenge and keeps it in the session) and
+ * `passkey/register` (the answer of the device, checked by {@see Passkeys}). The challenge is used once and lives five minutes.
  */
 final class SecurityController
 {
     /** How long a secret that is not confirmed yet waits in the session. */
     private const int SETUP_SECONDS = 900;
+
+    /** How long the challenge of a registration waits in the session. */
+    private const int CHALLENGE_SECONDS = 300;
 
     public function __construct(private readonly Services $services)
     {
@@ -151,6 +165,199 @@ final class SecurityController
         return Response::redirect($context->urls->to('/security'));
     }
 
+    // ------------------------------------------------------------------------------------------------- passkeys
+
+    /**
+     * Step 1 of adding a passkey: the password again, then the options for the browser. Answers JSON.
+     *
+     * @param array<string, string> $params
+     */
+    public function passkeyOptions(Context $context, array $params = []): Response
+    {
+        $user = $context->user() ?? '';
+        $store = $this->services->passkeys;
+        try {
+            $host = PasskeyHost::fromRequest($context->request);
+            $ids = array_map(static fn ($c): string => $c->id, $store->credentials());
+            $rpId = $store->rpId();
+            $handle = $store->userHandle();
+        } catch (PasskeyException $e) {
+            return Response::json(['error' => $e->getMessage()], 409);
+        }
+        if (CoseKey::supported() === []) {
+            return Response::json(['error' => 'This server\'s PHP has neither the openssl nor the sodium extension, so it cannot check a passkey.'], 409);
+        }
+        if (count($ids) >= PasskeyStore::MAX_PASSKEYS) {
+            return Response::json(['error' => 'There are ' . PasskeyStore::MAX_PASSKEYS . ' passkeys already. Remove one first.'], 409);
+        }
+        if ($rpId !== null && $rpId !== $host->rpId) {
+            return Response::json(['error' => "The passkeys that exist are bound to the host name $rpId. Open this page at that name to add one, or remove them (php bin/threadsafe admin passkey remove-all)."], 409);
+        }
+        $refused = $this->checkPassword($context, $user, 'passkey_password');
+        if ($refused !== null) {
+            return Response::json(['error' => $refused[0]], $refused[1]);
+        }
+
+        $challenge = Passkeys::newChallenge();
+        $context->session['passkey'] = ['register' => [
+            'challenge' => Base64Url::encode($challenge),
+            'handle' => Base64Url::encode($handle),
+            'name' => (string) $context->request->post('passkey_name'),
+            'since' => ($this->services->clock)(),
+        ]];
+
+        return Response::json(['options' => $host->relyingParty()->registrationOptions($challenge, $handle, $user, $ids)]);
+    }
+
+    /**
+     * Step 2: the answer of the device. The challenge is used up whatever happens. Answers JSON.
+     *
+     * @param array<string, string> $params
+     */
+    public function passkeyRegister(Context $context, array $params = []): Response
+    {
+        $user = $context->user() ?? '';
+        $pending = $context->session['passkey']['register'] ?? null;
+        unset($context->session['passkey']);
+        $now = ($this->services->clock)();
+        if (!is_array($pending) || !is_string($pending['challenge'] ?? null) || !is_string($pending['handle'] ?? null) || !is_string($pending['name'] ?? null)
+            || !is_int($pending['since'] ?? null) || $now - $pending['since'] > self::CHALLENGE_SECONDS) {
+            return Response::json(['error' => 'The request has run out of time. Start again.'], 409);
+        }
+        try {
+            $answer = json_decode($context->request->body, true, 8, JSON_THROW_ON_ERROR);
+        } catch (\JsonException) {
+            $answer = null;
+        }
+        if (!is_array($answer)) {
+            return Response::json(['error' => 'The answer of the browser could not be read.'], 400);
+        }
+
+        $store = $this->services->passkeys;
+        try {
+            $host = PasskeyHost::fromRequest($context->request);
+            $credential = $host->relyingParty()->verifyRegistration(Base64Url::decode($pending['challenge']), $answer, array_map(static fn ($c): string => $c->id, $store->credentials()));
+            $store->add($user, $host->rpId, Base64Url::decode($pending['handle']), $credential, $pending['name']);
+        } catch (PasskeyStoreException $e) {
+            return Response::json(['error' => $e->getMessage()], 409);
+        } catch (PasskeyException $e) {
+            // the reason names the check that failed and holds no data of the answer
+            $this->services->audit->record('passkey.register.failed', $user, $context->request->remoteAddress, ['reason' => $e->getMessage()]);
+
+            return Response::json(['error' => 'The passkey could not be registered.'], 400);
+        }
+        $ended = $context->sessionToken === null ? 0 : $this->services->sessions->destroyExcept($context->sessionToken);
+        $this->services->audit->record('passkey.added', $user, $context->request->remoteAddress, ['kind' => $credential->backupEligible ? 'synced' : 'device', 'sessionsEnded' => $ended]);
+        $context->flash('ok', 'The passkey is added. It logs in from now on, with no password and no code.');
+
+        return Response::json(['ok' => true, 'redirect' => $context->urls->to('/security')]);
+    }
+
+    /**
+     * @param array<string, string> $params
+     */
+    public function passkeyRename(Context $context, array $params = []): Response
+    {
+        try {
+            $found = $this->services->passkeys->rename(Base64Url::decode((string) $context->request->post('id')), (string) $context->request->post('name'));
+        } catch (PasskeyException $e) {
+            return $this->render($context, $e->getMessage(), 500);
+        }
+        $context->flash($found ? 'ok' : 'error', $found ? 'The passkey is renamed.' : 'There is no such passkey any more.');
+
+        return Response::redirect($context->urls->to('/security'));
+    }
+
+    /**
+     * @param array<string, string> $params
+     */
+    public function passkeyRemove(Context $context, array $params = []): Response
+    {
+        $user = $context->user() ?? '';
+        $refused = $this->checkPassword($context, $user, 'remove_password');
+        if ($refused !== null) {
+            return $this->render($context, $refused[0], $refused[1]);
+        }
+        try {
+            $found = $this->services->passkeys->remove(Base64Url::decode((string) $context->request->post('id')));
+        } catch (PasskeyException $e) {
+            return $this->render($context, $e->getMessage(), 500);
+        }
+        if ($found) {
+            $ended = $context->sessionToken === null ? 0 : $this->services->sessions->destroyExcept($context->sessionToken);
+            $this->services->audit->record('passkey.removed', $user, $context->request->remoteAddress, ['sessionsEnded' => $ended]);
+        }
+        $context->flash($found ? 'ok' : 'error', $found ? 'The passkey is removed. Every other login of this interface ends.' : 'There is no such passkey any more.');
+
+        return Response::redirect($context->urls->to('/security'));
+    }
+
+    private function passkeySection(Context $context): string
+    {
+        $head = '<h2>Passkeys</h2>';
+        $store = $this->services->passkeys;
+        try {
+            $passkeys = $store->all();
+            $rpId = $store->rpId();
+        } catch (PasskeyStoreException $e) {
+            return $head . '<p class="flash error" role="alert">' . Html::e($e->getMessage()) . ' The password login is not affected. <code>php bin/threadsafe admin passkey remove-all</code> removes the file.</p>';
+        }
+        $problem = '';
+        try {
+            $host = PasskeyHost::fromRequest($context->request);
+            if ($rpId !== null && $rpId !== $host->rpId) {
+                $problem = "The passkeys that exist are bound to the host name $rpId. Open this page at that name to use or add them.";
+            }
+        } catch (PasskeyException $e) {
+            $problem = $e->getMessage();
+        }
+        if ($problem === '' && CoseKey::supported() === []) {
+            $problem = 'This server\'s PHP has neither the openssl nor the sodium extension, so it cannot check a passkey.';
+        }
+
+        $body = $head . '<p>A <strong>passkey</strong> logs in with your fingerprint, face or screen lock instead of a password and a code, and it cannot be handed to a fake page. It is bound to the host name of this page'
+            . ($rpId !== null ? ' (<strong>' . Html::e($rpId) . '</strong>)' : '') . ': if the installation moves to another name, the passkeys stop working and the password login stays.</p>';
+        if ($passkeys !== []) {
+            $body .= '<div class="scroll"><table><thead><tr><th>Name</th><th>Kind</th><th>Made (UTC)</th><th>Last used (UTC)</th><th>Actions</th></tr></thead><tbody>';
+            foreach ($passkeys as $p) {
+                $body .= $this->passkeyRow($context, $p);
+            }
+            $body .= '</tbody></table></div>'
+                . (array_filter($passkeys, static fn (StoredPasskey $p): bool => !$p->credential->backupEligible) !== [] ? '<p class="hint">A key that is only on one device is lost with the device. The password login stays the way in.</p>' : '');
+        } else {
+            $body .= '<p>No passkey yet.</p>';
+        }
+        if ($problem !== '') {
+            return $body . '<p class="flash warning">Passkeys cannot be added here: ' . Html::e($problem) . '</p>';
+        }
+        if (count($passkeys) >= PasskeyStore::MAX_PASSKEYS) {
+            return $body . '<p class="hint">There are ' . PasskeyStore::MAX_PASSKEYS . ' passkeys, the most there can be. Remove one to add another.</p>';
+        }
+
+        return $body . '<h3>Add a passkey</h3><p class="no-js-only hint">Adding a passkey needs JavaScript.</p>'
+            . '<form id="passkey-add" class="needs-js" method="post" action="' . Html::e($context->urls->to('/security/passkey/options')) . '" data-options-url="' . Html::e($context->urls->to('/security/passkey/options'))
+            . '" data-register-url="' . Html::e($context->urls->to('/security/passkey/register')) . '">'
+            . View::field('passkey_name', 'A name for it (which device is it?)', 'text', '', ['autocomplete' => 'off', 'maxlength' => '64'], 'Optional. Shown in the list above.')
+            . View::field('passkey_password', 'Your password', 'password', '', ['autocomplete' => 'current-password', 'required' => 'required'], 'Asked again here on purpose: a stranger at an open session cannot add a passkey.')
+            . '<button type="submit">Add a passkey</button>'
+            . '<p id="passkey-message" class="flash" role="status" hidden></p></form>';
+    }
+
+    private function passkeyRow(Context $context, StoredPasskey $p): string
+    {
+        $id = Base64Url::encode($p->credential->id);
+        $short = Html::e(substr($id, 0, 8));
+        $rename = '<form method="post" class="inline" action="' . Html::e($context->urls->to('/security/passkey/rename')) . '"><input type="hidden" name="' . Csrf::FIELD . '" value="' . Html::e($context->csrf()) . '">'
+            . '<input type="hidden" name="id" value="' . Html::e($id) . '"><input type="text" name="name" value="' . Html::e($p->name) . '" maxlength="64" aria-label="New name of the passkey ' . Html::e($p->name) . '" autocomplete="off">'
+            . '<button type="submit" class="secondary">Rename</button></form>';
+        $remove = '<form method="post" class="inline" action="' . Html::e($context->urls->to('/security/passkey/remove')) . '"><input type="hidden" name="' . Csrf::FIELD . '" value="' . Html::e($context->csrf()) . '">'
+            . '<input type="hidden" name="id" value="' . Html::e($id) . '"><input type="password" name="remove_password" required autocomplete="current-password" placeholder="Password" aria-label="Your password, to remove the passkey ' . Html::e($p->name) . '">'
+            . '<button type="submit" class="danger">Remove</button></form>';
+
+        return '<tr><td>' . Html::e($p->name) . '<br><span class="hint">id ' . $short . '</span></td><td>' . Html::e($p->kind()) . '</td><td>' . Html::e($p->created) . '</td><td>'
+            . ($p->lastUsed === null ? 'not used yet' : Html::e($p->lastUsed)) . '</td><td>' . $rename . $remove . '</td></tr>';
+    }
+
     // ------------------------------------------------------------------------------------------------- the page
 
     private function render(Context $context, string $error = '', int $status = 200): Response
@@ -166,11 +373,11 @@ final class SecurityController
         }
 
         if ($on) {
-            $body = $heading . $this->statusBody($context, (string) $enrolled, $left);
+            $body = $heading . $this->statusBody($context, (string) $enrolled, $left) . $this->passkeySection($context);
         } elseif (($setup = $this->setup($context)) !== null) {
             $body = $heading . $this->setupBody($context, $setup['secret']);
         } else {
-            $body = $heading . $this->offBody($context);
+            $body = $heading . $this->offBody($context) . $this->passkeySection($context);
         }
 
         return View::page($context, 'Security', $body, '/security', $status);

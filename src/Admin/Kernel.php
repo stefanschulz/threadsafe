@@ -203,6 +203,10 @@ final class Kernel
         $router->add('POST', '/security/cancel', $security->cancel(...));
         $router->add('POST', '/security/recovery', $security->recovery(...));
         $router->add('POST', '/security/disable', $security->disable(...));
+        $router->add('POST', '/security/passkey/options', $security->passkeyOptions(...));
+        $router->add('POST', '/security/passkey/register', $security->passkeyRegister(...));
+        $router->add('POST', '/security/passkey/rename', $security->passkeyRename(...));
+        $router->add('POST', '/security/passkey/remove', $security->passkeyRemove(...));
         $about = new AboutController();
         $router->add('GET', '/about', $about->index(...));
         $router->add('GET', '/about/license', $about->license(...));
