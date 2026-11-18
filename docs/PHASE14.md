@@ -293,4 +293,4 @@ Proof: `tests/stack/passkeys.sh` is green on MariaDB 10.11, MySQL 8.4 and MariaD
 
 ### 8.10 The other work packages
 
-Work package 9, the field test by the owner with real devices (4.3: a phone that makes a passkey and uses it from a computer, Windows Hello or a security key, a synced passkey of a password manager, on the live system over https): **open**. Its report goes here.
+Work package 9, the field test by the owner with real devices (4.3: a phone that makes a passkey and uses it from a computer, Windows Hello or a security key, a synced passkey of a password manager, on the live system over https): **done in part, 2026-11-18**. The owner made a passkey with Windows Hello on the live system (https) and logged in with it; no findings. Not tried: a phone, a security key, a synced passkey of a password manager, the second factor with a passkey, removing a key, `web.requireTwoFactor`. They are known limits that bug reports fill in; the Docker proof (8.8) covers them with a virtual device.
