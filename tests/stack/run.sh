@@ -43,6 +43,7 @@
 #
 #  9b. phase 4g: the WordPress plugin threadsafe-connector (group "connector", docs/PHASE13.md 9.12) on the same seeded WordPress 7: WP-CLI installs and activates the ZIP, its page pairs the agent, the central side makes a backup,
 #      the door is switched off by deactivating, an update keeps the pairing and the archives, an uninstall leaves the archives; the WordPress 6.0 service (PHP 8.1) is asked at the door.
+#  9c. phase 4h: the passkeys (docs/PHASE14.md 4.2, tests/stack/passkeys.sh and passkey-browser.mjs): a real Chrome with a virtual authenticator, on the machine that runs this script, drives the web interface behind Apache (5 s / 64 MB) through its own pages: a passkey added and used, a second key, a passkey instead of the code of the second factor, a removed key refused, an IP address refused, the a11y audit of the pages; skipped if node or Chrome is missing.
 #  10. phase eight: WordPress (group "wordpress", the services wordpress7, wordpress6 and wordpress60, seeded by seed-wordpress.sh with WP-CLI before phase 4b, because the web
 #      interface backs up one of them there): the seeded sites are backed up
 #      through their profiles; the backups are restored by one command on another domain with another table prefix, by one command into a
@@ -107,6 +108,9 @@ phpunit --group agent "$@"
 
 log "Integration tests, phase 4g: the WordPress plugin threadsafe-connector on WordPress 7 (Apache, 5 s / 64 MB): installed and activated with WP-CLI, set up and paired on its page, a backup through it, off and on, an update, an uninstall, and a door on PHP 8.1"
 phpunit --group connector "$@"
+
+log "Integration tests, phase 4h: the passkeys in a real Chrome with a virtual authenticator against the web interface behind Apache (5 s / 64 MB); it needs node and Chrome on this machine and says so if it does not find them"
+"$STACK_DIR/passkeys.sh"
 
 log "Integration tests, phase 5: disaster recovery"
 phpunit --group disaster-prepare "$@"
