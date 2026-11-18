@@ -6,6 +6,10 @@ of the GitHub release (see "Making a release" in [AGENTS.md](AGENTS.md)).
 
 ## [Unreleased]
 
+## [1.2.0-rc.1] - 2026-11-18
+
+The first release candidate of 1.2.0: **passkeys for the web interface** (phase 14). It is a pre-release for the field test with real devices (a phone, Windows Hello, a security key, a password manager). It is built on the branch `phase-14-passkeys`, which also holds everything of 1.1.0-rc.2 (the WordPress plugin of the connector and the review fixes); 1.1.0 itself is not released yet.
+
 ### Added
 
 - **Passkeys for the web interface.** A passkey logs in with a fingerprint, a face or the screen lock of a device (a phone, Windows Hello, a Mac, a security key, a password manager) instead of a password and a code, and it cannot be handed to a fake page. It is a login of its own that counts as two factors; the password login stays, with the second factor if that is on, as the way back when a device is lost. *Security → Passkeys* adds (up to ten), renames and removes them and shows which are synced; the login page has the button **Log in with a passkey**, and the page of the code offers a passkey in place of the code. Keys of the kinds ES256, EdDSA and RS256 are checked in plain PHP (`openssl`, `sodium`), with no library. Passkeys need https (or `localhost`) and a host name, are bound to the host name of the first one, and for an installation behind a proxy that ends https the setting `web.passkeyOrigin` gives the address. `web.requireTwoFactor` counts a passkey login (a password alone does not count). `php bin/threadsafe admin passkey [list | remove NAME | remove-all]` is the way back, the System page has a row for them, and the file `data/passkeys.json` holds public keys only. A failed answer waits for nothing and counts nowhere, so that nobody can shut the door for the owner; it is in the audit log. See `docs/WEB.md` "Passkeys" and `docs/PHASE14.md`.
