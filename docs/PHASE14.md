@@ -23,7 +23,7 @@ Today the web interface logs in with one administrator's password and, if switch
 2. `Auth\Passkeys` (the relying party: makes the options, verifies a registration and an assertion), `Auth\PasskeyStore` (`data/passkeys.json`: its own file, locked read-and-write, like `two-factor.json`).
 3. The login in the web interface: `POST /login/passkey/options` and `POST /login/passkey` in `AuthController`; the same pending-session rules as the second factor; a throttle of its own.
 4. The page *Security*: a section **Passkeys** with the list (name, kind, made, last used), *Add a passkey*, *Rename*, *Remove*; the password again before adding or removing (as for TOTP). `SecurityController` and `public/app.js` (the browser side: `navigator.credentials.create` and `.get`, base64url, an error text for each way it fails).
-5. `admin passkey --list | --remove=ID | --remove-all` (the way back, 3.6) in `Cli\AdminCommand`.
+5. `admin passkey [list | remove NAME | remove-all]` (the way back, 3.6) in `Cli\AdminCommand`.
 6. The System page: a row *Passkeys* (usable or not, and why not); the warning of `web.requireTwoFactor` also counts passkeys.
 7. Tests (section 4), the documentation ([WEB.md](WEB.md) "Security", [DESIGN.md](DESIGN.md) for the new elements), `CHANGELOG.md`, `AGENTS.md`.
 
@@ -75,8 +75,8 @@ The setting asks for a second factor of every login. A passkey login **satisfies
 A passkey is lost with a device. Therefore the **password login stays** with every setting, and a passkey never replaces it: a passkey-only mode is out of scope on purpose, because the way back from it (a recovery on the server) is what a customer's host makes hard. Losing every passkey costs the convenience, not the access.
 
 - The password (and the TOTP code or a recovery code, if TOTP is on) logs in as before.
-- `php bin/threadsafe admin passkey --list` shows the keys by name; `--remove=ID` and `--remove-all` delete them; deleting `data/passkeys.json` does the same. The key file holds public keys only: leaking it is no breach.
-- An installation that moves to another domain loses its passkeys (3.1): the page says so before the first registration and the update notes of a move should. The command above clears them; new ones are made at the new address.
+- `php bin/threadsafe admin passkey list` shows the keys by name; `remove NAME` (or the start of the id that `list` shows) and `remove-all` delete them; deleting `data/passkeys.json` does the same. The key file holds public keys only: leaking it is no breach.
+- An installation that moves to another domain loses its passkeys (3.1): the page says so before the first registration and the update notes of a move should. `admin passkey remove-all` clears them; new ones are made at the new address.
 
 ### 3.7 Updating and rolling back
 
@@ -134,7 +134,7 @@ One commit per package: `Phase 14, work package N: ...`. Package 0 comes first a
 
 | Risk | Handling |
 |---|---|
-| **The domain changes** (a migration, a new host name) and the passkeys die | The `rpId` is shown on the page; the text before the first registration says it; the password stays; `admin passkey --remove-all` clears them |
+| **The domain changes** (a migration, a new host name) and the passkeys die | The `rpId` is shown on the page; the text before the first registration says it; the password stays; `admin passkey remove-all` clears them |
 | **A reverse proxy** changes the host or the scheme that PHP sees, so the origin check fails for everybody | The origin comes from the request, with `web.passkeyOrigin` to name it; no `X-Forwarded-*`; the failure text on the page names the origin that was expected and the one that arrived (public information in the browser's own request) |
 | A subtle error in the signature or the flag checks lets a forged answer in | Real vectors, a test for each refusal, a software authenticator **and** a real browser as oracles; the code is short and has no clever parts; a review by reading before the release (as 9.11 of phase 13) |
 | A homemade CBOR reader is a parser of untrusted input | Strict and small (3.2), limits on size and depth, no recursion without the limit, fuzzed in a unit test with random and mutated input (it must only ever throw its own exception) |
@@ -214,6 +214,19 @@ What differs from the plan or is worth knowing:
 
 Tests: 84 for the checks (every refusal of 3.2 has one, three algorithms, a synced device, the extra member of the client data, a counter of 0, a clone, the answers of the real browser for all three algorithms) and the small readers; `composer stan` is clean. Not done yet: the store and the command line (package 3), and everything that talks to a browser (packages 4 and 5).
 
-### 8.4 The other work packages
+### 8.4 Work package 3, the store and the command (2026-11-18)
+
+`Auth\PasskeyStore` (`data/passkeys.json`, mode 0600, written whole through a temporary file and a lock on `passkeys.json.lock`, like `two-factor.json`), `Auth\StoredPasskey` (a passkey with its name and dates; `kind()` says "synced" or "only on this device" from the flag BE), `Auth\PasskeyStoreException` (a file that exists and cannot be read; it is a `PasskeyException`, so the login can treat it as "no passkey login now" and never touches the password). `admin passkey` in `Cli\AdminCommand`.
+
+What differs from the plan or is worth knowing:
+1. **The command takes words, not options**: `admin passkey [list | remove NAME | remove-all]`, because `--remove` is already a flag of `cron-secret` and an option is global to the command. `remove` takes the name or the start of the id (at least 4 characters) that `list` shows, and refuses a name that fits more than one.
+2. **The file holds public data only** (ids, public keys, counters, flags, names, dates) plus the user handle that all passkeys were made with and the host name they are bound to; the first passkey fixes both, and `add()` refuses another host name or handle.
+3. **Ten at most** (decision 6), a duplicate id is refused, a name is cleaned (control characters, 64 characters, "Passkey N" if empty).
+4. **The last passkey removed takes the file with it**, so "none" and "never had one" look the same. `remove-all` also removes a file that cannot be read, as `two-factor --disable` does; `list` shows such a file as DAMAGED and says that the password login is not affected.
+5. The user handle is made at the first registration (`userHandle()` returns the stored one, or new random bytes that `add()` then stores).
+
+Tests: `PasskeyStoreTest` (what is stored and read back, privacy of the file, the host name and handle that stay, the limit, the names, a login's counter, rename and remove, a damaged file never reads as "no passkeys", a key that does not parse, two stores writing in turn) and four tests of `AdminCommandTest`. Lint and PHPStan are clean.
+
+### 8.5 The other work packages
 
 Not started.

@@ -8,11 +8,15 @@ use PHPUnit\Framework\TestCase;
 use ThreadSafe\Admin\AdminStore;
 use ThreadSafe\Admin\AuditLog;
 use ThreadSafe\Admin\Config;
+use ThreadSafe\Auth\Base64Url;
+use ThreadSafe\Auth\PasskeyStore;
+use ThreadSafe\Auth\Passkeys;
 use ThreadSafe\Auth\RecoveryCodes;
 use ThreadSafe\Auth\TwoFactorStore;
 use ThreadSafe\Cli\AdminCommand;
 use ThreadSafe\Cli\Application;
 use ThreadSafe\Cli\BufferedOutput;
+use ThreadSafe\Tests\Support\SoftwareAuthenticator;
 use ThreadSafe\Tests\Support\TempDirectory;
 
 /**
@@ -318,5 +322,98 @@ final class AdminCommandTest extends TestCase
             self::assertSame(2, $code, "$key $value: $err");
         }
         self::assertFileDoesNotExist($this->data . '/config.json');
+    }
+
+    /** @return list<string> the names of the passkeys that were stored */
+    private function storePasskeys(string ...$names): array
+    {
+        $store = new PasskeyStore($this->data . '/passkeys.json');
+        $handle = $store->userHandle();
+        $rp = new Passkeys('admin.example.test', 'https://admin.example.test');
+        $ids = [];
+        foreach ($names as $name) {
+            $challenge = Passkeys::newChallenge();
+            $device = new SoftwareAuthenticator();
+            $credential = $rp->verifyRegistration($challenge, $device->register($rp->registrationOptions($challenge, $handle, 'admin', [])), []);
+            $store->add('admin', 'admin.example.test', $handle, $credential, $name);
+            $ids[] = Base64Url::encode($credential->id);
+        }
+
+        return $ids;
+    }
+
+    public function testPasskeyListShowsTheNamesAndKindsAndWritesNothing(): void
+    {
+        [$code, $out] = $this->cli(['passkey']);
+        self::assertSame(0, $code);
+        self::assertStringContainsString('No passkeys. The login asks for the password.', $out);
+        self::assertFileDoesNotExist($this->data . '/passkeys.json');
+
+        $ids = $this->storePasskeys('Phone', 'Laptop');
+        [$code, $out] = $this->cli(['passkey', 'list']);
+
+        self::assertSame(0, $code);
+        self::assertStringContainsString('Passkeys of admin.example.test:', $out);
+        self::assertStringContainsString('Phone', $out);
+        self::assertStringContainsString('Laptop', $out);
+        self::assertStringContainsString(substr($ids[0], 0, 8), $out);
+        self::assertStringContainsString('only on this device', $out);
+        self::assertStringContainsString('not used yet', $out);
+    }
+
+    public function testPasskeyRemoveTakesTheNameOrTheStartOfTheIdAndWritesTheAuditLog(): void
+    {
+        $ids = $this->storePasskeys('Phone', 'Laptop', 'Key');
+
+        [$code, $out] = $this->cli(['passkey', 'remove', 'Phone']);
+        self::assertSame(0, $code);
+        self::assertStringContainsString('Removed the passkey "Phone".', $out);
+        self::assertSame('passkey.removed', (new AuditLog($this->data . '/audit.log'))->recent(1)[0]['event']);
+
+        [$code] = $this->cli(['passkey', 'remove', substr($ids[1], 0, 8)]);
+        self::assertSame(0, $code);
+        self::assertSame(['Key'], array_map(static fn ($p): string => $p->name, (new PasskeyStore($this->data . '/passkeys.json'))->all()));
+    }
+
+    public function testPasskeyRemoveRefusesWhatItCannotTellApart(): void
+    {
+        $this->storePasskeys('Phone', 'Phone 2');
+
+        self::assertSame(2, $this->cli(['passkey', 'remove', 'Nobody'])[0]);
+        self::assertSame(2, $this->cli(['passkey', 'remove', 'abc'])[0], 'a start shorter than 4 characters is not looked up');
+        self::assertSame(1, $this->cli(['passkey', 'remove'])[0], 'a name is needed');
+        self::assertSame(1, $this->cli(['passkey', 'delete', 'x'])[0]);
+        self::assertSame(1, $this->cli(['passkey', 'list', 'extra'])[0]);
+        self::assertCount(2, (new PasskeyStore($this->data . '/passkeys.json'))->all());
+    }
+
+    public function testPasskeyRemoveAllRemovesEveryOneAndTheFile(): void
+    {
+        $this->storePasskeys('Phone', 'Laptop');
+
+        [$code, $out] = $this->cli(['passkey', 'remove-all']);
+
+        self::assertSame(0, $code);
+        self::assertStringContainsString('Removed 2 passkeys. The login asks for the password.', $out);
+        self::assertFileDoesNotExist($this->data . '/passkeys.json');
+        self::assertSame('passkey.removed.all', (new AuditLog($this->data . '/audit.log'))->recent(1)[0]['event']);
+        self::assertStringContainsString('There were no passkeys.', $this->cli(['passkey', 'remove-all'])[1]);
+    }
+
+    public function testADamagedFileIsShownAsDamagedAndRemoveAllClearsIt(): void
+    {
+        mkdir($this->data, 0700, true);
+        file_put_contents($this->data . '/passkeys.json', '{ damaged');
+
+        [$code, $out] = $this->cli(['passkey']);
+        self::assertSame(0, $code);
+        self::assertStringContainsString('DAMAGED', $out);
+        self::assertStringContainsString('The password login is not affected.', $out);
+        self::assertSame(2, $this->cli(['passkey', 'remove', 'Phone'])[0], 'a damaged file is not worked on, it is removed');
+
+        [$code, $out] = $this->cli(['passkey', 'remove-all']);
+        self::assertSame(0, $code);
+        self::assertStringContainsString('could not be read and is removed', $out);
+        self::assertFileDoesNotExist($this->data . '/passkeys.json');
     }
 }

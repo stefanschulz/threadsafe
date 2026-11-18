@@ -8,6 +8,10 @@ use ThreadSafe\Admin\AdminStore;
 use ThreadSafe\Admin\AuditLog;
 use ThreadSafe\Admin\Config;
 use ThreadSafe\Admin\ConfigException;
+use ThreadSafe\Auth\Base64Url;
+use ThreadSafe\Auth\PasskeyStore;
+use ThreadSafe\Auth\PasskeyStoreException;
+use ThreadSafe\Auth\StoredPasskey;
 use ThreadSafe\Auth\TwoFactorException;
 use ThreadSafe\Auth\TwoFactorStore;
 use ThreadSafe\App\TriggerHelp;
@@ -44,7 +48,7 @@ final class AdminCommand implements Command
 
     public function usage(): string
     {
-        return 'admin password [--password-file=FILE] | enable | disable | status | set KEY VALUE | cron-secret [--show | --remove] | two-factor [status | --disable]';
+        return 'admin password [--password-file=FILE] | enable | disable | status | set KEY VALUE | cron-secret [--show | --remove] | two-factor [status | --disable] | passkey [list | remove NAME | remove-all]';
     }
 
     public function options(): array
@@ -64,6 +68,7 @@ final class AdminCommand implements Command
         $allowed = match ($action) {
             'set' => 3,
             'two-factor' => 2,
+            'passkey' => 3,
             default => 1,
         };
         if (count($input->arguments()) > $allowed) {
@@ -79,8 +84,9 @@ final class AdminCommand implements Command
                 'status' => $this->status($data, $input, $output),
                 'cron-secret' => $this->cronSecret($data, $input, $output),
                 'two-factor' => $this->twoFactor($data, $input, $output),
+                'passkey' => $this->passkey($data, $input, $output),
                 'set' => $this->set($data, $input->argument(1) ?? throw new UsageError('admin set needs a setting and a value, e.g. schedule.timezone Europe/Berlin ("admin status" lists the settings).'), $input->argument(2) ?? throw new UsageError('admin set needs a value after the setting (an empty one is written as "").'), $output),
-                default => throw new UsageError("Unknown action \"$action\" (password, enable, disable, status, set, cron-secret, two-factor)."),
+                default => throw new UsageError("Unknown action \"$action\" (password, enable, disable, status, set, cron-secret, two-factor, passkey)."),
             };
         } catch (ConfigException $e) {
             throw new GuardFailed($e->getMessage(), 0, $e);
@@ -208,6 +214,99 @@ final class AdminCommand implements Command
         $output->writeln($damaged ? 'The file of the second factor was damaged and is removed. The second factor is off.' : 'The second factor is off. The login asks for the password only.');
 
         return ExitCode::Ok;
+    }
+
+    /**
+     * `admin passkey [list]` shows the passkeys of the web login; `remove NAME` removes one (by its name, or by the start of its id as `list`
+     * shows it); `remove-all` removes every one and a file that cannot be read with them. This is the way back when a device is lost
+     * (docs/PHASE14.md 3.6): the password login is never touched. A passkey is made in the browser only, because it lives on the device.
+     */
+    private function passkey(string $data, Input $input, Output $output): ExitCode
+    {
+        $word = $input->argument(1) ?? 'list';
+        $store = new PasskeyStore($data . '/passkeys.json');
+        $audit = static function (string $event, string $target) use ($data): void {
+            StateDirectory::prepare($data);
+            (new AuditLog($data . '/audit.log', Config::load($data . '/config.json')->auditMaxBytes()))->record($event, AdminStore::DEFAULT_USER, $target, ['source' => 'command line']);
+        };
+
+        try {
+            switch ($word) {
+                case 'list':
+                    if ($input->argument(2) !== null) {
+                        throw new UsageError('Unexpected argument "' . $input->argument(2) . '".');
+                    }
+                    $passkeys = $store->all();
+                    if ($passkeys === []) {
+                        $output->writeln('No passkeys. The login asks for the password.');
+
+                        return ExitCode::Ok;
+                    }
+                    $output->writeln('Passkeys of ' . ($store->rpId() ?? '?') . ':');
+                    foreach ($passkeys as $p) {
+                        $output->writeln(sprintf(
+                            '  %-8s %-24s %-20s made %s, %s',
+                            substr(Base64Url::encode($p->credential->id), 0, 8),
+                            $p->name,
+                            $p->kind(),
+                            $p->created,
+                            $p->lastUsed === null ? 'not used yet' : 'used ' . $p->lastUsed,
+                        ));
+                    }
+
+                    return ExitCode::Ok;
+                case 'remove':
+                    $which = $input->argument(2) ?? throw new UsageError('passkey remove needs the name of the passkey, or the start of its id ("admin passkey list" shows both).');
+                    $found = $this->findPasskey($store->all(), $which);
+                    $store->remove($found->credential->id);
+                    $audit('passkey.removed', $found->name);
+                    $output->writeln('Removed the passkey "' . $found->name . '".');
+
+                    return ExitCode::Ok;
+                case 'remove-all':
+                    if ($input->argument(2) !== null) {
+                        throw new UsageError('Unexpected argument "' . $input->argument(2) . '".');
+                    }
+                    $had = is_file($data . '/passkeys.json');
+                    $count = $store->removeAll();
+                    if (!$had) {
+                        $output->writeln('There were no passkeys.');
+
+                        return ExitCode::Ok;
+                    }
+                    $audit('passkey.removed.all', (string) $count);
+                    $output->writeln($count > 0 ? "Removed $count passkey" . ($count === 1 ? '' : 's') . '. The login asks for the password.' : 'The file of the passkeys could not be read and is removed. The login asks for the password.');
+
+                    return ExitCode::Ok;
+                default:
+                    throw new UsageError('passkey takes "list", "remove NAME" or "remove-all" (a passkey is made on the Security page).');
+            }
+        } catch (PasskeyStoreException $e) {
+            if ($word === 'list') {
+                $output->writeln('Passkeys: DAMAGED (' . $e->getMessage() . ')');
+                $output->writeln('The password login is not affected. "admin passkey remove-all" removes the file.');
+
+                return ExitCode::Ok;
+            }
+
+            throw new GuardFailed($e->getMessage() . ' "admin passkey remove-all" removes the file.', 0, $e);
+        }
+    }
+
+    /**
+     * @param list<StoredPasskey> $passkeys
+     */
+    private function findPasskey(array $passkeys, string $which): StoredPasskey
+    {
+        $matches = array_values(array_filter($passkeys, static fn (StoredPasskey $p): bool => $p->name === $which));
+        if ($matches === [] && strlen($which) >= 4) {
+            $matches = array_values(array_filter($passkeys, static fn (StoredPasskey $p): bool => str_starts_with(Base64Url::encode($p->credential->id), $which)));
+        }
+        if (count($matches) !== 1) {
+            throw new GuardFailed($matches === [] ? "No passkey is called \"$which\" or has an id that starts so." : "More than one passkey matches \"$which\"; use more of its id.");
+        }
+
+        return $matches[0];
     }
 
     /**
