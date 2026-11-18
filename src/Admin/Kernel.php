@@ -292,7 +292,11 @@ final class Kernel
      */
     private function secondFactorRequired(Services $services, Context $context, string $method, string $route, bool $isScript): ?Response
     {
-        if (!$services->config->requireTwoFactor() || in_array($method . ' ' . $route, ['GET /security', 'POST /security/start', 'POST /security/confirm', 'POST /security/cancel', 'POST /logout'], true)) {
+        if (!$services->config->requireTwoFactor() || in_array($method . ' ' . $route, ['GET /security', 'POST /security/start', 'POST /security/confirm', 'POST /security/cancel', 'POST /security/passkey/options', 'POST /security/passkey/register', 'POST /logout'], true)) {
+            return null;
+        }
+        // a login with a passkey (or a passkey made in this session) is two factors in one step
+        if (($context->session['mfa'] ?? '') === 'passkey') {
             return null;
         }
         try {
@@ -302,7 +306,7 @@ final class Kernel
         } catch (TwoFactorException) {
             return null;
         }
-        $message = 'This installation requires a second factor for the login. Set it up here first.';
+        $message = 'This installation requires a second factor for the login. Set it up here first (an authenticator app or a passkey).';
         if ($isScript) {
             return Response::json(['status' => 'refused', 'error' => $message], 403);
         }

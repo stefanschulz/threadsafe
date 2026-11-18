@@ -287,7 +287,7 @@ final class AuthController
     private function passkeyHost(Context $context): ?PasskeyHost
     {
         try {
-            $host = PasskeyHost::fromRequest($context->request);
+            $host = $this->services->passkeyHost($context->request);
             $store = $this->services->passkeys;
 
             return $store->count() > 0 && $store->rpId() === $host->rpId && CoseKey::supported() !== [] ? $host : null;

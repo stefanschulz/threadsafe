@@ -177,7 +177,7 @@ final class SecurityController
         $user = $context->user() ?? '';
         $store = $this->services->passkeys;
         try {
-            $host = PasskeyHost::fromRequest($context->request);
+            $host = $this->services->passkeyHost($context->request);
             $ids = array_map(static fn ($c): string => $c->id, $store->credentials());
             $rpId = $store->rpId();
             $handle = $store->userHandle();
@@ -235,7 +235,7 @@ final class SecurityController
 
         $store = $this->services->passkeys;
         try {
-            $host = PasskeyHost::fromRequest($context->request);
+            $host = $this->services->passkeyHost($context->request);
             $credential = $host->relyingParty()->verifyRegistration(Base64Url::decode($pending['challenge']), $answer, array_map(static fn ($c): string => $c->id, $store->credentials()));
             $store->add($user, $host->rpId, Base64Url::decode($pending['handle']), $credential, $pending['name']);
         } catch (PasskeyStoreException $e) {
@@ -248,6 +248,8 @@ final class SecurityController
         }
         $ended = $context->sessionToken === null ? 0 : $this->services->sessions->destroyExcept($context->sessionToken);
         $this->services->audit->record('passkey.added', $user, $context->request->remoteAddress, ['kind' => $credential->backupEligible ? 'synced' : 'device', 'sessionsEnded' => $ended]);
+        // the registration was verified on the device and the password was asked again: for `web.requireTwoFactor` this session has its second factor
+        $context->session['mfa'] = 'passkey';
         $context->flash('ok', 'The passkey is added. It logs in from now on, with no password and no code.');
 
         return Response::json(['ok' => true, 'redirect' => $context->urls->to('/security')]);
@@ -304,7 +306,7 @@ final class SecurityController
         }
         $problem = '';
         try {
-            $host = PasskeyHost::fromRequest($context->request);
+            $host = $this->services->passkeyHost($context->request);
             if ($rpId !== null && $rpId !== $host->rpId) {
                 $problem = "The passkeys that exist are bound to the host name $rpId. Open this page at that name to use or add them.";
             }

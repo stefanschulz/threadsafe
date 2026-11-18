@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace ThreadSafe\Admin;
 
+use ThreadSafe\Auth\CoseKey;
+use ThreadSafe\Auth\PasskeyStoreException;
 use ThreadSafe\Auth\TwoFactorException;
 use ThreadSafe\Core\Environment;
 use ThreadSafe\Profile\Check;
@@ -37,6 +39,7 @@ final class SystemChecks
             ...$php,
             Environment::connection($https, $local),
             $this->secondFactor(),
+            $this->passkeys(),
             ...$process,
             ...Environment::installation(),
             ...Environment::dataDirectory($this->services->data),
@@ -44,7 +47,11 @@ final class SystemChecks
         ];
     }
 
-    /** The second factor of the login: on, off (a warning: the login is one password) or a file that cannot be read. */
+    /**
+     * The second factor of the login: on, off (a warning: the login is one password) or a file that cannot be read. A passkey login has two
+     * factors in one step, but the password still logs in alone until the second factor is on or `web.requireTwoFactor` stops it
+     * (docs/PHASE14.md 3.5).
+     */
     private function secondFactor(): Check
     {
         try {
@@ -54,8 +61,42 @@ final class SystemChecks
         } catch (TwoFactorException $e) {
             return Check::failure('Second factor', $e->getMessage() . ' The login is refused until it is repaired (Security page).');
         }
+        try {
+            $passkeys = $this->services->passkeys->count();
+        } catch (PasskeyStoreException) {
+            $passkeys = 0; // the row of the passkeys says what is wrong
+        }
+        if ($passkeys > 0 && $this->services->config->requireTwoFactor()) {
+            return Check::ok('Second factor', 'Required for every login: a passkey logs in with two factors, and a password alone reaches only the Security page.');
+        }
+        if ($passkeys > 0) {
+            return Check::warning('Second factor', 'A login with a passkey has two factors, but the password alone still logs in. Set up an authenticator app under Security, or switch on "Require the second factor for every login" under System.');
+        }
 
-        return Check::warning('Second factor', 'The login has only a password. Set up a second factor under Security: a code from an app on your phone then belongs to it.');
+        return Check::warning('Second factor', 'The login has only a password. Set up a second factor under Security: a code from an app on your phone, or a passkey, then belongs to it.');
+    }
+
+    /** The passkeys: how many, where they are bound, and why they cannot be used here if that is so. A file that cannot be read never blocks the password. */
+    private function passkeys(): Check
+    {
+        $store = $this->services->passkeys;
+        try {
+            $count = $store->count();
+            $rpId = $store->rpId();
+        } catch (PasskeyStoreException $e) {
+            return Check::warning('Passkeys', $e->getMessage() . ' The password login is not affected; "php bin/threadsafe admin passkey remove-all" removes the file.');
+        }
+        $algorithms = CoseKey::supported();
+        if ($algorithms === []) {
+            return Check::warning('Passkeys', 'This PHP has neither the openssl nor the sodium extension, so passkeys cannot be checked and are not offered. Ask your host to enable openssl.');
+        }
+        $missing = array_diff([CoseKey::ES256, CoseKey::EDDSA, CoseKey::RS256], $algorithms);
+        $note = $missing === [] ? '' : ' (the extension for ' . (in_array(CoseKey::EDDSA, $missing, true) ? 'sodium' : 'openssl') . ' is missing: keys of that kind cannot be used)';
+        if ($count === 0) {
+            return Check::info('Passkeys', 'None registered. A passkey logs in with a fingerprint, face or screen lock; it is added under Security' . $note . '.');
+        }
+
+        return Check::ok('Passkeys', $count . ($count === 1 ? ' passkey' : ' passkeys') . ' bound to ' . $rpId . '; they work only on this host name, so a move to another one needs new ones' . $note . '.');
     }
 
     /**

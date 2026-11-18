@@ -24,6 +24,7 @@ final class Config
         'web.prettyUrls' => ['bool', true, null, null],
         'web.sessionIdleMinutes' => ['int', 120, 5, 1440],
         'web.requireTwoFactor' => ['bool', false, null, null],
+        'web.passkeyOrigin' => ['origin', '', null, null],
         'download.warnAbove' => ['int', 524288000, 1048576, null],
         'download.accel' => ['enum', 'none', null, ['none', 'sendfile', 'nginx']],
         'download.accelPrefix' => ['prefix', '', null, null],
@@ -105,6 +106,12 @@ final class Config
     public function requireTwoFactor(): bool
     {
         return $this->get('web.requireTwoFactor') === true;
+    }
+
+    /** The origin that passkeys are bound to when the page cannot tell it (a proxy that ends TLS), or "" to take it from the request (docs/PHASE14.md 3.1). */
+    public function passkeyOrigin(): string
+    {
+        return (string) $this->get('web.passkeyOrigin');
     }
 
     public function sessionIdleSeconds(): int
@@ -247,6 +254,15 @@ final class Config
             // empty = the time zone of PHP
             if (!is_string($value) || ($value !== '' && !in_array($value, DateTimeZone::listIdentifiers(), true))) {
                 throw new ConfigException("\"$key\" must be empty or a time zone such as Europe/Berlin.");
+            }
+
+            return $value;
+        }
+        if ($type === 'origin') {
+            // empty = from the request; else scheme, host name and, unless it is the standard one, the port: no path, no user, no query
+            $value = is_string($value) ? strtolower($value) : $value;
+            if (!is_string($value) || ($value !== '' && preg_match('~^https?://[a-z0-9]([a-z0-9.-]*[a-z0-9])?(:[0-9]{1,5})?$~', $value) !== 1)) {
+                throw new ConfigException("\"$key\" must be empty or an origin such as https://admin.example.com (scheme, host name and port, no path).");
             }
 
             return $value;

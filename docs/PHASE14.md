@@ -24,7 +24,7 @@ Today the web interface logs in with one administrator's password and, if switch
 3. The login in the web interface: `POST /login/passkey/options` and `POST /login/passkey` in `AuthController`; the same pending-session rules as the second factor; a throttle of its own.
 4. The page *Security*: a section **Passkeys** with the list (name, kind, made, last used), *Add a passkey*, *Rename*, *Remove*; the password again before adding or removing (as for TOTP). `SecurityController` and `public/app.js` (the browser side: `navigator.credentials.create` and `.get`, base64url, an error text for each way it fails).
 5. `admin passkey [list | remove NAME | remove-all]` (the way back, 3.6) in `Cli\AdminCommand`.
-6. The System page: a row *Passkeys* (usable or not, and why not); the warning of `web.requireTwoFactor` also counts passkeys.
+6. The System page: a row *Passkeys* (how many, bound to which host, usable or not and why not); the row of the second factor knows about passkeys; the setting `web.passkeyOrigin` (also in the settings form and for `admin set`).
 7. Tests (section 4), the documentation ([WEB.md](WEB.md) "Security", [DESIGN.md](DESIGN.md) for the new elements), `CHANGELOG.md`, `AGENTS.md`.
 
 ## 3. Design
@@ -51,7 +51,7 @@ Three facts shape the design:
 
 **The CBOR reader** is written for this one job and nothing else: definite lengths only, the types that WebAuthn uses (unsigned and negative integers, byte and text strings, arrays, maps; `true`, `false`, `null`), a depth limit, a limit on the size of the whole input (64 KiB), no duplicate map keys, and no byte left over after the last item. Any other input is an error with a message that names the position. It has no dependency (the project has none for this kind of job: Base32, Totp and the QR code of phase 11 were written the same way).
 
-**PHP needs `ext-openssl`** for ES256 and RS256 (the two algorithms that every device offers; EdDSA comes from `ext-sodium`, which the age format already suggests). It is not in `composer.json` as required, because the program works without it: the passkey section says "this server's PHP has no `openssl` extension" and stays off, like encryption without `sodium`. Both are in the list of checks of `Core\Environment` so that `threadsafe doctor` and the System page name them.
+**PHP needs `ext-openssl`** for ES256 and RS256 (the two algorithms that every device offers; EdDSA comes from `ext-sodium`, which the age format already suggests). It is not in `composer.json` as required, because the program works without it: the passkey section says "this server's PHP has no `openssl` extension" and stays off, like encryption without `sodium`. The System page names them in its row *Passkeys* (the list of `Core\Environment` and `threadsafe doctor` are not changed: the extensions are optional and only the web interface uses them).
 
 ### 3.3 The login in two ways
 
@@ -68,7 +68,7 @@ A section **Passkeys** under the one for the second factor: the list (name given
 
 ### 3.5 `web.requireTwoFactor`
 
-The setting asks for a second factor of every login. A passkey login **satisfies** it (it is two factors in one step). If a passkey is registered and the setting is on, TOTP is not asked for when the password is typed and a passkey is used at the code step. The warning on the System page ("the second factor is not switched on") stays quiet when a passkey is registered.
+The setting asks for a second factor of every login. A passkey login **satisfies** it (two factors in one step), and so does a passkey that is made in the session while the setting is on (the registration was verified on the device and the password was asked again; the session then carries `mfa = passkey`). A **password alone does not**, however many passkeys exist: the requirement would be empty if registering a passkey let a password through. A login that does not meet it reaches the Security page (including the two routes that make a passkey), the way out and nothing else. At the code step a passkey may stand in for the code. The warning of the System page stays as honest as before: with a passkey and no authenticator app it says that the password alone still logs in, until the app is on or the requirement stops it.
 
 ### 3.6 The way back
 
@@ -258,6 +258,19 @@ What differs from the plan or is worth knowing:
 
 Proof: `PasskeyLoginTest` (the button where it can work, three algorithms, a new session and the counter written, single use, five minutes, eight spoiled answers refused with one general text and an audit line, another device's signature, a clone, twelve failures from strangers without the owner waiting, junk, no passkeys no challenge, a logged-in visitor, a damaged file, the walk of every route, the page of the code and the wait that survives asking for a challenge: 20 tests) and the browser run of `tools/spikes/passkey-page.mjs` (a real Chrome with a virtual authenticator logs out, finds the button, logs in with the passkey, lands on the dashboard, and the list shows the use; the audit of the login page is clean in both schemes). Lint and PHPStan are clean.
 
-### 8.7 The other work packages
+### 8.7 Work package 6, the requirement, the System page and the origin (2026-11-18)
+
+`Admin\Config` (the setting `web.passkeyOrigin`, type `origin`), `Admin\PasskeyHost::fromOrigin()` and `Services::passkeyHost()` (every place that asks "where are passkeys bound?" goes through it), `Admin\Kernel::secondFactorRequired()`, `Admin\SystemChecks` (the rows *Passkeys* and *Second factor*), `Admin\SystemController` (the field in the settings form).
+
+What differs from the plan or is worth knowing:
+1. **A password alone is not a second factor, even with passkeys** (3.5 is corrected above). The plan said that the System page warning stays quiet when a passkey is registered; it does not, because the password still logs in alone then. The row says so and names the two ways out (an authenticator app, or the requirement).
+2. **A passkey made in the session satisfies the requirement** for that session; its routes (`POST /security/passkey/options` and `/register`) are open to a login that waits for its second factor. Renaming and removing are not.
+3. **`web.passkeyOrigin`** is lower-cased, takes scheme, host name and an optional port and nothing else (no path, no user, no query), must be https (or `localhost`) and a name (not an IP address). With it set, the host name and the scheme do not come from the request at all, so a proxy that ends https works; the browser still enforces that the page really is at that origin. The setting is in the System settings and works with `admin set web.passkeyOrigin ...`.
+4. **The System page** gets a row *Passkeys*: none (a note), N bound to the host (ok), a file that cannot be read (a warning, never a failure, the password login is not affected), PHP without openssl or sodium (a warning, and names the extension whose kind of key cannot be used).
+5. `Core\Environment` and `threadsafe doctor` are **not** changed (the plan said so): the extensions are optional, and only the web interface uses them.
+
+Proof: `PasskeyRequirementTest` (24 tests: a password login reaches only Security, a passkey made in the session meets the requirement, rename and remove stay shut, passkeys that exist do not make a password enough, a passkey login meets it, the rows of the System page, a damaged file is a warning, the setting saved and refused, bad origins, a proxy that ends https for the form and the login button, `fromOrigin()` cases) and the browser run (the System page and its settings are clean in the audit in both schemes, the row is there). Lint and PHPStan are clean.
+
+### 8.8 The other work packages
 
 Not started.

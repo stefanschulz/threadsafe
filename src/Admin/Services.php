@@ -6,6 +6,7 @@ namespace ThreadSafe\Admin;
 
 use Closure;
 use ThreadSafe\Auth\PasskeyStore;
+use ThreadSafe\Web\Request;
 use ThreadSafe\Auth\TwoFactorStore;
 use ThreadSafe\Web\Sessions;
 
@@ -51,6 +52,16 @@ final readonly class Services
         $this->passkeys = new PasskeyStore($data . '/passkeys.json', $this->clock);
         $this->audit = new AuditLog($data . '/audit.log', $this->config->auditMaxBytes(), $this->clock);
         $this->sessions = new Sessions($data . '/sessions', $this->clock, $this->config->sessionIdleSeconds(), self::SESSION_LIFETIME);
+    }
+
+    /**
+     * Where passkeys are bound: the origin of the setting, or the one that the request shows.
+     *
+     * @throws \ThreadSafe\Auth\PasskeyException the page cannot be used for passkeys
+     */
+    public function passkeyHost(Request $request): PasskeyHost
+    {
+        return PasskeyHost::fromRequest($request, $this->config->passkeyOrigin());
     }
 
     public function configFile(): string

@@ -107,6 +107,16 @@ try {
   const dirty = ['light', 'dark'].flatMap((scheme) => ['text', 'ui', 'structure'].flatMap((k) => (audit[scheme][k].length ? [`${scheme} ${k}: ${JSON.stringify(audit[scheme][k])}`] : [])).concat(audit[scheme].scrollX ? [`${scheme} scrolls sideways`] : []));
   check('the audit finds no contrast or structure problem on the page', dirty.length === 0, dirty.join('; ') || `${audit.light.checked} texts checked`);
 
+  // the System page (the row of the passkeys) and its settings (the address for passkeys) in both schemes
+  for (const path of ['/system', '/system?tab=settings']) {
+    await go(path);
+    const systemAudit = await run(readFileSync(join(root, 'tools', 'a11y-audit.js'), 'utf8'));
+    const systemDirty = ['light', 'dark'].flatMap((scheme) => ['text', 'ui', 'structure'].flatMap((k) => (systemAudit[scheme][k].length ? [`${scheme} ${k}: ${JSON.stringify(systemAudit[scheme][k])}`] : [])).concat(systemAudit[scheme].scrollX ? [`${scheme} scrolls sideways`] : []));
+    check(`the audit finds no problem on ${path}`, systemDirty.length === 0, systemDirty.join('; '));
+  }
+  await go('/system');
+  check('the System page has the row of the passkeys', (await run(`document.body.innerText`)).includes('Passkeys'));
+
   if (args.shot) {
     const shot = await cdp('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true });
     writeFileSync(args.shot, Buffer.from(shot.data, 'base64'));
