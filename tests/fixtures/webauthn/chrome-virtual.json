@@ -1,0 +1,58 @@
+{
+ "note": "Real answers of the virtual authenticator of headless Chrome (tools/spikes/webauthn-virtual.mjs), one registration and one assertion per algorithm. The keys are throw-away keys of a virtual device. rpId localhost, origin http://localhost:64316.",
+ "rpId": "localhost",
+ "origin": "http://localhost:64316",
+ "cases": {
+  "es256": {
+   "registration": {
+    "challenge": "utVudeLpfByHz4WRf93ulwb2QXB2fZ4C2KjfghJYclo",
+    "userId": "eyOpoo_p9V4BCwUVYlen-j0F35IwNg14Z_FaY6HupM_XSqpu2SGbNAPFV7stVxv2hKdI7XAdWo8vPm1Pw7ZTiA",
+    "id": "e8ls-CglplHPk4vK1NdjWLQP8g_cI5IH1J0lr7Af1fA",
+    "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uY3JlYXRlIiwiY2hhbGxlbmdlIjoidXRWdWRlTHBmQnlIejRXUmY5M3Vsd2IyUVhCMmZaNEMyS2pmZ2hKWWNsbyIsIm9yaWdpbiI6Imh0dHA6Ly9sb2NhbGhvc3Q6NjQzMTYiLCJjcm9zc09yaWdpbiI6ZmFsc2V9",
+    "attestationObject": "o2NmbXRkbm9uZWdhdHRTdG10oGhhdXRoRGF0YVikSZYN5YgOjGh0NBcPZHZgW4_krrmihjLHmVzzuoMdl2NFAAAAAQECAwQFBgcIAQIDBAUGBwgAIHvJbPgoJaZRz5OLytTXY1i0D_IP3COSB9SdJa-wH9XwpQECAyYgASFYIKCdnj0eqQyQx69A2xLoHoLKx7rLEHE-9LCRnRcbUS72IlggtiCNfzNuWJyjmaJGYW2lf3BCugjqsrxPAplUUiS7rRM"
+   },
+   "assertion": {
+    "challenge": "ycr7-i1pXxKpi-yk1bI8dKBDplXWkPZ3sfK9-9zY-cU",
+    "id": "e8ls-CglplHPk4vK1NdjWLQP8g_cI5IH1J0lr7Af1fA",
+    "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoieWNyNy1pMXBYeEtwaS15azFiSThkS0JEcGxYV2tQWjNzZks5LTl6WS1jVSIsIm9yaWdpbiI6Imh0dHA6Ly9sb2NhbGhvc3Q6NjQzMTYiLCJjcm9zc09yaWdpbiI6ZmFsc2V9",
+    "authenticatorData": "SZYN5YgOjGh0NBcPZHZgW4_krrmihjLHmVzzuoMdl2MFAAAAAg",
+    "signature": "MEYCIQCrnksgmqGeuyfg8XwN0vkXrl00CYZDukubFekVB0RCWwIhAOJUd26NBMfOHRCZPfFxws41IAly8ZSjvxs3iez2fvr2",
+    "userHandle": "eyOpoo_p9V4BCwUVYlen-j0F35IwNg14Z_FaY6HupM_XSqpu2SGbNAPFV7stVxv2hKdI7XAdWo8vPm1Pw7ZTiA"
+   }
+  },
+  "eddsa": {
+   "registration": {
+    "challenge": "24xg6gpNYAS3vreZAMW2TQXsLPE12LuXMWjGhfKs5cs",
+    "userId": "hyxox8r1BY5ilq30Xj2QURbYLrTRhujgS7igzGEGcoM5Hxr9STMKqRDRoAno-KsYyp6-TSuiucJV_YpdJybpdg",
+    "id": "r575pR8OAgy8nOXOGXV-myj4keqfUqu1fLrZZQ8sBAs",
+    "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uY3JlYXRlIiwiY2hhbGxlbmdlIjoiMjR4ZzZncE5ZQVMzdnJlWkFNVzJUUVhzTFBFMTJMdVhNV2pHaGZLczVjcyIsIm9yaWdpbiI6Imh0dHA6Ly9sb2NhbGhvc3Q6NjQzMTYiLCJjcm9zc09yaWdpbiI6ZmFsc2UsIm90aGVyX2tleXNfY2FuX2JlX2FkZGVkX2hlcmUiOiJkbyBub3QgY29tcGFyZSBjbGllbnREYXRhSlNPTiBhZ2FpbnN0IGEgdGVtcGxhdGUuIFNlZSBodHRwczovL2dvby5nbC95YWJQZXgifQ",
+    "attestationObject": "o2NmbXRkbm9uZWdhdHRTdG10oGhhdXRoRGF0YViBSZYN5YgOjGh0NBcPZHZgW4_krrmihjLHmVzzuoMdl2NFAAAAAQECAwQFBgcIAQIDBAUGBwgAIK-e-aUfDgIMvJzlzhl1fpso-JHqn1KrtXy62WUPLAQLpAEBAycgBiFYIL2_UYAvI6nQuHS_IcKRDh_sAhM4Hd5MtzozETVy6FoH"
+   },
+   "assertion": {
+    "challenge": "dh7LCkzomLp1-TFf3n3nMWf_PYa57p26xbjaQcKqcVQ",
+    "id": "r575pR8OAgy8nOXOGXV-myj4keqfUqu1fLrZZQ8sBAs",
+    "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiZGg3TENrem9tTHAxLVRGZjNuM25NV2ZfUFlhNTdwMjZ4YmphUWNLcWNWUSIsIm9yaWdpbiI6Imh0dHA6Ly9sb2NhbGhvc3Q6NjQzMTYiLCJjcm9zc09yaWdpbiI6ZmFsc2V9",
+    "authenticatorData": "SZYN5YgOjGh0NBcPZHZgW4_krrmihjLHmVzzuoMdl2MFAAAAAg",
+    "signature": "2gl0hWHC_979eiqf0vlqe3falnMAs_LYC4jmSkvvJkyfJSiAM8SuRpUn-pBIjIYPTRqYuhX7FNr-B3ybPN7cDA",
+    "userHandle": "hyxox8r1BY5ilq30Xj2QURbYLrTRhujgS7igzGEGcoM5Hxr9STMKqRDRoAno-KsYyp6-TSuiucJV_YpdJybpdg"
+   }
+  },
+  "rs256": {
+   "registration": {
+    "challenge": "gAXo8xeylvbegCOahjl5ugD652W14b8KD8YGbFOTU90",
+    "userId": "HhhnOoKxEbbeOGlQosCEd8Ny_6Uo83ea8zWr5DcJuBU_n9DWpdA9WYJf4Oca-vn6Etuq1HF0R3a7AsjivnkfpA",
+    "id": "_e9yQyXJh1bSWCrG1Dgss2rwOY4-6rEUQjcL25vmY-s",
+    "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uY3JlYXRlIiwiY2hhbGxlbmdlIjoiZ0FYbzh4ZXlsdmJlZ0NPYWhqbDV1Z0Q2NTJXMTRiOEtEOFlHYkZPVFU5MCIsIm9yaWdpbiI6Imh0dHA6Ly9sb2NhbGhvc3Q6NjQzMTYiLCJjcm9zc09yaWdpbiI6ZmFsc2V9",
+    "attestationObject": "o2NmbXRkbm9uZWdhdHRTdG10oGhhdXRoRGF0YVkBZ0mWDeWIDoxodDQXD2R2YFuP5K65ooYyx5lc87qDHZdjRQAAAAEBAgMEBQYHCAECAwQFBgcIACD973JDJcmHVtJYKsbUOCyzavA5jj7qsRRCNwvbm-Zj66QBAwM5AQAgWQEAuxsP3xNux3wR2DRpLejhMBTeG4t5yswacOL24Y3CHg_AGT2ER_IrxGsTvSINenogm7bFTmEu2LTJOi_nP_r_5HQgnUEJUBIlMO29OxYTzG-EBQRw9XIvMRpozCUWX84mTPnlvqWGiWodSlpCDyg2YfbpuYh_nA5Ysk_YKJ5sNZ8B2tzt9MeZ8BhmfbRx8KjH3KWA1xxVpruy4yqgGmEboSoyPfdf2eQmO2Nqw83O0YyrsC5blaW_rcKO_brWJ_2kKKHfF1i47CLBz7FnTaEZ6DivBW3JnRscIiCbmi5wcJtYcTg5cP2GkHya9nDg1uyrQQRWWB9NLyrtRyD5oA7t9SFDAQAB"
+   },
+   "assertion": {
+    "challenge": "yZX8KiX5w0Y1x8Bo1aIyt-bDAVfkRzl7F8Naac-MjkU",
+    "id": "_e9yQyXJh1bSWCrG1Dgss2rwOY4-6rEUQjcL25vmY-s",
+    "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoieVpYOEtpWDV3MFkxeDhCbzFhSXl0LWJEQVZma1J6bDdGOE5hYWMtTWprVSIsIm9yaWdpbiI6Imh0dHA6Ly9sb2NhbGhvc3Q6NjQzMTYiLCJjcm9zc09yaWdpbiI6ZmFsc2V9",
+    "authenticatorData": "SZYN5YgOjGh0NBcPZHZgW4_krrmihjLHmVzzuoMdl2MFAAAAAg",
+    "signature": "Kz1GHTvRNfEGDODTfBiqNXzgLADYtInLGShNKciXdZrrwztPkDoXByUzwoR192hfJ3JkZrnkY4mEYssuUzzhO0M4CR6egDlC9ryq1vwAYU3gKTbE0kc8I6N3uMkL0nnTCq21V68COGwJ_LCr2y_D_5BdWw75QCVPEkwmDoJS5UcWklm0tJcwPVr_24Gw_ecdIHuk4IREl2eo94gzPO1G1Ga3up1zV10Tmec7bnuD2oV9Uv2v3qeaVkvyZDMmRbRzr-X0GKuG82odHxY_unNOIEHQvsq2z6HUoZBug5O6DGrBvHgw3dXh76_aLfk9EZaOFHVjvNGK421hUFDHhGODzw",
+    "userHandle": "HhhnOoKxEbbeOGlQosCEd8Ny_6Uo83ea8zWr5DcJuBU_n9DWpdA9WYJf4Oca-vn6Etuq1HF0R3a7AsjivnkfpA"
+   }
+  }
+ }
+}
