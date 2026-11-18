@@ -1,6 +1,6 @@
 # Phase 14 – passkeys for the web interface
 
-Status: **planned** (2026-11-18, asked for by the owner; nothing is built). The decisions for the owner are in section 7.2; the recommendations are marked. Phase 11 left passkeys out on purpose ([PHASE11.md](PHASE11.md) 7.2, decision 1: "TOTP first, passkeys as a package of their own"); this is that package. It is a new feature, so it belongs to the minor after 1.1.0 (**1.2.0**) and does not touch the release that the field test of phase 13 is preparing.
+Status: **planned, decisions settled, work started on the branch `phase-14-passkeys`** (2026-11-18, asked for by the owner). The decisions for the owner are in section 7.2; the recommendations are marked, and 7.2 says what was settled. Phase 11 left passkeys out on purpose ([PHASE11.md](PHASE11.md) 7.2, decision 1: "TOTP first, passkeys as a package of their own"); this is that package. It is a new feature, so it belongs to the minor after 1.1.0 (**1.2.0**); it is developed on its own branch and is merged only after 1.1.0 is out, so that it does not touch the release that the field test of phase 13 is preparing.
 
 ## 1. Goal and scope
 
@@ -152,8 +152,10 @@ One commit per package: `Phase 14, work package N: ...`. Package 0 comes first a
 5. **The host name.** *Recommended:* fixed at the first registration and shown (3.1), with `web.passkeyOrigin` for proxies; no automatic following of a changed host.
 6. **How many passkeys.** *Recommended:* up to **10**; the number is no secret and bounds the file.
 7. **Conditional UI** (the passkey in the autofill list of the user name field). *Recommended:* **leave it out**; the button is clear, and the autofill needs a user name field that this one-administrator login does not have.
-8. **Timing and version.** *Recommended:* after 1.1.0 is out and the week of phase 13 is done, as **1.2.0**; start with package 0, because its answers (real vectors, the virtual authenticator, the host's PHP) can change the rest. Not before.
+8. **Timing and version.** *Recommended:* after 1.1.0 is out and the week of phase 13 is done, as **1.2.0**; start with package 0. **The owner chose differently:** start at once and develop on a branch (`phase-14-passkeys`); the branch is merged into `main` after 1.1.0 is released (the release workflow builds from the tag, so a branch changes nothing there). Fixes for 1.1.0 stay on `main`; the branch takes them over by merging `main` into it now and then.
 9. **Recovery codes of the second factor.** *Recommended:* unchanged; they belong to TOTP. A passkey needs none, because the password is the way back.
+
+**Settled on 2026-11-18:** decisions 1 to 7 and 9 as recommended (a passkey is a login of its own that counts as two factors and may stand in for the TOTP code; user verification required; attestation none; ES256, EdDSA and RS256; the host name fixed at the first registration, with `web.passkeyOrigin`; up to 10 passkeys; no conditional UI; the recovery codes unchanged). Decision 8 as the owner chose: start now, on a branch.
 
 ## 8. As built
 
