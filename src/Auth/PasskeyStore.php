@@ -46,6 +46,18 @@ final class PasskeyStore
     }
 
     /**
+     * The name of the administrator that the passkeys belong to, or null while there are none.
+     *
+     * @throws PasskeyStoreException
+     */
+    public function user(): ?string
+    {
+        $user = $this->read()['user'];
+
+        return $user === '' ? null : $user;
+    }
+
+    /**
      * The relying party id the passkeys are bound to, or null while there are none.
      *
      * @throws PasskeyStoreException

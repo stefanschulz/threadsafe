@@ -302,37 +302,46 @@
     });
   });
 
-  // Passkeys (docs/PHASE14.md 3.2): <form id="passkey-add"> asks the server for the options (the password again), lets the browser make
-  // the passkey with them and sends the answer back. The binary values travel as base64url. Nothing is kept in the page.
+  // Passkeys (docs/PHASE14.md 3.2 and 3.3). The binary values of the ceremony travel as base64url. Nothing is kept in the page.
+  var pkToken = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
+  var toBytes = function (text) {
+    var b64 = text.replace(/-/g, '+').replace(/_/g, '/');
+    while (b64.length % 4) { b64 += '='; }
+    var raw = atob(b64);
+    var out = new Uint8Array(raw.length);
+    for (var i = 0; i < raw.length; i++) { out[i] = raw.charCodeAt(i); }
+    return out.buffer;
+  };
+  var toText = function (buffer) {
+    var bytes = new Uint8Array(buffer);
+    var raw = '';
+    for (var i = 0; i < bytes.length; i++) { raw += String.fromCharCode(bytes[i]); }
+    return btoa(raw).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  };
+  var pkJson = function (response) {
+    return response.json().catch(function () { return {}; }).then(function (data) { return { ok: response.ok, data: data }; });
+  };
+  var pkSupported = function () { return !!(window.PublicKeyCredential && navigator.credentials && navigator.credentials.create && navigator.credentials.get); };
+  var pkErrorText = function (error, what) {
+    return error && error.shown ? error.shown
+      : error && error.name === 'NotAllowedError' ? 'The request was cancelled or ran out of time.'
+      : error && error.name === 'InvalidStateError' ? 'This device has a passkey for this site already.'
+      : error && error.name === 'NotSupportedError' ? 'This device cannot do what is asked for.'
+      : 'The browser could not ' + what + (error && error.name ? ' (' + error.name + ')' : '') + '.';
+  };
+
+  // <form id="passkey-add"> asks the server for the options (the password again), lets the browser make the passkey and sends the answer.
   var passkeyForm = document.getElementById('passkey-add');
   if (passkeyForm) {
-    var pkToken = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
     var pkMessage = document.getElementById('passkey-message');
     var pkSay = function (text, kind) {
       pkMessage.textContent = text;
       pkMessage.className = 'flash' + (kind ? ' ' + kind : '');
       pkMessage.hidden = !text;
     };
-    var toBytes = function (text) {
-      var b64 = text.replace(/-/g, '+').replace(/_/g, '/');
-      while (b64.length % 4) { b64 += '='; }
-      var raw = atob(b64);
-      var out = new Uint8Array(raw.length);
-      for (var i = 0; i < raw.length; i++) { out[i] = raw.charCodeAt(i); }
-      return out.buffer;
-    };
-    var toText = function (buffer) {
-      var bytes = new Uint8Array(buffer);
-      var raw = '';
-      for (var i = 0; i < bytes.length; i++) { raw += String.fromCharCode(bytes[i]); }
-      return btoa(raw).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-    };
-    var pkJson = function (response) {
-      return response.json().catch(function () { return {}; }).then(function (data) { return { ok: response.ok, data: data }; });
-    };
     passkeyForm.addEventListener('submit', function (event) {
       event.preventDefault();
-      if (!window.PublicKeyCredential || !navigator.credentials || !navigator.credentials.create) {
+      if (!pkSupported()) {
         pkSay('This browser cannot make passkeys.', 'error');
         return;
       }
@@ -365,15 +374,54 @@
         if (!result.ok || !result.data.ok) { throw { shown: result.data.error || 'The server refused the passkey.' }; }
         window.location.href = result.data.redirect;
       }).catch(function (error) {
-        var text = error && error.shown ? error.shown
-          : error && error.name === 'NotAllowedError' ? 'The request was cancelled or ran out of time.'
-          : error && error.name === 'InvalidStateError' ? 'This device has a passkey for this site already.'
-          : error && error.name === 'NotSupportedError' ? 'This device cannot make a passkey of the kind that is asked for.'
-          : 'The browser could not make the passkey' + (error && error.name ? ' (' + error.name + ')' : '') + '.';
-        pkSay(text, 'error');
+        pkSay(pkErrorText(error, 'make the passkey'), 'error');
         button.disabled = false;
         password.value = '';
       });
+    });
+  }
+
+  // <button id="passkey-login"> on the login page and on the page of the code: asks for a challenge, lets the device sign it, sends the answer.
+  var passkeyLogin = document.getElementById('passkey-login');
+  if (passkeyLogin) {
+    var loginMessage = document.getElementById('passkey-login-message');
+    var loginSay = function (text) {
+      loginMessage.textContent = text;
+      loginMessage.className = 'flash' + (text ? ' error' : '');
+      loginMessage.hidden = !text;
+    };
+    passkeyLogin.addEventListener('click', function () {
+      if (!pkSupported()) {
+        loginSay('This browser cannot log in with a passkey.');
+        return;
+      }
+      passkeyLogin.disabled = true;
+      loginSay('');
+      fetch(passkeyLogin.getAttribute('data-options-url'), { method: 'POST', credentials: 'same-origin', headers: { 'Accept': 'application/json' } })
+        .then(pkJson).then(function (result) {
+          if (!result.ok || !result.data.options) { throw { shown: result.data.error || 'The server refused.' }; }
+          var o = result.data.options;
+          o.challenge = toBytes(o.challenge);
+          return navigator.credentials.get({ publicKey: o });
+        }).then(function (credential) {
+          var response = credential.response;
+          return fetch(passkeyLogin.getAttribute('data-login-url'), {
+            method: 'POST', credentials: 'same-origin', headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              id: toText(credential.rawId),
+              clientDataJSON: toText(response.clientDataJSON),
+              authenticatorData: toText(response.authenticatorData),
+              signature: toText(response.signature),
+              userHandle: response.userHandle ? toText(response.userHandle) : null
+            })
+          });
+        }).then(pkJson).then(function (result) {
+          if (!result.ok || !result.data.ok) { throw { shown: result.data.error || 'The passkey was not accepted.' }; }
+          window.location.href = result.data.redirect;
+        }).catch(function (error) {
+          loginSay(pkErrorText(error, 'use the passkey'));
+          passkeyLogin.disabled = false;
+        });
     });
   }
 

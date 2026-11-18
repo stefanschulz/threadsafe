@@ -81,7 +81,27 @@ try {
   const again = await run(`document.getElementById('passkey-message').textContent`);
   check('the same device is not added twice', /already/i.test(again), again);
 
+  // the login with the passkey (docs/PHASE14.md 3.3): log out, press the button on the login page, the virtual device signs
+  await run(`document.querySelector('form[action$="/logout"]').submit();`);
+  await sleep(1500);
+  const loginPage = await run(`!!document.getElementById('passkey-login') && getComputedStyle(document.getElementById('passkey-login')).display !== 'none'`);
+  check('the login page offers the button', loginPage);
+  const loginAudit = await run(readFileSync(join(root, 'tools', 'a11y-audit.js'), 'utf8'));
+  const loginDirty = ['light', 'dark'].flatMap((scheme) => ['text', 'ui', 'structure'].flatMap((k) => (loginAudit[scheme][k].length ? [`${scheme} ${k}: ${JSON.stringify(loginAudit[scheme][k])}`] : [])).concat(loginAudit[scheme].scrollX ? [`${scheme} scrolls sideways`] : []));
+  check('the audit finds no problem on the login page', loginDirty.length === 0, loginDirty.join('; '));
+  await run(`document.getElementById('passkey-login').click();`);
+  await sleep(2500);
+  const afterLogin = await run(`({ path: location.pathname, text: document.body.innerText.slice(0, 120) })`);
+  check('the passkey logs in and the dashboard opens', afterLogin.path === '/', JSON.stringify(afterLogin));
+  const used = await run(`fetch('/security', { credentials: 'same-origin' }).then((r) => r.text())`);
+  check('the list shows that the passkey was used', /Last used/.test(used) && !/not used yet/.test(used));
+  await run(`document.querySelector('form[action$="/logout"]').submit();`);
+  await sleep(1200);
+
   // the contrast and the structure of the page in both schemes (docs/DESIGN.md, "Accessibility")
+  await go('/login');
+  await run(`document.getElementById('passkey-login').click();`);
+  await sleep(2500);
   await go('/security');
   const audit = await run(readFileSync(join(root, 'tools', 'a11y-audit.js'), 'utf8'));
   const dirty = ['light', 'dark'].flatMap((scheme) => ['text', 'ui', 'structure'].flatMap((k) => (audit[scheme][k].length ? [`${scheme} ${k}: ${JSON.stringify(audit[scheme][k])}`] : [])).concat(audit[scheme].scrollX ? [`${scheme} scrolls sideways`] : []));

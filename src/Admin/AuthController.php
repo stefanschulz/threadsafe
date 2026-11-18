@@ -4,6 +4,11 @@ declare(strict_types=1);
 
 namespace ThreadSafe\Admin;
 
+use ThreadSafe\Auth\Base64Url;
+use ThreadSafe\Auth\CoseKey;
+use ThreadSafe\Auth\PasskeyClonedException;
+use ThreadSafe\Auth\PasskeyException;
+use ThreadSafe\Auth\Passkeys;
 use ThreadSafe\Auth\RecoveryCodes;
 use ThreadSafe\Auth\TwoFactorException;
 use ThreadSafe\Web\AccessKey;
@@ -178,6 +183,131 @@ final class AuthController
         return Response::redirect($context->urls->to('/'))->withHeader(self::cookie($token, $context));
     }
 
+    // ------------------------------------------------------------------------------------------------- the login with a passkey
+
+    /**
+     * Step 1 of the login with a passkey (docs/PHASE14.md 3.3): a challenge, kept in a session that has no user (so it is no login: only the
+     * answer below can make it one). It is asked for by the login page and by the page of the code, so a session that waits for a code keeps
+     * its wait. Asking grants nothing and counts nowhere; a visitor who has a session of this kind is given the same one again.
+     *
+     * @param array<string, string> $params
+     */
+    public function passkeyOptions(Context $context, array $params = []): Response
+    {
+        $host = $this->passkeyHost($context);
+        if ($context->user() !== null || $host === null) {
+            return Response::json(['error' => 'Passkeys cannot be used here.'], 409);
+        }
+        $challenge = Passkeys::newChallenge();
+        $entry = ['challenge' => Base64Url::encode($challenge), 'since' => ($this->services->clock)()];
+        $response = Response::json(['options' => $host->relyingParty()->assertionOptions($challenge)]);
+
+        if ($context->session !== null) {
+            $context->session['passkeyLogin'] = $entry;
+
+            return $response;
+        }
+        $token = $this->services->sessions->create()[0];
+        $data = $this->services->sessions->load($token) ?? [];
+        $data['plain'] = self::plainHttp($context);
+        $data['passkeyLogin'] = $entry;
+        $this->services->sessions->save($token, $data);
+
+        return $response->withHeader(self::cookie($token, $context));
+    }
+
+    /**
+     * Step 2: the answer of the device. The challenge is used up whatever happens. A good answer is a login (two factors in one: the device
+     * checked the person); the session is made anew, as after a password. Nothing here waits or counts: an answer cannot be guessed, and a wait
+     * that a stranger can start would shut the door for the owner (docs/PHASE13.md 9.11). Failures are in the audit log, which has a limit.
+     *
+     * @param array<string, string> $params
+     */
+    public function passkeyLogin(Context $context, array $params = []): Response
+    {
+        $request = $context->request;
+        $pending = $context->session['passkeyLogin'] ?? null;
+        unset($context->session['passkeyLogin']);
+        $host = $this->passkeyHost($context);
+        $now = ($this->services->clock)();
+        if ($context->user() !== null || $host === null || !is_array($pending) || !is_string($pending['challenge'] ?? null) || !is_int($pending['since'] ?? null) || $now - $pending['since'] > self::PENDING_SECONDS) {
+            return Response::json(['error' => 'The request has run out of time. Start again.'], 409);
+        }
+        try {
+            $answer = json_decode($request->body, true, 8, JSON_THROW_ON_ERROR);
+        } catch (\JsonException) {
+            $answer = null;
+        }
+        $refused = Response::json(['error' => 'The passkey was not accepted.'], 403);
+        if (!is_array($answer)) {
+            return $refused;
+        }
+
+        $store = $this->services->passkeys;
+        $name = AdminStore::DEFAULT_USER;
+        try {
+            $name = $store->user() ?? $name;
+            $after = $host->relyingParty()->verifyAssertion(Base64Url::decode($pending['challenge']), $answer, $store->credentials(), $store->userHandle());
+        } catch (PasskeyClonedException $e) {
+            $this->services->audit->record('login.passkey.clone', $name, $request->remoteAddress, ['reason' => $e->getMessage()]);
+
+            return $refused;
+        } catch (PasskeyException $e) {
+            // the reason names the check that failed and holds no data of the answer
+            $this->services->audit->record('login.passkey.failed', $name, $request->remoteAddress, ['reason' => $e->getMessage()]);
+
+            return $refused;
+        }
+        if (!$this->services->admin->exists()) {
+            return $refused;
+        }
+        try {
+            $store->recordLogin($after);
+        } catch (PasskeyException $e) {
+            // the login is right; only the counter could not be written down, which weakens the test for a copied key until it can be
+            $this->services->audit->record('login.passkey.unwritten', $name, $request->remoteAddress, ['reason' => $e->getMessage()]);
+        }
+
+        $plain = ($context->session['plain'] ?? false) === true;
+        $token = $this->newSession($context);
+        $data = $this->services->sessions->load($token) ?? [];
+        $data['user'] = $name;
+        $data['plain'] = $plain;
+        $data['mfa'] = 'passkey';
+        $this->services->sessions->save($token, $data);
+        $this->services->audit->record('login', $name, $request->remoteAddress, ['mfa' => 'passkey']);
+
+        return Response::json(['ok' => true, 'redirect' => $context->urls->to('/')])->withHeader(self::cookie($token, $context));
+    }
+
+    /**
+     * The place that passkeys are bound to, if a login with one can work here: passkeys exist and can be read, this page is a host name on a
+     * secure page that is the one they are bound to, and PHP can check them. Otherwise null, and the pages show nothing of passkeys.
+     */
+    private function passkeyHost(Context $context): ?PasskeyHost
+    {
+        try {
+            $host = PasskeyHost::fromRequest($context->request);
+            $store = $this->services->passkeys;
+
+            return $store->count() > 0 && $store->rpId() === $host->rpId && CoseKey::supported() !== [] ? $host : null;
+        } catch (PasskeyException) {
+            return null;
+        }
+    }
+
+    /** The button of the login with a passkey: shown only where it can work and only to a browser with script. */
+    private function passkeyButton(Context $context, string $label): string
+    {
+        if ($this->passkeyHost($context) === null) {
+            return '';
+        }
+
+        return '<div class="needs-js passkey-login"><button type="button" id="passkey-login" class="secondary" data-options-url="' . Html::e($context->urls->to('/login/passkey/options'))
+            . '" data-login-url="' . Html::e($context->urls->to('/login/passkey')) . '">' . Html::e($label) . '</button>'
+            . '<p id="passkey-login-message" class="flash" role="alert" hidden></p></div>';
+    }
+
     /**
      * @param array<string, string> $params
      */
@@ -345,6 +475,7 @@ final class AuthController
                     . View::field('code', 'Recovery code', 'text', '', ['autocomplete' => 'off', 'autocapitalize' => 'characters', 'spellcheck' => 'false', 'autofocus' => 'autofocus', 'required' => 'required'], 'One of the ten codes you were shown when you set up the second factor. Each works once.')
                 : View::field('code', 'Code from your authenticator app', 'text', '', ['autocomplete' => 'one-time-code', 'inputmode' => 'numeric', 'autofocus' => 'autofocus', 'required' => 'required'], 'Six digits.'))
             . '<button type="submit">Log in</button>'
+            . $this->passkeyButton($context, 'Use a passkey instead of the code')
             . '<p class="hint">' . ($recovery
                 ? '<a href="' . Html::e($context->urls->to('/login/code')) . '">Use the code from the app</a>'
                 : '<a href="' . Html::e($context->urls->to('/login/code', ['recovery' => '1'])) . '">Lost the phone? Use a recovery code</a>')
@@ -372,6 +503,7 @@ final class AuthController
     {
         $request = $context->request;
         $inner = ($error !== '' ? '<p class="flash error" role="alert">' . Html::e($error) . '</p>' : '')
+            . $this->passkeyButton($context, 'Log in with a passkey')
             . View::field('user', 'User', 'text', $request->post('user') ?? '', ['autocomplete' => 'username', 'placeholder' => AdminStore::DEFAULT_USER])
             . View::field('password', 'Password', 'password', '', ['autocomplete' => 'current-password', 'autofocus' => 'autofocus', 'required' => 'required'])
             . $this->plainWarning($context) . '<button type="submit">Log in</button>';

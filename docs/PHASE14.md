@@ -60,7 +60,7 @@ The login page gets a second button, **Log in with a passkey**, above the passwo
 - **With a passkey:** the browser shows its own chooser, the device asks for a fingerprint, face or PIN (*user verification*: this is why a passkey login counts as **two factors** and does not ask for a TOTP code). The session is made at once.
 - **With the password:** exactly as today, including the TOTP step when it is on. A passkey may be offered at the code step too (*Use a passkey instead of the code*): that is the phishing-resistant way to do the second step, and it only needs the same two endpoints.
 
-The pending-session rule of phase 11 holds: a session between steps has no `user`, and `Kernel` asks `Context::user()`, never "is there a session". The passkey endpoints are reachable without a login (that is their job) and are throttled in a file of their own, as `/login/code` is; a failure is logged as `login.passkey.failed` without the data of the answer; the audit never holds a challenge, a signature or a key.
+The pending-session rule of phase 11 holds: a session between steps has no `user`, and `Kernel` asks `Context::user()`, never "is there a session". The passkey endpoints are reachable without a login (that is their job). **They wait and count nowhere**: an answer cannot be guessed (it needs a signature of the device), and a wait that a stranger can start would shut the door for the owner, which is the lesson of 9.11 in phase 13. A failure is logged as `login.passkey.failed` (a copied key as `login.passkey.clone`) with the name of the check and without the data of the answer; the audit log has a size limit, so a flood cannot fill the disk; the audit never holds a challenge, a signature or a key.
 
 ### 3.4 The page *Security*
 
@@ -243,6 +243,21 @@ What differs from the plan or is worth knowing:
 
 Proof: `SecurityPasskeysTest` (29 tests with the software device: the form only where it can work, the password asked again and throttled, the challenge used once and valid 5 minutes, every check of 3.2 refused with a general answer and an audit line, three algorithms, the host name that stays, ten at most, rename and remove with the password, the other logins ended, the token of the session needed, a damaged file) and `tools/spikes/passkey-page.mjs`, **a first cut of the proof of package 7**: a real Chrome with a virtual authenticator logs in to the real page (PHP's built-in server on `localhost`), adds a passkey through the script of `app.js`, sees it listed, is refused a wrong password and a second registration of the same device, and runs `tools/a11y-audit.js` on the page in both schemes (no contrast or structure problem; 48 texts). Lint and PHPStan are clean.
 
-### 8.6 The other work packages
+### 8.6 Work package 5, the login with a passkey (2026-11-18)
+
+`Admin\AuthController::passkeyOptions()` and `::passkeyLogin()` (the two public routes `POST /login/passkey/options` and `POST /login/passkey`), the button on the login page and on the page of the code, the script in `public/app.js`, `PasskeyStore::user()`.
+
+How it works: the button asks for a challenge. It is kept in a **session that has no user**, so it is no login; a visitor who has no session gets one (with its cookie), a visitor whose session waits for the code of the second factor keeps that session and its wait. The device signs the challenge; the answer goes to `passkey` as JSON. The challenge is taken out of the session first, so it is used once whatever happens, and it is good for five minutes. A good answer makes a **new session** (as after a password: the old token is destroyed) with `user` and `mfa = passkey`, writes the counter, the state of the backup and the time into the file of the passkeys, and the audit gets `login` with `mfa: passkey`. A passkey login stands in for both factors and is not asked for a code even when the second factor is on.
+
+What differs from the plan or is worth knowing:
+1. **Nothing waits or counts** (the plan said "throttled in a file of their own"; 3.3 is corrected above): see the reason there.
+2. **The button is shown only where it can work**: passkeys exist and can be read, the page is the host name that they are bound to on a secure page, and PHP can check them; otherwise the page shows nothing of passkeys. This tells a stranger that a passkey exists, which is not a secret worth a button that does not work.
+3. **If the counter cannot be written** after a good answer, the login still succeeds and the audit gets `login.passkey.unwritten`: the check for a copied key is weaker until the file can be written again.
+4. **A session that holds a challenge is not a login.** The test that walks every route behind the login with a session that waits for a code now also walks it with a session that holds a challenge (`TwoFactorLoginTest::walkRoutesBehindTheLogin()`, used by `PasskeyLoginTest`); the test that lists the public routes names the two new ones on purpose.
+5. Challenges are kept in session files, and asking for one makes a file when the visitor has no session. Sessions of the kind are collected with the idle ones after two hours; a flood of such requests would make many small files. Not handled (a stranger can make session files on any site that sets a cookie to a first visit); noted.
+
+Proof: `PasskeyLoginTest` (the button where it can work, three algorithms, a new session and the counter written, single use, five minutes, eight spoiled answers refused with one general text and an audit line, another device's signature, a clone, twelve failures from strangers without the owner waiting, junk, no passkeys no challenge, a logged-in visitor, a damaged file, the walk of every route, the page of the code and the wait that survives asking for a challenge: 20 tests) and the browser run of `tools/spikes/passkey-page.mjs` (a real Chrome with a virtual authenticator logs out, finds the button, logs in with the passkey, lands on the dashboard, and the list shows the use; the audit of the login page is clean in both schemes). Lint and PHPStan are clean.
+
+### 8.7 The other work packages
 
 Not started.

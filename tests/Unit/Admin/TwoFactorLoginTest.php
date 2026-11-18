@@ -89,8 +89,19 @@ final class TwoFactorLoginTest extends TestCase
         $this->browser->enableTwoFactor();
         $this->password();
 
+        self::assertGreaterThan(40, self::walkRoutesBehindTheLogin($this->browser, $this->routes()), 'the table was walked');
+    }
+
+    /**
+     * Every route behind the login, asked with the session of `$browser`: each must send a page away to the login and answer a script with 401.
+     * It is the test that a session which is not a login (the half of one, or one that holds a challenge) opens nothing.
+     *
+     * @param list<array{method: string, pattern: string, public: bool}> $routes
+     */
+    public static function walkRoutesBehindTheLogin(AdminBrowser $browser, array $routes): int
+    {
         $walked = 0;
-        foreach ($this->routes() as $route) {
+        foreach ($routes as $route) {
             if ($route['public']) {
                 continue;
             }
@@ -102,15 +113,16 @@ final class TwoFactorLoginTest extends TestCase
                 default => 'x',
             }, $route['pattern']);
 
-            $page = $this->browser->send($route['method'], $path);
+            $page = $browser->send($route['method'], $path);
             self::assertSame(303, $page->status, $route['method'] . ' ' . $path);
             self::assertSame('/login', $page->header('Location'), $route['method'] . ' ' . $path);
 
-            $script = $this->browser->send($route['method'], $path, [], [Csrf::HEADER => 'x']);
+            $script = $browser->send($route['method'], $path, [], [Csrf::HEADER => 'x']);
             self::assertSame(401, $script->status, $route['method'] . ' ' . $path . ' as a call of the script');
             ++$walked;
         }
-        self::assertGreaterThan(40, $walked, 'the table was walked');
+
+        return $walked;
     }
 
     public function testTheOnlyPublicRoutesAreTheLoginAndItsSecondStep(): void
@@ -123,7 +135,7 @@ final class TwoFactorLoginTest extends TestCase
         }
         sort($public);
 
-        self::assertSame(['GET /login', 'GET /login/code', 'POST /login', 'POST /login/code'], $public, 'a new public route must be thought through against a session that waits for a code');
+        self::assertSame(['GET /login', 'GET /login/code', 'POST /login', 'POST /login/code', 'POST /login/passkey', 'POST /login/passkey/options'], $public, 'a new public route must be thought through against a session that waits for a code and one that holds a challenge');
     }
 
     public function testTheRightCodeLogsInWithANewSessionAndTheWaitingOneIsGone(): void

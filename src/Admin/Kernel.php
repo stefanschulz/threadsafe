@@ -162,6 +162,8 @@ final class Kernel
         $router->add('POST', '/login', $auth->login(...), public: true);
         $router->add('GET', '/login/code', $auth->codePage(...), public: true);
         $router->add('POST', '/login/code', $auth->code(...), public: true);
+        $router->add('POST', '/login/passkey/options', $auth->passkeyOptions(...), public: true);
+        $router->add('POST', '/login/passkey', $auth->passkeyLogin(...), public: true);
         $router->add('POST', '/logout', $auth->logout(...));
         $router->add('GET', '/', $dashboard->index(...));
         $router->add('GET', '/profiles', $profiles->index(...));
