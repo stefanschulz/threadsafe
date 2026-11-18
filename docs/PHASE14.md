@@ -161,7 +161,7 @@ One commit per package: `Phase 14, work package N: ...`. Package 0 comes first a
 
 ### 8.1 Work package 0, the spike (2026-11-18)
 
-Scripts: `tools/spikes/webauthn-virtual.mjs` (drives a real browser), `tools/spikes/webauthn-verify.php` (checks its answers with plain PHP), `tools/spikes/webauthn-device.php` (a throw-away page for the owner's host and devices). Parts (a) and (b) are done; (c) and (d) wait for the owner.
+Scripts: `tools/spikes/webauthn-virtual.mjs` (drives a real browser), `tools/spikes/webauthn-verify.php` (checks its answers with plain PHP), `tools/spikes/webauthn-device.php` (a throw-away page for the owner's host and devices). Parts (a) to (d) are done; the open rest of (d) is named below.
 
 **(a) The browser can be driven without a download.** Chrome (157 here; Edge is the same engine) is started headless with `--remote-debugging-port`, and `node` (24, with its own `WebSocket`) talks the DevTools protocol to it: `WebAuthn.addVirtualAuthenticator` with `ctap2`, `internal`, resident keys, user verification on and presence simulated, then `navigator.credentials.create()` and `.get()` on `http://localhost:PORT/`. **`localhost` is a secure context, so WebAuthn works without a certificate** (finding for the stack proof: phase 4b's Apache on `localhost` is enough). The tools image has no browser and no `node`; the proof of package 7 therefore runs the script **on the host machine** against the published port of the stack (or the image gets a browser then; settled in package 7).
 
@@ -173,7 +173,28 @@ Scripts: `tools/spikes/webauthn-virtual.mjs` (drives a real browser), `tools/spi
 
 What this changes in the plan: nothing in the design; **the CBOR reader and the COSE conversion are small enough to be written strictly (package 1)**, and the real vectors above replace the search for an outside test suite (package 1 and 2 use them, and the unit tests add the software authenticator and the refusals).
 
-**(c) and (d), open, for the owner.** Upload `tools/spikes/webauthn-device.php` to the host that will serve the web interface (a temporary file in a directory that is reached over https), open it and press *Make a passkey* and *Use the passkey* on each device that will be used (phone, Windows Hello, a security key, a password manager); send back the text under "Report" (it holds no secret: the host name, PHP's extensions and the flags and counters of the devices). It answers: does the live PHP have `openssl` (with the curve `prime256v1`) and `sodium`; which scheme, host and port does PHP see (a proxy in front?); what flags and counters do the owner's devices send (synced or not, a counter or 0, a user handle), and does the browser take the passkey with `rpId` of the host. Delete the file afterwards, and remove the passkey `threadsafe-spike` from the device.
+**(c) The live host, answered (the owner ran `webauthn-device.php` on 2026-11-18, host `www.n8mail.de`).** PHP 8.4.27 as `fpm-fcgi`; **`openssl` 3.0.13 with `prime256v1`, `sodium` 1.0.18** and `mbstring` are there, so ES256, RS256 and EdDSA all work. PHP sees `HTTPS` on, `HTTP_HOST` and `SERVER_NAME` the real name, port 443 and `REQUEST_SCHEME` https: **the origin can be made from the request itself**; the only proxy header is `X-Forwarded-For` (a proxy that ends no TLS), which the design does not use. On this host `web.passkeyOrigin` is not needed. The browser took `rpId` = the host name (`www.n8mail.de`), a secure context.
+
+**(d) Two real devices (Chrome 157 on Windows).**
+
+| | Passkey in the browser's password manager | Windows Hello (platform key) |
+|---|---|---|
+| Algorithm | -7 (ES256) | -7 (ES256) |
+| Flags at registration | UP, UV, AT, **BE=1, BS=1** (synced) | UP, UV, AT, **BE=0, BS=0** (this device only) |
+| Transports | `hybrid`, `internal` | `internal` |
+| Credential id | 16 bytes | 32 bytes |
+| AAGUID | `ea9b8d66-4d01-1d21-3ce4-b6b48cb575d4` (that of Google Password Manager, from the base64url `6puNZk0B...`) | `9ddd1817-af5a-4672-a2b9-3e3dd95000a9` (a Windows Hello software authenticator, from `nd0YF69a...`) |
+| Assertion | UP, UV, BE=1, BS=1, **counter 0**, user handle 64 bytes, signature 71 bytes | not run (the report ends after the second registration) |
+
+What this means for the design:
+1. **The "synced" label of 3.4 works as planned**: the one key says BE=1, BS=1, the other BE=0, BS=0. The page shows what the flags say.
+2. **A counter of 0 is real** (the synced passkey): the rule of 3.2 (0 on both sides is allowed) is needed, not theoretical. The counter of Windows Hello is still unknown.
+3. **The user handle comes back** for a discoverable login (64 bytes, the one given at registration), so it can be checked against the stored one.
+4. **The client data JSON of Windows Hello has an extra member** (`other_keys_can_be_added_here`, "do not compare clientDataJSON against a template"): `ClientData` must read the JSON and check the members it knows, **never compare the text with a template**, and must ignore unknown members. A test with that member is added in package 2.
+5. **Credential ids are 16 to 32 bytes**; the store keeps them as base64url and accepts up to 1023 bytes (the specification's limit), not a fixed length.
+6. Both keys are ES256, so on these devices RS256 and EdDSA are not used; they stay because other devices (some TPMs, security keys, other managers) need them, and are proven by the virtual authenticator.
+
+Still open from (d): the assertion with Windows Hello (its counter), and a phone and a hardware key if the owner uses them. Neither can change the design; they are looked at in the field test (package 9). The file `webauthn-device.php` can be deleted from the host, and the two `threadsafe-spike` passkeys removed from the devices.
 
 ### 8.2 The other work packages
 
