@@ -159,4 +159,22 @@ One commit per package: `Phase 14, work package N: ...`. Package 0 comes first a
 
 ## 8. As built
 
+### 8.1 Work package 0, the spike (2026-11-18)
+
+Scripts: `tools/spikes/webauthn-virtual.mjs` (drives a real browser), `tools/spikes/webauthn-verify.php` (checks its answers with plain PHP), `tools/spikes/webauthn-device.php` (a throw-away page for the owner's host and devices). Parts (a) and (b) are done; (c) and (d) wait for the owner.
+
+**(a) The browser can be driven without a download.** Chrome (157 here; Edge is the same engine) is started headless with `--remote-debugging-port`, and `node` (24, with its own `WebSocket`) talks the DevTools protocol to it: `WebAuthn.addVirtualAuthenticator` with `ctap2`, `internal`, resident keys, user verification on and presence simulated, then `navigator.credentials.create()` and `.get()` on `http://localhost:PORT/`. **`localhost` is a secure context, so WebAuthn works without a certificate** (finding for the stack proof: phase 4b's Apache on `localhost` is enough). The tools image has no browser and no `node`; the proof of package 7 therefore runs the script **on the host machine** against the published port of the stack (or the image gets a browser then; settled in package 7).
+
+**(b) Real vectors, from a real implementation, without a download.** The virtual authenticator makes **ES256, EdDSA and RS256** keys (all three offered one by one; with all three offered, Chrome takes ES256, the first). The script writes the answers as JSON; they are the test vectors (the unit tests get a copy made small: one registration and one assertion per algorithm, with the throw-away keys of a virtual device, nothing else). What the answers show:
+- `clientDataJSON` has `type`, `challenge`, `origin` and `crossOrigin`, as in the specification; the registration's flags are UP, UV and AT; **BE and BS are 0** (a virtual device is not synced).
+- `attestation: none` gives an attestation object with `fmt: "none"` and an empty statement; `authData` carries the credential id and the COSE key.
+- A plain-PHP check works for all three: a **70-line CBOR reader**, the COSE key turned into a public key (ES256: the fixed 26-byte header plus `04||x||y`; RS256: the DER of `n` and `e`; EdDSA: the raw 32 bytes), `openssl_verify(..., SHA256)` for ES256 and RS256 and `sodium_crypto_sign_verify_detached` for EdDSA. **Every signature verified, and a changed byte was refused, in all three.** The assertion has UP and UV set and the **counter counts** (2 here); the user handle that comes back is the one given at registration. The ES256 signature is DER, as `openssl_verify` wants it.
+- The transports the device reports are `["internal"]`: stored as a hint only.
+
+What this changes in the plan: nothing in the design; **the CBOR reader and the COSE conversion are small enough to be written strictly (package 1)**, and the real vectors above replace the search for an outside test suite (package 1 and 2 use them, and the unit tests add the software authenticator and the refusals).
+
+**(c) and (d), open, for the owner.** Upload `tools/spikes/webauthn-device.php` to the host that will serve the web interface (a temporary file in a directory that is reached over https), open it and press *Make a passkey* and *Use the passkey* on each device that will be used (phone, Windows Hello, a security key, a password manager); send back the text under "Report" (it holds no secret: the host name, PHP's extensions and the flags and counters of the devices). It answers: does the live PHP have `openssl` (with the curve `prime256v1`) and `sodium`; which scheme, host and port does PHP see (a proxy in front?); what flags and counters do the owner's devices send (synced or not, a counter or 0, a user handle), and does the browser take the passkey with `rpId` of the host. Delete the file afterwards, and remove the passkey `threadsafe-spike` from the device.
+
+### 8.2 The other work packages
+
 Not started.
