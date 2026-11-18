@@ -1,6 +1,6 @@
 # Phase 14 – passkeys for the web interface
 
-Status: **planned, decisions settled, work started on the branch `phase-14-passkeys`** (2026-11-18, asked for by the owner). The decisions for the owner are in section 7.2; the recommendations are marked, and 7.2 says what was settled. Phase 11 left passkeys out on purpose ([PHASE11.md](PHASE11.md) 7.2, decision 1: "TOTP first, passkeys as a package of their own"); this is that package. It is a new feature, so it belongs to the minor after 1.1.0 (**1.2.0**); it is developed on its own branch and is merged only after 1.1.0 is out, so that it does not touch the release that the field test of phase 13 is preparing.
+Status: **built on the branch `phase-14-passkeys` and proven in Docker (work packages 0 to 8, 2026-11-18); the field test with real devices (work package 9) is open** (asked for by the owner). The decisions for the owner are in section 7.2; the recommendations are marked, and 7.2 says what was settled. Phase 11 left passkeys out on purpose ([PHASE11.md](PHASE11.md) 7.2, decision 1: "TOTP first, passkeys as a package of their own"); this is that package. It is a new feature, so it belongs to the minor after 1.1.0 (**1.2.0**); it is developed on its own branch and is merged only after 1.1.0 is out, so that it does not touch the release that the field test of phase 13 is preparing.
 
 ## 1. Goal and scope
 
@@ -287,6 +287,10 @@ What differs from the plan or is worth knowing:
 
 Proof: `tests/stack/passkeys.sh` is green on MariaDB 10.11, MySQL 8.4 and MariaDB 11.8 (the interface does not touch the database for any of this; the three runs follow the rule that every phase runs on all three servers), the standalone mode is green, and the whole journey is repeatable (it empties the installation first).
 
-### 8.9 The other work packages
+### 8.9 Work package 8, the documentation (2026-11-18)
 
-Not started.
+[WEB.md](WEB.md) (a section *Passkeys*: what and why, where it works, adding, logging in, the host name, the requirement, the way back, what is stored; the data directory, the logging-in section, the requirement, the settings table with `web.passkeyOrigin`, the audit events, *Security in short*, the troubleshooting table, the limits and the note on rolling back), [DESIGN.md](DESIGN.md) (the elements of the section, no new colours), `README.md`, `CHANGELOG.md` ("Unreleased"), `AGENTS.md` (the table and the map of the code), `tests/stack/README.md` (`passkeys.sh`). Not changed: `docs/RESTORE.md`, `docs/BACKUP.md` and the single-file tools, which have no login.
+
+### 8.10 The other work packages
+
+Work package 9, the field test by the owner with real devices (4.3: a phone that makes a passkey and uses it from a computer, Windows Hello or a security key, a synced passkey of a password manager, on the live system over https): **open**. Its report goes here.

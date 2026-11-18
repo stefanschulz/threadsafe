@@ -119,6 +119,8 @@ In the program the logo is **markup in the code** (`Web\Logo`): the mark of the 
 
 ## The QR code
 
+The section *Passkeys* of the *Security* page uses the tokens as they are: the list is the ordinary table (the forms of a row are `form.inline`, their fields have no visible label, so each carries an `aria-label` and the password field a placeholder), the form for a new key and the button on the login page are shown only with a script (`.needs-js`; `.no-js-only` is the sentence that takes their place), and the message of the script is a `.flash` that the script fills (`role="status"` in the form, `role="alert"` on the login page). The pages are in the audit of `tests/stack/passkey-browser.mjs`.
+
 The QR code on the *Security* page (`Auth\QrCode::svg()`) is the one picture that does **not** follow the tokens: it is **black on white with a quiet zone of four modules in both colour schemes**, because a scanner needs the contrast and a camera does not know the theme. It is an inline `<svg class="qr">` with presentation attributes only (no `style`, like the logo), 15 rem wide and never wider than its column (`svg.qr` in `public/app.css`). It is not text, so the contrast audit does not measure it; the key is always printed beside it, as text that does.
 
 ## Where it is used
