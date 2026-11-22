@@ -51,7 +51,35 @@ final class BackupWizard
     /** What to do when the web server refuses a step of the backup with HTTP 403. */
     private const string HINT_403 = 'HTTP 403 usually means that a rule of the web server refuses this file: a security extension of the site (such as Admin Tools) refuses direct requests for PHP files, or the host does. Allow this file for now, then press "Continue".';
 
-    private const array STEPS = ['site' => 'Site', 'options' => 'Options', 'summary' => 'Summary', 'run' => 'Backup', 'done' => 'Done'];
+    /**
+     * The script of every page: a button with `data-copy="#id"` copies the text of that element. It uses the clipboard API where the page is a
+     * secure context (https, localhost) and selects the text and copies it by hand otherwise (a host without https); the button says what happened.
+     */
+    private const string COPY_SCRIPT = <<<'JS'
+(function () {
+  var buttons = document.querySelectorAll('button[data-copy]');
+  Array.prototype.forEach.call(buttons, function (button) {
+    var label = button.textContent;
+    var say = function (text) { button.textContent = text; setTimeout(function () { button.textContent = label; }, 2500); };
+    var select = function (node) {
+      var range = document.createRange(); range.selectNodeContents(node);
+      var selection = window.getSelection(); selection.removeAllRanges(); selection.addRange(range);
+      var ok = false; try { ok = document.execCommand('copy'); } catch (e) {}
+      say(ok ? 'Copied' : 'Selected: press Ctrl+C');
+    };
+    button.addEventListener('click', function () {
+      var node = document.querySelector(button.getAttribute('data-copy'));
+      if (!node) { return; }
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(node.textContent).then(function () { say('Copied'); }, function () { select(node); });
+      } else { select(node); }
+    });
+  });
+})();
+
+JS;
+
+    private const array STEPS =['site' => 'Site', 'options' => 'Options', 'summary' => 'Summary', 'run' => 'Backup', 'done' => 'Done'];
 
     private readonly BackupWorkspace $workspace;
 
@@ -673,7 +701,7 @@ final class BackupWizard
 
         $body = '<div class="box"><p><strong>This is the only time the secret key is shown.</strong> This tool does not keep it. Store it now, somewhere else than on this server: without it the backup cannot be opened.</p>'
             . '<pre id="secret-key"><code>' . Html::e($file) . '</code></pre>'
-            . '<p><button type="button" id="copy-key">Copy</button> <button type="button" id="save-key" class="secondary">Save as a file</button> <button type="button" id="print-key" class="secondary">Print</button></p>'
+            . '<p><button type="button" id="copy-key" data-copy="#secret-key">Copy</button> <button type="button" id="save-key" class="secondary">Save as a file</button> <button type="button" id="print-key" class="secondary">Print</button></p>'
             . '<p>Public key: <code>' . Html::e($pair['public']) . '</code></p></div>'
             . $this->form(
                 '<input type="hidden" name="public" value="' . Html::e($pair['public']) . '">'
@@ -685,7 +713,6 @@ final class BackupWizard
 
         $script = "(function () {\n"
             . "  var text = document.getElementById('secret-key').textContent;\n"
-            . "  document.getElementById('copy-key').addEventListener('click', function () { if (navigator.clipboard) { navigator.clipboard.writeText(text); } });\n"
             . "  document.getElementById('save-key').addEventListener('click', function () {\n"
             . "    var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], {type: 'text/plain'})); a.download = 'threadsafe-backup-key.txt'; document.body.appendChild(a); a.click(); a.remove();\n"
             . "  });\n"
@@ -1229,7 +1256,7 @@ final class BackupWizard
 
     private function page(string $title, string $body, int $status = 200, ?string $step = null, string $script = ''): Response
     {
-        return Response::html(Html::page($title, $body, $this->nonce, $step, $script, 'backup tool', self::STEPS), $status);
+        return Response::html(Html::page($title, $body, $this->nonce, $step, self::COPY_SCRIPT . $script, 'backup tool', self::STEPS), $status);
     }
 
     /** Headers every answer carries: nothing is cached, framed, sniffed or loaded from elsewhere. */

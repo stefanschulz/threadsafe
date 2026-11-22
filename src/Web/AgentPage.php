@@ -132,7 +132,8 @@ final class AgentPage
         if ($result['pairing'] !== '') {
             $html .= '<div class="box"><p><strong>The pairing string.</strong> Copy it now: it is shown <strong>once</strong>. It holds the secret of the pairing, so treat it like a password. '
                 . 'Paste it into the central ThreadSafe (<code>profile add ... --pairing-file=FILE</code>, or the field of the form for a remote profile).</p>'
-                . '<pre><code>' . $e($result['pairing']) . '</code></pre>'
+                . '<pre id="pairing-string"><code>' . $e($result['pairing']) . '</code></pre>'
+                . '<p><button type="button" data-copy="#pairing-string">Copy the pairing string</button></p>'
                 . '<p class="help">Fingerprint of the secret, to compare on both sides: <code>' . $e(AgentPairing::readable(AgentPairing::fingerprint($config->secret()))) . '</code></p></div>';
         }
 
