@@ -260,6 +260,38 @@ services:
       - ./target-restore-limits.conf:/etc/apache2/conf-enabled/threadsafe-restore-limits.conf:ro
     networks: [target]
 
+  # A PrestaShop of its own for the module threadsafeconnector (profile "psconnector"; docs/PHASE15.md 5): its own database on the `db` service and its own
+  # volume, so that the source shop (the baseline of the migration and restore tests) stays as it is. The image installs the shop on the first start. The
+  # limits are those of a modest shared host, for the door of the module only (docs/PHASE15.md 3.2).
+  prestashopconnector:
+    profiles: ["psconnector"]
+    image: prestashop/prestashop:${PS_TAG:-9.0.2-apache}
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "${PSCONNECTOR_PORT:-8590}:80"
+    environment:
+      DB_SERVER: db
+      DB_NAME: psconn
+      DB_USER: root
+      DB_PASSWD: ${DB_ROOT_PASSWORD:-prestashop}
+      DB_PREFIX: ps_
+      PS_DOMAIN: localhost:${PSCONNECTOR_PORT:-8590}
+      PS_INSTALL_AUTO: "1"
+      PS_ERASE_DB: "0"
+      PS_LANGUAGE: en
+      PS_COUNTRY: DE
+      PS_FOLDER_ADMIN: admin-dev
+      PS_FOLDER_INSTALL: install
+      PS_ENABLE_SSL: "0"
+      PS_DEV_MODE: "0"
+      ADMIN_MAIL: ${ADMIN_MAIL:-admin@example.com}
+      ADMIN_PASSWD: ${ADMIN_PASSWD:-Admin1234!}
+    volumes:
+      - psconnector_data:/var/www/html
+      - ./target-restore-limits.conf:/etc/apache2/conf-enabled/threadsafe-restore-limits.conf:ro
+
   # Development tools (PHP 8.4 CLI + pdo_mysql + Composer). Not started by `up`; use:
   #   docker compose --profile tools run --rm tools composer install
   #   docker compose --profile tools run --rm tools composer check
@@ -285,6 +317,8 @@ services:
       - wordpress60_data:/wordpress60
       - wordpressshop_data:/wordpressshop
       - wordpresscache_data:/wordpresscache
+      # the shop of the module threadsafeconnector (profile "psconnector"; docs/PHASE15.md 5)
+      - psconnector_data:/psconnector
       # the host with nothing on it (profile "fresh"): its /var/www
       - fresh_www:/shops/fresh
     depends_on:
@@ -328,4 +362,6 @@ volumes:
     name: threadsafe-dev_wordpressshop_data${VOLUME_SUFFIX:-}
   wordpresscache_data:
     name: threadsafe-dev_wordpresscache_data${VOLUME_SUFFIX:-}
+  psconnector_data:
+    name: threadsafe-dev_psconnector_data${VOLUME_SUFFIX:-}
   composer_cache:
