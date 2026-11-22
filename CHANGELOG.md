@@ -6,9 +6,9 @@ of the GitHub release (see "Making a release" in [AGENTS.md](AGENTS.md)).
 
 ## [Unreleased]
 
-## [1.2.0-rc.1] - 2026-11-18
+## [1.2.0] - 2026-11-22
 
-The first release candidate of 1.2.0: **passkeys for the web interface** (phase 14). It is a pre-release for the field test with real devices (a phone, Windows Hello, a security key, a password manager). It builds on 1.1.0.
+**Passkeys for the web interface** (phase 14). It builds on 1.1.0. Nothing changes for an installation that does not register a passkey: the login with a password (and the second factor, if it is on) stays. Field test: a passkey of Windows Hello on a live system over https, made and used for the login, without findings. Proven in Docker with a real Chrome and a virtual authenticator, on all three database servers; **not tried by hand:** a phone, a security key, a synced passkey of a password manager, the second factor with a passkey, removing a key, `web.requireTwoFactor`. Bug reports will fill these in.
 
 ### Added
 
