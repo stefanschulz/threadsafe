@@ -19,9 +19,13 @@ final class PreflightNoiseTest extends TestCase
         self::assertTrue(Preflight::isOldNoise('Storage: ' . ConnectionTest::STORAGE_INSIDE_SITE, 'site'));
     }
 
-    public function testTheSameWarningOfAnotherProfileAndOtherWarningsAreShown(): void
+    public function testTheStorageWarningIsNotShownForAnyProfile(): void
     {
-        self::assertFalse(Preflight::isOldNoise('Storage: ' . ConnectionTest::STORAGE_INSIDE_SITE, 'shop'));
+        self::assertTrue(Preflight::isOldNoise('Storage: ' . ConnectionTest::STORAGE_INSIDE_SITE, 'shop'));
+    }
+
+    public function testOtherWarningsAreShown(): void
+    {
         self::assertFalse(Preflight::isOldNoise('Storage: free space is low', 'site'));
         self::assertFalse(Preflight::isOldNoise('Database objects: a view was left out', 'site'));
     }

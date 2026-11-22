@@ -27,9 +27,6 @@ use ThreadSafe\Storage\SpaceCheck;
  */
 final class Preflight
 {
-    /** The id of the one profile of the single-file backup tool (the same as in its workspace class, whose name the restore tool does not carry). */
-    private const string TOOL_PROFILE = 'site';
-
     /** Names that may be in the target directory at the start without being in the way (with `allowLeftovers`). */
     private const array PLACEHOLDERS = ['.htaccess', 'index.html', 'index.htm', 'robots.txt', 'favicon.ico', 'cgi-bin', '.well-known'];
 
@@ -91,12 +88,13 @@ final class Preflight
     }
 
     /**
-     * A sentence in the report of a backup that says nothing about the restore: the single-file backup tool keeps its archive in the site on
-     * purpose (closed, unguessable, probed before the run), and backups made before 0.10.0-beta.3 carry the warning about it.
+     * A sentence in the report of a backup that says nothing about the restore: the warning about a storage inside the site. Backups no
+     * longer carry it (it belongs to the test of the profile), but older ones do, and a tool or a plugin keeps its archive there on purpose
+     * (closed, unguessable, probed before the run).
      */
     public static function isOldNoise(string $warning, string $profileId): bool
     {
-        return $profileId === self::TOOL_PROFILE && $warning === 'Storage: ' . ConnectionTest::STORAGE_INSIDE_SITE;
+        return $warning === 'Storage: ' . ConnectionTest::STORAGE_INSIDE_SITE;
     }
 
     /**
