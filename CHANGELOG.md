@@ -6,19 +6,27 @@ of the GitHub release (see "Making a release" in [AGENTS.md](AGENTS.md)).
 
 ## [Unreleased]
 
-### Changed
-
-- **A button copies the pairing string** in the wizard of `threadsafe-backup.php` and on the page of the WordPress plugin. The button of the key pair works on a host without https too: it selects the text and copies it by hand where the clipboard API is not allowed, and says "Copied".
-
-- **A backup no longer carries the warning "The storage directory is inside the site".** It was there in every backup of the WordPress plugin (and of any profile whose storage lies in the site) and gave each one the status `ok-with-warnings`, although the storage is left out of the archive on purpose. The warning stays in the test of the profile (`profile test`, the profile page), where it can be acted on. The restore no longer shows it for older backups that carry it.
-
 ## [1.2.0-rc.1] - 2026-11-18
 
-The first release candidate of 1.2.0: **passkeys for the web interface** (phase 14). It is a pre-release for the field test with real devices (a phone, Windows Hello, a security key, a password manager). It is built on the branch `phase-14-passkeys`, which also holds everything of 1.1.0-rc.2 (the WordPress plugin of the connector and the review fixes); 1.1.0 itself is not released yet.
+The first release candidate of 1.2.0: **passkeys for the web interface** (phase 14). It is a pre-release for the field test with real devices (a phone, Windows Hello, a security key, a password manager). It builds on 1.1.0.
 
 ### Added
 
 - **Passkeys for the web interface.** A passkey logs in with a fingerprint, a face or the screen lock of a device (a phone, Windows Hello, a Mac, a security key, a password manager) instead of a password and a code, and it cannot be handed to a fake page. It is a login of its own that counts as two factors; the password login stays, with the second factor if that is on, as the way back when a device is lost. *Security → Passkeys* adds (up to ten), renames and removes them and shows which are synced; the login page has the button **Log in with a passkey**, and the page of the code offers a passkey in place of the code. Keys of the kinds ES256, EdDSA and RS256 are checked in plain PHP (`openssl`, `sodium`), with no library. Passkeys need https (or `localhost`) and a host name, are bound to the host name of the first one, and for an installation behind a proxy that ends https the setting `web.passkeyOrigin` gives the address. `web.requireTwoFactor` counts a passkey login (a password alone does not count). `php bin/threadsafe admin passkey [list | remove NAME | remove-all]` is the way back, the System page has a row for them, and the file `data/passkeys.json` holds public keys only. A failed answer waits for nothing and counts nowhere, so that nobody can shut the door for the owner; it is in the audit log. See `docs/WEB.md` "Passkeys" and `docs/PHASE14.md`.
+## [1.1.0] - 2026-11-22
+
+The **connector** (phase 13): a site that cannot run ThreadSafe itself (no second website, no cron) is backed up by `threadsafe-backup.php` working as an **agent**, and a ThreadSafe elsewhere plans, pulls, checks and keeps the backups. For WordPress a **plugin** installs and pairs the agent. Everything that the two candidates 1.1.0-rc.1 and 1.1.0-rc.2 brought is below; the user guide is [docs/CONNECTOR.md](docs/CONNECTOR.md). **Nothing changes for an installation that does not use it:** the agent is off in every tool that has not been paired, and a stranger who asks it gets the same answer as for a file that is not there. An installation of 1.0.0 can be updated from the System page (or with `threadsafe update`); the format of the files in `data/` has not changed.
+
+Field test: a week of seven nights by schedule with the plugin on a real WordPress host (backups of about 1.9 GB in four encrypted parts, all of them opened and checked with the secret key), and a restore on a new domain.
+
+### Added
+
+- **The user guide of the connector**, [docs/CONNECTOR.md](docs/CONNECTOR.md): the plugin, the file, the central side, security, update and limits.
+- **A button copies the pairing string** in the wizard of `threadsafe-backup.php` and on the page of the WordPress plugin. The button of the key pair works on a host without https too: it selects the text and copies it by hand where the clipboard API is not allowed, and says "Copied".
+
+### Changed
+
+- **A backup no longer carries the warning "The storage directory is inside the site".** It was there in every backup of the WordPress plugin (and of any profile whose storage lies in the site) and gave each one the status `ok-with-warnings`, although the storage is left out of the archive on purpose. The warning stays in the test of the profile (`profile test`, the profile page), where it can be acted on. The restore no longer shows it for older backups that carry it.
 
 ## [1.1.0-rc.2] - 2026-11-17
 
