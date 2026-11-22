@@ -6,6 +6,21 @@ of the GitHub release (see "Making a release" in [AGENTS.md](AGENTS.md)).
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-11-22
+
+The **connector** (phase 13): a site that cannot run ThreadSafe itself (no second website, no cron) is backed up by `threadsafe-backup.php` working as an **agent**, and a ThreadSafe elsewhere plans, pulls, checks and keeps the backups. For WordPress a **plugin** installs and pairs the agent. Everything that the two candidates 1.1.0-rc.1 and 1.1.0-rc.2 brought is below; the user guide is [docs/CONNECTOR.md](docs/CONNECTOR.md). **Nothing changes for an installation that does not use it:** the agent is off in every tool that has not been paired, and a stranger who asks it gets the same answer as for a file that is not there. An installation of 1.0.0 can be updated from the System page (or with `threadsafe update`); the format of the files in `data/` has not changed.
+
+Field test: a week of seven nights by schedule with the plugin on a real WordPress host (backups of about 1.9 GB in four encrypted parts, all of them opened and checked with the secret key), and a restore on a new domain.
+
+### Added
+
+- **The user guide of the connector**, [docs/CONNECTOR.md](docs/CONNECTOR.md): the plugin, the file, the central side, security, update and limits.
+- **A button copies the pairing string** in the wizard of `threadsafe-backup.php` and on the page of the WordPress plugin. The button of the key pair works on a host without https too: it selects the text and copies it by hand where the clipboard API is not allowed, and says "Copied".
+
+### Changed
+
+- **A backup no longer carries the warning "The storage directory is inside the site".** It was there in every backup of the WordPress plugin (and of any profile whose storage lies in the site) and gave each one the status `ok-with-warnings`, although the storage is left out of the archive on purpose. The warning stays in the test of the profile (`profile test`, the profile page), where it can be acted on. The restore no longer shows it for older backups that carry it.
+
 ## [1.1.0-rc.2] - 2026-11-17
 
 The second release candidate of 1.1.0: the **WordPress plugin** of the connector (phase 13, milestone 5) and the fixes of the review of rc.1. It is a pre-release for the field test with the plugin on a real host. The week of rc.1 with the tool set up by hand ran seven nights out of seven without a problem.
