@@ -6,6 +6,10 @@ of the GitHub release (see "Making a release" in [AGENTS.md](AGENTS.md)).
 
 ## [Unreleased]
 
+### Changed
+
+- **A backup no longer carries the warning "The storage directory is inside the site".** It was there in every backup of the WordPress plugin (and of any profile whose storage lies in the site) and gave each one the status `ok-with-warnings`, although the storage is left out of the archive on purpose. The warning stays in the test of the profile (`profile test`, the profile page), where it can be acted on. The restore no longer shows it for older backups that carry it.
+
 ## [1.2.0-rc.1] - 2026-11-18
 
 The first release candidate of 1.2.0: **passkeys for the web interface** (phase 14). It is a pre-release for the field test with real devices (a phone, Windows Hello, a security key, a password manager). It is built on the branch `phase-14-passkeys`, which also holds everything of 1.1.0-rc.2 (the WordPress plugin of the connector and the review fixes); 1.1.0 itself is not released yet.

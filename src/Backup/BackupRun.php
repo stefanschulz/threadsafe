@@ -263,7 +263,8 @@ final class BackupRun implements Task
             throw new GuardFailed("The profile \"{$profile->id}\" cannot be backed up:\n  " . implode("\n  ", $report->messages(CheckLevel::Failure)));
         }
         foreach ($report->checks as $check) {
-            if ($check->level === CheckLevel::Warning && $check->subject !== 'Database objects') {
+            // The storage inside the site is a matter of the profile and shows in its test, not in the report of every backup (it is left out of the archive).
+            if ($check->level === CheckLevel::Warning && $check->subject !== 'Database objects' && $check->message !== ConnectionTest::STORAGE_INSIDE_SITE) {
                 $s->warn($check->subject . ': ' . $check->message);
             }
         }
