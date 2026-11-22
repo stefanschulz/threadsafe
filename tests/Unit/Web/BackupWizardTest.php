@@ -308,6 +308,8 @@ final class BackupWizardTest extends TestCase
         $shown = $client->post($this->options(['action' => 'make-keys', 'mode' => 'pair']))->body;
         $public = [1 => $this->found('~Public key: <code>(age1[a-z0-9]+)</code>~', $shown)];
         $secret = [1 => $this->found('~(AGE-SECRET-KEY-1[A-Z0-9]+)~', $shown)];
+        self::assertStringContainsString('data-copy="#secret-key"', $shown, 'a button copies the key pair');
+        self::assertStringContainsString("querySelectorAll('button[data-copy]')", $shown);
         $page = $client->post(['action' => 'use-keys', 'public' => $public[1], 'stored' => '1']);
         self::assertStringContainsString('A key pair is made', $page->body);
         self::assertStringNotContainsString('AGE-SECRET-KEY', $page->body, 'it is never shown again');

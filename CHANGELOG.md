@@ -8,6 +8,8 @@ of the GitHub release (see "Making a release" in [AGENTS.md](AGENTS.md)).
 
 ### Changed
 
+- **A button copies the pairing string** in the wizard of `threadsafe-backup.php` and on the page of the WordPress plugin. The button of the key pair works on a host without https too: it selects the text and copies it by hand where the clipboard API is not allowed, and says "Copied".
+
 - **A backup no longer carries the warning "The storage directory is inside the site".** It was there in every backup of the WordPress plugin (and of any profile whose storage lies in the site) and gave each one the status `ok-with-warnings`, although the storage is left out of the archive on purpose. The warning stays in the test of the profile (`profile test`, the profile page), where it can be acted on. The restore no longer shows it for older backups that carry it.
 
 ## [1.2.0-rc.1] - 2026-11-18

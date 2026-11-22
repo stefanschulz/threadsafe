@@ -113,6 +113,9 @@ final class BackupWizardAgentTest extends TestCase
 
         $page = $client->post(['action' => 'agent-pair', 'agent_id' => 'shop', 'agent_url' => 'https://shop.example/tools/threadsafe-backup.php', 'agent_allow' => "203.0.113.7\n198.51.100.0/24", 'agent_keep' => '2', 'agent_plain' => '']);
 
+        self::assertStringContainsString('<pre id="pairing-string"><code>ts1:', $page->body);
+        self::assertStringContainsString('data-copy="#pairing-string"', $page->body, 'a button copies the string');
+        self::assertStringContainsString("querySelectorAll('button[data-copy]')", $page->body, 'and the page carries the script of the button');
         $decoded = AgentPairing::decode($this->pairingOf($page));
         self::assertSame('shop', $decoded['profile']);
         self::assertSame('https://shop.example/tools/threadsafe-backup.php', $decoded['url']);
