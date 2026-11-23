@@ -12,6 +12,8 @@ of the GitHub release (see "Making a release" in [AGENTS.md](AGENTS.md)).
 
 ### Fixed
 
+- **`threadsafe profile add` detects the website type** when `--type` is left out or is `--type=auto` (it was a required option, and the web form always took *Other website*). The command says which type it took; `--type=NAME` still names it. `profile edit --type=auto` is refused.
+
 - **A new profile in the web interface detects the website type from the directory.** The form started on the first type of the list, *Other website*, and so a Joomla, WordPress or PrestaShop site was always stored as a generic one (`threadsafe-backup.php` did detect it). The type now starts on *Detect from the site*, which takes the first specific type that recognises the directory, else *Other website*; *Look at the site* shows the result in the form, and saving uses it. A type that was chosen by hand is kept.
 
 - **A Windows path that Git Bash has stripped of its backslashes is refused** (on Windows). `C:\sicher\key.txt` typed in Git Bash arrives as `C:sicherkey.txt`, which PHP reads as a path relative to the current directory of drive C, so a command used another file than the one meant. The command line now stops with a hint (quotes or forward slashes) for an argument or for the value of an option that takes a file, a directory or a path. A UNC path or a path without a drive cannot be told from a name and is not caught.

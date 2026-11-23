@@ -55,13 +55,13 @@ final class ProfileCommand implements Command
 
     public function usage(): string
     {
-        return 'profile add <id> --type=TYPE --path=DIR --storage=DIR [options] | add <id> --pairing-file=FILE --storage=DIR [options] (a site with an agent) | edit <id> [options] | show <id> | list | test <id> | remove <id> --yes';
+        return 'profile add <id> [--type=TYPE] --path=DIR --storage=DIR [options] | add <id> --pairing-file=FILE --storage=DIR [options] (a site with an agent) | edit <id> [options] | show <id> | list | test <id> | remove <id> --yes';
     }
 
     public function options(): array
     {
         return [
-            new OptionSpec('type', 'Website type: ' . implode(', ', $this->registry()->ids()), takesValue: true, valueName: 'TYPE'),
+            new OptionSpec('type', 'Website type: ' . implode(', ', $this->registry()->ids()) . '; add: "auto" (the default) takes the first type that recognises the directory, else generic', takesValue: true, valueName: 'TYPE'),
             new OptionSpec('path', 'Directory of the site (absolute)', takesValue: true, valueName: 'DIR'),
             new OptionSpec('storage', 'Directory for the backups of this site (absolute; outside the web root)', takesValue: true, valueName: 'DIR'),
             new OptionSpec('name', 'Display name (default: the id)', takesValue: true, valueName: 'NAME'),
@@ -168,12 +168,20 @@ final class ProfileCommand implements Command
         if ($input->has('plain-http') || $input->has('no-plain-http')) {
             throw new UsageError('--plain-http only makes sense for a site with an agent (--pairing-file).');
         }
-        foreach (['type', 'path', 'storage'] as $required) {
+        foreach (['path', 'storage'] as $required) {
             if (!$input->has($required)) {
                 throw new UsageError("profile add needs --$required.");
             }
         }
         $data = ['id' => $id, ...$this->fields($input, null)];
+        if (!$input->has('type') || $input->value('type') === 'auto') {
+            try {
+                [$data['type']] = $this->service($store)->autodetect((string) $input->value('path'));
+            } catch (ProfileException $e) {
+                throw new UsageError($e->getMessage(), 0, $e);
+            }
+            $output->writeln("Website type: {$data['type']} (detected from the directory).");
+        }
 
         return $this->store($store, $data, $input, $output, 'added');
     }
@@ -181,6 +189,9 @@ final class ProfileCommand implements Command
     private function edit(string $id, ProfileStore $store, Input $input, Output $output): ExitCode
     {
         $current = $this->load($store, $id);
+        if ($input->value('type') === 'auto') {
+            throw new UsageError('--type=auto is for "profile add": it detects the type of a new profile. Name the type to change it.');
+        }
         if ($current->isRemote()) {
             $this->refuseLocalOptions($input);
         } elseif ($input->has('pairing-file') || $input->has('plain-http') || $input->has('no-plain-http')) {

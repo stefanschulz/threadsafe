@@ -80,7 +80,7 @@ Exit codes of all four: **0** ok (also with warnings), **1** usage error (wrong 
 
 | Command | What it does |
 |---|---|
-| `profile add <id> --type=TYPE --path=DIR --storage=DIR [options]` | Creates a profile. Runs the connection test first and refuses to store a profile that cannot be backed up (`--no-test` stores it anyway). |
+| `profile add <id> [--type=TYPE] --path=DIR --storage=DIR [options]` | Creates a profile. Without `--type` (or with `--type=auto`) the type is detected from the directory: the first specific type that recognises it, else `generic`; the command says which it took. Runs the connection test first and refuses to store a profile that cannot be backed up (`--no-test` stores it anyway). |
 | `profile edit <id> [options]` | Changes the given fields; the rest stays. A list option (`--exclude`, `--structure-only`) replaces the stored list; `--no-database`, `--default-filters`, `--no-part-size` undo settings. |
 | `profile show <id> [--json]`, `profile list [--json]` | Shows profiles; the password is never shown. |
 | `profile test <id> [--json]` | Looks at everything a backup depends on and changes nothing (below). Exit code 2 if a backup would fail. |

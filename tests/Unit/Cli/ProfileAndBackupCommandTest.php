@@ -17,6 +17,7 @@ use ThreadSafe\Engine\Lock;
 use ThreadSafe\Engine\RunStore;
 use ThreadSafe\Plugin\PluginRegistry;
 use ThreadSafe\Profile\ProfileStore;
+use ThreadSafe\Tests\Support\JoomlaSite;
 use ThreadSafe\Tests\Support\TempDirectory;
 
 /**
@@ -68,6 +69,49 @@ final class ProfileAndBackupCommandTest extends TestCase
     {
         [$code, , $stderr] = $this->cli(['profile', 'add', $id, '--type=generic', '--path=' . ($site ?? $this->site), '--storage=' . ($storage ?? $this->storage . '/' . $id)]);
         self::assertSame(0, $code, $stderr);
+    }
+
+    public function testWithoutATypeThePlainSiteIsAnyWebsiteAndTheTypeIsReported(): void
+    {
+        [$code, $stdout, $stderr] = $this->cli(['profile', 'add', 'blog', '--path=' . $this->site, '--storage=' . $this->storage]);
+
+        self::assertSame(0, $code, $stderr);
+        self::assertStringContainsString('Website type: generic (detected from the directory).', $stdout);
+        self::assertSame('generic', (new ProfileStore($this->data . '/profiles'))->load('blog')->type);
+    }
+
+    public function testTypeAutoDetectsAJoomlaSite(): void
+    {
+        $joomla = $this->tempDirectory() . '/joomla';
+        JoomlaSite::build($joomla);
+
+        [$code, $stdout, $stderr] = $this->cli(['profile', 'add', 'cms', '--type=auto', '--path=' . $joomla, '--storage=' . $this->storage, '--no-test']);
+
+        self::assertSame(0, $code, $stderr);
+        self::assertStringContainsString('Website type: joomla (detected from the directory).', $stdout);
+        self::assertSame('joomla', (new ProfileStore($this->data . '/profiles'))->load('cms')->type);
+    }
+
+    public function testAnExplicitTypeIsKeptAndNotReportedAsDetected(): void
+    {
+        $joomla = $this->tempDirectory() . '/joomla';
+        JoomlaSite::build($joomla);
+
+        [$code, $stdout] = $this->cli(['profile', 'add', 'plain', '--type=generic', '--path=' . $joomla, '--storage=' . $this->storage, '--no-test']);
+
+        self::assertSame(0, $code);
+        self::assertStringNotContainsString('detected', $stdout);
+        self::assertSame('generic', (new ProfileStore($this->data . '/profiles'))->load('plain')->type);
+    }
+
+    public function testTypeAutoIsRefusedWhenEditing(): void
+    {
+        $this->add();
+
+        [$code, , $stderr] = $this->cli(['profile', 'edit', 'blog', '--type=auto']);
+
+        self::assertSame(1, $code);
+        self::assertStringContainsString('--type=auto is for "profile add"', $stderr);
     }
 
     public function testProfileLifecycle(): void
