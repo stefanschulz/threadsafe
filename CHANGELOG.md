@@ -10,6 +10,10 @@ of the GitHub release (see "Making a release" in [AGENTS.md](AGENTS.md)).
 
 - **A PrestaShop module for the connector** (phase 15): `threadsafe-connector-prestashop-X.Y.Z.zip` installs in the module manager of PrestaShop 9.0, pairs the agent on its *Configure* page and keeps the workspace in `var/`. Same agent, same central side as the WordPress plugin; guide: [docs/CONNECTOR.md](docs/CONNECTOR.md). Proven in Docker on all three database servers; not yet tried on a real shop.
 
+### Fixed
+
+- **The button that copies the pairing string did nothing** on the page of the WordPress plugin (and of the PrestaShop module): the page did not bring the script of the button. It does now; the wizard of the tool was not affected.
+
 ## [1.2.0] - 2026-11-22
 
 **Passkeys for the web interface** (phase 14). It builds on 1.1.0. Nothing changes for an installation that does not register a passkey: the login with a password (and the second factor, if it is on) stays. Field test: a passkey of Windows Hello on a live system over https, made and used for the login, without findings. Proven in Docker with a real Chrome and a virtual authenticator, on all three database servers; **not tried by hand:** a phone, a security key, a synced passkey of a password manager, the second factor with a passkey, removing a key, `web.requireTwoFactor`. Bug reports will fill these in.

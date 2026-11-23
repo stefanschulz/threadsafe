@@ -17,6 +17,34 @@ use ThreadSafe\Profile\SiteProfile;
  */
 final class AgentPage
 {
+    /**
+     * The script of a page with a copy button: a button with `data-copy="#id"` copies the text of that element. It uses the clipboard API where the page is a
+     * secure context (https, localhost) and selects the text and copies it by hand otherwise (a host without https); the button says what happened.
+     */
+    public const string COPY_SCRIPT = <<<'JS'
+(function () {
+  var buttons = document.querySelectorAll('button[data-copy]');
+  Array.prototype.forEach.call(buttons, function (button) {
+    var label = button.textContent;
+    var say = function (text) { button.textContent = text; setTimeout(function () { button.textContent = label; }, 2500); };
+    var select = function (node) {
+      var range = document.createRange(); range.selectNodeContents(node);
+      var selection = window.getSelection(); selection.removeAllRanges(); selection.addRange(range);
+      var ok = false; try { ok = document.execCommand('copy'); } catch (e) {}
+      say(ok ? 'Copied' : 'Selected: press Ctrl+C');
+    };
+    button.addEventListener('click', function () {
+      var node = document.querySelector(button.getAttribute('data-copy'));
+      if (!node) { return; }
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(node.textContent).then(function () { say('Copied'); }, function () { select(node); });
+      } else { select(node); }
+    });
+  });
+})();
+
+JS;
+
     private readonly AgentSetup $setup;
 
     public function __construct(private readonly BackupWorkspace $workspace)
@@ -134,6 +162,8 @@ final class AgentPage
                 . 'Paste it into the central ThreadSafe (<code>profile add ... --pairing-file=FILE</code>, or the field of the form for a remote profile).</p>'
                 . '<pre id="pairing-string"><code>' . $e($result['pairing']) . '</code></pre>'
                 . '<p><button type="button" data-copy="#pairing-string">Copy the pairing string</button></p>'
+                // the page of a plugin or a module has no script of its own; the wizard of the tool puts the same script into every page
+                . ($embedded ? '<script>' . self::COPY_SCRIPT . '</script>' : '')
                 . '<p class="help">Fingerprint of the secret, to compare on both sides: <code>' . $e(AgentPairing::readable(AgentPairing::fingerprint($config->secret()))) . '</code></p></div>';
         }
 
