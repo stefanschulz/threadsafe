@@ -12,6 +12,7 @@ use ThreadSafe\PrestaShop9\Steps\EnsureSkeleton;
 use ThreadSafe\PrestaShop9\Steps\Finalize;
 use ThreadSafe\PrestaShop9\Steps\ReadSourceState;
 use ThreadSafe\PrestaShop9\Steps\ReplaceContentDomains;
+use ThreadSafe\PrestaShop9\Steps\RestoreBundleLinks;
 use ThreadSafe\PrestaShop9\Steps\RewriteHostBoundFiles;
 use ThreadSafe\PrestaShop9\Steps\RewriteHtaccess;
 use ThreadSafe\PrestaShop9\Steps\SelfTest;
@@ -44,6 +45,7 @@ final class MigrationPipeline
             new RewriteHostBoundFiles(),
             new BlockSearchEngines(),
             new EnsureSkeleton(),
+            new RestoreBundleLinks(),
             new Finalize(),
             new SelfTest(),
         ];

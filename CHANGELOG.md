@@ -12,6 +12,8 @@ of the GitHub release (see "Making a release" in [AGENTS.md](AGENTS.md)).
 
 ### Fixed
 
+- **A restored PrestaShop shop has the links of its back office again.** PrestaShop links `<admin>/bundles/apiplatform` and `fosjsrouting` to files in `vendor/`; a backup does not keep symbolic links, so a restored shop had the two directories empty (the backup said "Skipped the symbolic link"). The new step `restore-bundle-links` of the PrestaShop type makes them again, relative, or copies the files where the host does not allow links. The list is a data file, `plugins/prestashop9/resources/bundle-links.json`.
+
 - **The button that copies the pairing string did nothing** on the page of the WordPress plugin (and of the PrestaShop module): the page did not bring the script of the button. It does now; the wizard of the tool was not affected.
 
 ## [1.2.0] - 2026-11-22

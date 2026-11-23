@@ -1,0 +1,7 @@
+{
+    "description": "The links that PrestaShop makes in <admin>/bundles/ (bin/console assets:install --symlink): the name of the link => the public directory of a bundle in vendor/, relative to the root of the shop. A backup does not keep symbolic links, so a restore makes them again (only where the target is there and the name is free).",
+    "links": {
+        "apiplatform": "vendor/api-platform/core/src/Symfony/Bundle/Resources/public",
+        "fosjsrouting": "vendor/friendsofsymfony/jsrouting-bundle/Resources/public"
+    }
+}
