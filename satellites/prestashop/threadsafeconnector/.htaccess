@@ -1,0 +1,11 @@
+# PrestaShop's modules/.htaccess denies every PHP file below modules/. The door of the agent must be reachable: the central ThreadSafe asks it, and it
+# checks the signature of every request itself (docs/PHASE15.md 3.2, option A). Nothing else in this directory is opened.
+<Files "agent.php">
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Allow from all
+    </IfModule>
+    <IfModule mod_authz_core.c>
+        Require all granted
+    </IfModule>
+</Files>

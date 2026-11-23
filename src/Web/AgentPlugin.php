@@ -38,11 +38,18 @@ final class AgentPlugin
 
     private const string SETTINGS_FILE = 'plugin.json';
 
+    /** The website types the plugin or module can serve: the name of the site and the file that holds its database access. */
+    private const array SITE_TYPES = [
+        'wordpress' => ['WordPress', 'wp-config.php'],
+        'prestashop9' => ['PrestaShop', 'app/config/parameters.php'],
+    ];
+
     /**
-     * @param string $siteRoot         the directory of the WordPress site (ABSPATH)
-     * @param string $contentDirectory `wp-content`: the pointer file lies there, where an update of the plugin does not reach
-     * @param string $toolDirectory    the directory of the plugin, where the tool and its entry file are
+     * @param string $siteRoot         the directory of the site (WordPress: ABSPATH; PrestaShop: _PS_ROOT_DIR_)
+     * @param string $contentDirectory WordPress: `wp-content`; PrestaShop: `modules`. The pointer file lies there, where an update of the plugin or module does not reach
+     * @param string $toolDirectory    the directory of the plugin or module, where the tool and its entry file are
      * @param string $script           the file name of the tool
+     * @param string $siteType         the website type the site must be: `wordpress` or `prestashop9` (docs/PHASE15.md 3.5)
      */
     public function __construct(
         private readonly string $siteRoot,
@@ -50,6 +57,7 @@ final class AgentPlugin
         private readonly string $toolDirectory,
         private readonly ?PluginRegistry $plugins = null,
         private readonly string $script = 'threadsafe-backup.php',
+        private readonly string $siteType = 'wordpress',
     ) {
     }
 
@@ -178,7 +186,7 @@ final class AgentPlugin
         $file = $this->pointerPath();
         $temporary = $file . '.' . bin2hex(random_bytes(3)) . '.tmp';
         if (@file_put_contents($temporary, self::pointerSource($workspace, $on), LOCK_EX) === false) {
-            throw new RuntimeException('Cannot write the file "' . $file . '". Make the directory wp-content writable for the web server.');
+            throw new RuntimeException('Cannot write the file "' . $file . '". Make the directory ' . basename(rtrim($this->contentDirectory, '/\\')) . ' writable for the web server.');
         }
         @chmod($temporary, 0600);
         if (!@rename($temporary, $file)) {
@@ -264,11 +272,12 @@ final class AgentPlugin
         $root = $target->resolve($this->siteRoot);
         $service = new ProfileService(new ProfileStore($workspace->data() . '/profiles'), $this->plugins ?? PluginRegistry::load(), $workspace->data());
         [$type, $detection] = $service->autodetect($root);
-        if ($type !== 'wordpress') {
-            throw new ProfileException('The directory "' . $root . '" is not recognised as a WordPress site (found: ' . $type . ').');
+        [$label, $configFile] = self::SITE_TYPES[$this->siteType] ?? [$this->siteType, 'configuration file'];
+        if ($type !== $this->siteType) {
+            throw new ProfileException('The directory "' . $root . '" is not recognised as a ' . $label . ' site (found: ' . $type . ').');
         }
         if ($detection->database === null) {
-            throw new ProfileException('The file wp-config.php holds no database access that this plugin can read.');
+            throw new ProfileException('The file ' . $configFile . ' holds no database access that this plugin can read.');
         }
         // the plugin's own entry file and the pointer must never travel into a copy of the site: the copy would carry a door to the workspace of this one
         $own = [];
@@ -312,7 +321,7 @@ final class AgentPlugin
         }
         $left = $this->settings($workspace)['exclude'];
         $found = [];
-        foreach (self::OTHER_BACKUPS as $candidate) {
+        foreach ($this->siteType === 'wordpress' ? self::OTHER_BACKUPS : [] as $candidate) {
             foreach (glob(rtrim($this->contentDirectory, '/\\') . '/' . $candidate, GLOB_ONLYDIR) ?: [] as $directory) {
                 $relative = ProfileResolver::relativeInside($root, $directory);
                 $pattern = $relative === null ? null : '/' . strtr($relative, ['*' => '?', '?' => '?', '\\' => '?']) . '/';
