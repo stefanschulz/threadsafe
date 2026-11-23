@@ -43,6 +43,8 @@
 #
 #  9b. phase 4g: the WordPress plugin threadsafe-connector (group "connector", docs/PHASE13.md 9.12) on the same seeded WordPress 7: WP-CLI installs and activates the ZIP, its page pairs the agent, the central side makes a backup,
 #      the door is switched off by deactivating, an update keeps the pairing and the archives, an uninstall leaves the archives; the WordPress 6.0 service (PHP 8.1) is asked at the door.
+#  9bb. phase 4i: the PrestaShop module threadsafeconnector (group "connector-ps", docs/PHASE15.md 5) in a PrestaShop 9 of its own (service prestashopconnector, seeded by seed-prestashop-connector.sh): the ZIP is
+#      installed through the module manager of the back office, its page pairs the agent, the central side makes a backup, the door is switched off by disabling, an update keeps the pairing and the archives, an uninstall leaves the archives.
 #  9c. phase 4h: the passkeys (docs/PHASE14.md 4.2, tests/stack/passkeys.sh and passkey-browser.mjs): a real Chrome with a virtual authenticator, on the machine that runs this script, drives the web interface behind Apache (5 s / 64 MB) through its own pages: a passkey added and used, a second key, a passkey instead of the code of the second factor, a removed key refused, an IP address refused, the a11y audit of the pages; skipped if node or Chrome is missing.
 #  10. phase eight: WordPress (group "wordpress", the services wordpress7, wordpress6 and wordpress60, seeded by seed-wordpress.sh with WP-CLI before phase 4b, because the web
 #      interface backs up one of them there): the seeded sites are backed up
@@ -108,6 +110,11 @@ phpunit --group agent "$@"
 
 log "Integration tests, phase 4g: the WordPress plugin threadsafe-connector on WordPress 7 (Apache, 5 s / 64 MB): installed and activated with WP-CLI, set up and paired on its page, a backup through it, off and on, an update, an uninstall, and a door on PHP 8.1"
 phpunit --group connector "$@"
+
+log "Integration tests, phase 4i: the PrestaShop module threadsafeconnector in a PrestaShop 9 of its own (Apache, 5 s / 64 MB): installed from its ZIP in the back office, set up and paired on its page, a backup through it, disabled and enabled, an update, an uninstall"
+"$STACK_DIR/seed-prestashop-connector.sh"
+# the files of that shop are mounted where Apache has them, so that the paths in the pointer of the module are the paths that Apache uses
+dc run --rm -e THREADSAFE_STACK=1 -v "threadsafe-dev_psconnector_data${VOLUME_SUFFIX:-}:/var/www/html" tools vendor/bin/phpunit --testsuite integration --group connector-ps "$@"
 
 log "Integration tests, phase 4h: the passkeys in a real Chrome with a virtual authenticator against the web interface behind Apache (5 s / 64 MB); it needs node and Chrome on this machine and says so if it does not find them"
 "$STACK_DIR/passkeys.sh"

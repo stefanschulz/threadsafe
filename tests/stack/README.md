@@ -41,6 +41,10 @@ tests/stack/run.sh            # seed → clone → PHPUnit phase 1 (incl. the mi
                               # web phase because the web interface backs one of the sites up, `docs/PHASE9.md` 4.2; a copy restored with `--mode=dev` sends no mail and keeps search engines out)
                               # → phase 9 (groups `wordpress-disaster-prepare` and `wordpress-disaster-restore`: a seeded WordPress is restored onto the target and backed up there, the target's containers
                               # and volumes are destroyed and made again empty, and the wizard brings the site back on the same address under 5 s / 64 MB, `docs/PHASE9.md` 4.2)
+                              # → phase 4i (group `connector-ps`: the PrestaShop module `threadsafeconnector` in a PrestaShop 9 of its own, the service `prestashopconnector` seeded by
+                              # `seed-prestashop-connector.sh`, with limits of 5 s / 64 MB: the built ZIP is installed through the module manager of the back office, its page sets the key
+                              # and pairs the agent, the central side makes a backup through it and opens it with `age`, the door and nothing else of the module is served, disabling and
+                              # enabling keep the pairing, an update keeps the pairing and the archives, an uninstall leaves the archives, `docs/PHASE15.md` 5)
 tests/stack/cross.sh          # backups across the two kinds of database server (MySQL 8.4 -> MariaDB and back), needs the source seeded on both
 ```
 
@@ -72,6 +76,18 @@ Single steps:
 
 The scripts need Docker and Bash (Git Bash on Windows works). The PHPUnit tests run inside the `tools` container,
 which sits in both networks, and are skipped unless `THREADSAFE_STACK=1` is set (which `run.sh` does).
+
+## The PrestaShop of the module, and a manual round trip
+
+`seed-prestashop-connector.sh` makes the database `psconn` and starts the service `prestashopconnector` (profile `psconnector`, port 8590, back office `/admin-dev`,
+`admin@example.com` and the password of `.docker/docker-compose.yml`); the image installs the shop on its first start, which takes a minute or two. It is a shop of its own:
+the source shop is the baseline of the migration and restore tests. The test mounts the volume of its files at `/var/www/html` of the tools container
+(`docker compose ... run -v threadsafe-dev_psconnector_data:/var/www/html tools ...`, as `run.sh` does), so that the paths in the pointer of the module are the paths of Apache.
+
+To try the module by hand with a central ThreadSafe: build the package (`php tools/build-release.php --version=1.3.0-dev --output=dist/release-dev`), upload
+`threadsafe-connector-prestashop-1.3.0-dev.zip` in the back office (*Modules > Module Manager > Upload a module*), open its page, paste a public key, **Save**, **Pair** with the
+address `http://prestashopconnector/modules/threadsafeconnector/agent.php` and the plain-http box, switch it on, and give the string to the central side: the service `web` (port 8390) is a
+running ThreadSafe in the same network, or use `threadsafe profile add ... --pairing-file=FILE --plain-http` from the tools container.
 
 ## What is seeded
 
