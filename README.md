@@ -65,7 +65,7 @@ Passwords are never options of a command, only `--...-file` or the environment. 
 - [docs/ENCRYPTION.md](docs/ENCRYPTION.md): keys, passphrases, what is protected
 - [docs/MIGRATE.md](docs/MIGRATE.md): reference of `migrate` (request, report, journal, exit codes, dev mode, module rules, all website types)
 - [docs/JOOMLA.md](docs/JOOMLA.md) and [docs/WORDPRESS.md](docs/WORDPRESS.md): what is special about these types
-- [docs/CONNECTOR.md](docs/CONNECTOR.md): the connector, the agent and the WordPress plugin for a site that cannot run ThreadSafe
+- [docs/CONNECTOR.md](docs/CONNECTOR.md): the connector, the agent, the WordPress plugin and the PrestaShop module for a site that cannot run ThreadSafe
 - [CHANGELOG.md](CHANGELOG.md): what changed
 
 **Working on ThreadSafe**

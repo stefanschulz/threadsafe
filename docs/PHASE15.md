@@ -1,6 +1,6 @@
 # Phase 15 - The connector for PrestaShop: a module, the second satellite
 
-Status: **work packages 0 (the spikes, 2026-11-22), 1 (`AgentPlugin` for PrestaShop), 2 (the module: install, door, pointer, switch) and 3 (the back-office page), 4 (the ZIP) and 5 (the automated proof, phase 4i, green on all three database servers; 2026-11-23) are done, findings and "As built" in section 8**; the service `prestashopconnector` of the stack exists (profile `psconnector`). Open: the documentation (6), the field test (7). The decisions of section 7.2 are open where they say so. Companions: [PHASE13.md](PHASE13.md) (the agent, the central side, the WordPress plugin: read 3.5 and 9.12 first), [CONNECTOR.md](CONNECTOR.md) (the user guide), [BACKUP.md](BACKUP.md) section 11 (the tool).
+Status: **work packages 0 (the spikes, 2026-11-22), 1 (`AgentPlugin` for PrestaShop), 2 (the module: install, door, pointer, switch) and 3 (the back-office page), 4 (the ZIP) 5 (the automated proof, phase 4i, green on all three database servers; 2026-11-23) and 6 (the documentation: CONNECTOR.md section 2, README, AGENTS, CHANGELOG) are done, findings and "As built" in section 8**; the service `prestashopconnector` of the stack exists (profile `psconnector`). Open: the field test (7). The decisions of section 7.2 are open where they say so. Companions: [PHASE13.md](PHASE13.md) (the agent, the central side, the WordPress plugin: read 3.5 and 9.12 first), [CONNECTOR.md](CONNECTOR.md) (the user guide), [BACKUP.md](BACKUP.md) section 11 (the tool).
 
 ## 1. Goal and why now
 
