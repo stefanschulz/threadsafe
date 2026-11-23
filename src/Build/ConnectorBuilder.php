@@ -10,49 +10,80 @@ use ThreadSafe\Archive\ZipWriter;
 use ThreadSafe\Core\Version;
 
 /**
- * Builds the ZIP of the WordPress plugin, `threadsafe-connector-X.Y.Z.zip` (docs/PHASE13.md 9.12): the files of `satellites/wordpress/threadsafe-connector/`
- * with the version stamped into the header of the main file, and the backup tool `threadsafe-backup.php` of the same version next to them. WordPress
- * unpacks the ZIP into `wp-content/plugins/threadsafe-connector/`, so the top directory of the archive has that name. Like the other packages it is
- * written by our own writer with one time for every file, so two builds of one input are the same bytes.
+ * Builds the ZIP of a satellite of the connector: the files of `satellites/<kind>/<directory>/` with the version stamped into the main file, and the backup
+ * tool `threadsafe-backup.php` of the same version next to them (docs/PHASE13.md 9.12, docs/PHASE15.md 4). Two kinds exist:
+ *
+ * - `wordpress`: `threadsafe-connector-X.Y.Z.zip`, which WordPress unpacks into `wp-content/plugins/threadsafe-connector/`; the version stands in the header
+ *   of the plugin (`* Version:`).
+ * - `prestashop`: `threadsafe-connector-prestashop-X.Y.Z.zip`, which the module manager of PrestaShop unpacks into `modules/threadsafeconnector/`; the
+ *   version stands in the constructor of the module (`$this->version = '...';`).
+ *
+ * The top directory of the archive is the name that the CMS expects. Like the other packages it is written by our own writer with one time for every
+ * file, so two builds of one input are the same bytes.
  */
 final class ConnectorBuilder
 {
+    /** The top directory of the WordPress plugin. */
     public const string DIRECTORY = 'threadsafe-connector';
 
     public const string TOOL = 'threadsafe-backup.php';
 
-    private const string MAIN = 'threadsafe-connector.php';
+    /**
+     * What differs between the satellites: the directory of the source below `satellites/<kind>/` (also the top directory of the archive), the main file,
+     * the pattern of the line that holds the version (the groups around the version stay as they are) and the start of the name of the package.
+     */
+    private const array KINDS = [
+        'wordpress' => ['directory' => 'threadsafe-connector', 'main' => 'threadsafe-connector.php', 'version' => '/^( \* Version:\h+)\S+()/m', 'package' => 'threadsafe-connector-'],
+        'prestashop' => ['directory' => 'threadsafeconnector', 'main' => 'threadsafeconnector.php', 'version' => '/(\$this->version = \')[^\']+(\';)/', 'package' => 'threadsafe-connector-prestashop-'],
+    ];
 
     private readonly string $source;
 
+    private readonly string $directory;
+
+    private readonly string $main;
+
     /**
      * @param string $root the root of the source tree (the directory that holds `satellites/`)
+     * @param string $kind `wordpress` or `prestashop`
+     *
+     * @throws RuntimeException there is no satellite of that kind
      */
-    public function __construct(string $root)
+    public function __construct(string $root, private readonly string $kind = 'wordpress')
     {
-        $this->source = rtrim(str_replace('\\', '/', $root), '/') . '/satellites/wordpress/' . self::DIRECTORY;
+        $kinds = self::KINDS[$kind] ?? throw new RuntimeException("There is no satellite of the kind \"$kind\".");
+        $this->directory = $kinds['directory'];
+        $this->main = $kinds['main'];
+        $this->source = rtrim(str_replace('\\', '/', $root), '/') . '/satellites/' . $kind . '/' . $this->directory;
     }
 
-    /** `threadsafe-connector-1.1.0.zip` */
-    public static function packageName(string $version): string
+    /** `threadsafe-connector-1.1.0.zip` (WordPress) or `threadsafe-connector-prestashop-1.1.0.zip` */
+    public static function packageName(string $version, string $kind = 'wordpress'): string
     {
-        return 'threadsafe-connector-' . $version . '.zip';
+        return (self::KINDS[$kind]['package'] ?? throw new RuntimeException("There is no satellite of the kind \"$kind\".")) . $version . '.zip';
+    }
+
+    /** The name of the directory that the archive holds and that the CMS unpacks it into. */
+    public function directory(): string
+    {
+        return $this->directory;
     }
 
     /**
-     * The main file with the version of the release in its header.
+     * The main file with the version of the release in it.
      *
-     * @throws RuntimeException the header has not exactly one line for the version
+     * @throws RuntimeException the file has not exactly one line for the version
      */
-    public static function stampVersion(string $source, string $version): string
+    public static function stampVersion(string $source, string $version, string $kind = 'wordpress'): string
     {
         if (!Version::isValid($version)) {
             throw new RuntimeException("\"$version\" is not a valid version.");
         }
+        $pattern = self::KINDS[$kind]['version'] ?? throw new RuntimeException("There is no satellite of the kind \"$kind\".");
         $count = 0;
-        $stamped = preg_replace('/^( \* Version:\h+)\S+/m', '${1}' . $version, $source, -1, $count);
+        $stamped = preg_replace($pattern, '${1}' . $version . '${2}', $source, -1, $count);
         if ($count !== 1 || $stamped === null) {
-            throw new RuntimeException('The main file of the plugin has not exactly one header line "Version:".');
+            throw new RuntimeException('The main file of the ' . ($kind === 'wordpress' ? 'plugin has not exactly one header line "Version:".' : 'module has not exactly one line "$this->version = \'...\';".'));
         }
 
         return $stamped;
@@ -97,8 +128,8 @@ final class ConnectorBuilder
     public function write(string $zipPath, string $tool, string $version, int $epoch): array
     {
         $files = $this->files();
-        if (!in_array(self::MAIN, $files, true)) {
-            throw new RuntimeException('The plugin has no ' . self::MAIN . ' in ' . $this->source . '.');
+        if (!in_array($this->main, $files, true)) {
+            throw new RuntimeException('The plugin has no ' . $this->main . ' in ' . $this->source . '.');
         }
         if (!is_file($tool)) {
             throw new RuntimeException('The backup tool "' . $tool . '" is missing.');
@@ -116,18 +147,18 @@ final class ConnectorBuilder
                 if ($content === false) {
                     throw new RuntimeException("Cannot read \"$relative\".");
                 }
-                if ($relative === self::MAIN) {
-                    $content = self::stampVersion($content, $version);
+                if ($relative === $this->main) {
+                    $content = self::stampVersion($content, $version, $this->kind);
                 }
-                $names[] = self::DIRECTORY . '/' . $relative;
-                $zip->addString(self::DIRECTORY . '/' . $relative, $content, $epoch, 0100644);
+                $names[] = $this->directory . '/' . $relative;
+                $zip->addString($this->directory . '/' . $relative, $content, $epoch, 0100644);
             }
             $content = @file_get_contents($tool);
             if ($content === false) {
                 throw new RuntimeException('Cannot read the backup tool "' . $tool . '".');
             }
-            $names[] = self::DIRECTORY . '/' . self::TOOL;
-            $zip->addString(self::DIRECTORY . '/' . self::TOOL, $content, $epoch, 0100644);
+            $names[] = $this->directory . '/' . self::TOOL;
+            $zip->addString($this->directory . '/' . self::TOOL, $content, $epoch, 0100644);
             $zip->close();
         } catch (ZipException $e) {
             throw new RuntimeException('Cannot write the plugin: ' . $e->getMessage(), 0, $e);

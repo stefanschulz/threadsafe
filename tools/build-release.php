@@ -121,7 +121,12 @@ try {
     $connectorPath = rtrim($output, '/') . '/' . ConnectorBuilder::packageName($version);
     (new ConnectorBuilder($root))->write($connectorPath, $backupPath, $version, $epoch);
 
-    $sums = ReleaseBuilder::checksums([ReleaseBuilder::packageName($version) => $zipPath, 'threadsafe-install.php' => $installPath, 'threadsafe-restore.php' => $restorePath, 'threadsafe-backup.php' => $backupPath, ConnectorBuilder::packageName($version) => $connectorPath]);
+    // the PrestaShop module: the same, in a ZIP that the module manager of PrestaShop unpacks into modules/ (docs/PHASE15.md 4)
+    $moduleName = ConnectorBuilder::packageName($version, 'prestashop');
+    $modulePath = rtrim($output, '/') . '/' . $moduleName;
+    (new ConnectorBuilder($root, 'prestashop'))->write($modulePath, $backupPath, $version, $epoch);
+
+    $sums = ReleaseBuilder::checksums([ReleaseBuilder::packageName($version) => $zipPath, 'threadsafe-install.php' => $installPath, 'threadsafe-restore.php' => $restorePath, 'threadsafe-backup.php' => $backupPath, ConnectorBuilder::packageName($version) => $connectorPath, $moduleName => $modulePath]);
     file_put_contents(rtrim($output, '/') . '/SHA256SUMS', $sums);
 } catch (RuntimeException $e) {
     fwrite(STDERR, 'error: ' . $e->getMessage() . "\n");
@@ -138,5 +143,6 @@ if ($options['keep']) {
 }
 @chmod($zipPath, 0644);
 @chmod($connectorPath, 0644);
+@chmod($modulePath, 0644);
 printf("%s: %d files, %.2f MB; threadsafe-install.php: %.2f MB; threadsafe-restore.php: %d KB; threadsafe-backup.php: %d KB (built %s)\n", ReleaseBuilder::packageName($version), count($manifest->files) + 1, filesize($zipPath) / 1048576, filesize($installPath) / 1048576, filesize($restorePath) / 1024, filesize($backupPath) / 1024, gmdate('Y-m-d H:i:s', $epoch) . ' UTC');
 echo $sums;

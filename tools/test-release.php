@@ -58,11 +58,12 @@ $remove = static function (string $path) use (&$remove): void {
 $php = escapeshellarg(PHP_BINARY);
 $package = "threadsafe-$version.zip";
 $connector = "threadsafe-connector-$version.zip";
+$module = "threadsafe-connector-prestashop-$version.zip";
 
 echo "PHP " . PHP_VERSION . ", release files in $dir, version $version\n\n";
 
 // ---------------------------------------------------------------------------------------------------- the files and their checksums
-foreach ([$package, 'threadsafe-install.php', 'threadsafe-restore.php', 'threadsafe-backup.php', $connector, 'SHA256SUMS'] as $name) {
+foreach ([$package, 'threadsafe-install.php', 'threadsafe-restore.php', 'threadsafe-backup.php', $connector, $module, 'SHA256SUMS'] as $name) {
     $check("$name is there", is_file("$dir/$name"));
 }
 if ($failures !== []) {
@@ -74,14 +75,14 @@ foreach (file("$dir/SHA256SUMS", FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) 
         $listed[$m[2]] = $m[1];
     }
 }
-foreach ([$package, 'threadsafe-install.php', 'threadsafe-restore.php', 'threadsafe-backup.php', $connector] as $name) {
+foreach ([$package, 'threadsafe-install.php', 'threadsafe-restore.php', 'threadsafe-backup.php', $connector, $module] as $name) {
     $check("SHA256SUMS lists $name with its checksum", ($listed[$name] ?? '') === hash_file('sha256', "$dir/$name"));
 }
 
 // ---------------------------------------------------------------------------------------------------- unzip opens the package and the installer
 $haveUnzip = $run('command -v unzip')[1] !== '';
 if ($haveUnzip) {
-    foreach ([$package, 'threadsafe-install.php', $connector] as $name) {
+    foreach ([$package, 'threadsafe-install.php', $connector, $module] as $name) {
         [$code, $out] = $run('unzip -tq ' . escapeshellarg("$dir/$name"));
         $check("unzip -t $name", $code === 0, trim($out));
     }
@@ -226,6 +227,31 @@ if ($opened) {
     $door = escapeshellarg('$_GET = ["api" => "status"]; require ' . var_export("$content/plugins/threadsafe-connector/agent.php", true) . ';');
     [$code, $out] = $run("$php -r $door");
     $check('the door of the plugin answers "Not found." while the plugin is not switched on', trim($out) === 'Not found.', trim($out));
+}
+
+// ---------------------------------------------------------------------------------------------------- threadsafe-connector-prestashop-X.Y.Z.zip (the PrestaShop module)
+$shop = "$work/shop";
+mkdir("$shop/modules", 0777, true);
+$opened = $haveUnzip && $run('unzip -q -o -d ' . escapeshellarg("$shop/modules") . ' ' . escapeshellarg("$dir/$module"))[0] === 0;
+$check("$module unpacks with unzip", $opened);
+if ($opened) {
+    $names = array_filter(explode("\n", $run('unzip -Z1 ' . escapeshellarg("$dir/$module"))[1]));
+    $base = "$shop/modules/threadsafeconnector";
+    $check('the module unpacks into one directory named threadsafeconnector', count(array_filter($names, static fn (string $n): bool => !str_starts_with($n, 'threadsafeconnector/'))) === 0);
+    foreach (['threadsafeconnector.php', 'agent.php', 'index.php', '.htaccess', 'includes/page.php', 'threadsafe-backup.php'] as $file) {
+        $check("the module holds $file", is_file("$base/$file"));
+    }
+    $main = (string) file_get_contents("$base/threadsafeconnector.php");
+    $check('the module carries the version in its constructor', preg_match('/\$this->version = \'' . preg_quote($version, '/') . '\';/', $main) === 1);
+    $check('the tool in the module is the tool of the release', is_file("$base/threadsafe-backup.php") && hash_file('sha256', "$base/threadsafe-backup.php") === hash_file('sha256', "$dir/threadsafe-backup.php"));
+    foreach (['threadsafeconnector.php', 'agent.php', 'index.php', 'includes/page.php'] as $file) {
+        [$code, $out] = $run("$php -l " . escapeshellarg("$base/$file"));
+        $check("php -l $file", $code === 0, trim($out));
+    }
+    // the door, as a process: with no pointer it answers like a file that is not there
+    $door = escapeshellarg('$_GET = ["api" => "status"]; require ' . var_export("$base/agent.php", true) . ';');
+    [$code, $out] = $run("$php -r $door");
+    $check('the door of the module answers "Not found." while the module is not switched on', trim($out) === 'Not found.', trim($out));
 }
 
 $remove($work);

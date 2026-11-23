@@ -97,6 +97,47 @@ final class ConnectorBuilderTest extends TestCase
         ConnectorBuilder::stampVersion("<?php\n/** no version here */\n", '1.0.0');
     }
 
+    public function testThePackageOfTheModuleHoldsItsFilesAndTheToolUnderTheDirectoryOfPrestaShop(): void
+    {
+        $name = ConnectorBuilder::packageName('1.3.0', 'prestashop');
+        self::assertSame('threadsafe-connector-prestashop-1.3.0.zip', $name);
+        $zip = $this->directory . '/out/' . $name;
+
+        $builder = new ConnectorBuilder(dirname(__DIR__, 3), 'prestashop');
+        $names = $builder->write($zip, $this->tool(), '1.3.0', 1_700_000_000);
+
+        self::assertSame('threadsafeconnector', $builder->directory());
+        $entries = $this->entries($zip);
+        self::assertSame($names, array_keys($entries));
+        foreach (array_keys($entries) as $entry) {
+            self::assertStringStartsWith('threadsafeconnector/', $entry);
+        }
+        foreach (['threadsafeconnector.php', 'agent.php', 'index.php', '.htaccess', 'includes/page.php', 'threadsafe-backup.php'] as $file) {
+            self::assertArrayHasKey('threadsafeconnector/' . $file, $entries);
+        }
+        self::assertSame('<?php // the tool', $entries['threadsafeconnector/threadsafe-backup.php']);
+        self::assertStringContainsString("\$this->version = '1.3.0';", $entries['threadsafeconnector/threadsafeconnector.php']);
+        self::assertStringNotContainsString('0.0.0-dev', $entries['threadsafeconnector/threadsafeconnector.php']);
+    }
+
+    public function testTheLineOfTheVersionOfTheModuleIsFoundOnceOrRefused(): void
+    {
+        self::assertSame("\$this->version = '2.0.0-rc.1';", ConnectorBuilder::stampVersion("\$this->version = '0.0.0-dev';", '2.0.0-rc.1', 'prestashop'));
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('exactly one');
+
+        ConnectorBuilder::stampVersion("<?php // no version\n", '2.0.0', 'prestashop');
+    }
+
+    public function testAKindThatDoesNotExistIsRefused(): void
+    {
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('no satellite of the kind');
+
+        new ConnectorBuilder(dirname(__DIR__, 3), 'joomla');
+    }
+
     public function testAMissingToolIsRefused(): void
     {
         $this->expectException(RuntimeException::class);
