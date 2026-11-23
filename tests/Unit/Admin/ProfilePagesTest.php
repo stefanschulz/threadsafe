@@ -10,6 +10,7 @@ use ThreadSafe\Crypto\AgeKeys;
 use ThreadSafe\Profile\ProfileStore;
 use ThreadSafe\Profile\SiteProfile;
 use ThreadSafe\Tests\Support\AdminBrowser;
+use ThreadSafe\Tests\Support\JoomlaSite;
 use ThreadSafe\Tests\Support\TempDirectory;
 
 /**
@@ -311,6 +312,50 @@ final class ProfilePagesTest extends TestCase
         $nothing = $this->browser->post('/profiles', $this->fields(['action' => 'detect', 'path' => $this->base . '/nowhere']));
         self::assertSame(400, $nothing->status);
         self::assertStringContainsString('not a readable directory', $nothing->body);
+    }
+
+    public function testANewProfileDetectsTheTypeFromTheDirectoryUnlessTheTypeIsChosen(): void
+    {
+        $page = $this->browser->get('/new-profile');
+
+        self::assertStringContainsString('<option value="auto" selected>', $page->body);
+    }
+
+    public function testLookingAtAJoomlaSiteWithAutomaticDetectionFindsJoomla(): void
+    {
+        JoomlaSite::build($this->base . '/joomla');
+
+        $page = $this->browser->post('/profiles', $this->fields(['action' => 'detect', 'id' => '', 'type' => 'auto', 'path' => $this->base . '/joomla']));
+
+        self::assertSame(200, $page->status, $page->body);
+        self::assertStringContainsString('<option value="joomla" selected>', $page->body, 'the select shows what was found');
+        self::assertStringNotContainsString('<option value="auto" selected>', $page->body);
+    }
+
+    public function testASiteThatNoTypeKnowsIsAnyWebsiteWithAutomaticDetection(): void
+    {
+        $page = $this->browser->post('/profiles', $this->fields(['action' => 'detect', 'id' => '', 'type' => 'auto']));
+
+        self::assertSame(200, $page->status);
+        self::assertStringContainsString('<option value="generic" selected>', $page->body);
+    }
+
+    public function testSavingWithAutomaticDetectionStoresTheTypeThatWasFound(): void
+    {
+        JoomlaSite::build($this->base . '/joomla');
+
+        $response = $this->browser->post('/profiles', $this->fields(['id' => 'cms', 'type' => 'auto', 'path' => $this->base . '/joomla', 'skip_test' => '1']));
+
+        self::assertSame(303, $response->status, $response->body);
+        self::assertSame('joomla', $this->store()->load('cms')->type);
+    }
+
+    public function testAutomaticDetectionNeedsTheDirectory(): void
+    {
+        $page = $this->browser->post('/profiles', $this->fields(['type' => 'auto', 'path' => '']));
+
+        self::assertSame(400, $page->status);
+        self::assertStringContainsString('the website type is detected from it', $page->body);
     }
 
     public function testAProfileIsCreatedTestedAndShownWithAMessage(): void

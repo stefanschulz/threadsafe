@@ -27,6 +27,9 @@ use ThreadSafe\Web\Response;
  */
 final class ProfileController
 {
+    /** The choice of the website type that asks the directory (`ProfileService::autodetect()`). */
+    private const string AUTO = 'auto';
+
     /** The sections of the page of a profile: id => name. The first is the one that opens without `?tab=`. */
     private const array TABS = ['backups' => 'Backups', 'retention' => 'Retention', 'settings' => 'Settings'];
 
@@ -224,9 +227,7 @@ final class ProfileController
      */
     public function newForm(Context $context, array $params = []): Response
     {
-        $types = $this->service()->types();
-
-        return $this->form($context, null, ProfileForm::defaults((string) array_key_first($types)));
+        return $this->form($context, null, ProfileForm::defaults(self::AUTO));
     }
 
     /**
@@ -357,9 +358,21 @@ final class ProfileController
         $report = null;
         $messages = [];
 
+        // "Detect from the site": the type is the first specific one that recognises the directory, else any website
+        if ($values['type'] === self::AUTO) {
+            if (trim($values['path']) === '') {
+                return $this->form($context, $current, $values, ['Enter the directory of the site: the website type is detected from it.'], null, null, 400);
+            }
+            try {
+                [$values['type'], $detection] = $this->service()->autodetect(trim($values['path']));
+            } catch (ProfileException $e) {
+                return $this->form($context, $current, $values, [$e->getMessage()], null, null, 400);
+            }
+        }
+
         if ($action === 'detect') {
             try {
-                $detection = $this->service()->detect($values['type'], trim($values['path']));
+                $detection ??= $this->service()->detect($values['type'], trim($values['path']));
                 $values = $this->proposals($values, $detection, $current);
             } catch (ProfileException $e) {
                 $messages[] = $e->getMessage();
@@ -427,8 +440,8 @@ final class ProfileController
      */
     private function form(Context $context, ?SiteProfile $current, array $values, array $messages = [], ?Detection $detection = null, ?TestReport $report = null, int $status = 200): Response
     {
-        $types = $this->service()->types();
         $creating = $current === null;
+        $types = ($creating ? [self::AUTO => 'Detect from the site (recommended)'] : []) + $this->service()->types();
         $currentId = $current === null ? '' : $current->id;
         $currentName = $current === null ? '' : $current->name;
 
@@ -454,7 +467,7 @@ final class ProfileController
             . ($creating ? View::field('id', 'Id', 'text', $values['id'], ['mark' => '1', 'required' => 'required', 'maxlength' => '40', 'autocapitalize' => 'none', 'spellcheck' => 'false'], 'Lower-case letters, digits, hyphens and underscores; part of the names of the backup files. It cannot be changed later.')
                 : '<p>Id: <code>' . Html::e($currentId) . '</code></p>')
             . View::field('name', 'Name', 'text', $values['name'], [], 'Shown in the lists; the id if left empty.')
-            . View::select('type', 'Website type', $types, $values['type'], 'PrestaShop 9, Joomla (5 and 6) and WordPress know their own files and read their database from their configuration. Other website is any site: the files of its directory and, if you enter one, a database.')
+            . View::select('type', 'Website type', $types, $values['type'], '"Detect from the site" looks at the directory and takes PrestaShop 9, Joomla or WordPress if it is one, else any website. PrestaShop 9, Joomla (5 and 6) and WordPress know their own files and read their database from their configuration. Other website is any site: the files of its directory and, if you enter one, a database.')
             . View::field('path', 'Site directory', 'text', $values['path'], ['mark' => '1', 'required' => 'required', 'spellcheck' => 'false'], 'The absolute path of the application on this server.')
             . '<p><button type="submit" name="action" value="detect" class="secondary" formnovalidate>Look at the site</button></p>'
             . View::field('note', 'Note', 'text', $values['note'])
