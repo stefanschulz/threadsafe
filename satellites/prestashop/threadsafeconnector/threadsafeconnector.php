@@ -13,6 +13,9 @@ class Threadsafeconnector extends Module
 {
     const TOOL = 'threadsafe-backup.php';
 
+    /** The box "delete the backups on this shop when the module is uninstalled", kept in the configuration of the shop. */
+    const DELETE_ARCHIVES = 'THREADSAFECONNECTOR_DELETE_ARCHIVES';
+
     public function __construct()
     {
         $this->name = 'threadsafeconnector';
@@ -131,10 +134,12 @@ class Threadsafeconnector extends Module
 
     public function uninstall()
     {
-        // the pointer and the state go; the archives stay on the host (a box on the page will ask for more; docs/PHASE15.md 3.4)
-        $this->attempt(function ($agent) {
-            $agent->uninstall(false);
+        // the pointer and the state go; the archives stay on the host unless the box on the page was ticked
+        $archives = Configuration::get(self::DELETE_ARCHIVES) === '1';
+        $this->attempt(function ($agent) use ($archives) {
+            $agent->uninstall($archives);
         });
+        Configuration::deleteByName(self::DELETE_ARCHIVES);
         if (version_compare(PHP_VERSION, '8.4.0', '<')) {
             @unlink(rtrim(_PS_MODULE_DIR_, '/\\') . '/threadsafe-agent.php');
         }
@@ -150,10 +155,11 @@ class Threadsafeconnector extends Module
         }
         try {
             $agent = $this->agent();
-            $workspace = $agent->workspace();
+            require_once dirname(__FILE__) . '/includes/page.php';
 
-            return '<div class="panel"><h3>ThreadSafe Connector</h3><p>' . ($agent->isOn() ? 'The agent is switched on.' : 'The agent is off.')
-                . '</p><p>Workspace: <code>' . htmlspecialchars($workspace === null ? '-' : $workspace->directory(), ENT_QUOTES, 'UTF-8') . '</code></p></div>';
+            return \ThreadSafeConnectorShop\render($agent, Configuration::get(self::DELETE_ARCHIVES) === '1', function ($archives) {
+                Configuration::updateValue(Threadsafeconnector::DELETE_ARCHIVES, $archives ? '1' : '0');
+            });
         } catch (Throwable $e) {
             return '<div class="alert alert-danger">' . htmlspecialchars($e->getMessage(), ENT_QUOTES, 'UTF-8') . '</div>';
         }
