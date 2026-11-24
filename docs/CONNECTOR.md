@@ -70,5 +70,5 @@ An update of the plugin or module (upload the newer ZIP over it and replace) kee
 - The tool has no button that removes itself when it was used only as an agent (section 6).
 - `backup` and `restore` on the command line print nothing between their first and their last line.
 - A run that the central side gives up leaves the run on the site marked as running for up to 7 minutes; a new backup started within that time takes it up instead of making another.
-- The PrestaShop module is proven in Docker (PrestaShop 9.0.2, three database servers); the field test on a real shop is open, and PrestaShop 9.1, PHP older than 8.4 at the door and a host without `.htaccess` are not tried.
+- The PrestaShop module is proven in Docker (PrestaShop 9.0.2 on three database servers, 9.1 and 9.2.1 on MariaDB 10.11) and was tried on one real shop (PrestaShop 9.0.2: pairing, two backups, `verify`, off and on, a restore with the wizard). PHP older than 8.4 at the door and a host without `.htaccess` are not tried; a restored shop has no agent (the tool leaves itself out of every backup), so the module is installed and paired anew there.
 - Joomla and other satellites are not part of this release.
