@@ -58,7 +58,7 @@ class Threadsafeconnector extends Module
         $directory = dirname(__FILE__);
         $file = $directory . '/' . self::TOOL;
         if (!is_file($file)) {
-            throw new RuntimeException('The file ' . self::TOOL . ' is missing from the module directory. Install the module again from its ZIP.');
+            throw new RuntimeException('The file ' . self::TOOL . ' is missing from the module directory. A shop that was restored from a backup has no agent: the tool leaves itself out of every backup, because a copy cannot use the pairing of the live shop. To use the agent on this copy, install the module again from its ZIP and pair it anew.');
         }
         if (!is_dir($directory . '/.threadsafe-backup') && !is_writable($directory)) {
             throw new RuntimeException('The module directory ' . $directory . ' is not writable for the web server: the tool unpacks itself into a hidden directory there, once.');

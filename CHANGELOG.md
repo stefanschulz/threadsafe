@@ -12,6 +12,7 @@ of the GitHub release (see "Making a release" in [AGENTS.md](AGENTS.md)).
 
 ### Fixed
 
+- **The page of the connector on a restored site says why it has no agent.** The tool leaves itself out of every backup, so a shop or site that was restored from a backup misses `threadsafe-backup.php` in the module or plugin directory, and the page said only "install it again". The message now says that a restored copy has no agent and that it needs the module or plugin installed again and paired anew.
 - **`threadsafe profile add` detects the website type** when `--type` is left out or is `--type=auto` (it was a required option, and the web form always took *Other website*). The command says which type it took; `--type=NAME` still names it. `profile edit --type=auto` is refused.
 
 - **A new profile in the web interface detects the website type from the directory.** The form started on the first type of the list, *Other website*, and so a Joomla, WordPress or PrestaShop site was always stored as a generic one (`threadsafe-backup.php` did detect it). The type now starts on *Detect from the site*, which takes the first specific type that recognises the directory, else *Other website*; *Look at the site* shows the result in the form, and saving uses it. A type that was chosen by hand is kept.
