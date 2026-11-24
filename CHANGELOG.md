@@ -6,9 +6,13 @@ of the GitHub release (see "Making a release" in [AGENTS.md](AGENTS.md)).
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-11-24
+
+**The PrestaShop module of the connector** (phase 15). It builds on 1.2.0. Nothing changes for an installation that does not use the module. Field test on one real PrestaShop 9.0.2 shop on a host without SSH: pairing, two backups, `verify` with the key, the module switched off and on, and a restore with `threadsafe-restore.php`; the findings are fixed below. Not tried: PHP older than 8.4 at the door, a host without `.htaccess`, a shop of someone else's.
+
 ### Added
 
-- **A PrestaShop module for the connector** (phase 15): `threadsafe-connector-prestashop-X.Y.Z.zip` installs in the module manager of PrestaShop 9.0, pairs the agent on its *Configure* page and keeps the workspace in `var/`. Same agent, same central side as the WordPress plugin; guide: [docs/CONNECTOR.md](docs/CONNECTOR.md). Proven in Docker on all three database servers; not yet tried on a real shop.
+- **A PrestaShop module for the connector** (phase 15): `threadsafe-connector-prestashop-X.Y.Z.zip` installs in the module manager of PrestaShop 9.0 to 9.2, pairs the agent on its *Configure* page and keeps the workspace in `var/`. Same agent, same central side as the WordPress plugin; guide: [docs/CONNECTOR.md](docs/CONNECTOR.md). Proven in Docker on all three database servers with PrestaShop 9.0.2, and on MariaDB 10.11 with 9.1 and 9.2.1; tried on a real shop.
 
 ### Fixed
 
